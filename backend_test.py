@@ -922,7 +922,7 @@ startxref
         
         if success and status == 200:
             auto_ingested_none = data.get('autoIngestedUrls')
-            no_auto_ingest = auto_ingested_none is None or len(auto_ingested_none) == 0
+            no_auto_ingest = auto_ingested_none is None or (isinstance(auto_ingested_none, list) and len(auto_ingested_none) == 0)
             
             self.log_test("Auto-Ingest URL - No URLs means no auto-ingest", no_auto_ingest,
                          f"autoIngestedUrls field: {auto_ingested_none}")
