@@ -518,47 +518,47 @@ startxref
         self.log_test("URL Sources - Non-existent URL rejection", status == 400, 
                      f"Status: {status} (should be 400)")
 
-    def test_active_files_operations(self):
-        """Test setting and getting active files for chats"""
+    def test_active_sources_operations(self):
+        """Test setting and getting active sources for chats"""
         if not self.test_user_token or not self.test_chat_id:
-            self.log_test("Active Files - Missing requirements", False, 
+            self.log_test("Active Sources - Missing requirements", False, 
                          "Missing token or chat ID")
             return
             
         if not hasattr(self, 'test_file_id') or not self.test_file_id:
-            self.log_test("Active Files - No file ID", False, 
-                         "No test file ID available (file upload may have failed)")
+            self.log_test("Active Sources - No source ID", False, 
+                         "No test source ID available (source upload may have failed)")
             return
 
-        # Test set active files
-        success, data, status = self.make_request('POST', f'/chats/{self.test_chat_id}/active-files', {
-            "fileIds": [self.test_file_id]
+        # Test set active sources
+        success, data, status = self.make_request('POST', f'/chats/{self.test_chat_id}/active-sources', {
+            "sourceIds": [self.test_file_id]
         }, token=self.test_user_token)
         
         if success and status == 200:
-            self.log_test("Active Files - Set active", True, 
-                         f"Active files set: {data.get('activeFileIds', [])}")
+            self.log_test("Active Sources - Set active", True, 
+                         f"Active sources set: {data.get('activeSourceIds', [])}")
         else:
-            self.log_test("Active Files - Set active", False, f"Status: {status}, Data: {data}")
+            self.log_test("Active Sources - Set active", False, f"Status: {status}, Data: {data}")
 
-        # Test get active files
-        success, data, status = self.make_request('GET', f'/chats/{self.test_chat_id}/active-files', 
+        # Test get active sources
+        success, data, status = self.make_request('GET', f'/chats/{self.test_chat_id}/active-sources', 
                                                  token=self.test_user_token)
         
-        if success and status == 200 and 'activeFiles' in data:
-            active_files = data['activeFiles']
-            file_found = any(f['id'] == self.test_file_id for f in active_files)
-            self.log_test("Active Files - Get active", file_found, 
-                         f"Found {len(active_files)} active files, test file found: {file_found}")
+        if success and status == 200 and 'activeSources' in data:
+            active_sources = data['activeSources']
+            source_found = any(s['id'] == self.test_file_id for s in active_sources)
+            self.log_test("Active Sources - Get active", source_found, 
+                         f"Found {len(active_sources)} active sources, test source found: {source_found}")
         else:
-            self.log_test("Active Files - Get active", False, f"Status: {status}, Data: {data}")
+            self.log_test("Active Sources - Get active", False, f"Status: {status}, Data: {data}")
 
-        # Test invalid file ID (should fail)
-        success, data, status = self.make_request('POST', f'/chats/{self.test_chat_id}/active-files', {
-            "fileIds": ["invalid-file-id"]
+        # Test invalid source ID (should fail)
+        success, data, status = self.make_request('POST', f'/chats/{self.test_chat_id}/active-sources', {
+            "sourceIds": ["invalid-source-id"]
         }, token=self.test_user_token)
         
-        self.log_test("Active Files - Invalid file ID", status == 400, 
+        self.log_test("Active Sources - Invalid source ID", status == 400, 
                      f"Status: {status} (should be 400)")
 
     def test_message_with_file_context(self):
