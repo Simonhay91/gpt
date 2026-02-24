@@ -6,10 +6,11 @@ import {
   LayoutDashboard, 
   Settings, 
   LogOut, 
-  Sparkles, 
+  Globe, 
   Menu, 
   X,
-  ChevronRight
+  ChevronRight,
+  Users
 } from 'lucide-react';
 
 const DashboardLayout = ({ children }) => {
@@ -33,7 +34,12 @@ const DashboardLayout = ({ children }) => {
 
   if (user?.isAdmin) {
     navItems.push({
-      name: 'Admin Config',
+      name: 'Users',
+      path: '/admin/users',
+      icon: Users
+    });
+    navItems.push({
+      name: 'GPT Config',
       path: '/admin/config',
       icon: Settings
     });
@@ -66,8 +72,8 @@ const DashboardLayout = ({ children }) => {
       `} data-testid="sidebar">
         {/* Logo */}
         <div className="h-16 flex items-center gap-2 px-6 border-b border-border">
-          <Sparkles className="h-5 w-5 text-indigo-500" />
-          <span className="font-bold tracking-tight">SHARED GPT</span>
+          <Globe className="h-5 w-5 text-indigo-500" />
+          <span className="font-bold tracking-tight">PLANET GPT</span>
         </div>
 
         {/* Navigation */}
