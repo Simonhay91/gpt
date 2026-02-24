@@ -82,13 +82,18 @@ const ChatPage = () => {
       const messagesRes = await axios.get(`${API}/chats/${chatId}/messages`);
       setMessages(messagesRes.data);
       
-      // Get project sources
-      const sourcesRes = await axios.get(`${API}/projects/${chatRes.data.projectId}/sources`);
-      setProjectSources(sourcesRes.data);
-      
-      // Get generated images
-      const imagesRes = await axios.get(`${API}/projects/${chatRes.data.projectId}/images`);
-      setGeneratedImages(imagesRes.data);
+      // Only fetch sources and images if chat belongs to a project
+      if (chatRes.data.projectId) {
+        const sourcesRes = await axios.get(`${API}/projects/${chatRes.data.projectId}/sources`);
+        setProjectSources(sourcesRes.data);
+        
+        const imagesRes = await axios.get(`${API}/projects/${chatRes.data.projectId}/images`);
+        setGeneratedImages(imagesRes.data);
+      } else {
+        // Quick chat - no sources
+        setProjectSources([]);
+        setGeneratedImages([]);
+      }
     } catch (error) {
       toast.error('Failed to load chat');
       navigate('/dashboard');
@@ -96,6 +101,9 @@ const ChatPage = () => {
       setIsLoading(false);
     }
   };
+
+  // Check if this is a quick chat (no project)
+  const isQuickChat = chat && !chat.projectId;
 
   const handleImageGenerated = (newImage) => {
     setGeneratedImages(prev => [newImage, ...prev]);
