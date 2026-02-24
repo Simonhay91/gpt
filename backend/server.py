@@ -393,6 +393,105 @@ async def get_relevant_chunks(source_ids: List[str], project_id: str, query: str
     
     return selected_chunks
 
+def extract_urls_from_text(text: str) -> List[str]:
+    """Extract unique URLs from text"""
+    urls = URL_PATTERN.findall(text)
+    # Clean URLs (remove trailing punctuation)
+    cleaned = []
+    for url in urls:
+        # Remove trailing punctuation that might have been captured
+        url = url.rstrip('.,;:!?)]}"\'')
+        if url and url not in cleaned:
+            cleaned.append(url)
+    return cleaned[:MAX_AUTO_INGEST_URLS]  # Limit number of auto-ingested URLs
+
+async def auto_ingest_url(url: str, project_id: str) -> Optional[dict]:
+    """
+    Auto-ingest a URL: fetch, extract text, chunk, and store.
+    Returns the source document or None if failed.
+    """
+    try:
+        # Check if URL already exists in this project
+        existing = await db.sources.find_one({
+            "url": url,
+            "projectId": project_id
+        })
+        
+        if existing:
+            logger.info(f"URL already ingested: {url}")
+            return existing
+        
+        # Fetch URL content
+        async with httpx.AsyncClient(timeout=30.0, follow_redirects=True, verify=False) as http_client:
+            response = await http_client.get(url, headers={
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+            })
+            response.raise_for_status()
+        
+        # Check content type
+        content_type = response.headers.get('content-type', '')
+        if 'text/html' not in content_type and 'text/plain' not in content_type:
+            logger.warning(f"URL {url} returned non-text content: {content_type}")
+            return None
+        
+        # Extract text from HTML
+        html_content = response.text
+        extracted_text = extract_text_from_html(html_content)
+        
+        if not extracted_text or len(extracted_text.strip()) < 10:
+            logger.warning(f"Could not extract text from URL: {url}")
+            return None
+        
+        # Generate source ID
+        source_id = str(uuid.uuid4())
+        
+        # Create chunks
+        chunks = chunk_text(extracted_text)
+        
+        # Extract domain for display name
+        from urllib.parse import urlparse
+        parsed_url = urlparse(url)
+        display_name = f"{parsed_url.netloc}{parsed_url.path[:50]}"
+        
+        # Save source metadata
+        source_doc = {
+            "id": source_id,
+            "projectId": project_id,
+            "kind": "url",
+            "originalName": display_name,
+            "url": url,
+            "mimeType": "text/html",
+            "sizeBytes": len(html_content.encode('utf-8')),
+            "storagePath": None,
+            "createdAt": datetime.now(timezone.utc).isoformat()
+        }
+        await db.sources.insert_one(source_doc)
+        
+        # Save chunks
+        for i, chunk_content in enumerate(chunks):
+            chunk_doc = {
+                "id": str(uuid.uuid4()),
+                "sourceId": source_id,
+                "projectId": project_id,
+                "chunkIndex": i,
+                "content": chunk_content,
+                "createdAt": datetime.now(timezone.utc).isoformat()
+            }
+            await db.source_chunks.insert_one(chunk_doc)
+        
+        logger.info(f"Auto-ingested URL {url} with {len(chunks)} chunks for project {project_id}")
+        return source_doc
+        
+    except httpx.TimeoutException:
+        logger.warning(f"Timeout fetching URL: {url}")
+        return None
+    except httpx.HTTPStatusError as e:
+        logger.warning(f"HTTP error fetching URL {url}: {e.response.status_code}")
+        return None
+    except Exception as e:
+        logger.error(f"Error auto-ingesting URL {url}: {str(e)}")
+        return None
+
 # ==================== AUTH ENDPOINTS ====================
 
 @api_router.post("/auth/register", response_model=TokenResponse)
