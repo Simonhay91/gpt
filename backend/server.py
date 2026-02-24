@@ -888,8 +888,21 @@ async def send_message(chat_id: str, message_data: MessageCreate, current_user: 
     active_source_ids = chat.get("activeSourceIds", [])
     citations = []
     document_context = ""
+    active_source_names = []
     
     if active_source_ids:
+        # Get source names first
+        sources = await db.sources.find({
+            "id": {"$in": active_source_ids},
+            "projectId": chat["projectId"]
+        }, {"_id": 0}).to_list(1000)
+        
+        source_names = {}
+        for s in sources:
+            name = s.get("originalName") or s.get("url") or "Unknown"
+            source_names[s["id"]] = name
+            active_source_names.append(name)
+        
         # Get relevant chunks using keyword ranking
         relevant_chunks = await get_relevant_chunks(
             active_source_ids, 
@@ -900,16 +913,6 @@ async def send_message(chat_id: str, message_data: MessageCreate, current_user: 
         if relevant_chunks:
             # Build context and track citations
             context_parts = []
-            source_names = {}
-            
-            # Get source names for citations
-            sources = await db.sources.find({
-                "id": {"$in": active_source_ids},
-                "projectId": chat["projectId"]
-            }, {"_id": 0}).to_list(1000)
-            
-            for s in sources:
-                source_names[s["id"]] = s.get("originalName") or s.get("url") or "Unknown"
             
             # Build context with chunk markers
             for chunk in relevant_chunks:
