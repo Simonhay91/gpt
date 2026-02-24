@@ -111,6 +111,30 @@ const DashboardLayout = ({ children }) => {
 
         {/* User Section */}
         <div className="absolute bottom-0 left-0 right-0 p-4 border-t border-border">
+          {/* Theme Toggle */}
+          <div className="flex items-center justify-between mb-4 px-1">
+            <span className="text-sm text-muted-foreground">Theme</span>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={toggleTheme}
+              className="gap-2 h-8"
+              data-testid="theme-toggle-btn"
+            >
+              {isDark ? (
+                <>
+                  <Sun className="h-4 w-4" />
+                  Light
+                </>
+              ) : (
+                <>
+                  <Moon className="h-4 w-4" />
+                  Dark
+                </>
+              )}
+            </Button>
+          </div>
+
           <div className="flex items-center gap-3 mb-4">
             <div className="w-10 h-10 rounded-full bg-gradient-to-br from-indigo-500 to-purple-500 flex items-center justify-center text-white font-medium">
               {user?.email?.charAt(0).toUpperCase()}
