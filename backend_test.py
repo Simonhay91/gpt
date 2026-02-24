@@ -792,6 +792,190 @@ startxref
             self.log_test("Source Deletion - Delete source", False, 
                          f"Status: {status}, Data: {data}")
 
+    def test_image_generation_crud(self):
+        """Test image generation CRUD operations"""
+        if not self.test_user_token or not self.test_project_id:
+            self.log_test("Image Generation - Missing requirements", False, 
+                         "Missing token or project ID")
+            return
+
+        # Test 1: Generate image with valid prompt
+        success, data, status = self.make_request('POST', f'/projects/{self.test_project_id}/generate-image', {
+            "prompt": "A futuristic cityscape at sunset with flying cars",
+            "size": "1024x1024"
+        }, token=self.test_user_token)
+        
+        if success and status == 200 and 'id' in data:
+            self.test_image_id = data['id']
+            self.log_test("Image Generation - Generate image", True, 
+                         f"Image ID: {self.test_image_id}, Size: {data.get('size')}")
+            
+            # Verify response structure
+            required_fields = ['id', 'projectId', 'prompt', 'imagePath', 'imageUrl', 'size', 'createdAt']
+            has_all_fields = all(field in data for field in required_fields)
+            self.log_test("Image Generation - Response structure", has_all_fields,
+                         f"Missing fields: {[f for f in required_fields if f not in data]}")
+        else:
+            self.log_test("Image Generation - Generate image", False, 
+                         f"Status: {status}, Data: {data}")
+            return
+
+        # Test 2: Get generated image file
+        success, data, status = self.make_request('GET', f'/images/{self.test_image_id}', 
+                                                 token=self.test_user_token)
+        
+        # For image endpoint, we expect binary data, so success means status 200
+        self.log_test("Image Generation - Get image file", success and status == 200,
+                     f"Status: {status}, Content type should be image/png")
+
+        # Test 3: List project images
+        success, data, status = self.make_request('GET', f'/projects/{self.test_project_id}/images', 
+                                                 token=self.test_user_token)
+        
+        if success and status == 200 and isinstance(data, list):
+            image_found = any(img['id'] == self.test_image_id for img in data)
+            self.log_test("Image Generation - List project images", image_found,
+                         f"Found {len(data)} images, test image found: {image_found}")
+        else:
+            self.log_test("Image Generation - List project images", False,
+                         f"Status: {status}, Data: {data}")
+
+        # Test 4: Test different image sizes
+        for size in ["1024x1792", "1792x1024"]:
+            success, data, status = self.make_request('POST', f'/projects/{self.test_project_id}/generate-image', {
+                "prompt": f"A simple test image in {size} format",
+                "size": size
+            }, token=self.test_user_token)
+            
+            if success and status == 200 and data.get('size') == size:
+                self.log_test(f"Image Generation - Size {size}", True,
+                             f"Generated image with size {size}")
+            else:
+                self.log_test(f"Image Generation - Size {size}", False,
+                             f"Status: {status}, Expected size: {size}, Got: {data.get('size')}")
+
+        # Test 5: Test invalid size (should fail)
+        success, data, status = self.make_request('POST', f'/projects/{self.test_project_id}/generate-image', {
+            "prompt": "Test image",
+            "size": "invalid-size"
+        }, token=self.test_user_token)
+        
+        self.log_test("Image Generation - Invalid size rejection", status == 400,
+                     f"Status: {status} (should be 400)")
+
+        # Test 6: Test empty prompt (should fail)
+        success, data, status = self.make_request('POST', f'/projects/{self.test_project_id}/generate-image', {
+            "prompt": "",
+            "size": "1024x1024"
+        }, token=self.test_user_token)
+        
+        self.log_test("Image Generation - Empty prompt rejection", status == 400,
+                     f"Status: {status} (should be 400)")
+
+        # Test 7: Test very long prompt (should fail)
+        long_prompt = "A" * 5000  # 5000 characters
+        success, data, status = self.make_request('POST', f'/projects/{self.test_project_id}/generate-image', {
+            "prompt": long_prompt,
+            "size": "1024x1024"
+        }, token=self.test_user_token)
+        
+        self.log_test("Image Generation - Long prompt rejection", status == 400,
+                     f"Status: {status} (should be 400)")
+
+    def test_image_rate_limiting(self):
+        """Test image generation rate limiting"""
+        if not self.test_user_token or not self.test_project_id:
+            self.log_test("Image Rate Limiting - Missing requirements", False, 
+                         "Missing token or project ID")
+            return
+
+        # Generate multiple images quickly to test rate limiting
+        # Note: This test might be limited by actual OpenAI API costs
+        generated_count = 0
+        rate_limit_hit = False
+        
+        for i in range(3):  # Try to generate 3 images quickly
+            success, data, status = self.make_request('POST', f'/projects/{self.test_project_id}/generate-image', {
+                "prompt": f"Test image {i+1} for rate limiting",
+                "size": "1024x1024"
+            }, token=self.test_user_token)
+            
+            if success and status == 200:
+                generated_count += 1
+            elif status == 429:  # Rate limit exceeded
+                rate_limit_hit = True
+                break
+            else:
+                # Other error, might be OpenAI API issue
+                break
+        
+        # We expect either successful generation or rate limiting
+        # Since we're testing with a fresh user, we should be able to generate at least 1 image
+        self.log_test("Image Rate Limiting - Can generate images within limit", generated_count >= 1,
+                     f"Generated {generated_count} images before hitting limit")
+        
+        # If we hit rate limit, that's also a valid test result
+        if rate_limit_hit:
+            self.log_test("Image Rate Limiting - Rate limit enforced", True,
+                         "Rate limit (429) returned when exceeded")
+
+    def test_image_project_ownership(self):
+        """Test image project ownership verification"""
+        if not self.test_user_token or not self.admin_user_token or not hasattr(self, 'test_image_id'):
+            self.log_test("Image Ownership - Missing requirements", False, 
+                         "Missing tokens or image ID")
+            return
+
+        # Try to access image from different user (should fail)
+        success, data, status = self.make_request('GET', f'/images/{self.test_image_id}', 
+                                                 token=self.admin_user_token)
+        
+        self.log_test("Image Ownership - Cross-user access denied", status == 404,
+                     f"Status: {status} (should be 404)")
+
+        # Try to delete image from different user (should fail)
+        success, data, status = self.make_request('DELETE', f'/projects/{self.test_project_id}/images/{self.test_image_id}', 
+                                                 token=self.admin_user_token)
+        
+        self.log_test("Image Ownership - Cross-user deletion denied", status == 404,
+                     f"Status: {status} (should be 404)")
+
+    def test_image_deletion(self):
+        """Test image deletion"""
+        if not self.test_user_token or not self.test_project_id or not hasattr(self, 'test_image_id'):
+            self.log_test("Image Deletion - Missing requirements", False, 
+                         "Missing token, project ID, or image ID")
+            return
+
+        # Delete the test image
+        success, data, status = self.make_request('DELETE', f'/projects/{self.test_project_id}/images/{self.test_image_id}', 
+                                                 token=self.test_user_token)
+        
+        if success and status == 200:
+            self.log_test("Image Deletion - Delete image", True, "Image deleted successfully")
+            
+            # Verify image is no longer accessible
+            success, data, status = self.make_request('GET', f'/images/{self.test_image_id}', 
+                                                     token=self.test_user_token)
+            
+            self.log_test("Image Deletion - Verify file deletion", status == 404,
+                         f"Status: {status} (should be 404)")
+            
+            # Verify image is not in project list
+            success, data, status = self.make_request('GET', f'/projects/{self.test_project_id}/images', 
+                                                     token=self.test_user_token)
+            
+            if success and status == 200 and isinstance(data, list):
+                image_found = any(img['id'] == self.test_image_id for img in data)
+                self.log_test("Image Deletion - Verify list removal", not image_found,
+                             f"Image still in list: {image_found} (should be False)")
+            else:
+                self.log_test("Image Deletion - Verify list removal", False,
+                             f"Status: {status}, Data: {data}")
+        else:
+            self.log_test("Image Deletion - Delete image", False,
+                         f"Status: {status}, Data: {data}")
+
     def test_auto_ingest_url_feature(self):
         """Test auto-ingest URL feature in messages"""
         if not self.test_user_token or not self.test_chat_id:
