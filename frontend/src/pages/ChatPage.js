@@ -63,6 +63,13 @@ const ChatPage = () => {
   const [moveDialogOpen, setMoveDialogOpen] = useState(false);
   const [userProjects, setUserProjects] = useState([]);
   const [isMovingChat, setIsMovingChat] = useState(false);
+  
+  // Rename chat state
+  const [isEditingName, setIsEditingName] = useState(false);
+  const [editedName, setEditedName] = useState('');
+  const [isSavingName, setIsSavingName] = useState(false);
+  const nameInputRef = useRef(null);
+  
   const messagesEndRef = useRef(null);
   const textareaRef = useRef(null);
   const fileInputRef = useRef(null);
