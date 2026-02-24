@@ -170,6 +170,14 @@ class ActiveSourcesUpdate(BaseModel):
 class UrlSourceCreate(BaseModel):
     url: str
 
+class UserPromptUpdate(BaseModel):
+    customPrompt: Optional[str] = None
+
+class UserPromptResponse(BaseModel):
+    userId: str
+    customPrompt: Optional[str] = None
+    updatedAt: str
+
 class ImageGenerateRequest(BaseModel):
     prompt: str
     size: Optional[str] = "1024x1024"
