@@ -46,16 +46,20 @@ openai_client = OpenAI(api_key=OPENAI_API_KEY) if OPENAI_API_KEY else None
 # File storage settings
 UPLOAD_DIR = ROOT_DIR / "uploads"
 UPLOAD_DIR.mkdir(exist_ok=True)
+IMAGES_DIR = ROOT_DIR / "generated_images"
+IMAGES_DIR.mkdir(exist_ok=True)
 MAX_FILE_SIZE = 10 * 1024 * 1024  # 10MB
 CHUNK_SIZE = 1500  # characters per chunk
 MAX_CONTEXT_CHARS = 15000  # Max characters to include in context
 MAX_CHUNKS_PER_QUERY = 10  # Max chunks to include per query
 MAX_AUTO_INGEST_URLS = 3  # Max URLs to auto-ingest per message
 
+# Image generation settings
+IMAGE_RATE_LIMIT_PER_HOUR = 10  # Max images per user per hour
+VALID_IMAGE_SIZES = ["1024x1024", "1024x1792", "1792x1024"]
+
 # URL pattern for detecting URLs in messages
 URL_PATTERN = re.compile(r'https?://[^\s<>"{}|\\^`\[\]]+', re.IGNORECASE)
-MAX_CONTEXT_CHARS = 15000  # Max characters to include in context
-MAX_CHUNKS_PER_QUERY = 10  # Max chunks to include per query
 
 # Supported MIME types
 SUPPORTED_MIME_TYPES = {
