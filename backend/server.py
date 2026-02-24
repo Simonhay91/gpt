@@ -101,6 +101,14 @@ class UserResponse(BaseModel):
     isAdmin: bool
     createdAt: str
 
+class UserWithUsageResponse(BaseModel):
+    id: str
+    email: str
+    isAdmin: bool
+    createdAt: str
+    totalTokensUsed: int
+    totalMessagesCount: int
+
 class TokenResponse(BaseModel):
     token: str
     user: UserResponse
