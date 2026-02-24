@@ -91,6 +91,16 @@ Build a production-ready full-stack SaaS web app called "Shared Project GPT" wit
 - Login/Register pages with dark theme
 - Dashboard, Project, Chat, Admin pages
 
+### Date: Feb 24, 2026 - Multi-Format Sources + Citations
+- Extended file support: PDF, DOCX, TXT, MD
+- URL source ingestion with HTML extraction
+- Keyword-based retrieval algorithm
+- Citations tracking with source names and chunk indices
+- Updated UI with sources panel, type badges, citations display
+- Auto-activation of newly uploaded sources
+- BeautifulSoup for HTML text extraction
+- python-docx for DOCX parsing
+
 ### Date: Feb 24, 2026 - Active Sources UX Improvements
 - Updated developer prompt with strict ATTACHMENTS / ACTIVE SOURCES RULES
 - AI tells users to activate sources when none are selected
