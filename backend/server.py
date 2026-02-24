@@ -124,6 +124,7 @@ class MessageResponse(BaseModel):
     content: str
     createdAt: str
     citations: Optional[List[dict]] = None
+    usedSources: Optional[List[dict]] = None  # For UI to reliably show "Sources used"
 
 class GPTConfigUpdate(BaseModel):
     model: Optional[str] = None
