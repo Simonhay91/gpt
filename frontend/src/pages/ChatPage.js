@@ -149,6 +149,45 @@ const ChatPage = () => {
     }
   };
 
+  const startEditingName = () => {
+    setEditedName(chat?.name || 'Quick Chat');
+    setIsEditingName(true);
+    setTimeout(() => nameInputRef.current?.focus(), 100);
+  };
+
+  const cancelEditingName = () => {
+    setIsEditingName(false);
+    setEditedName('');
+  };
+
+  const saveNewName = async () => {
+    if (!editedName.trim()) {
+      toast.error('Name cannot be empty');
+      return;
+    }
+    
+    setIsSavingName(true);
+    try {
+      const response = await axios.put(`${API}/chats/${chatId}/rename`, { name: editedName.trim() });
+      setChat(response.data);
+      setIsEditingName(false);
+      toast.success('Chat renamed');
+    } catch (error) {
+      toast.error('Failed to rename chat');
+    } finally {
+      setIsSavingName(false);
+    }
+  };
+
+  const handleNameKeyDown = (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      saveNewName();
+    } else if (e.key === 'Escape') {
+      cancelEditingName();
+    }
+  };
+
   const handleImageGenerated = (newImage) => {
     setGeneratedImages(prev => [newImage, ...prev]);
     
