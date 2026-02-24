@@ -1471,7 +1471,7 @@ async def update_gpt_config(config_data: GPTConfigUpdate, current_user: dict = D
     if not is_admin(current_user["email"]):
         raise HTTPException(status_code=403, detail="Admin access required")
     
-    config = await ensure_gpt_config()
+    await ensure_gpt_config()
     
     update_data = {"updatedAt": datetime.now(timezone.utc).isoformat()}
     if config_data.model is not None:
