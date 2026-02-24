@@ -321,10 +321,10 @@ class SharedProjectGPTTester:
             self.log_test("Admin Config - Regular user access", status == 403, 
                          f"Status: {status} (should be 403)")
 
-    def test_pdf_file_operations(self):
-        """Test PDF file upload, list, and delete operations"""
+    def test_source_file_operations(self):
+        """Test file source upload (PDF, DOCX, TXT, MD), list, and delete operations"""
         if not self.test_user_token or not self.test_project_id:
-            self.log_test("PDF Files - Missing requirements", False, 
+            self.log_test("Source Files - Missing requirements", False, 
                          "No test user token or project ID available")
             return
 
@@ -399,8 +399,8 @@ startxref
 486
 %%EOF"""
 
-        # Test file upload
-        url = f"{self.api_url}/projects/{self.test_project_id}/files"
+        # Test PDF upload
+        url = f"{self.api_url}/projects/{self.test_project_id}/sources/upload"
         headers = {'Authorization': f'Bearer {self.test_user_token}'}
         files = {'file': ('test.pdf', pdf_content, 'application/pdf')}
         
@@ -411,38 +411,112 @@ startxref
             
             if success and 'id' in data:
                 self.test_file_id = data['id']
-                self.log_test("PDF Files - Upload", True, 
-                             f"File ID: {self.test_file_id}, Chunks: {data.get('chunkCount', 0)}")
+                self.log_test("Source Files - PDF Upload", True, 
+                             f"Source ID: {self.test_file_id}, Chunks: {data.get('chunkCount', 0)}")
             else:
-                self.log_test("PDF Files - Upload", False, 
+                self.log_test("Source Files - PDF Upload", False, 
                              f"Status: {response.status_code}, Data: {data}")
                 return
                 
         except Exception as e:
-            self.log_test("PDF Files - Upload", False, f"Error: {str(e)}")
+            self.log_test("Source Files - PDF Upload", False, f"Error: {str(e)}")
             return
 
-        # Test list files
-        success, data, status = self.make_request('GET', f'/projects/{self.test_project_id}/files', 
+        # Test TXT file upload
+        txt_content = "This is a test text document.\nIt contains multiple lines of text for testing purposes.\nThis should be chunked properly."
+        files = {'file': ('test.txt', txt_content.encode('utf-8'), 'text/plain')}
+        
+        try:
+            response = requests.post(url, files=files, headers=headers, timeout=30)
+            success = response.status_code == 200
+            data = response.json() if success else {"error": response.text}
+            
+            if success and 'id' in data:
+                self.log_test("Source Files - TXT Upload", True, 
+                             f"Source ID: {data['id']}, Chunks: {data.get('chunkCount', 0)}")
+            else:
+                self.log_test("Source Files - TXT Upload", False, 
+                             f"Status: {response.status_code}, Data: {data}")
+                
+        except Exception as e:
+            self.log_test("Source Files - TXT Upload", False, f"Error: {str(e)}")
+
+        # Test MD file upload
+        md_content = "# Test Markdown Document\n\nThis is a **test** markdown document.\n\n## Section 1\n\nIt contains multiple sections for testing purposes."
+        files = {'file': ('test.md', md_content.encode('utf-8'), 'text/markdown')}
+        
+        try:
+            response = requests.post(url, files=files, headers=headers, timeout=30)
+            success = response.status_code == 200
+            data = response.json() if success else {"error": response.text}
+            
+            if success and 'id' in data:
+                self.log_test("Source Files - MD Upload", True, 
+                             f"Source ID: {data['id']}, Chunks: {data.get('chunkCount', 0)}")
+            else:
+                self.log_test("Source Files - MD Upload", False, 
+                             f"Status: {response.status_code}, Data: {data}")
+                
+        except Exception as e:
+            self.log_test("Source Files - MD Upload", False, f"Error: {str(e)}")
+
+        # Test list sources
+        success, data, status = self.make_request('GET', f'/projects/{self.test_project_id}/sources', 
                                                  token=self.test_user_token)
         
         if success and status == 200 and isinstance(data, list):
             file_found = any(f['id'] == self.test_file_id for f in data)
-            self.log_test("PDF Files - List", file_found, 
-                         f"Found {len(data)} files, test file found: {file_found}")
+            self.log_test("Source Files - List", file_found and len(data) >= 1, 
+                         f"Found {len(data)} sources, test PDF found: {file_found}")
         else:
-            self.log_test("PDF Files - List", False, f"Status: {status}, Data: {data}")
+            self.log_test("Source Files - List", False, f"Status: {status}, Data: {data}")
 
-        # Test non-PDF file upload (should fail)
-        url = f"{self.api_url}/projects/{self.test_project_id}/files"
-        files = {'file': ('test.txt', b'This is not a PDF', 'text/plain')}
+        # Test unsupported file upload (should fail)
+        files = {'file': ('test.exe', b'This is not a supported file', 'application/octet-stream')}
         
         try:
             response = requests.post(url, files=files, headers=headers, timeout=30)
-            self.log_test("PDF Files - Non-PDF rejection", response.status_code == 400, 
+            self.log_test("Source Files - Unsupported file rejection", response.status_code == 400, 
                          f"Status: {response.status_code} (should be 400)")
         except Exception as e:
-            self.log_test("PDF Files - Non-PDF rejection", False, f"Error: {str(e)}")
+            self.log_test("Source Files - Unsupported file rejection", False, f"Error: {str(e)}")
+
+    def test_url_source_operations(self):
+        """Test URL source operations"""
+        if not self.test_user_token or not self.test_project_id:
+            self.log_test("URL Sources - Missing requirements", False, 
+                         "No test user token or project ID available")
+            return
+
+        # Test valid URL addition
+        test_url = "https://httpbin.org/html"
+        success, data, status = self.make_request('POST', f'/projects/{self.test_project_id}/sources/url', {
+            "url": test_url
+        }, token=self.test_user_token)
+        
+        if success and status == 200 and 'id' in data:
+            self.test_url_source_id = data['id']
+            self.log_test("URL Sources - Add valid URL", True, 
+                         f"Source ID: {self.test_url_source_id}, Chunks: {data.get('chunkCount', 0)}")
+        else:
+            self.log_test("URL Sources - Add valid URL", False, 
+                         f"Status: {status}, Data: {data}")
+
+        # Test invalid URL (should fail)
+        success, data, status = self.make_request('POST', f'/projects/{self.test_project_id}/sources/url', {
+            "url": "not-a-valid-url"
+        }, token=self.test_user_token)
+        
+        self.log_test("URL Sources - Invalid URL rejection", status == 400, 
+                     f"Status: {status} (should be 400)")
+
+        # Test non-existent URL (should fail)
+        success, data, status = self.make_request('POST', f'/projects/{self.test_project_id}/sources/url', {
+            "url": "https://this-domain-does-not-exist-12345.com"
+        }, token=self.test_user_token)
+        
+        self.log_test("URL Sources - Non-existent URL rejection", status == 400, 
+                     f"Status: {status} (should be 400)")
 
     def test_active_files_operations(self):
         """Test setting and getting active files for chats"""
