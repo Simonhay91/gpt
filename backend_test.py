@@ -809,7 +809,7 @@ startxref
         
         if success and status == 200:
             # Check if autoIngestedUrls field is present and populated
-            auto_ingested_urls = data.get('autoIngestedUrls', [])
+            auto_ingested_urls = data.get('autoIngestedUrls') or []
             has_auto_ingested = len(auto_ingested_urls) > 0
             
             self.log_test("Auto-Ingest URL - URL detected and ingested", has_auto_ingested,
@@ -824,7 +824,7 @@ startxref
                          f"AI Response: {data.get('content', '')[:150]}...")
             
             # Check if citations are present
-            citations = data.get('citations', [])
+            citations = data.get('citations') or []
             has_citations = len(citations) > 0
             
             self.log_test("Auto-Ingest URL - Citations from auto-ingested URL", has_citations,
