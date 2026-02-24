@@ -1,0 +1,166 @@
+{
+  "brand_identity": {
+    "name": "Shared Project GPT",
+    "archetype": "Dark Swiss Utility",
+    "vibe": "Precision, Stealth, High-Performance",
+    "description": "A production-grade tool for developers. No fluff. Just signal.",
+    "logo_text": "SHARED GPT"
+  },
+  "typography": {
+    "fonts": {
+      "heading": {
+        "family": "Outfit",
+        "weights": ["500", "700"],
+        "usage": "Page titles, Section headers, Modal titles",
+        "fallback": "sans-serif"
+      },
+      "body": {
+        "family": "Inter",
+        "weights": ["400", "500"],
+        "usage": "General UI text, descriptions, inputs",
+        "fallback": "sans-serif"
+      },
+      "code": {
+        "family": "JetBrains Mono",
+        "weights": ["400"],
+        "usage": "Code snippets, API keys, System Prompts, IDs",
+        "fallback": "monospace"
+      }
+    },
+    "rules": [
+      "Headings must be tight: tracking-tight (-0.02em)",
+      "Overlines/Labels must be wide: tracking-widest uppercase text-xs font-medium text-muted-foreground",
+      "Body text should be relaxed: leading-relaxed",
+      "Never use pure white (#FFFFFF) for body text. Use #E4E4E7 (Zinc-200) for readability."
+    ]
+  },
+  "colors": {
+    "palette": {
+      "background": {
+        "default": "#09090B",
+        "subtle": "#18181B",
+        "card": "#121212"
+      },
+      "foreground": {
+        "default": "#FAFAFA",
+        "muted": "#A1A1AA",
+        "inverse": "#09090B"
+      },
+      "primary": {
+        "default": "#FFFFFF",
+        "foreground": "#09090B",
+        "hover": "#E4E4E7"
+      },
+      "accent": {
+        "default": "#6366F1",
+        "glow": "rgba(99, 102, 241, 0.5)"
+      },
+      "border": {
+        "default": "#27272A",
+        "active": "#3F3F46"
+      },
+      "status": {
+        "success": "#10B981",
+        "error": "#EF4444",
+        "warning": "#F59E0B"
+      }
+    },
+    "tailwind_config_extension": {
+      "colors": {
+        "background": "hsl(240 10% 3.9%)",
+        "foreground": "hsl(0 0% 98%)",
+        "card": "hsl(240 10% 3.9%)",
+        "card-foreground": "hsl(0 0% 98%)",
+        "popover": "hsl(240 10% 3.9%)",
+        "popover-foreground": "hsl(0 0% 98%)",
+        "primary": "hsl(0 0% 98%)",
+        "primary-foreground": "hsl(240 5.9% 10%)",
+        "secondary": "hsl(240 3.7% 15.9%)",
+        "secondary-foreground": "hsl(0 0% 98%)",
+        "muted": "hsl(240 3.7% 15.9%)",
+        "muted-foreground": "hsl(240 5% 64.9%)",
+        "accent": "hsl(240 3.7% 15.9%)",
+        "accent-foreground": "hsl(0 0% 98%)",
+        "destructive": "hsl(0 62.8% 30.6%)",
+        "destructive-foreground": "hsl(0 0% 98%)",
+        "border": "hsl(240 3.7% 15.9%)",
+        "input": "hsl(240 3.7% 15.9%)",
+        "ring": "hsl(240 4.9% 83.9%)"
+      }
+    }
+  },
+  "layout": {
+    "spacing_system": "Generous. Use p-6 or p-8 for cards. Gap-6 for grids.",
+    "grid_system": {
+      "dashboard": "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6",
+      "form": "flex flex-col gap-6 max-w-md mx-auto",
+      "chat": "flex flex-col h-[calc(100vh-4rem)]"
+    },
+    "containers": {
+      "main": "max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8",
+      "auth": "min-h-screen flex items-center justify-center bg-background relative overflow-hidden"
+    }
+  },
+  "components": {
+    "buttons": {
+      "primary": "bg-primary text-primary-foreground hover:bg-primary/90 h-10 px-4 py-2 rounded-md font-medium transition-all active:scale-95",
+      "secondary": "bg-secondary text-secondary-foreground hover:bg-secondary/80 h-10 px-4 py-2 rounded-md font-medium transition-all",
+      "ghost": "hover:bg-accent hover:text-accent-foreground h-10 px-4 py-2 rounded-md transition-all",
+      "destructive": "bg-destructive text-destructive-foreground hover:bg-destructive/90 h-10 px-4 py-2 rounded-md transition-all"
+    },
+    "cards": {
+      "base": "rounded-xl border border-border bg-card text-card-foreground shadow-sm",
+      "hover_effect": "hover:border-primary/50 transition-colors duration-300"
+    },
+    "inputs": {
+      "base": "flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+    },
+    "sidebar": {
+      "base": "w-64 border-r border-border bg-card/50 backdrop-blur-xl h-screen fixed left-0 top-0 z-40 hidden md:block",
+      "item": "flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground"
+    }
+  },
+  "visual_enhancers": {
+    "glassmorphism": "backdrop-blur-xl bg-background/60 border-b border-border/50",
+    "gradients": {
+      "hero_glow": "absolute top-0 left-1/2 -translate-x-1/2 w-[1000px] h-[500px] bg-indigo-500/20 blur-[120px] rounded-full pointer-events-none",
+      "subtle_mesh": "bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-indigo-900/20 via-background to-background"
+    },
+    "borders": "1px solid var(--border). Use 'divide-y divide-border' for lists.",
+    "shadows": "shadow-lg shadow-black/20"
+  },
+  "assets": {
+    "images": {
+      "auth_background": "https://images.unsplash.com/photo-1737505598998-693328b57ae3?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjY2NjV8MHwxfHNlYXJjaHwzfHxhYnN0cmFjdCUyMGRhcmslMjB0ZWNobm9sb2d5JTIwYmFja2dyb3VuZCUyMG1pbmltYWx8ZW58MHx8fHwxNzcxOTIxMDU5fDA&ixlib=rb-4.1.0&q=85",
+      "placeholder_avatar": "https://api.dicebear.com/7.x/avataaars/svg?seed=Felix"
+    },
+    "icons": "Use 'lucide-react' for all icons. Stroke width 1.5px for elegance."
+  },
+  "motion": {
+    "transitions": {
+      "default": "transition-all duration-200 ease-in-out",
+      "page_load": "animate-in fade-in slide-in-from-bottom-4 duration-500"
+    },
+    "hover": "hover:-translate-y-0.5 hover:shadow-md"
+  },
+  "accessibility": {
+    "contrast": "Ensure text is at least Zinc-400 on Zinc-950. Avoid dark blue on black.",
+    "focus": "focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+  },
+  "instructions_to_main_agent": [
+    "1. SETUP: Install 'lucide-react' and 'framer-motion' immediately.",
+    "2. THEME: Force dark mode in 'tailwind.config.js' and 'index.css'. Do not create a light mode toggle.",
+    "3. LAYOUT: Create a 'DashboardLayout' component that includes the Sidebar and a Topbar. Wrap all protected routes in this.",
+    "4. AUTH: The login page should be split 50/50. Left side: Form. Right side: The 'auth_background' image with a glass overlay and a quote.",
+    "5. CHAT: The chat interface is the core. It must feel fast. Use 'optimistic UI' updates if possible (show message immediately before server confirms).",
+    "6. ADMIN: The Admin Config page should look like a 'Settings' panel. Use tabs for 'Model Config' and 'System Prompt'.",
+    "7. DATA-TESTID: Add 'data-testid' to every button, input, and link. Format: 'page-section-element'. Example: 'login-form-email-input'."
+  ],
+  "universal_guidelines": [
+    "Avoid 'AI Slop': No generic gradients, no centered text blocks unless it's a hero title.",
+    "Dark Mode Mastery: Use shades of Zinc (neutral gray) for the UI. Do not use pure black for cards.",
+    "Borders: Use 1px borders to define structure. Dark mode relies on borders more than shadows.",
+    "Feedback: Every action needs a toast notification. Use 'sonner'.",
+    "Empty States: Never leave a list empty. Show a helpful 'Create your first project' card with an icon."
+  ]
+}
