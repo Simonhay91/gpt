@@ -683,6 +683,28 @@ async def move_chat_to_project(chat_id: str, data: MoveChatRequest, current_user
     updated_chat = await db.chats.find_one({"id": chat_id}, {"_id": 0})
     return ChatResponse(**{**updated_chat, "activeSourceIds": updated_chat.get("activeSourceIds", [])})
 
+@api_router.put("/chats/{chat_id}/rename", response_model=ChatResponse)
+async def rename_chat(chat_id: str, data: RenameChatRequest, current_user: dict = Depends(get_current_user)):
+    """Rename a chat"""
+    chat = await db.chats.find_one({"id": chat_id}, {"_id": 0})
+    if not chat:
+        raise HTTPException(status_code=404, detail="Chat not found")
+    
+    # Verify ownership
+    if chat.get("projectId"):
+        await verify_project_ownership(chat["projectId"], current_user["id"])
+    elif chat.get("ownerId") != current_user["id"]:
+        raise HTTPException(status_code=403, detail="Not authorized")
+    
+    # Update the chat name
+    await db.chats.update_one(
+        {"id": chat_id},
+        {"$set": {"name": data.name.strip()}}
+    )
+    
+    updated_chat = await db.chats.find_one({"id": chat_id}, {"_id": 0})
+    return ChatResponse(**{**updated_chat, "activeSourceIds": updated_chat.get("activeSourceIds", [])})
+
 # --- Project Chats ---
 
 @api_router.get("/projects/{project_id}/chats", response_model=List[ChatResponse])
