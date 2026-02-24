@@ -314,6 +314,207 @@ class SharedProjectGPTTester:
             self.log_test("Admin Config - Regular user access", status == 403, 
                          f"Status: {status} (should be 403)")
 
+    def test_pdf_file_operations(self):
+        """Test PDF file upload, list, and delete operations"""
+        if not self.test_user_token or not self.test_project_id:
+            self.log_test("PDF Files - Missing requirements", False, 
+                         "No test user token or project ID available")
+            return
+
+        # Create a simple PDF content for testing (minimal PDF structure)
+        pdf_content = b"""%PDF-1.4
+1 0 obj
+<<
+/Type /Catalog
+/Pages 2 0 R
+>>
+endobj
+
+2 0 obj
+<<
+/Type /Pages
+/Kids [3 0 R]
+/Count 1
+>>
+endobj
+
+3 0 obj
+<<
+/Type /Page
+/Parent 2 0 R
+/MediaBox [0 0 612 792]
+/Contents 4 0 R
+>>
+endobj
+
+4 0 obj
+<<
+/Length 44
+>>
+stream
+BT
+/F1 12 Tf
+72 720 Td
+(Test PDF content) Tj
+ET
+endstream
+endobj
+
+xref
+0 5
+0000000000 65535 f 
+0000000009 00000 n 
+0000000058 00000 n 
+0000000115 00000 n 
+0000000204 00000 n 
+trailer
+<<
+/Size 5
+/Root 1 0 R
+>>
+startxref
+297
+%%EOF"""
+
+        # Test file upload
+        url = f"{self.api_url}/projects/{self.test_project_id}/files"
+        headers = {'Authorization': f'Bearer {self.test_user_token}'}
+        files = {'file': ('test.pdf', pdf_content, 'application/pdf')}
+        
+        try:
+            response = requests.post(url, files=files, headers=headers, timeout=30)
+            success = response.status_code == 200
+            data = response.json() if success else {"error": response.text}
+            
+            if success and 'id' in data:
+                self.test_file_id = data['id']
+                self.log_test("PDF Files - Upload", True, 
+                             f"File ID: {self.test_file_id}, Chunks: {data.get('chunkCount', 0)}")
+            else:
+                self.log_test("PDF Files - Upload", False, 
+                             f"Status: {response.status_code}, Data: {data}")
+                return
+                
+        except Exception as e:
+            self.log_test("PDF Files - Upload", False, f"Error: {str(e)}")
+            return
+
+        # Test list files
+        success, data, status = self.make_request('GET', f'/projects/{self.test_project_id}/files', 
+                                                 token=self.test_user_token)
+        
+        if success and status == 200 and isinstance(data, list):
+            file_found = any(f['id'] == self.test_file_id for f in data)
+            self.log_test("PDF Files - List", file_found, 
+                         f"Found {len(data)} files, test file found: {file_found}")
+        else:
+            self.log_test("PDF Files - List", False, f"Status: {status}, Data: {data}")
+
+        # Test non-PDF file upload (should fail)
+        url = f"{self.api_url}/projects/{self.test_project_id}/files"
+        files = {'file': ('test.txt', b'This is not a PDF', 'text/plain')}
+        
+        try:
+            response = requests.post(url, files=files, headers=headers, timeout=30)
+            self.log_test("PDF Files - Non-PDF rejection", response.status_code == 400, 
+                         f"Status: {response.status_code} (should be 400)")
+        except Exception as e:
+            self.log_test("PDF Files - Non-PDF rejection", False, f"Error: {str(e)}")
+
+    def test_active_files_operations(self):
+        """Test setting and getting active files for chats"""
+        if not self.test_user_token or not self.test_chat_id or not hasattr(self, 'test_file_id'):
+            self.log_test("Active Files - Missing requirements", False, 
+                         "Missing token, chat ID, or file ID")
+            return
+
+        # Test set active files
+        success, data, status = self.make_request('POST', f'/chats/{self.test_chat_id}/active-files', {
+            "fileIds": [self.test_file_id]
+        }, token=self.test_user_token)
+        
+        if success and status == 200:
+            self.log_test("Active Files - Set active", True, 
+                         f"Active files set: {data.get('activeFileIds', [])}")
+        else:
+            self.log_test("Active Files - Set active", False, f"Status: {status}, Data: {data}")
+
+        # Test get active files
+        success, data, status = self.make_request('GET', f'/chats/{self.test_chat_id}/active-files', 
+                                                 token=self.test_user_token)
+        
+        if success and status == 200 and 'activeFiles' in data:
+            active_files = data['activeFiles']
+            file_found = any(f['id'] == self.test_file_id for f in active_files)
+            self.log_test("Active Files - Get active", file_found, 
+                         f"Found {len(active_files)} active files, test file found: {file_found}")
+        else:
+            self.log_test("Active Files - Get active", False, f"Status: {status}, Data: {data}")
+
+        # Test invalid file ID (should fail)
+        success, data, status = self.make_request('POST', f'/chats/{self.test_chat_id}/active-files', {
+            "fileIds": ["invalid-file-id"]
+        }, token=self.test_user_token)
+        
+        self.log_test("Active Files - Invalid file ID", status == 400, 
+                     f"Status: {status} (should be 400)")
+
+    def test_message_with_file_context(self):
+        """Test sending messages with file context"""
+        if not self.test_user_token or not self.test_chat_id:
+            self.log_test("Message with Context - Missing requirements", False, 
+                         "Missing token or chat ID")
+            return
+
+        # Send a message that should use the PDF context
+        success, data, status = self.make_request('POST', f'/chats/{self.test_chat_id}/messages', {
+            "content": "What does the document say?"
+        }, token=self.test_user_token)
+        
+        if success and status == 200 and 'content' in data:
+            # Check if the response seems to reference document content
+            response_content = data['content'].lower()
+            has_context_reference = any(word in response_content for word in 
+                                      ['document', 'pdf', 'file', 'content', 'text'])
+            self.log_test("Message with Context - AI uses file context", has_context_reference, 
+                         f"AI Response: {data['content'][:100]}...")
+        else:
+            self.log_test("Message with Context - AI uses file context", False, 
+                         f"Status: {status}, Data: {data}")
+
+    def test_project_file_isolation(self):
+        """Test that files are isolated between projects"""
+        if not self.test_user_token or not hasattr(self, 'test_file_id'):
+            self.log_test("File Isolation - Missing requirements", False, 
+                         "Missing token or file ID")
+            return
+
+        # Create a second project
+        success, data, status = self.make_request('POST', '/projects', {
+            "name": "Second Test Project"
+        }, token=self.test_user_token)
+        
+        if success and status == 200 and 'id' in data:
+            second_project_id = data['id']
+            
+            # Try to access the file from the first project via the second project (should fail)
+            success, data, status = self.make_request('GET', f'/projects/{second_project_id}/files', 
+                                                     token=self.test_user_token)
+            
+            if success and status == 200 and isinstance(data, list):
+                file_found = any(f['id'] == self.test_file_id for f in data)
+                self.log_test("File Isolation - Cross-project access", not file_found, 
+                             f"File found in wrong project: {file_found} (should be False)")
+            else:
+                self.log_test("File Isolation - Cross-project access", False, 
+                             f"Status: {status}, Data: {data}")
+            
+            # Cleanup second project
+            self.make_request('DELETE', f'/projects/{second_project_id}', token=self.test_user_token)
+        else:
+            self.log_test("File Isolation - Create second project", False, 
+                         f"Status: {status}, Data: {data}")
+
     def test_project_isolation(self):
         """Test that users can't access each other's projects"""
         if not self.test_user_token or not self.admin_user_token or not self.test_project_id:
