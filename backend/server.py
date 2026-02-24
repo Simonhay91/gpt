@@ -1481,6 +1481,97 @@ async def update_gpt_config(config_data: GPTConfigUpdate, current_user: dict = D
     updated_config = await db.gpt_config.find_one({"id": "1"}, {"_id": 0})
     return GPTConfigResponse(**updated_config)
 
+# ==================== ADMIN USER MANAGEMENT ====================
+
+@api_router.post("/admin/users", response_model=UserResponse)
+async def admin_create_user(user_data: UserCreate, current_user: dict = Depends(get_current_user)):
+    """Admin creates a new user"""
+    if not is_admin(current_user["email"]):
+        raise HTTPException(status_code=403, detail="Admin access required")
+    
+    existing = await db.users.find_one({"email": user_data.email})
+    if existing:
+        raise HTTPException(status_code=400, detail="Email already registered")
+    
+    user_id = str(uuid.uuid4())
+    user = {
+        "id": user_id,
+        "email": user_data.email,
+        "passwordHash": hash_password(user_data.password),
+        "createdAt": datetime.now(timezone.utc).isoformat()
+    }
+    await db.users.insert_one(user)
+    
+    return UserResponse(
+        id=user_id,
+        email=user_data.email,
+        isAdmin=is_admin(user_data.email),
+        createdAt=user["createdAt"]
+    )
+
+@api_router.get("/admin/users", response_model=List[UserWithUsageResponse])
+async def admin_list_users(current_user: dict = Depends(get_current_user)):
+    """Admin gets list of all users with token usage"""
+    if not is_admin(current_user["email"]):
+        raise HTTPException(status_code=403, detail="Admin access required")
+    
+    users = await db.users.find({}, {"_id": 0, "passwordHash": 0}).to_list(1000)
+    
+    result = []
+    for user in users:
+        # Get token usage for this user
+        usage = await db.token_usage.find_one({"userId": user["id"]}, {"_id": 0})
+        total_tokens = usage.get("totalTokens", 0) if usage else 0
+        message_count = usage.get("messageCount", 0) if usage else 0
+        
+        result.append(UserWithUsageResponse(
+            id=user["id"],
+            email=user["email"],
+            isAdmin=is_admin(user["email"]),
+            createdAt=user["createdAt"],
+            totalTokensUsed=total_tokens,
+            totalMessagesCount=message_count
+        ))
+    
+    return result
+
+@api_router.delete("/admin/users/{user_id}")
+async def admin_delete_user(user_id: str, current_user: dict = Depends(get_current_user)):
+    """Admin deletes a user"""
+    if not is_admin(current_user["email"]):
+        raise HTTPException(status_code=403, detail="Admin access required")
+    
+    user = await db.users.find_one({"id": user_id})
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    # Don't allow deleting yourself
+    if user_id == current_user["id"]:
+        raise HTTPException(status_code=400, detail="Cannot delete yourself")
+    
+    # Delete user's data
+    await db.users.delete_one({"id": user_id})
+    await db.token_usage.delete_one({"userId": user_id})
+    await db.user_prompts.delete_one({"userId": user_id})
+    
+    # Delete user's quick chats
+    await db.chats.delete_many({"ownerId": user_id})
+    
+    # Delete user's projects and their data
+    projects = await db.projects.find({"ownerId": user_id}).to_list(1000)
+    for project in projects:
+        project_id = project["id"]
+        chats = await db.chats.find({"projectId": project_id}).to_list(1000)
+        for chat in chats:
+            await db.messages.delete_many({"chatId": chat["id"]})
+        await db.chats.delete_many({"projectId": project_id})
+        await db.sources.delete_many({"projectId": project_id})
+        await db.source_chunks.delete_many({"projectId": project_id})
+        await db.generated_images.delete_many({"projectId": project_id})
+    await db.projects.delete_many({"ownerId": user_id})
+    
+    return {"message": "User deleted successfully"}
+
 # ==================== USER PROMPT ENDPOINTS ====================
 
 @api_router.get("/user/prompt", response_model=UserPromptResponse)
