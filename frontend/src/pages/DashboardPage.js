@@ -3,12 +3,11 @@ import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
-import { Textarea } from '../components/ui/textarea';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '../components/ui/dialog';
 import { Label } from '../components/ui/label';
 import { toast } from 'sonner';
-import { Plus, FolderOpen, Trash2, Clock, ArrowRight, MessageSquare, Settings, MoveRight, Sparkles } from 'lucide-react';
+import { Plus, FolderOpen, Trash2, Clock, ArrowRight, MessageSquare, MoveRight } from 'lucide-react';
 import DashboardLayout from '../components/DashboardLayout';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
@@ -21,11 +20,6 @@ const DashboardPage = () => {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
   const [isCreatingQuickChat, setIsCreatingQuickChat] = useState(false);
-  
-  // User prompt state
-  const [userPrompt, setUserPrompt] = useState('');
-  const [isPromptDialogOpen, setIsPromptDialogOpen] = useState(false);
-  const [isSavingPrompt, setIsSavingPrompt] = useState(false);
   
   // Move chat state
   const [moveDialogOpen, setMoveDialogOpen] = useState(false);
@@ -40,14 +34,12 @@ const DashboardPage = () => {
 
   const fetchData = async () => {
     try {
-      const [projectsRes, quickChatsRes, promptRes] = await Promise.all([
+      const [projectsRes, quickChatsRes] = await Promise.all([
         axios.get(`${API}/projects`),
-        axios.get(`${API}/quick-chats`),
-        axios.get(`${API}/user/prompt`)
+        axios.get(`${API}/quick-chats`)
       ]);
       setProjects(projectsRes.data);
       setQuickChats(quickChatsRes.data);
-      setUserPrompt(promptRes.data.customPrompt || '');
     } catch (error) {
       toast.error('Failed to load data');
     } finally {
