@@ -50,6 +50,12 @@ MAX_FILE_SIZE = 10 * 1024 * 1024  # 10MB
 CHUNK_SIZE = 1500  # characters per chunk
 MAX_CONTEXT_CHARS = 15000  # Max characters to include in context
 MAX_CHUNKS_PER_QUERY = 10  # Max chunks to include per query
+MAX_AUTO_INGEST_URLS = 3  # Max URLs to auto-ingest per message
+
+# URL pattern for detecting URLs in messages
+URL_PATTERN = re.compile(r'https?://[^\s<>"{}|\\^`\[\]]+', re.IGNORECASE)
+MAX_CONTEXT_CHARS = 15000  # Max characters to include in context
+MAX_CHUNKS_PER_QUERY = 10  # Max chunks to include per query
 
 # Supported MIME types
 SUPPORTED_MIME_TYPES = {
