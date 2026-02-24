@@ -24,7 +24,8 @@ import {
   File,
   Quote,
   ImageIcon,
-  Download
+  Download,
+  MessageSquare
 } from 'lucide-react';
 import DashboardLayout from '../components/DashboardLayout';
 import ImageGenerator from '../components/ImageGenerator';
