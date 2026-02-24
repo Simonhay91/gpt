@@ -131,6 +131,7 @@ class MessageResponse(BaseModel):
     createdAt: str
     citations: Optional[List[dict]] = None
     usedSources: Optional[List[dict]] = None  # For UI to reliably show "Sources used"
+    autoIngestedUrls: Optional[List[str]] = None  # IDs of auto-ingested URL sources
 
 class GPTConfigUpdate(BaseModel):
     model: Optional[str] = None
