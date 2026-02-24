@@ -29,7 +29,10 @@ import {
   Download,
   MessageSquare,
   MoveRight,
-  FolderOpen
+  FolderOpen,
+  Pencil,
+  Check,
+  X
 } from 'lucide-react';
 import DashboardLayout from '../components/DashboardLayout';
 import ImageGenerator from '../components/ImageGenerator';
