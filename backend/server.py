@@ -971,6 +971,41 @@ async def send_message(chat_id: str, message_data: MessageCreate, current_user: 
     
     await verify_project_ownership(chat["projectId"], current_user["id"])
     
+    project_id = chat["projectId"]
+    
+    # === AUTO-INGEST URLs from message ===
+    detected_urls = extract_urls_from_text(message_data.content)
+    auto_ingested_sources = []
+    auto_ingest_notes = []
+    
+    if detected_urls:
+        logger.info(f"Detected {len(detected_urls)} URL(s) in message: {detected_urls}")
+        
+        for url in detected_urls:
+            source = await auto_ingest_url(url, project_id)
+            if source:
+                auto_ingested_sources.append(source)
+                auto_ingest_notes.append(f"Auto-ingested: {source.get('originalName', url)}")
+            else:
+                auto_ingest_notes.append(f"Could not fetch: {url}")
+    
+    # Auto-activate newly ingested sources for this chat
+    active_source_ids = list(chat.get("activeSourceIds", []))
+    newly_activated = []
+    
+    for source in auto_ingested_sources:
+        if source["id"] not in active_source_ids:
+            active_source_ids.append(source["id"])
+            newly_activated.append(source.get("originalName") or source.get("url"))
+    
+    # Update chat with new active sources if any were added
+    if newly_activated:
+        await db.chats.update_one(
+            {"id": chat_id},
+            {"$set": {"activeSourceIds": active_source_ids}}
+        )
+        logger.info(f"Auto-activated {len(newly_activated)} source(s) for chat {chat_id}")
+    
     # Save user message
     user_msg_id = str(uuid.uuid4())
     user_message = {
@@ -979,6 +1014,7 @@ async def send_message(chat_id: str, message_data: MessageCreate, current_user: 
         "role": "user",
         "content": message_data.content,
         "citations": None,
+        "autoIngestedUrls": [s["id"] for s in auto_ingested_sources] if auto_ingested_sources else None,
         "createdAt": datetime.now(timezone.utc).isoformat()
     }
     await db.messages.insert_one(user_message)
@@ -989,8 +1025,7 @@ async def send_message(chat_id: str, message_data: MessageCreate, current_user: 
     # Get chat history
     history = await db.messages.find({"chatId": chat_id}, {"_id": 0}).sort("createdAt", 1).to_list(1000)
     
-    # Get active sources and relevant chunks
-    active_source_ids = chat.get("activeSourceIds", [])
+    # Get active sources and relevant chunks (including newly ingested)
     citations = []
     document_context = ""
     active_source_names = []
