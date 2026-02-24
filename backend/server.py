@@ -526,33 +526,6 @@ async def auto_ingest_url(url: str, project_id: str) -> Optional[dict]:
 
 # ==================== AUTH ENDPOINTS ====================
 
-@api_router.post("/auth/register", response_model=TokenResponse)
-async def register(user_data: UserCreate):
-    existing = await db.users.find_one({"email": user_data.email})
-    if existing:
-        raise HTTPException(status_code=400, detail="Email already registered")
-    
-    user_id = str(uuid.uuid4())
-    user = {
-        "id": user_id,
-        "email": user_data.email,
-        "passwordHash": hash_password(user_data.password),
-        "createdAt": datetime.now(timezone.utc).isoformat()
-    }
-    await db.users.insert_one(user)
-    
-    token = create_token(user_id, user_data.email)
-    
-    return TokenResponse(
-        token=token,
-        user=UserResponse(
-            id=user_id,
-            email=user_data.email,
-            isAdmin=is_admin(user_data.email),
-            createdAt=user["createdAt"]
-        )
-    )
-
 @api_router.post("/auth/login", response_model=TokenResponse)
 async def login(user_data: UserLogin):
     user = await db.users.find_one({"email": user_data.email}, {"_id": 0})
