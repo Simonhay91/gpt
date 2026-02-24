@@ -60,6 +60,9 @@ const ChatPage = () => {
   const [generatedImages, setGeneratedImages] = useState([]);
   const [isAddingUrl, setIsAddingUrl] = useState(false);
   const [showSourcePanel, setShowSourcePanel] = useState(false);
+  const [moveDialogOpen, setMoveDialogOpen] = useState(false);
+  const [userProjects, setUserProjects] = useState([]);
+  const [isMovingChat, setIsMovingChat] = useState(false);
   const messagesEndRef = useRef(null);
   const textareaRef = useRef(null);
   const fileInputRef = useRef(null);
