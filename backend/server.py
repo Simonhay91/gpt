@@ -368,30 +368,34 @@ async def send_message(chat_id: str, message_data: MessageCreate, current_user: 
     
     # Prepare messages for OpenAI
     try:
-        # Use emergentintegrations library
-        llm_chat = LlmChat(
-            api_key=OPENAI_API_KEY,
-            session_id=f"chat-{chat_id}",
-            system_message=config["developerPrompt"]
-        ).with_model("openai", config["model"])
+        if not openai_client:
+            raise Exception("OpenAI API key not configured")
         
-        # Build conversation history for context
-        # The library manages history internally, but we need to pass our stored history
-        # For simplicity, we'll send the full context in the user message
-        context_messages = []
+        # Build messages array with developer prompt and chat history
+        messages = [
+            {"role": "developer", "content": config["developerPrompt"]}
+        ]
+        
+        # Add chat history
         for msg in history[:-1]:  # Exclude the message we just added
-            context_messages.append(f"{msg['role'].upper()}: {msg['content']}")
+            messages.append({
+                "role": msg["role"],
+                "content": msg["content"]
+            })
         
-        # Create user message with context
-        full_context = "\n".join(context_messages) if context_messages else ""
-        user_query = message_data.content
-        if full_context:
-            user_query = f"Previous conversation:\n{full_context}\n\nCurrent message: {message_data.content}"
+        # Add current user message
+        messages.append({
+            "role": "user",
+            "content": message_data.content
+        })
         
-        user_msg = UserMessage(text=user_query)
+        # Call OpenAI Responses API
+        response = openai_client.responses.create(
+            model=config["model"],
+            input=messages
+        )
         
-        # Get response
-        response_text = await llm_chat.send_message(user_msg)
+        response_text = response.output_text
         
     except Exception as e:
         logger.error(f"OpenAI API error: {str(e)}")
