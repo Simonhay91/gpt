@@ -532,6 +532,11 @@ startxref
 
     def cleanup_test_data(self):
         """Clean up test data"""
+        if hasattr(self, 'test_file_id') and self.test_file_id and self.test_user_token and self.test_project_id:
+            success, data, status = self.make_request('DELETE', f'/projects/{self.test_project_id}/files/{self.test_file_id}', 
+                                                     token=self.test_user_token)
+            print(f"🧹 Cleanup file: {'✅' if success else '❌'}")
+
         if self.test_chat_id and self.test_user_token:
             success, data, status = self.make_request('DELETE', f'/chats/{self.test_chat_id}', 
                                                      token=self.test_user_token)
