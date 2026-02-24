@@ -1,12 +1,12 @@
 import React, { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
 import { toast } from 'sonner';
-import { LogIn, Mail, Lock, Sparkles } from 'lucide-react';
+import { LogIn, Mail, Lock, Globe } from 'lucide-react';
 
 const LoginPage = () => {
   const [email, setEmail] = useState('');
@@ -38,11 +38,11 @@ const LoginPage = () => {
         <div className="w-full max-w-md animate-fadeIn">
           <div className="mb-8">
             <div className="flex items-center gap-2 mb-2">
-              <Sparkles className="h-6 w-6 text-indigo-500" />
-              <span className="text-xl font-bold tracking-tight">SHARED GPT</span>
+              <Globe className="h-6 w-6 text-indigo-500" />
+              <span className="text-xl font-bold tracking-tight">PLANET GPT</span>
             </div>
             <p className="text-muted-foreground text-sm">
-              Sign in to access your projects
+              Sign in to access your workspace
             </p>
           </div>
 
@@ -108,15 +108,8 @@ const LoginPage = () => {
                 </Button>
               </form>
 
-              <div className="mt-6 text-center text-sm">
-                <span className="text-muted-foreground">Don't have an account? </span>
-                <Link 
-                  to="/register" 
-                  className="text-primary hover:underline font-medium"
-                  data-testid="login-register-link"
-                >
-                  Sign up
-                </Link>
+              <div className="mt-6 text-center text-sm text-muted-foreground">
+                Contact your administrator if you need an account
               </div>
             </CardContent>
           </Card>
@@ -131,7 +124,7 @@ const LoginPage = () => {
             <blockquote className="text-xl font-medium leading-relaxed text-foreground/90 mb-4">
               "One GPT configuration, infinite possibilities. Build isolated projects with shared intelligence."
             </blockquote>
-            <p className="text-sm text-muted-foreground">— Shared Project GPT</p>
+            <p className="text-sm text-muted-foreground">— Planet GPT</p>
           </div>
         </div>
       </div>
