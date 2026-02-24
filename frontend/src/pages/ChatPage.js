@@ -562,15 +562,46 @@ const ChatPage = () => {
                   <div className={`flex flex-col gap-1 max-w-[80%] ${
                     message.role === 'user' ? 'items-end' : 'items-start'
                   }`}>
-                    <div className={`px-4 py-3 rounded-2xl ${
-                      message.role === 'user' 
-                        ? 'bg-primary text-primary-foreground rounded-br-sm' 
-                        : 'bg-secondary text-secondary-foreground rounded-bl-sm'
-                    }`}>
-                      <p className="whitespace-pre-wrap text-sm leading-relaxed">
-                        {message.content}
-                      </p>
-                    </div>
+                    {/* Generated Image Display */}
+                    {message.isGeneratedImage && message.imageData ? (
+                      <div className="space-y-2">
+                        <div className="relative rounded-lg overflow-hidden border border-indigo-500/30 max-w-md">
+                          <img
+                            src={`${API}/images/${message.imageData.id}`}
+                            alt={message.imageData.prompt}
+                            className="w-full h-auto"
+                            data-testid={`generated-image-${message.imageData.id}`}
+                          />
+                          <div className="absolute top-2 right-2">
+                            <Button
+                              variant="secondary"
+                              size="icon"
+                              className="h-8 w-8 bg-black/50 hover:bg-black/70"
+                              onClick={() => downloadImage(message.imageData.id)}
+                              data-testid={`download-image-${message.imageData.id}`}
+                            >
+                              <Download className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2 px-2">
+                          <ImageIcon className="h-3 w-3 text-indigo-400" />
+                          <span className="text-xs text-muted-foreground truncate max-w-xs">
+                            {message.imageData.prompt}
+                          </span>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className={`px-4 py-3 rounded-2xl ${
+                        message.role === 'user' 
+                          ? 'bg-primary text-primary-foreground rounded-br-sm' 
+                          : 'bg-secondary text-secondary-foreground rounded-bl-sm'
+                      }`}>
+                        <p className="whitespace-pre-wrap text-sm leading-relaxed">
+                          {message.content}
+                        </p>
+                      </div>
+                    )}
                     
                     {/* Auto-ingested URLs indicator for user messages */}
                     {message.role === 'user' && message.autoIngestedUrls?.length > 0 && (
@@ -583,7 +614,7 @@ const ChatPage = () => {
                     )}
                     
                     {/* Citations / Used Sources */}
-                    {message.role === 'assistant' && (message.citations?.length > 0 || message.usedSources?.length > 0) && (
+                    {message.role === 'assistant' && !message.isGeneratedImage && (message.citations?.length > 0 || message.usedSources?.length > 0) && (
                       <div className="mt-2 px-2">
                         <div className="flex items-center gap-1 text-xs text-muted-foreground mb-1">
                           <Quote className="h-3 w-3" />
