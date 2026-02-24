@@ -1167,6 +1167,7 @@ If the user asks about a document/file/URL:
         "content": response_text,
         "citations": final_citations,
         "usedSources": final_used_sources,
+        "autoIngestedUrls": [s["id"] for s in auto_ingested_sources] if auto_ingested_sources else None,
         "createdAt": datetime.now(timezone.utc).isoformat()
     }
     await db.messages.insert_one(assistant_message)
