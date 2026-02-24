@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import { useTheme } from '../contexts/ThemeContext';
 import { Button } from './ui/button';
 import { 
   LayoutDashboard, 
@@ -10,7 +11,9 @@ import {
   Menu, 
   X,
   ChevronRight,
-  Users
+  Users,
+  Sun,
+  Moon
 } from 'lucide-react';
 
 const DashboardLayout = ({ children }) => {
