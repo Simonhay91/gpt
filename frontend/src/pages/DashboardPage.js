@@ -226,7 +226,9 @@ const DashboardPage = () => {
                 </DialogFooter>
               </DialogContent>
             </Dialog>
-
+          </div>
+          
+          <div className="flex items-center gap-2">
             {/* Quick Chat Button */}
             <Button 
               variant="secondary" 
