@@ -874,7 +874,7 @@ startxref
         
         if success and status == 200:
             # Should still have autoIngestedUrls but reusing existing source
-            auto_ingested_urls_reuse = data.get('autoIngestedUrls', [])
+            auto_ingested_urls_reuse = data.get('autoIngestedUrls') or []
             
             self.log_test("Auto-Ingest URL - Reuses existing source", len(auto_ingested_urls_reuse) > 0,
                          f"Reused auto-ingested URLs: {auto_ingested_urls_reuse}")
