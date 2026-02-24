@@ -135,19 +135,6 @@ const DashboardPage = () => {
     }
   };
 
-  const saveUserPrompt = async () => {
-    setIsSavingPrompt(true);
-    try {
-      await axios.put(`${API}/user/prompt`, { customPrompt: userPrompt.trim() || null });
-      toast.success('Custom prompt saved');
-      setIsPromptDialogOpen(false);
-    } catch (error) {
-      toast.error('Failed to save prompt');
-    } finally {
-      setIsSavingPrompt(false);
-    }
-  };
-
   const formatDate = (dateString) => {
     return new Date(dateString).toLocaleDateString('en-US', {
       month: 'short',
@@ -161,23 +148,12 @@ const DashboardPage = () => {
       <div className="p-6 lg:p-8" data-testid="dashboard-page">
         {/* Header */}
         <div className="flex items-center justify-between mb-8">
-          <div className="flex items-center gap-4">
-            <div>
-              <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
-              <p className="text-muted-foreground mt-1">
-                Manage your AI conversations and projects
-              </p>
-            </div>
-            
-            {/* User Prompt Settings - Left side */}
-            <Dialog open={isPromptDialogOpen} onOpenChange={setIsPromptDialogOpen}>
-              <DialogTrigger asChild>
-                <Button variant="outline" className="gap-2 ml-4" data-testid="user-prompt-btn">
-                  <Sparkles className="h-4 w-4" />
-                  My GPT Prompt
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="sm:max-w-lg">
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
+            <p className="text-muted-foreground mt-1">
+              Manage your AI conversations and projects
+            </p>
+          </div>
                 <DialogHeader>
                   <DialogTitle>Your Custom GPT Prompt</DialogTitle>
                   <DialogDescription>
