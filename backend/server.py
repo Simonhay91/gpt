@@ -1231,16 +1231,19 @@ async def send_message(chat_id: str, message_data: MessageCreate, current_user: 
     if not chat:
         raise HTTPException(status_code=404, detail="Chat not found")
     
-    await verify_project_ownership(chat["projectId"], current_user["id"])
+    # Verify ownership - for quick chats check ownerId, for project chats check project ownership
+    project_id = chat.get("projectId")
+    if project_id:
+        await verify_project_ownership(project_id, current_user["id"])
+    elif chat.get("ownerId") != current_user["id"]:
+        raise HTTPException(status_code=403, detail="Not authorized to access this chat")
     
-    project_id = chat["projectId"]
-    
-    # === AUTO-INGEST URLs from message ===
+    # === AUTO-INGEST URLs from message (only for project chats) ===
     detected_urls = extract_urls_from_text(message_data.content)
     auto_ingested_sources = []
     auto_ingest_notes = []
     
-    if detected_urls:
+    if detected_urls and project_id:
         logger.info(f"Detected {len(detected_urls)} URL(s) in message: {detected_urls}")
         
         for url in detected_urls:
