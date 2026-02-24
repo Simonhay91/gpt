@@ -452,16 +452,67 @@ const ChatPage = () => {
               <ArrowLeft className="h-5 w-5" />
             </Button>
             <div>
-              <h1 className="font-semibold flex items-center gap-2">
-                {isQuickChat ? (
-                  <>
-                    <MessageSquare className="h-4 w-4 text-emerald-400" />
-                    {chat.name || 'Quick Chat'}
-                  </>
-                ) : (
-                  'Chat'
-                )}
-              </h1>
+              {/* Editable Chat Name */}
+              {isEditingName ? (
+                <div className="flex items-center gap-2">
+                  <MessageSquare className="h-4 w-4 text-emerald-400" />
+                  <Input
+                    ref={nameInputRef}
+                    value={editedName}
+                    onChange={(e) => setEditedName(e.target.value)}
+                    onKeyDown={handleNameKeyDown}
+                    className="h-8 w-48 text-sm font-semibold"
+                    disabled={isSavingName}
+                    data-testid="chat-name-input"
+                  />
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7"
+                    onClick={saveNewName}
+                    disabled={isSavingName}
+                    data-testid="save-chat-name-btn"
+                  >
+                    {isSavingName ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4 text-emerald-400" />}
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7"
+                    onClick={cancelEditingName}
+                    disabled={isSavingName}
+                  >
+                    <X className="h-4 w-4 text-muted-foreground" />
+                  </Button>
+                </div>
+              ) : (
+                <h1 className="font-semibold flex items-center gap-2">
+                  {isQuickChat ? (
+                    <>
+                      <MessageSquare className="h-4 w-4 text-emerald-400" />
+                      <span 
+                        className="cursor-pointer hover:text-emerald-400 transition-colors"
+                        onClick={startEditingName}
+                        title="Click to rename"
+                        data-testid="chat-name-display"
+                      >
+                        {chat.name || 'Quick Chat'}
+                      </span>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-6 w-6 opacity-50 hover:opacity-100"
+                        onClick={startEditingName}
+                        data-testid="edit-chat-name-btn"
+                      >
+                        <Pencil className="h-3 w-3" />
+                      </Button>
+                    </>
+                  ) : (
+                    'Chat'
+                  )}
+                </h1>
+              )}
               <p className="text-sm text-muted-foreground">
                 {messages.length} {messages.length === 1 ? 'message' : 'messages'}
                 {!isQuickChat && activeSourceIds.length > 0 && (
