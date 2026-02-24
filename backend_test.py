@@ -897,7 +897,7 @@ startxref
                          f"Status: {status}, Data: {data}")
 
         # Test 5: Test multiple URLs in one message
-        multi_url_message = "Compare these two pages: https://httpbin.org/json and https://httpbin.org/xml"
+        multi_url_message = "Compare these two pages: https://httpbin.org/html and https://example.com"
         
         success, data, status = self.make_request('POST', f'/chats/{self.test_chat_id}/messages', {
             "content": multi_url_message
