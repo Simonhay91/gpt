@@ -583,15 +583,151 @@ startxref
             # Check for citations
             has_citations = data.get('citations') is not None and len(data.get('citations', [])) > 0
             
+            # Check for usedSources field
+            has_used_sources = data.get('usedSources') is not None
+            
             self.log_test("Message with Context - AI uses source context", has_context_reference, 
                          f"AI Response: {data['content'][:100]}...")
             
             self.log_test("Message with Context - Citations present", has_citations, 
                          f"Citations: {data.get('citations', [])}")
+            
+            self.log_test("Message with Context - usedSources field present", has_used_sources, 
+                         f"usedSources: {data.get('usedSources', [])}")
         else:
             self.log_test("Message with Context - AI uses source context", False, 
                          f"Status: {status}, Data: {data}")
             self.log_test("Message with Context - Citations present", False, 
+                         f"Status: {status}, Data: {data}")
+            self.log_test("Message with Context - usedSources field present", False, 
+                         f"Status: {status}, Data: {data}")
+
+    def test_active_sources_ux_improvements(self):
+        """Test the new Active Sources UX improvements"""
+        if not self.test_user_token:
+            self.log_test("Active Sources UX - Missing token", False, "No test user token available")
+            return
+
+        # Test 1: Check GPT config has strict active sources rules
+        if self.admin_user_token:
+            success, data, status = self.make_request('GET', '/admin/config', token=self.admin_user_token)
+            if success and status == 200:
+                developer_prompt = data.get('developerPrompt', '')
+                has_active_sources_rules = 'ATTACHMENTS / ACTIVE SOURCES RULES' in developer_prompt
+                self.log_test("Active Sources UX - Developer prompt has strict rules", has_active_sources_rules,
+                             f"Prompt contains active sources rules: {has_active_sources_rules}")
+            else:
+                self.log_test("Active Sources UX - Developer prompt check", False, 
+                             f"Failed to get config: {status}")
+
+        # Test 2: Test with specific chat IDs from credentials
+        chat_with_sources = "e9278343-1df4-4349-8072-23dfd6079dd0"
+        chat_no_sources = "19530693-1167-40a1-a261-826b26255722"
+
+        # Test chat with no active sources - AI should tell user to activate sources
+        success, data, status = self.make_request('POST', f'/chats/{chat_no_sources}/messages', {
+            "content": "What information do you have about the documents?"
+        }, token=self.test_user_token)
+        
+        if success and status == 200 and 'content' in data:
+            response_content = data['content'].lower()
+            tells_to_activate = any(phrase in response_content for phrase in [
+                'activate', 'select', 'upload', 'no active', 'no source', 'active source'
+            ])
+            self.log_test("Active Sources UX - AI tells user to activate sources when none active", 
+                         tells_to_activate, f"AI Response: {data['content'][:150]}...")
+        else:
+            self.log_test("Active Sources UX - AI tells user to activate sources when none active", False,
+                         f"Status: {status}, Data: {data}")
+
+        # Test chat with active sources - should cite sources and show usedSources
+        success, data, status = self.make_request('POST', f'/chats/{chat_with_sources}/messages', {
+            "content": "What can you tell me about the content in the active sources?"
+        }, token=self.test_user_token)
+        
+        if success and status == 200 and 'content' in data:
+            # Check for citations with sourceName and chunks
+            citations = data.get('citations', [])
+            has_proper_citations = False
+            if citations:
+                for citation in citations:
+                    if 'sourceName' in citation and 'chunks' in citation:
+                        has_proper_citations = True
+                        break
+            
+            # Check for usedSources field
+            used_sources = data.get('usedSources', [])
+            has_used_sources = len(used_sources) > 0
+            
+            self.log_test("Active Sources UX - Citations with sourceName and chunks", has_proper_citations,
+                         f"Citations: {citations}")
+            
+            self.log_test("Active Sources UX - usedSources field populated", has_used_sources,
+                         f"usedSources: {used_sources}")
+        else:
+            self.log_test("Active Sources UX - Citations with sourceName and chunks", False,
+                         f"Status: {status}, Data: {data}")
+            self.log_test("Active Sources UX - usedSources field populated", False,
+                         f"Status: {status}, Data: {data}")
+
+        # Test 3: Check active sources persistence in chat document
+        success, data, status = self.make_request('GET', f'/chats/{chat_with_sources}', token=self.test_user_token)
+        if success and status == 200:
+            active_source_ids = data.get('activeSourceIds', [])
+            has_active_sources = len(active_source_ids) > 0
+            self.log_test("Active Sources UX - Active sources persist in chat document", has_active_sources,
+                         f"Active source IDs: {active_source_ids}")
+        else:
+            self.log_test("Active Sources UX - Active sources persist in chat document", False,
+                         f"Status: {status}, Data: {data}")
+
+    def test_message_no_active_sources(self):
+        """Test AI response when no active sources are selected"""
+        if not self.test_user_token or not self.test_chat_id:
+            self.log_test("Message No Active Sources - Missing requirements", False, 
+                         "Missing token or chat ID")
+            return
+
+        # Clear active sources first
+        success, data, status = self.make_request('POST', f'/chats/{self.test_chat_id}/active-sources', {
+            "sourceIds": []
+        }, token=self.test_user_token)
+
+        if not success:
+            self.log_test("Message No Active Sources - Clear active sources", False, 
+                         f"Failed to clear active sources: {status}")
+            return
+
+        # Send a message asking about documents when no sources are active
+        success, data, status = self.make_request('POST', f'/chats/{self.test_chat_id}/messages', {
+            "content": "What does the document say about testing?"
+        }, token=self.test_user_token)
+        
+        if success and status == 200 and 'content' in data:
+            response_content = data['content'].lower()
+            # AI should tell user to activate sources
+            tells_to_activate = any(phrase in response_content for phrase in [
+                'activate', 'select', 'upload', 'no active', 'no source', 'active source'
+            ])
+            
+            # Should not have citations when no sources are active
+            has_no_citations = not data.get('citations') or len(data.get('citations', [])) == 0
+            has_no_used_sources = not data.get('usedSources') or len(data.get('usedSources', [])) == 0
+            
+            self.log_test("Message No Active Sources - AI tells user to activate", tells_to_activate,
+                         f"AI Response: {data['content'][:150]}...")
+            
+            self.log_test("Message No Active Sources - No citations when no sources", has_no_citations,
+                         f"Citations: {data.get('citations', [])}")
+            
+            self.log_test("Message No Active Sources - No usedSources when no sources", has_no_used_sources,
+                         f"usedSources: {data.get('usedSources', [])}")
+        else:
+            self.log_test("Message No Active Sources - AI tells user to activate", False,
+                         f"Status: {status}, Data: {data}")
+            self.log_test("Message No Active Sources - No citations when no sources", False,
+                         f"Status: {status}, Data: {data}")
+            self.log_test("Message No Active Sources - No usedSources when no sources", False,
                          f"Status: {status}, Data: {data}")
 
     def test_project_source_isolation(self):
