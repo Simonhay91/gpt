@@ -31,7 +31,10 @@ JWT_EXPIRATION_HOURS = 24
 ADMIN_EMAIL_DOMAIN = "@admin.com"
 
 # OpenAI API Key
-OPENAI_API_KEY = os.environ.get('OPENAI_API_KEY', os.environ.get('EMERGENT_LLM_KEY', ''))
+OPENAI_API_KEY = os.environ.get('OPENAI_API_KEY', '')
+
+# Initialize OpenAI client
+openai_client = OpenAI(api_key=OPENAI_API_KEY) if OPENAI_API_KEY else None
 
 # Create the main app
 app = FastAPI(title="Shared Project GPT")
