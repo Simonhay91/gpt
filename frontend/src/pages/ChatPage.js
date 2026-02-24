@@ -224,9 +224,22 @@ const ChatPage = () => {
     try {
       const response = await axios.post(`${API}/chats/${chatId}/messages`, { content });
       
+      // Check if URLs were auto-ingested
+      if (response.data.autoIngestedUrls && response.data.autoIngestedUrls.length > 0) {
+        // Refresh sources list to show newly ingested URLs
+        const sourcesRes = await axios.get(`${API}/projects/${chat.projectId}/sources`);
+        setProjectSources(sourcesRes.data);
+        
+        // Refresh chat to get updated active source IDs
+        const chatRes = await axios.get(`${API}/chats/${chatId}`);
+        setActiveSourceIds(chatRes.data.activeSourceIds || []);
+        
+        toast.success(`Auto-ingested ${response.data.autoIngestedUrls.length} URL(s) from your message`);
+      }
+      
       setMessages(prev => {
         const withoutTemp = prev.filter(m => m.id !== tempUserMsg.id);
-        return [...withoutTemp, { ...tempUserMsg, id: `user-${Date.now()}` }, response.data];
+        return [...withoutTemp, { ...tempUserMsg, id: `user-${Date.now()}`, autoIngestedUrls: response.data.autoIngestedUrls }, response.data];
       });
     } catch (error) {
       setMessages(prev => prev.filter(m => m.id !== tempUserMsg.id));
