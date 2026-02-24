@@ -962,7 +962,12 @@ async def get_messages(chat_id: str, current_user: dict = Depends(get_current_us
     await verify_project_ownership(chat["projectId"], current_user["id"])
     
     messages = await db.messages.find({"chatId": chat_id}, {"_id": 0}).sort("createdAt", 1).to_list(1000)
-    return [MessageResponse(**{**m, "citations": m.get("citations"), "usedSources": m.get("usedSources")}) for m in messages]
+    return [MessageResponse(**{
+        **m, 
+        "citations": m.get("citations"), 
+        "usedSources": m.get("usedSources"),
+        "autoIngestedUrls": m.get("autoIngestedUrls")
+    }) for m in messages]
 
 @api_router.post("/chats/{chat_id}/messages", response_model=MessageResponse)
 async def send_message(chat_id: str, message_data: MessageCreate, current_user: dict = Depends(get_current_user)):
