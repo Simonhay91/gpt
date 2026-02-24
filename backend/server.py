@@ -729,7 +729,12 @@ async def get_chat(chat_id: str, current_user: dict = Depends(get_current_user))
     if not chat:
         raise HTTPException(status_code=404, detail="Chat not found")
     
-    await verify_project_ownership(chat["projectId"], current_user["id"])
+    # Verify ownership - for quick chats check ownerId, for project chats check project ownership
+    if chat.get("projectId"):
+        await verify_project_ownership(chat["projectId"], current_user["id"])
+    elif chat.get("ownerId") != current_user["id"]:
+        raise HTTPException(status_code=403, detail="Not authorized")
+    
     return ChatResponse(**{**chat, "activeSourceIds": chat.get("activeSourceIds", [])})
 
 @api_router.delete("/chats/{chat_id}")
@@ -738,10 +743,16 @@ async def delete_chat(chat_id: str, current_user: dict = Depends(get_current_use
     if not chat:
         raise HTTPException(status_code=404, detail="Chat not found")
     
-    await verify_project_ownership(chat["projectId"], current_user["id"])
+    # Verify ownership - for quick chats check ownerId, for project chats check project ownership
+    if chat.get("projectId"):
+        await verify_project_ownership(chat["projectId"], current_user["id"])
+    elif chat.get("ownerId") != current_user["id"]:
+        raise HTTPException(status_code=403, detail="Not authorized")
     
     await db.messages.delete_many({"chatId": chat_id})
     await db.chats.delete_one({"id": chat_id})
+    
+    return {"message": "Chat deleted successfully"}
     
     return {"message": "Chat deleted successfully"}
 
