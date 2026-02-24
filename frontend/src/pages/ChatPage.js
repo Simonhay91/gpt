@@ -519,6 +519,16 @@ const ChatPage = () => {
                       </p>
                     </div>
                     
+                    {/* Auto-ingested URLs indicator for user messages */}
+                    {message.role === 'user' && message.autoIngestedUrls?.length > 0 && (
+                      <div className="mt-1 px-2">
+                        <span className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-emerald-500/10 text-emerald-400 text-xs border border-emerald-500/20">
+                          <Globe className="h-3 w-3" />
+                          {message.autoIngestedUrls.length} URL{message.autoIngestedUrls.length > 1 ? 's' : ''} auto-ingested
+                        </span>
+                      </div>
+                    )}
+                    
                     {/* Citations / Used Sources */}
                     {message.role === 'assistant' && (message.citations?.length > 0 || message.usedSources?.length > 0) && (
                       <div className="mt-2 px-2">
