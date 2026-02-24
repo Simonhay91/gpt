@@ -1,171 +1,141 @@
-# Shared Project GPT - Product Requirements Document
+# Planet GPT - Product Requirements Document
 
-## Original Problem Statement
-Build a production-ready full-stack SaaS web app called "Shared Project GPT" with:
-- One shared GPT configuration (model + developer/system prompt) used by ALL users
-- Users work inside Projects with strict isolation (no data leakage between projects)
-- Each project has its own chats and history
-- Simple email-based login (JWT)
-- Admin features for configuring GPT model and system prompt
-- **File attachments support** (PDF, DOCX, TXT, MD) with text extraction
-- **URL sources** with HTML content extraction
-- **Keyword-based retrieval** for relevant chunks
-- **Citations** in AI responses
+## Overview
+Planet GPT is a multi-user SaaS platform for AI-powered conversations with project-based data isolation. Users share a single, admin-configurable GPT configuration while maintaining separate projects and chats.
 
-## Architecture
+## Core Features
 
-### Tech Stack
-- **Frontend**: React 19 + Tailwind CSS + Shadcn/UI
+### Authentication & User Management
+- **Admin-only user creation** - No self-registration, admin creates users
+- **Email/password login** - Simple JWT-based authentication
+- **Admin detection** - Users with `@admin.com` email have admin privileges
+- **User token tracking** - Admin can see how many tokens each user consumed
+
+### Quick Chats (No Project)
+- Users can start chats without creating a project first
+- Quick chats appear in "My Chats" section on Dashboard
+- Users can move quick chats to a project later
+- Quick chats don't have access to file sources
+
+### Project-based Conversations
+- Each user can create multiple projects
+- Projects contain chats with access to file/URL sources
+- Strict data isolation - users only see their own projects
+
+### Source Management (Project-only)
+- Upload files: PDF, DOCX, TXT, MD
+- Add URLs as sources
+- Auto-ingest URLs from chat messages
+- Select active sources per chat for AI context
+- AI provides citations referencing source chunks
+
+### User Custom Prompt
+- Each user can set their own custom GPT instructions
+- Custom prompt is added to all conversations
+- Private to each user
+
+### Admin Panel
+- **User Management** (`/admin/users`)
+  - Create new users with generated passwords
+  - View all users with token usage stats
+  - Delete users
+- **GPT Config** (`/admin/config`)
+  - Set global GPT model
+  - Configure developer system prompt
+
+### Image Generation (Project-only)
+- Generate images using OpenAI DALL-E
+- Images stored per project
+- Authenticated image access
+
+## Technical Stack
+- **Frontend**: React + Tailwind CSS + Shadcn/UI
 - **Backend**: FastAPI (Python)
 - **Database**: MongoDB
-- **Auth**: JWT-based email/password authentication
-- **AI**: OpenAI Responses API (gpt-4.1-mini)
-- **File Processing**: PyPDF2 (PDF), python-docx (DOCX), BeautifulSoup (HTML)
+- **AI**: OpenAI GPT-4.1-mini for chat, DALL-E 3 for images
 
-### Database Schema (MongoDB Collections)
-- **users**: id, email, passwordHash, createdAt
-- **projects**: id, name, ownerId, createdAt
-- **chats**: id, projectId, name, activeSourceIds[], createdAt
-- **messages**: id, chatId, role, content, citations[], createdAt
-- **gpt_config**: id (singleton), model, developerPrompt, updatedAt
-- **sources**: id, projectId, kind (file|url), originalName, url, mimeType, sizeBytes, storagePath, createdAt
-- **source_chunks**: id, sourceId, projectId, chunkIndex, content, createdAt
-
-### Security
-- JWT tokens with 24h expiration
-- Password hashing with bcrypt
-- Project ownership validation on every request
-- Admin access determined by @admin.com email domain
-- API key stored server-side only (never exposed to frontend)
-- Strict source/chunk isolation by projectId
-- All OpenAI calls server-side only
-
-## User Personas
-
-1. **Regular User**: Creates projects, uploads files/URLs, organizes chats, converses with AI
-2. **Administrator**: Same as regular user + can configure global GPT settings
-
-## Core Requirements (Static)
-
-### P0 - Must Have (Implemented)
-- [x] User registration and login with email/password
-- [x] JWT-based authentication
-- [x] Create, list, delete projects
-- [x] Create, list, delete chats within projects
-- [x] Send messages and receive AI responses
-- [x] Chat history persistence per chat
-- [x] Project isolation (users can only see their own projects)
-- [x] Admin config page for model and system prompt
-- [x] Dark theme UI
-- [x] PDF file upload with text extraction
-- [x] DOCX file upload with text extraction
-- [x] TXT/MD file upload
-- [x] URL source with HTML content extraction
-- [x] Chunk-based document storage (~1500 chars)
-- [x] Active source selection per chat
-- [x] Keyword-based retrieval (query term overlap scoring)
-- [x] Citations in AI responses (source name + chunk indices)
-- [x] Source deletion with cleanup
-
-### P1 - Should Have
-- [ ] Streaming responses for better UX
-- [ ] Rate limiting per user
-- [ ] Project/Chat renaming
-- [ ] Message editing/deletion
-- [ ] Export chat history
-
-### P2 - Nice to Have
-- [ ] Vector embeddings for semantic search
-- [ ] S3 storage for production files
-- [ ] More file formats (XLSX, PPT)
-- [ ] Usage analytics dashboard
-
-## What's Been Implemented
-
-### Date: Feb 24, 2026 - Initial MVP
-- Complete FastAPI backend with all CRUD endpoints
-- JWT authentication with email/password
-- MongoDB integration with proper isolation
-- OpenAI Responses API integration
-- Admin-only config endpoints
-- Login/Register pages with dark theme
-- Dashboard, Project, Chat, Admin pages
-
-### Date: Feb 24, 2026 - Multi-Format Sources + Citations
-- Extended file support: PDF, DOCX, TXT, MD
-- URL source ingestion with HTML extraction
-- Keyword-based retrieval algorithm
-- Citations tracking with source names and chunk indices
-- Updated UI with sources panel, type badges, citations display
-- Auto-activation of newly uploaded sources
-- BeautifulSoup for HTML text extraction
-- python-docx for DOCX parsing
-
-### Date: Feb 24, 2026 - Active Sources UX Improvements
-- Updated developer prompt with strict ATTACHMENTS / ACTIVE SOURCES RULES
-- AI tells users to activate sources when none are selected
-- Added `usedSources` field to API response for reliable UI display
-- Active sources persist per chat (stored in chat document as `activeSourceIds`)
-- Context includes "ACTIVE SOURCES FOR THIS CHAT: <list>" header
-- Improved citation format with source names and chunk numbers
-
-### Date: Feb 24, 2026 - Auto-Ingest URLs Feature
-- Auto-detect URLs (http/https) in user messages using regex
-- Automatically fetch, extract text, chunk, and store as Source
-- Auto-activate newly ingested sources for the current chat
-- Use ingested content immediately in the same response
-- Reuse existing sources if URL already ingested (no duplicates)
-- Track `autoIngestedUrls` in user message document
-- UI shows "X URL(s) auto-ingested" badge on user messages
-- Toast notification when URLs are auto-ingested
-- Sources panel auto-refreshes after ingest
-- Limit of 3 URLs auto-ingested per message
+## Database Collections
+- `users` - User accounts
+- `projects` - User projects
+- `chats` - Conversations (can belong to project or be "quick chat")
+- `messages` - Chat messages with citations
+- `sources` - Uploaded files and URLs
+- `source_chunks` - Chunked source text for retrieval
+- `gpt_config` - Global GPT configuration (singleton)
+- `user_prompts` - User custom instructions
+- `token_usage` - Per-user token consumption tracking
+- `generated_images` - AI-generated images
 
 ## API Endpoints
 
 ### Auth
-- POST /api/auth/register - User registration
-- POST /api/auth/login - User login
-- GET /api/auth/me - Get current user
+- `POST /api/auth/login` - User login
 
-### Projects
-- GET/POST /api/projects - Projects CRUD
-- GET/DELETE /api/projects/{id} - Single project
+### Admin - User Management
+- `POST /api/admin/users` - Create user (admin only)
+- `GET /api/admin/users` - List all users with usage stats
+- `DELETE /api/admin/users/{id}` - Delete user
 
-### Chats
-- GET/POST /api/projects/{id}/chats - Chats CRUD
-- GET/DELETE /api/chats/{id} - Single chat
+### Admin - Config
+- `GET /api/admin/config` - Get GPT config
+- `PUT /api/admin/config` - Update GPT config
+
+### Quick Chats
+- `GET /api/quick-chats` - List user's quick chats
+- `POST /api/quick-chats` - Create quick chat
+- `POST /api/chats/{id}/move` - Move chat to project
+
+### User Settings
+- `GET /api/user/prompt` - Get user's custom prompt
+- `PUT /api/user/prompt` - Update user's custom prompt
+
+### Projects & Chats
+- `GET/POST /api/projects` - List/Create projects
+- `GET/DELETE /api/projects/{id}` - Get/Delete project
+- `GET/POST /api/projects/{id}/chats` - List/Create chats
+- `GET/DELETE /api/chats/{id}` - Get/Delete chat
+- `GET/POST /api/chats/{id}/messages` - Get/Send messages
 
 ### Sources
-- POST /api/projects/{id}/sources/upload - Upload file (PDF, DOCX, TXT, MD)
-- POST /api/projects/{id}/sources/url - Add URL source
-- GET /api/projects/{id}/sources - List sources
-- DELETE /api/projects/{id}/sources/{sourceId} - Delete source
-- POST /api/chats/{id}/active-sources - Set active sources
-- GET /api/chats/{id}/active-sources - Get active sources
+- `POST /api/projects/{id}/sources/upload` - Upload file
+- `POST /api/projects/{id}/sources/url` - Add URL
+- `GET /api/projects/{id}/sources` - List sources
+- `DELETE /api/projects/{id}/sources/{id}` - Delete source
+- `GET/POST /api/chats/{id}/active-sources` - Get/Set active sources
 
-### Messages
-- GET/POST /api/chats/{id}/messages - Messages + AI response with citations
+### Images
+- `POST /api/projects/{id}/generate-image` - Generate image
+- `GET /api/projects/{id}/images` - List images
+- `GET /api/images/{id}` - Get image file
 
-### Admin
-- GET/PUT /api/admin/config - GPT configuration
+## Changelog
 
-## Retrieval Algorithm
-1. Get all chunks from active sources (strict project filter)
-2. Score each chunk by keyword overlap with query
-3. Rank chunks by score descending
-4. Select top N chunks (max 10) respecting context limit (15K chars)
-5. Include chunk markers in context for citation tracking
-6. Return response with deduplicated citations
+### 2026-02-24
+- Renamed from "Shared GPT" to "Planet GPT"
+- Removed user self-registration
+- Added admin user management with:
+  - Create/delete users
+  - Password generation
+  - Token usage tracking per user
+- Added Quick Chats feature (chats without project)
+- Added "Move chat to project" functionality
+- Added User custom GPT prompt settings
 
-## Prioritized Backlog
-1. Implement streaming responses
-2. Add vector embeddings for semantic search
-3. Implement S3 storage adapter
-4. Add rate limiting
+### Previous
+- Initial MVP with projects, chats, file sources
+- Multi-format source support (PDF, DOCX, TXT, MD, URLs)
+- Auto-ingest URLs from messages
+- Active source persistence per chat
+- AI citations in responses
+- Image generation with DALL-E
 
-## Next Tasks
-1. Add streaming for long responses
-2. Implement file preview in UI
-3. Add search within sources
-4. Consider vector embeddings for large document sets
+## Admin Credentials
+- Email: `admin@admin.com`
+- Password: `admin123`
+
+## Future Tasks (Backlog)
+- P1: Document preview panel
+- P1: Source search/filter
+- P2: Usage/cost dashboard
+- P2: Background ingestion for large files
+- P2: "Clear Active Sources" toggle
