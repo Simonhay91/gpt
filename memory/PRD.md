@@ -7,7 +7,10 @@ Build a production-ready full-stack SaaS web app called "Shared Project GPT" wit
 - Each project has its own chats and history
 - Simple email-based login (JWT)
 - Admin features for configuring GPT model and system prompt
-- PDF attachments support with document-based Q&A
+- **File attachments support** (PDF, DOCX, TXT, MD) with text extraction
+- **URL sources** with HTML content extraction
+- **Keyword-based retrieval** for relevant chunks
+- **Citations** in AI responses
 
 ## Architecture
 
@@ -17,16 +20,16 @@ Build a production-ready full-stack SaaS web app called "Shared Project GPT" wit
 - **Database**: MongoDB
 - **Auth**: JWT-based email/password authentication
 - **AI**: OpenAI Responses API (gpt-4.1-mini)
-- **PDF Processing**: PyPDF2 for text extraction
+- **File Processing**: PyPDF2 (PDF), python-docx (DOCX), BeautifulSoup (HTML)
 
 ### Database Schema (MongoDB Collections)
 - **users**: id, email, passwordHash, createdAt
 - **projects**: id, name, ownerId, createdAt
-- **chats**: id, projectId, name, activeFileIds[], createdAt
-- **messages**: id, chatId, role (user/assistant), content, createdAt
+- **chats**: id, projectId, name, activeSourceIds[], createdAt
+- **messages**: id, chatId, role, content, citations[], createdAt
 - **gpt_config**: id (singleton), model, developerPrompt, updatedAt
-- **project_files**: id, projectId, originalName, mimeType, sizeBytes, storagePath, createdAt
-- **project_file_chunks**: id, projectFileId, projectId, chunkIndex, content, createdAt
+- **sources**: id, projectId, kind (file|url), originalName, url, mimeType, sizeBytes, storagePath, createdAt
+- **source_chunks**: id, sourceId, projectId, chunkIndex, content, createdAt
 
 ### Security
 - JWT tokens with 24h expiration
@@ -34,11 +37,12 @@ Build a production-ready full-stack SaaS web app called "Shared Project GPT" wit
 - Project ownership validation on every request
 - Admin access determined by @admin.com email domain
 - API key stored server-side only (never exposed to frontend)
-- Strict file isolation by projectId
+- Strict source/chunk isolation by projectId
+- All OpenAI calls server-side only
 
 ## User Personas
 
-1. **Regular User**: Creates projects, organizes chats, uploads PDFs, converses with AI
+1. **Regular User**: Creates projects, uploads files/URLs, organizes chats, converses with AI
 2. **Administrator**: Same as regular user + can configure global GPT settings
 
 ## Core Requirements (Static)
@@ -54,23 +58,27 @@ Build a production-ready full-stack SaaS web app called "Shared Project GPT" wit
 - [x] Admin config page for model and system prompt
 - [x] Dark theme UI
 - [x] PDF file upload with text extraction
-- [x] Chunk-based document storage
-- [x] Active file selection per chat
-- [x] Document context in AI responses
-- [x] File deletion with cleanup
+- [x] DOCX file upload with text extraction
+- [x] TXT/MD file upload
+- [x] URL source with HTML content extraction
+- [x] Chunk-based document storage (~1500 chars)
+- [x] Active source selection per chat
+- [x] Keyword-based retrieval (query term overlap scoring)
+- [x] Citations in AI responses (source name + chunk indices)
+- [x] Source deletion with cleanup
 
 ### P1 - Should Have
+- [ ] Streaming responses for better UX
 - [ ] Rate limiting per user
 - [ ] Project/Chat renaming
 - [ ] Message editing/deletion
 - [ ] Export chat history
-- [ ] Streaming responses
 
 ### P2 - Nice to Have
 - [ ] Vector embeddings for semantic search
-- [ ] Multiple file formats (DOCX, TXT)
+- [ ] S3 storage for production files
+- [ ] More file formats (XLSX, PPT)
 - [ ] Usage analytics dashboard
-- [ ] File preview in UI
 
 ## What's Been Implemented
 
@@ -82,19 +90,16 @@ Build a production-ready full-stack SaaS web app called "Shared Project GPT" wit
 - Admin-only config endpoints
 - Login/Register pages with dark theme
 - Dashboard, Project, Chat, Admin pages
-- Responsive sidebar navigation
-- Toast notifications
 
-### Date: Feb 24, 2026 - PDF Attachments Feature
-- PDF upload endpoint with PyPDF2 text extraction
-- Text chunking (~1500 chars per chunk)
-- Project file storage (local disk, pluggable for S3)
-- Active file selection per chat (checkboxes)
-- Document context injection in OpenAI requests
-- File panel UI with upload button
-- File metadata display (size, chunks, date)
-- Auto-activation of newly uploaded files
-- Error handling for image-based PDFs
+### Date: Feb 24, 2026 - Multi-Format Sources + Citations
+- Extended file support: PDF, DOCX, TXT, MD
+- URL source ingestion with HTML extraction
+- Keyword-based retrieval algorithm
+- Citations tracking with source names and chunk indices
+- Updated UI with sources panel, type badges, citations display
+- Auto-activation of newly uploaded sources
+- BeautifulSoup for HTML text extraction
+- python-docx for DOCX parsing
 
 ## API Endpoints
 
@@ -111,29 +116,36 @@ Build a production-ready full-stack SaaS web app called "Shared Project GPT" wit
 - GET/POST /api/projects/{id}/chats - Chats CRUD
 - GET/DELETE /api/chats/{id} - Single chat
 
-### Messages
-- GET/POST /api/chats/{id}/messages - Messages + AI response
+### Sources
+- POST /api/projects/{id}/sources/upload - Upload file (PDF, DOCX, TXT, MD)
+- POST /api/projects/{id}/sources/url - Add URL source
+- GET /api/projects/{id}/sources - List sources
+- DELETE /api/projects/{id}/sources/{sourceId} - Delete source
+- POST /api/chats/{id}/active-sources - Set active sources
+- GET /api/chats/{id}/active-sources - Get active sources
 
-### Files (New)
-- POST /api/projects/{id}/files - Upload PDF
-- GET /api/projects/{id}/files - List files
-- DELETE /api/projects/{id}/files/{fileId} - Delete file
-- POST /api/chats/{id}/active-files - Set active files
-- GET /api/chats/{id}/active-files - Get active files
+### Messages
+- GET/POST /api/chats/{id}/messages - Messages + AI response with citations
 
 ### Admin
 - GET/PUT /api/admin/config - GPT configuration
 
-## Prioritized Backlog
+## Retrieval Algorithm
+1. Get all chunks from active sources (strict project filter)
+2. Score each chunk by keyword overlap with query
+3. Rank chunks by score descending
+4. Select top N chunks (max 10) respecting context limit (15K chars)
+5. Include chunk markers in context for citation tracking
+6. Return response with deduplicated citations
 
-1. Add streaming responses for better UX
-2. Implement rate limiting
-3. Add vector embeddings for large document search
-4. Support additional file formats (DOCX, TXT)
-5. Add file preview in UI
+## Prioritized Backlog
+1. Implement streaming responses
+2. Add vector embeddings for semantic search
+3. Implement S3 storage adapter
+4. Add rate limiting
 
 ## Next Tasks
-1. Implement streaming responses
-2. Add progress indicator for large file uploads
-3. Add file search within projects
-4. Consider S3 storage for production
+1. Add streaming for long responses
+2. Implement file preview in UI
+3. Add search within sources
+4. Consider vector embeddings for large document sets
