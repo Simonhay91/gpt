@@ -647,6 +647,60 @@ async def delete_project(project_id: str, current_user: dict = Depends(get_curre
 
 # ==================== CHAT ENDPOINTS ====================
 
+# --- Quick Chats (no project) ---
+
+@api_router.get("/quick-chats", response_model=List[ChatResponse])
+async def get_quick_chats(current_user: dict = Depends(get_current_user)):
+    """Get all quick chats (chats without a project) for the current user"""
+    chats = await db.chats.find({
+        "ownerId": current_user["id"],
+        "projectId": None
+    }, {"_id": 0}).to_list(1000)
+    return [ChatResponse(**{**c, "activeSourceIds": c.get("activeSourceIds", [])}) for c in chats]
+
+@api_router.post("/quick-chats", response_model=ChatResponse)
+async def create_quick_chat(chat_data: QuickChatCreate, current_user: dict = Depends(get_current_user)):
+    """Create a quick chat without a project"""
+    chat_id = str(uuid.uuid4())
+    chat = {
+        "id": chat_id,
+        "projectId": None,
+        "ownerId": current_user["id"],
+        "name": chat_data.name or "Quick Chat",
+        "activeSourceIds": [],
+        "createdAt": datetime.now(timezone.utc).isoformat()
+    }
+    await db.chats.insert_one(chat)
+    return ChatResponse(**chat)
+
+@api_router.post("/chats/{chat_id}/move", response_model=ChatResponse)
+async def move_chat_to_project(chat_id: str, data: MoveChatRequest, current_user: dict = Depends(get_current_user)):
+    """Move a quick chat to a project"""
+    # Get the chat
+    chat = await db.chats.find_one({"id": chat_id}, {"_id": 0})
+    if not chat:
+        raise HTTPException(status_code=404, detail="Chat not found")
+    
+    # Verify ownership - check both ownerId (for quick chats) and projectId (for project chats)
+    if chat.get("projectId"):
+        await verify_project_ownership(chat["projectId"], current_user["id"])
+    elif chat.get("ownerId") != current_user["id"]:
+        raise HTTPException(status_code=403, detail="Not authorized")
+    
+    # Verify target project ownership
+    await verify_project_ownership(data.targetProjectId, current_user["id"])
+    
+    # Update the chat
+    await db.chats.update_one(
+        {"id": chat_id},
+        {"$set": {"projectId": data.targetProjectId, "ownerId": None}}
+    )
+    
+    updated_chat = await db.chats.find_one({"id": chat_id}, {"_id": 0})
+    return ChatResponse(**{**updated_chat, "activeSourceIds": updated_chat.get("activeSourceIds", [])})
+
+# --- Project Chats ---
+
 @api_router.get("/projects/{project_id}/chats", response_model=List[ChatResponse])
 async def get_chats(project_id: str, current_user: dict = Depends(get_current_user)):
     await verify_project_ownership(project_id, current_user["id"])
