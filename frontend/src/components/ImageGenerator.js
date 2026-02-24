@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
@@ -15,6 +15,31 @@ const ImageGenerator = ({ projectId, onImageGenerated }) => {
   const [size, setSize] = useState('1024x1024');
   const [isGenerating, setIsGenerating] = useState(false);
   const [generatedImage, setGeneratedImage] = useState(null);
+  const [imageUrl, setImageUrl] = useState(null);
+
+  // Fetch image as blob when generatedImage changes
+  useEffect(() => {
+    if (generatedImage) {
+      fetchImageBlob(generatedImage.id);
+    }
+    return () => {
+      if (imageUrl) {
+        URL.revokeObjectURL(imageUrl);
+      }
+    };
+  }, [generatedImage]);
+
+  const fetchImageBlob = async (imageId) => {
+    try {
+      const response = await axios.get(`${API}/images/${imageId}`, {
+        responseType: 'blob'
+      });
+      const url = URL.createObjectURL(response.data);
+      setImageUrl(url);
+    } catch (error) {
+      console.error('Failed to fetch image:', error);
+    }
+  };
 
   const generateImage = async () => {
     if (!prompt.trim()) {
@@ -24,6 +49,7 @@ const ImageGenerator = ({ projectId, onImageGenerated }) => {
 
     setIsGenerating(true);
     setGeneratedImage(null);
+    setImageUrl(null);
 
     try {
       const response = await axios.post(`${API}/projects/${projectId}/generate-image`, {
@@ -70,6 +96,10 @@ const ImageGenerator = ({ projectId, onImageGenerated }) => {
     setIsOpen(false);
     setPrompt('');
     setGeneratedImage(null);
+    if (imageUrl) {
+      URL.revokeObjectURL(imageUrl);
+      setImageUrl(null);
+    }
   };
 
   return (
@@ -146,12 +176,18 @@ const ImageGenerator = ({ projectId, onImageGenerated }) => {
           {generatedImage && (
             <div className="mt-4 space-y-3">
               <div className="relative rounded-lg overflow-hidden border border-border">
-                <img
-                  src={`${API}/images/${generatedImage.id}`}
-                  alt={generatedImage.prompt}
-                  className="w-full h-auto"
-                  data-testid="generated-image-preview"
-                />
+                {imageUrl ? (
+                  <img
+                    src={imageUrl}
+                    alt={generatedImage.prompt}
+                    className="w-full h-auto"
+                    data-testid="generated-image-preview"
+                  />
+                ) : (
+                  <div className="w-full h-48 flex items-center justify-center bg-secondary">
+                    <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                  </div>
+                )}
               </div>
               <div className="flex items-center justify-between">
                 <p className="text-xs text-muted-foreground truncate max-w-[70%]">
