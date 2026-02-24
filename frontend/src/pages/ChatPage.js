@@ -369,15 +369,25 @@ const ChatPage = () => {
             </div>
           </div>
           
-          {/* Source Panel Toggle */}
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setShowSourcePanel(!showSourcePanel)}
-            className="gap-2"
-            data-testid="toggle-source-panel-btn"
-          >
-            <Paperclip className="h-4 w-4" />
+          {/* Actions */}
+          <div className="flex items-center gap-2">
+            {/* Image Generator */}
+            {chat && (
+              <ImageGenerator 
+                projectId={chat.projectId} 
+                onImageGenerated={handleImageGenerated}
+              />
+            )}
+            
+            {/* Source Panel Toggle */}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowSourcePanel(!showSourcePanel)}
+              className="gap-2"
+              data-testid="toggle-source-panel-btn"
+            >
+              <Paperclip className="h-4 w-4" />
             Sources
             {showSourcePanel ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
           </Button>
