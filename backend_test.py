@@ -561,27 +561,36 @@ startxref
         self.log_test("Active Sources - Invalid source ID", status == 400, 
                      f"Status: {status} (should be 400)")
 
-    def test_message_with_file_context(self):
-        """Test sending messages with file context"""
+    def test_message_with_source_context(self):
+        """Test sending messages with source context and citations"""
         if not self.test_user_token or not self.test_chat_id:
             self.log_test("Message with Context - Missing requirements", False, 
                          "Missing token or chat ID")
             return
 
-        # Send a message that should use the PDF context
+        # Send a message that should use the source context
         success, data, status = self.make_request('POST', f'/chats/{self.test_chat_id}/messages', {
-            "content": "What does the document say?"
+            "content": "What does the document say about testing?"
         }, token=self.test_user_token)
         
         if success and status == 200 and 'content' in data:
             # Check if the response seems to reference document content
             response_content = data['content'].lower()
             has_context_reference = any(word in response_content for word in 
-                                      ['document', 'pdf', 'file', 'content', 'text'])
-            self.log_test("Message with Context - AI uses file context", has_context_reference, 
+                                      ['document', 'pdf', 'file', 'content', 'text', 'testing'])
+            
+            # Check for citations
+            has_citations = data.get('citations') is not None and len(data.get('citations', [])) > 0
+            
+            self.log_test("Message with Context - AI uses source context", has_context_reference, 
                          f"AI Response: {data['content'][:100]}...")
+            
+            self.log_test("Message with Context - Citations present", has_citations, 
+                         f"Citations: {data.get('citations', [])}")
         else:
-            self.log_test("Message with Context - AI uses file context", False, 
+            self.log_test("Message with Context - AI uses source context", False, 
+                         f"Status: {status}, Data: {data}")
+            self.log_test("Message with Context - Citations present", False, 
                          f"Status: {status}, Data: {data}")
 
     def test_project_file_isolation(self):
