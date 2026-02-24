@@ -904,7 +904,7 @@ startxref
         }, token=self.test_user_token)
         
         if success and status == 200:
-            auto_ingested_multiple = data.get('autoIngestedUrls', [])
+            auto_ingested_multiple = data.get('autoIngestedUrls') or []
             ingested_multiple_urls = len(auto_ingested_multiple) > 0
             
             self.log_test("Auto-Ingest URL - Multiple URLs in one message", ingested_multiple_urls,
