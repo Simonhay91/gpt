@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { Button } from '../components/ui/button';
+import { Input } from '../components/ui/input';
 import { Textarea } from '../components/ui/textarea';
 import { ScrollArea } from '../components/ui/scroll-area';
 import { Checkbox } from '../components/ui/checkbox';
@@ -18,24 +19,37 @@ import {
   ChevronDown, 
   ChevronUp,
   Paperclip,
-  X
+  Link,
+  Globe,
+  File,
+  Quote
 } from 'lucide-react';
 import DashboardLayout from '../components/DashboardLayout';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
+
+// File type icons
+const getFileIcon = (mimeType, kind) => {
+  if (kind === 'url') return <Globe className="h-5 w-5 text-blue-400" />;
+  if (mimeType?.includes('pdf')) return <FileText className="h-5 w-5 text-red-400" />;
+  if (mimeType?.includes('wordprocessingml')) return <File className="h-5 w-5 text-blue-500" />;
+  return <FileText className="h-5 w-5 text-gray-400" />;
+};
 
 const ChatPage = () => {
   const { chatId } = useParams();
   const navigate = useNavigate();
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
+  const [urlInput, setUrlInput] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [isSending, setIsSending] = useState(false);
   const [chat, setChat] = useState(null);
-  const [projectFiles, setProjectFiles] = useState([]);
-  const [activeFileIds, setActiveFileIds] = useState([]);
+  const [projectSources, setProjectSources] = useState([]);
+  const [activeSourceIds, setActiveSourceIds] = useState([]);
   const [isUploading, setIsUploading] = useState(false);
-  const [showFilePanel, setShowFilePanel] = useState(false);
+  const [isAddingUrl, setIsAddingUrl] = useState(false);
+  const [showSourcePanel, setShowSourcePanel] = useState(false);
   const messagesEndRef = useRef(null);
   const textareaRef = useRef(null);
   const fileInputRef = useRef(null);
@@ -57,15 +71,15 @@ const ChatPage = () => {
       // Get chat details first
       const chatRes = await axios.get(`${API}/chats/${chatId}`);
       setChat(chatRes.data);
-      setActiveFileIds(chatRes.data.activeFileIds || []);
+      setActiveSourceIds(chatRes.data.activeSourceIds || []);
       
       // Get messages
       const messagesRes = await axios.get(`${API}/chats/${chatId}/messages`);
       setMessages(messagesRes.data);
       
-      // Get project files
-      const filesRes = await axios.get(`${API}/projects/${chatRes.data.projectId}/files`);
-      setProjectFiles(filesRes.data);
+      // Get project sources
+      const sourcesRes = await axios.get(`${API}/projects/${chatRes.data.projectId}/sources`);
+      setProjectSources(sourcesRes.data);
     } catch (error) {
       toast.error('Failed to load chat');
       navigate('/dashboard');
@@ -78,8 +92,15 @@ const ChatPage = () => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    if (file.type !== 'application/pdf') {
-      toast.error('Only PDF files are allowed');
+    const supportedTypes = [
+      'application/pdf',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      'text/plain',
+      'text/markdown'
+    ];
+
+    if (!supportedTypes.includes(file.type)) {
+      toast.error('Unsupported file type. Please upload PDF, DOCX, TXT, or MD files.');
       return;
     }
 
@@ -94,17 +115,17 @@ const ChatPage = () => {
 
     try {
       const response = await axios.post(
-        `${API}/projects/${chat.projectId}/files`,
+        `${API}/projects/${chat.projectId}/sources/upload`,
         formData,
         { headers: { 'Content-Type': 'multipart/form-data' } }
       );
       
-      setProjectFiles(prev => [...prev, response.data]);
+      setProjectSources(prev => [...prev, response.data]);
       toast.success(`Uploaded ${file.name} (${response.data.chunkCount} chunks extracted)`);
       
-      // Auto-activate the uploaded file
-      const newActiveIds = [...activeFileIds, response.data.id];
-      await updateActiveFiles(newActiveIds);
+      // Auto-activate the uploaded source
+      const newActiveIds = [...activeSourceIds, response.data.id];
+      await updateActiveSources(newActiveIds);
     } catch (error) {
       const message = error.response?.data?.detail || 'Failed to upload file';
       toast.error(message);
@@ -116,37 +137,71 @@ const ChatPage = () => {
     }
   };
 
-  const updateActiveFiles = async (fileIds) => {
+  const handleAddUrl = async () => {
+    const url = urlInput.trim();
+    if (!url) {
+      toast.error('Please enter a URL');
+      return;
+    }
+
+    if (!url.startsWith('http://') && !url.startsWith('https://')) {
+      toast.error('URL must start with http:// or https://');
+      return;
+    }
+
+    setIsAddingUrl(true);
     try {
-      await axios.post(`${API}/chats/${chatId}/active-files`, { fileIds });
-      setActiveFileIds(fileIds);
+      const response = await axios.post(
+        `${API}/projects/${chat.projectId}/sources/url`,
+        { url }
+      );
+      
+      setProjectSources(prev => [...prev, response.data]);
+      setUrlInput('');
+      toast.success(`Added URL (${response.data.chunkCount} chunks extracted)`);
+      
+      // Auto-activate the URL source
+      const newActiveIds = [...activeSourceIds, response.data.id];
+      await updateActiveSources(newActiveIds);
     } catch (error) {
-      toast.error('Failed to update active files');
+      const message = error.response?.data?.detail || 'Failed to add URL';
+      toast.error(message);
+    } finally {
+      setIsAddingUrl(false);
     }
   };
 
-  const toggleFileActive = async (fileId) => {
-    const newActiveIds = activeFileIds.includes(fileId)
-      ? activeFileIds.filter(id => id !== fileId)
-      : [...activeFileIds, fileId];
-    
-    await updateActiveFiles(newActiveIds);
+  const updateActiveSources = async (sourceIds) => {
+    try {
+      await axios.post(`${API}/chats/${chatId}/active-sources`, { sourceIds });
+      setActiveSourceIds(sourceIds);
+    } catch (error) {
+      toast.error('Failed to update active sources');
+    }
   };
 
-  const deleteFile = async (fileId, e) => {
+  const toggleSourceActive = async (sourceId) => {
+    const newActiveIds = activeSourceIds.includes(sourceId)
+      ? activeSourceIds.filter(id => id !== sourceId)
+      : [...activeSourceIds, sourceId];
+    
+    await updateActiveSources(newActiveIds);
+  };
+
+  const deleteSource = async (sourceId, e) => {
     e.stopPropagation();
     
-    if (!window.confirm('Are you sure you want to delete this file?')) {
+    if (!window.confirm('Are you sure you want to delete this source?')) {
       return;
     }
 
     try {
-      await axios.delete(`${API}/projects/${chat.projectId}/files/${fileId}`);
-      setProjectFiles(prev => prev.filter(f => f.id !== fileId));
-      setActiveFileIds(prev => prev.filter(id => id !== fileId));
-      toast.success('File deleted');
+      await axios.delete(`${API}/projects/${chat.projectId}/sources/${sourceId}`);
+      setProjectSources(prev => prev.filter(s => s.id !== sourceId));
+      setActiveSourceIds(prev => prev.filter(id => id !== sourceId));
+      toast.success('Source deleted');
     } catch (error) {
-      toast.error('Failed to delete file');
+      toast.error('Failed to delete source');
     }
   };
 
@@ -197,6 +252,7 @@ const ChatPage = () => {
   };
 
   const formatFileSize = (bytes) => {
+    if (!bytes) return '';
     if (bytes < 1024) return `${bytes} B`;
     if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
     return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
@@ -209,6 +265,15 @@ const ChatPage = () => {
       hour: '2-digit',
       minute: '2-digit'
     });
+  };
+
+  const getFileTypeLabel = (mimeType, kind) => {
+    if (kind === 'url') return 'URL';
+    if (mimeType?.includes('pdf')) return 'PDF';
+    if (mimeType?.includes('wordprocessingml')) return 'DOCX';
+    if (mimeType?.includes('markdown')) return 'MD';
+    if (mimeType?.includes('plain')) return 'TXT';
+    return 'File';
   };
 
   if (isLoading) {
@@ -239,103 +304,134 @@ const ChatPage = () => {
               <h1 className="font-semibold">Chat</h1>
               <p className="text-sm text-muted-foreground">
                 {messages.length} {messages.length === 1 ? 'message' : 'messages'}
-                {activeFileIds.length > 0 && (
+                {activeSourceIds.length > 0 && (
                   <span className="ml-2 text-indigo-400">
-                    • {activeFileIds.length} file{activeFileIds.length !== 1 ? 's' : ''} active
+                    • {activeSourceIds.length} source{activeSourceIds.length !== 1 ? 's' : ''} active
                   </span>
                 )}
               </p>
             </div>
           </div>
           
-          {/* File Panel Toggle */}
+          {/* Source Panel Toggle */}
           <Button
             variant="outline"
             size="sm"
-            onClick={() => setShowFilePanel(!showFilePanel)}
+            onClick={() => setShowSourcePanel(!showSourcePanel)}
             className="gap-2"
-            data-testid="toggle-file-panel-btn"
+            data-testid="toggle-source-panel-btn"
           >
             <Paperclip className="h-4 w-4" />
-            Documents
-            {showFilePanel ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+            Sources
+            {showSourcePanel ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
           </Button>
         </div>
 
-        {/* File Panel */}
-        {showFilePanel && (
-          <div className="border-b border-border bg-card/30 px-6 py-4" data-testid="file-panel">
+        {/* Source Panel */}
+        {showSourcePanel && (
+          <div className="border-b border-border bg-card/30 px-6 py-4" data-testid="source-panel">
             <div className="max-w-3xl mx-auto">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-sm font-medium text-muted-foreground">
-                  Project Documents
-                </h3>
-                <div className="flex items-center gap-2">
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept="application/pdf"
-                    onChange={handleFileUpload}
-                    className="hidden"
-                    data-testid="file-input"
+              {/* Upload and URL Input Row */}
+              <div className="flex flex-wrap items-center gap-3 mb-4">
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".pdf,.docx,.txt,.md,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain,text/markdown"
+                  onChange={handleFileUpload}
+                  className="hidden"
+                  data-testid="file-input"
+                />
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={isUploading}
+                  className="gap-2"
+                  data-testid="upload-file-btn"
+                >
+                  {isUploading ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Upload className="h-4 w-4" />
+                  )}
+                  Upload File
+                </Button>
+                
+                <div className="flex-1 flex items-center gap-2 min-w-[200px]">
+                  <Input
+                    placeholder="https://example.com/article"
+                    value={urlInput}
+                    onChange={(e) => setUrlInput(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && handleAddUrl()}
+                    className="h-9 text-sm"
+                    data-testid="url-input"
                   />
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => fileInputRef.current?.click()}
-                    disabled={isUploading}
-                    className="gap-2"
-                    data-testid="upload-file-btn"
+                    onClick={handleAddUrl}
+                    disabled={isAddingUrl || !urlInput.trim()}
+                    className="gap-2 whitespace-nowrap"
+                    data-testid="add-url-btn"
                   >
-                    {isUploading ? (
+                    {isAddingUrl ? (
                       <Loader2 className="h-4 w-4 animate-spin" />
                     ) : (
-                      <Upload className="h-4 w-4" />
+                      <Link className="h-4 w-4" />
                     )}
-                    Upload PDF
+                    Add URL
                   </Button>
                 </div>
               </div>
 
-              {projectFiles.length === 0 ? (
+              <div className="text-xs text-muted-foreground mb-3">
+                Supported: PDF, DOCX, TXT, MD files and web URLs
+              </div>
+
+              {/* Sources List */}
+              {projectSources.length === 0 ? (
                 <div className="text-center py-6 text-muted-foreground">
                   <FileText className="h-8 w-8 mx-auto mb-2 opacity-50" />
-                  <p className="text-sm">No documents uploaded yet</p>
-                  <p className="text-xs mt-1">Upload a PDF to use as context in your conversation</p>
+                  <p className="text-sm">No sources uploaded yet</p>
+                  <p className="text-xs mt-1">Upload files or add URLs to use as context</p>
                 </div>
               ) : (
-                <div className="space-y-2">
-                  {projectFiles.map((file) => (
+                <div className="space-y-2 max-h-[200px] overflow-y-auto">
+                  {projectSources.map((source) => (
                     <div
-                      key={file.id}
+                      key={source.id}
                       className={`flex items-center gap-3 p-3 rounded-lg border transition-colors cursor-pointer ${
-                        activeFileIds.includes(file.id)
+                        activeSourceIds.includes(source.id)
                           ? 'border-indigo-500/50 bg-indigo-500/10'
                           : 'border-border hover:border-border/80 bg-background/50'
                       }`}
-                      onClick={() => toggleFileActive(file.id)}
-                      data-testid={`file-item-${file.id}`}
+                      onClick={() => toggleSourceActive(source.id)}
+                      data-testid={`source-item-${source.id}`}
                     >
                       <Checkbox
-                        checked={activeFileIds.includes(file.id)}
-                        onCheckedChange={() => toggleFileActive(file.id)}
-                        data-testid={`file-checkbox-${file.id}`}
+                        checked={activeSourceIds.includes(source.id)}
+                        onCheckedChange={() => toggleSourceActive(source.id)}
+                        data-testid={`source-checkbox-${source.id}`}
                       />
-                      <FileText className={`h-5 w-5 flex-shrink-0 ${
-                        activeFileIds.includes(file.id) ? 'text-indigo-400' : 'text-muted-foreground'
-                      }`} />
+                      {getFileIcon(source.mimeType, source.kind)}
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium truncate">{file.originalName}</p>
+                        <p className="text-sm font-medium truncate">
+                          {source.originalName || source.url}
+                        </p>
                         <p className="text-xs text-muted-foreground">
-                          {formatFileSize(file.sizeBytes)} • {file.chunkCount} chunks • {formatDate(file.createdAt)}
+                          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-secondary text-secondary-foreground mr-2">
+                            {getFileTypeLabel(source.mimeType, source.kind)}
+                          </span>
+                          {source.sizeBytes ? `${formatFileSize(source.sizeBytes)} • ` : ''}
+                          {source.chunkCount} chunks • {formatDate(source.createdAt)}
                         </p>
                       </div>
                       <Button
                         variant="ghost"
                         size="icon"
-                        className="h-8 w-8 opacity-0 group-hover:opacity-100 hover:opacity-100"
-                        onClick={(e) => deleteFile(file.id, e)}
-                        data-testid={`delete-file-${file.id}`}
+                        className="h-8 w-8 opacity-50 hover:opacity-100"
+                        onClick={(e) => deleteSource(source.id, e)}
+                        data-testid={`delete-source-${source.id}`}
                       >
                         <Trash2 className="h-4 w-4 text-destructive" />
                       </Button>
@@ -344,10 +440,10 @@ const ChatPage = () => {
                 </div>
               )}
               
-              {activeFileIds.length > 0 && (
+              {activeSourceIds.length > 0 && (
                 <p className="text-xs text-muted-foreground mt-3 flex items-center gap-1">
                   <span className="inline-block w-2 h-2 rounded-full bg-indigo-500"></span>
-                  Selected files will be used as context for AI responses
+                  Selected sources will be used as context for AI responses with citations
                 </p>
               )}
             </div>
@@ -363,14 +459,19 @@ const ChatPage = () => {
               </div>
               <h3 className="text-lg font-semibold mb-2">Start a conversation</h3>
               <p className="text-muted-foreground max-w-md">
-                Send a message to begin chatting with the AI assistant.
-                {projectFiles.length > 0 ? (
-                  <span className="block mt-2 text-indigo-400">
-                    Tip: Select documents above to use them as context
+                {projectSources.length > 0 ? (
+                  <span>
+                    Select sources above, then ask questions about them.
+                    <span className="block mt-2 text-indigo-400">
+                      The AI will cite specific chunks from your documents.
+                    </span>
                   </span>
                 ) : (
-                  <span className="block mt-2">
-                    You can also upload PDFs to use as context
+                  <span>
+                    Upload PDFs, DOCX, TXT files or add URLs to use as context.
+                    <span className="block mt-2">
+                      The AI will answer questions based on your sources.
+                    </span>
                   </span>
                 )}
               </p>
@@ -404,6 +505,34 @@ const ChatPage = () => {
                         {message.content}
                       </p>
                     </div>
+                    
+                    {/* Citations */}
+                    {message.role === 'assistant' && message.citations && message.citations.length > 0 && (
+                      <div className="mt-2 px-2">
+                        <div className="flex items-center gap-1 text-xs text-muted-foreground mb-1">
+                          <Quote className="h-3 w-3" />
+                          Sources used:
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          {message.citations.map((citation, cidx) => (
+                            <span
+                              key={cidx}
+                              className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-indigo-500/10 text-indigo-400 text-xs border border-indigo-500/20"
+                              data-testid={`citation-${cidx}`}
+                            >
+                              <FileText className="h-3 w-3" />
+                              {citation.sourceName.length > 30 
+                                ? citation.sourceName.slice(0, 30) + '...' 
+                                : citation.sourceName}
+                              <span className="text-indigo-300/70">
+                                (chunks {citation.chunks.join(', ')})
+                              </span>
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    
                     <span className="text-xs text-muted-foreground px-1">
                       {formatTime(message.createdAt)}
                     </span>
@@ -439,8 +568,8 @@ const ChatPage = () => {
             <Textarea
               ref={textareaRef}
               placeholder={
-                activeFileIds.length > 0 
-                  ? "Ask a question about the selected documents..." 
+                activeSourceIds.length > 0 
+                  ? "Ask a question about the selected sources..." 
                   : "Type your message... (Enter to send, Shift+Enter for new line)"
               }
               value={input}
