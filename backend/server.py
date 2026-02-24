@@ -138,6 +138,9 @@ class QuickChatCreate(BaseModel):
 class MoveChatRequest(BaseModel):
     targetProjectId: str
 
+class RenameChatRequest(BaseModel):
+    name: str
+
 class MessageCreate(BaseModel):
     content: str
 
