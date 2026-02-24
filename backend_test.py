@@ -32,6 +32,7 @@ class SharedProjectGPTTester:
         self.test_project_id = None
         self.test_chat_id = None
         self.test_file_id = None
+        self.test_url_source_id = None
 
     def log_test(self, name: str, success: bool, details: str = "", response_data: Any = None):
         """Log test result"""
