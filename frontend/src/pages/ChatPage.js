@@ -22,9 +22,12 @@ import {
   Link,
   Globe,
   File,
-  Quote
+  Quote,
+  ImageIcon,
+  Download
 } from 'lucide-react';
 import DashboardLayout from '../components/DashboardLayout';
+import ImageGenerator from '../components/ImageGenerator';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
@@ -48,6 +51,7 @@ const ChatPage = () => {
   const [projectSources, setProjectSources] = useState([]);
   const [activeSourceIds, setActiveSourceIds] = useState([]);
   const [isUploading, setIsUploading] = useState(false);
+  const [generatedImages, setGeneratedImages] = useState([]);
   const [isAddingUrl, setIsAddingUrl] = useState(false);
   const [showSourcePanel, setShowSourcePanel] = useState(false);
   const messagesEndRef = useRef(null);
