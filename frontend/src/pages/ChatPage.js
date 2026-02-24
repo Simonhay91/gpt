@@ -84,11 +84,50 @@ const ChatPage = () => {
       // Get project sources
       const sourcesRes = await axios.get(`${API}/projects/${chatRes.data.projectId}/sources`);
       setProjectSources(sourcesRes.data);
+      
+      // Get generated images
+      const imagesRes = await axios.get(`${API}/projects/${chatRes.data.projectId}/images`);
+      setGeneratedImages(imagesRes.data);
     } catch (error) {
       toast.error('Failed to load chat');
       navigate('/dashboard');
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleImageGenerated = (newImage) => {
+    setGeneratedImages(prev => [newImage, ...prev]);
+    
+    // Add image as a system message in chat
+    const imageMessage = {
+      id: `img-${newImage.id}`,
+      chatId,
+      role: 'assistant',
+      content: `Generated image: "${newImage.prompt}"`,
+      isGeneratedImage: true,
+      imageData: newImage,
+      createdAt: newImage.createdAt
+    };
+    setMessages(prev => [...prev, imageMessage]);
+  };
+
+  const downloadImage = async (imageId) => {
+    try {
+      const response = await axios.get(`${API}/images/${imageId}`, {
+        responseType: 'blob'
+      });
+      
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `generated_${imageId}.png`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      toast.error('Failed to download image');
     }
   };
 
