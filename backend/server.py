@@ -1226,7 +1226,11 @@ async def get_messages(chat_id: str, current_user: dict = Depends(get_current_us
     if not chat:
         raise HTTPException(status_code=404, detail="Chat not found")
     
-    await verify_project_ownership(chat["projectId"], current_user["id"])
+    # Verify ownership - for quick chats check ownerId, for project chats check project ownership
+    if chat.get("projectId"):
+        await verify_project_ownership(chat["projectId"], current_user["id"])
+    elif chat.get("ownerId") != current_user["id"]:
+        raise HTTPException(status_code=403, detail="Not authorized")
     
     messages = await db.messages.find({"chatId": chat_id}, {"_id": 0}).sort("createdAt", 1).to_list(1000)
     return [MessageResponse(**{
