@@ -164,6 +164,19 @@ class ActiveSourcesUpdate(BaseModel):
 class UrlSourceCreate(BaseModel):
     url: str
 
+class ImageGenerateRequest(BaseModel):
+    prompt: str
+    size: Optional[str] = "1024x1024"
+
+class GeneratedImageResponse(BaseModel):
+    id: str
+    projectId: str
+    prompt: str
+    imagePath: str
+    imageUrl: str
+    size: str
+    createdAt: str
+
 # ==================== HELPERS ====================
 
 def hash_password(password: str) -> str:
