@@ -1014,6 +1014,9 @@ startxref
             # Test Active Sources UX improvements
             self.test_active_sources_ux_improvements()
             
+            # Test Auto-Ingest URL feature
+            self.test_auto_ingest_url_feature()
+            
             # Admin functionality
             self.test_admin_config()
             
