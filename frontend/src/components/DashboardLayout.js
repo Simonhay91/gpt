@@ -3,6 +3,11 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { Button } from './ui/button';
+import { Label } from './ui/label';
+import { Textarea } from './ui/textarea';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from './ui/dialog';
+import { toast } from 'sonner';
+import axios from 'axios';
 import { 
   LayoutDashboard, 
   Settings, 
@@ -13,8 +18,11 @@ import {
   ChevronRight,
   Users,
   Sun,
-  Moon
+  Moon,
+  Sparkles
 } from 'lucide-react';
+
+const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
 const DashboardLayout = ({ children }) => {
   const { user, logout } = useAuth();
@@ -22,10 +30,45 @@ const DashboardLayout = ({ children }) => {
   const location = useLocation();
   const navigate = useNavigate();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  
+  // User Prompt State
+  const [isPromptDialogOpen, setIsPromptDialogOpen] = useState(false);
+  const [userPrompt, setUserPrompt] = useState('');
+  const [isSavingPrompt, setIsSavingPrompt] = useState(false);
+  const [promptLoaded, setPromptLoaded] = useState(false);
 
   const handleLogout = () => {
     logout();
     navigate('/login');
+  };
+
+  const loadUserPrompt = async () => {
+    if (promptLoaded) return;
+    try {
+      const response = await axios.get(`${API}/user/prompt`);
+      setUserPrompt(response.data.customPrompt || '');
+      setPromptLoaded(true);
+    } catch (error) {
+      console.error('Failed to load prompt');
+    }
+  };
+
+  const openPromptDialog = () => {
+    loadUserPrompt();
+    setIsPromptDialogOpen(true);
+  };
+
+  const saveUserPrompt = async () => {
+    setIsSavingPrompt(true);
+    try {
+      await axios.put(`${API}/user/prompt`, { customPrompt: userPrompt.trim() || null });
+      toast.success('Custom prompt saved');
+      setIsPromptDialogOpen(false);
+    } catch (error) {
+      toast.error('Failed to save prompt');
+    } finally {
+      setIsSavingPrompt(false);
+    }
   };
 
   const navItems = [
