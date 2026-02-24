@@ -506,27 +506,40 @@ const ChatPage = () => {
                       </p>
                     </div>
                     
-                    {/* Citations */}
-                    {message.role === 'assistant' && message.citations && message.citations.length > 0 && (
+                    {/* Citations / Used Sources */}
+                    {message.role === 'assistant' && (message.citations?.length > 0 || message.usedSources?.length > 0) && (
                       <div className="mt-2 px-2">
                         <div className="flex items-center gap-1 text-xs text-muted-foreground mb-1">
                           <Quote className="h-3 w-3" />
                           Sources used:
                         </div>
                         <div className="flex flex-wrap gap-2">
-                          {message.citations.map((citation, cidx) => (
+                          {message.citations ? (
+                            message.citations.map((citation, cidx) => (
+                              <span
+                                key={cidx}
+                                className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-indigo-500/10 text-indigo-400 text-xs border border-indigo-500/20"
+                                data-testid={`citation-${cidx}`}
+                              >
+                                <FileText className="h-3 w-3" />
+                                {citation.sourceName.length > 30 
+                                  ? citation.sourceName.slice(0, 30) + '...' 
+                                  : citation.sourceName}
+                                <span className="text-indigo-300/70">
+                                  (chunks {citation.chunks.join(', ')})
+                                </span>
+                              </span>
+                            ))
+                          ) : message.usedSources?.map((source, sidx) => (
                             <span
-                              key={cidx}
+                              key={sidx}
                               className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-indigo-500/10 text-indigo-400 text-xs border border-indigo-500/20"
-                              data-testid={`citation-${cidx}`}
+                              data-testid={`used-source-${sidx}`}
                             >
                               <FileText className="h-3 w-3" />
-                              {citation.sourceName.length > 30 
-                                ? citation.sourceName.slice(0, 30) + '...' 
-                                : citation.sourceName}
-                              <span className="text-indigo-300/70">
-                                (chunks {citation.chunks.join(', ')})
-                              </span>
+                              {source.sourceName.length > 30 
+                                ? source.sourceName.slice(0, 30) + '...' 
+                                : source.sourceName}
                             </span>
                           ))}
                         </div>
