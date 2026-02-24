@@ -35,6 +35,19 @@ const LoginPage = () => {
 
   return (
     <div className="min-h-screen flex" data-testid="login-page">
+      {/* Theme Toggle - Top Right */}
+      <div className="fixed top-4 right-4 z-50">
+        <Button
+          variant="outline"
+          size="icon"
+          onClick={toggleTheme}
+          className="h-10 w-10 rounded-full"
+          data-testid="login-theme-toggle"
+        >
+          {isDark ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
+        </Button>
+      </div>
+
       {/* Left side - Form */}
       <div className="flex-1 flex items-center justify-center p-8 bg-background">
         <div className="w-full max-w-md animate-fadeIn">
