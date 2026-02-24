@@ -28,6 +28,7 @@ import {
 } from 'lucide-react';
 import DashboardLayout from '../components/DashboardLayout';
 import ImageGenerator from '../components/ImageGenerator';
+import AuthImage from '../components/AuthImage';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
