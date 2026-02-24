@@ -771,7 +771,7 @@ async def upload_source(
     if file.content_type not in SUPPORTED_MIME_TYPES:
         raise HTTPException(
             status_code=400, 
-            detail=f"Unsupported file type. Supported: PDF, DOCX, TXT, MD"
+            detail="Unsupported file type. Supported: PDF, DOCX, TXT, MD"
         )
     
     # Read file content
