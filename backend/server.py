@@ -977,6 +977,7 @@ END OF SOURCE CONTEXT
     
     # Deduplicate citations by source
     unique_citations = {}
+    used_sources = []
     for c in citations:
         key = c["sourceId"]
         if key not in unique_citations:
@@ -985,9 +986,14 @@ END OF SOURCE CONTEXT
                 "sourceId": c["sourceId"],
                 "chunks": []
             }
+            used_sources.append({
+                "sourceId": c["sourceId"],
+                "sourceName": c["sourceName"]
+            })
         unique_citations[key]["chunks"].append(c["chunkIndex"] + 1)
     
     final_citations = list(unique_citations.values()) if unique_citations else None
+    final_used_sources = used_sources if used_sources else None
     
     # Save assistant message
     assistant_msg_id = str(uuid.uuid4())
@@ -997,6 +1003,7 @@ END OF SOURCE CONTEXT
         "role": "assistant",
         "content": response_text,
         "citations": final_citations,
+        "usedSources": final_used_sources,
         "createdAt": datetime.now(timezone.utc).isoformat()
     }
     await db.messages.insert_one(assistant_message)
