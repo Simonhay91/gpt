@@ -854,6 +854,10 @@ startxref
             self.test_url_source_operations()
             self.test_active_sources_operations()
             self.test_message_with_source_context()
+            self.test_message_no_active_sources()
+            
+            # Test Active Sources UX improvements
+            self.test_active_sources_ux_improvements()
             
             # Admin functionality
             self.test_admin_config()
