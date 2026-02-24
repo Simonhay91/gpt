@@ -191,23 +191,42 @@ def is_admin(email: str) -> bool:
     return email.endswith(ADMIN_EMAIL_DOMAIN)
 
 async def ensure_gpt_config():
-    """Ensure GPT config singleton exists with citation-aware prompt"""
+    """Ensure GPT config singleton exists with strict active sources rules"""
     config = await db.gpt_config.find_one({"id": "1"}, {"_id": 0})
+    default_prompt = """You are a helpful assistant that answers questions based on provided source documents.
+
+ATTACHMENTS / ACTIVE SOURCES RULES (critical):
+- The chat may have multiple attached sources (files/URLs) but only some are marked as ACTIVE for this chat.
+- Always check and use ONLY the ACTIVE sources provided in PROJECT SOURCE CONTEXT.
+- If the user asks about an attachment but no ACTIVE source text is present, respond:
+  1) Ask the user to activate/select the relevant file/URL in the "Active Sources" panel, OR re-upload it.
+  2) State exactly what you are missing (e.g., "No active PDF/DOCX/URL text was provided.").
+- Never assume you have read an attachment unless its content is included in the PROJECT SOURCE CONTEXT.
+- If multiple active sources exist, briefly list which ones you used ("Used: <source1>, <source2>").
+- If the question requires a specific document, ask which file/URL to use instead of guessing.
+
+RESPONSE STYLE:
+- Keep responses concise and engineer-friendly: steps, checks, configs, and clear next actions.
+- Do not fabricate facts. Only use information from the provided context.
+- When answering, cite your sources by referencing the source name and chunk numbers.
+- Format citations as [Source: filename, Chunk N] or [Source: URL, Chunk N]."""
+    
     if not config:
         config = {
             "id": "1",
             "model": "gpt-4.1-mini",
-            "developerPrompt": """You are a helpful assistant that answers questions based on provided source documents.
-
-INSTRUCTIONS:
-- Use PROJECT SOURCE CONTEXT as the primary source of truth.
-- If the answer is not in the context, say you cannot find it and ask for the missing document/link.
-- Do not fabricate facts.
-- When answering, cite your sources by referencing the source name and chunk numbers.
-- Format citations as [Source: filename, Chunk N] or [Source: URL, Chunk N].""",
+            "developerPrompt": default_prompt,
             "updatedAt": datetime.now(timezone.utc).isoformat()
         }
         await db.gpt_config.insert_one(config)
+    else:
+        # Update existing config with new prompt if it's the old one
+        if "ATTACHMENTS / ACTIVE SOURCES RULES" not in config.get("developerPrompt", ""):
+            await db.gpt_config.update_one(
+                {"id": "1"},
+                {"$set": {"developerPrompt": default_prompt, "updatedAt": datetime.now(timezone.utc).isoformat()}}
+            )
+            config["developerPrompt"] = default_prompt
     return config
 
 async def verify_project_ownership(project_id: str, user_id: str):
