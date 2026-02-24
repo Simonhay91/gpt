@@ -169,18 +169,18 @@ const DashboardPage = () => {
       <div className="p-6 lg:p-8" data-testid="dashboard-page">
         {/* Header */}
         <div className="flex items-center justify-between mb-8">
-          <div>
-            <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
-            <p className="text-muted-foreground mt-1">
-              Manage your AI conversations and projects
-            </p>
-          </div>
-          
-          <div className="flex items-center gap-2">
-            {/* User Prompt Settings */}
+          <div className="flex items-center gap-4">
+            <div>
+              <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
+              <p className="text-muted-foreground mt-1">
+                Manage your AI conversations and projects
+              </p>
+            </div>
+            
+            {/* User Prompt Settings - Left side */}
             <Dialog open={isPromptDialogOpen} onOpenChange={setIsPromptDialogOpen}>
               <DialogTrigger asChild>
-                <Button variant="outline" className="gap-2" data-testid="user-prompt-btn">
+                <Button variant="outline" className="gap-2 ml-4" data-testid="user-prompt-btn">
                   <Sparkles className="h-4 w-4" />
                   My GPT Prompt
                 </Button>
