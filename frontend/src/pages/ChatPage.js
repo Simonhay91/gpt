@@ -568,8 +568,8 @@ const ChatPage = () => {
                     {message.isGeneratedImage && message.imageData ? (
                       <div className="space-y-2">
                         <div className="relative rounded-lg overflow-hidden border border-indigo-500/30 max-w-md">
-                          <img
-                            src={`${API}/images/${message.imageData.id}`}
+                          <AuthImage
+                            imageId={message.imageData.id}
                             alt={message.imageData.prompt}
                             className="w-full h-auto"
                             data-testid={`generated-image-${message.imageData.id}`}
