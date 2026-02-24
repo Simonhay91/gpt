@@ -429,6 +429,18 @@ const ChatPage = () => {
           
           {/* Actions */}
           <div className="flex items-center gap-2">
+            {/* Move Chat Button */}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={openMoveDialog}
+              className="gap-2"
+              data-testid="move-chat-btn"
+            >
+              <MoveRight className="h-4 w-4" />
+              Move
+            </Button>
+
             {/* Image Generator - only for project chats */}
             {chat && chat.projectId && (
               <ImageGenerator 
@@ -453,6 +465,56 @@ const ChatPage = () => {
             )}
           </div>
         </div>
+
+        {/* Move Chat Dialog */}
+        <Dialog open={moveDialogOpen} onOpenChange={setMoveDialogOpen}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>Move Chat to Project</DialogTitle>
+              <DialogDescription>
+                Select a project to move this chat into.
+                {chat?.projectId && " The chat will be removed from its current project."}
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-2 py-4 max-h-[300px] overflow-y-auto">
+              {userProjects.length === 0 ? (
+                <p className="text-center text-muted-foreground py-4">
+                  No projects available. Create a project first.
+                </p>
+              ) : (
+                userProjects
+                  .filter(p => p.id !== chat?.projectId) // Exclude current project
+                  .map((project) => (
+                    <Card
+                      key={project.id}
+                      className="cursor-pointer hover:border-indigo-500/50 transition-colors"
+                      onClick={() => moveChat(project.id)}
+                      data-testid={`move-to-project-${project.id}`}
+                    >
+                      <CardContent className="py-3 flex items-center gap-3">
+                        <FolderOpen className="h-5 w-5 text-indigo-400" />
+                        <span className="font-medium">{project.name}</span>
+                      </CardContent>
+                    </Card>
+                  ))
+              )}
+              {userProjects.length > 0 && userProjects.filter(p => p.id !== chat?.projectId).length === 0 && (
+                <p className="text-center text-muted-foreground py-4">
+                  No other projects available to move to.
+                </p>
+              )}
+            </div>
+            <DialogFooter>
+              <Button
+                variant="outline"
+                onClick={() => setMoveDialogOpen(false)}
+                disabled={isMovingChat}
+              >
+                Cancel
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
 
         {/* Source Panel - only for project chats */}
         {!isQuickChat && showSourcePanel && (
