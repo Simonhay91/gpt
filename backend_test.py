@@ -1201,6 +1201,11 @@ startxref
             # Test Auto-Ingest URL feature
             self.test_auto_ingest_url_feature()
             
+            # Test Image Generation functionality
+            self.test_image_generation_crud()
+            self.test_image_rate_limiting()
+            self.test_image_project_ownership()
+            
             # Admin functionality
             self.test_admin_config()
             
@@ -1209,6 +1214,7 @@ startxref
             self.test_project_source_isolation()
             
             # Cleanup tests (should be last)
+            self.test_image_deletion()
             self.test_source_deletion()
             
         except Exception as e:
