@@ -101,6 +101,14 @@ Build a production-ready full-stack SaaS web app called "Shared Project GPT" wit
 - BeautifulSoup for HTML text extraction
 - python-docx for DOCX parsing
 
+### Date: Feb 24, 2026 - Active Sources UX Improvements
+- Updated developer prompt with strict ATTACHMENTS / ACTIVE SOURCES RULES
+- AI tells users to activate sources when none are selected
+- Added `usedSources` field to API response for reliable UI display
+- Active sources persist per chat (stored in chat document as `activeSourceIds`)
+- Context includes "ACTIVE SOURCES FOR THIS CHAT: <list>" header
+- Improved citation format with source names and chunk numbers
+
 ### Date: Feb 24, 2026 - Auto-Ingest URLs Feature
 - Auto-detect URLs (http/https) in user messages using regex
 - Automatically fetch, extract text, chunk, and store as Source
