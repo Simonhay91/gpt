@@ -593,11 +593,11 @@ startxref
             self.log_test("Message with Context - Citations present", False, 
                          f"Status: {status}, Data: {data}")
 
-    def test_project_file_isolation(self):
-        """Test that files are isolated between projects"""
+    def test_project_source_isolation(self):
+        """Test that sources are isolated between projects"""
         if not self.test_user_token or not hasattr(self, 'test_file_id'):
-            self.log_test("File Isolation - Missing requirements", False, 
-                         "Missing token or file ID")
+            self.log_test("Source Isolation - Missing requirements", False, 
+                         "Missing token or source ID")
             return
 
         # Create a second project
@@ -608,22 +608,51 @@ startxref
         if success and status == 200 and 'id' in data:
             second_project_id = data['id']
             
-            # Try to access the file from the first project via the second project (should fail)
-            success, data, status = self.make_request('GET', f'/projects/{second_project_id}/files', 
+            # Try to access the source from the first project via the second project (should fail)
+            success, data, status = self.make_request('GET', f'/projects/{second_project_id}/sources', 
                                                      token=self.test_user_token)
             
             if success and status == 200 and isinstance(data, list):
-                file_found = any(f['id'] == self.test_file_id for f in data)
-                self.log_test("File Isolation - Cross-project access", not file_found, 
-                             f"File found in wrong project: {file_found} (should be False)")
+                source_found = any(s['id'] == self.test_file_id for s in data)
+                self.log_test("Source Isolation - Cross-project access", not source_found, 
+                             f"Source found in wrong project: {source_found} (should be False)")
             else:
-                self.log_test("File Isolation - Cross-project access", False, 
+                self.log_test("Source Isolation - Cross-project access", False, 
                              f"Status: {status}, Data: {data}")
             
             # Cleanup second project
             self.make_request('DELETE', f'/projects/{second_project_id}', token=self.test_user_token)
         else:
-            self.log_test("File Isolation - Create second project", False, 
+            self.log_test("Source Isolation - Create second project", False, 
+                         f"Status: {status}, Data: {data}")
+
+    def test_source_deletion(self):
+        """Test source deletion functionality"""
+        if not self.test_user_token or not self.test_project_id or not hasattr(self, 'test_file_id'):
+            self.log_test("Source Deletion - Missing requirements", False, 
+                         "Missing token, project ID, or source ID")
+            return
+
+        # Delete the test source
+        success, data, status = self.make_request('DELETE', f'/projects/{self.test_project_id}/sources/{self.test_file_id}', 
+                                                 token=self.test_user_token)
+        
+        if success and status == 200:
+            self.log_test("Source Deletion - Delete source", True, "Source deleted successfully")
+            
+            # Verify source is no longer in the list
+            success, data, status = self.make_request('GET', f'/projects/{self.test_project_id}/sources', 
+                                                     token=self.test_user_token)
+            
+            if success and status == 200 and isinstance(data, list):
+                source_found = any(s['id'] == self.test_file_id for s in data)
+                self.log_test("Source Deletion - Verify deletion", not source_found, 
+                             f"Source still found after deletion: {source_found} (should be False)")
+            else:
+                self.log_test("Source Deletion - Verify deletion", False, 
+                             f"Status: {status}, Data: {data}")
+        else:
+            self.log_test("Source Deletion - Delete source", False, 
                          f"Status: {status}, Data: {data}")
 
     def test_project_isolation(self):
