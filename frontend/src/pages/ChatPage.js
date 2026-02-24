@@ -360,19 +360,31 @@ const ChatPage = () => {
             <Button
               variant="ghost"
               size="icon"
-              onClick={() => navigate(-1)}
+              onClick={() => navigate('/dashboard')}
               data-testid="back-from-chat-btn"
             >
               <ArrowLeft className="h-5 w-5" />
             </Button>
             <div>
-              <h1 className="font-semibold">Chat</h1>
+              <h1 className="font-semibold flex items-center gap-2">
+                {isQuickChat ? (
+                  <>
+                    <MessageSquare className="h-4 w-4 text-emerald-400" />
+                    {chat.name || 'Quick Chat'}
+                  </>
+                ) : (
+                  'Chat'
+                )}
+              </h1>
               <p className="text-sm text-muted-foreground">
                 {messages.length} {messages.length === 1 ? 'message' : 'messages'}
-                {activeSourceIds.length > 0 && (
+                {!isQuickChat && activeSourceIds.length > 0 && (
                   <span className="ml-2 text-indigo-400">
                     • {activeSourceIds.length} source{activeSourceIds.length !== 1 ? 's' : ''} active
                   </span>
+                )}
+                {isQuickChat && (
+                  <span className="ml-2 text-emerald-400">• Quick Chat</span>
                 )}
               </p>
             </div>
@@ -380,31 +392,33 @@ const ChatPage = () => {
           
           {/* Actions */}
           <div className="flex items-center gap-2">
-            {/* Image Generator */}
-            {chat && (
+            {/* Image Generator - only for project chats */}
+            {chat && chat.projectId && (
               <ImageGenerator 
                 projectId={chat.projectId} 
                 onImageGenerated={handleImageGenerated}
               />
             )}
             
-            {/* Source Panel Toggle */}
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setShowSourcePanel(!showSourcePanel)}
-              className="gap-2"
-              data-testid="toggle-source-panel-btn"
-            >
-              <Paperclip className="h-4 w-4" />
-              Sources
-              {showSourcePanel ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-            </Button>
+            {/* Source Panel Toggle - only for project chats */}
+            {!isQuickChat && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowSourcePanel(!showSourcePanel)}
+                className="gap-2"
+                data-testid="toggle-source-panel-btn"
+              >
+                <Paperclip className="h-4 w-4" />
+                Sources
+                {showSourcePanel ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+              </Button>
+            )}
           </div>
         </div>
 
-        {/* Source Panel */}
-        {showSourcePanel && (
+        {/* Source Panel - only for project chats */}
+        {!isQuickChat && showSourcePanel && (
           <div className="border-b border-border bg-card/30 px-6 py-4" data-testid="source-panel">
             <div className="max-w-3xl mx-auto">
               {/* Upload and URL Input Row */}
