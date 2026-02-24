@@ -1,0 +1,56 @@
+{
+  "summary": "Completed comprehensive testing of ChatGPT-like URL auto-ingest feature. All core functionality working correctly including URL detection, auto-ingestion, auto-activation, citations, and UI indicators.",
+  
+  "backend_issues": {
+    "critical_bugs": [],
+    "flaky_endpoints": []
+  },
+  
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  
+  "passed_tests": [
+    "Auto-detect URLs in user messages using regex pattern",
+    "Auto-ingest detected URLs (fetch, extract, chunk, store)",
+    "Auto-activate newly ingested sources for current chat",
+    "Use newly ingested content immediately in same response",
+    "Reuse existing source if URL already ingested (no duplicate)",
+    "Track autoIngestedUrls in message response",
+    "Update chat activeSourceIds with newly ingested sources",
+    "Citations include auto-ingested URL content",
+    "UI shows '1 URL auto-ingested' badge on user messages",
+    "Sources panel updates after auto-ingest",
+    "Persist active sources per chat in DB",
+    "Toast notification for auto-ingested URLs",
+    "Multiple URLs in single message handling",
+    "Invalid URL handling (doesn't break message flow)",
+    "No auto-ingest when no URLs present"
+  ],
+  
+  "test_report_links": [
+    "/app/backend_test.py",
+    "/app/.screenshots/chat_initial.png",
+    "/app/.screenshots/after_auto_ingest.png", 
+    "/app/.screenshots/sources_panel.png",
+    "/app/.screenshots/final_chat_state.png"
+  ],
+  
+  "action_item_for_main_agent": "",
+  
+  "updated_files": [
+    "/app/backend_test.py",
+    "/app/backend/server.py"
+  ],
+  
+  "success_percentage": {
+    "backend": "100% (18/18 auto-ingest tests passed)",
+    "frontend": "100% (all UI components and integrations working)",
+    "overall": "100%"
+  },
+  
+  "should_call_test_agent_after_fix": "false",
+  "should_main_agent_test_itself": "false"
+}
