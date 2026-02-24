@@ -388,9 +388,10 @@ const ChatPage = () => {
               data-testid="toggle-source-panel-btn"
             >
               <Paperclip className="h-4 w-4" />
-            Sources
-            {showSourcePanel ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-          </Button>
+              Sources
+              {showSourcePanel ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+            </Button>
+          </div>
         </div>
 
         {/* Source Panel */}
