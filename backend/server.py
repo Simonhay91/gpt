@@ -1046,7 +1046,7 @@ async def send_message(chat_id: str, message_data: MessageCreate, current_user: 
         # Get relevant chunks using keyword ranking
         relevant_chunks = await get_relevant_chunks(
             active_source_ids, 
-            chat["projectId"], 
+            project_id, 
             message_data.content
         )
         
