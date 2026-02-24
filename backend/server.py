@@ -942,13 +942,27 @@ async def send_message(chat_id: str, message_data: MessageCreate, current_user: 
         
         # Add document context if available
         if document_context:
+            active_sources_list = ", ".join(active_source_names) if active_source_names else "None"
             context_message = f"""PROJECT SOURCE CONTEXT:
-The following content is from user-uploaded documents and URLs. Use this as your primary source of truth.
+ACTIVE SOURCES FOR THIS CHAT: {active_sources_list}
+
+The following content is from user-uploaded documents and URLs that are ACTIVE for this chat. Use this as your primary source of truth.
 
 {document_context}
 
 ---
 END OF SOURCE CONTEXT
+"""
+            messages.append({"role": "system", "content": context_message})
+        else:
+            # No context available - inform the model
+            context_message = """PROJECT SOURCE CONTEXT:
+No active sources are currently selected for this chat, OR no relevant content was found in the active sources.
+
+If the user asks about a document/file/URL:
+1. Ask them to upload the file or add the URL in the Sources panel
+2. Remind them to check/select the source in the "Active Sources" checkboxes
+3. State clearly: "No active source content is available for this query."
 """
             messages.append({"role": "system", "content": context_message})
         
