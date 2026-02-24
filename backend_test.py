@@ -322,7 +322,7 @@ class SharedProjectGPTTester:
                          "No test user token or project ID available")
             return
 
-        # Create a simple PDF content for testing (minimal PDF structure)
+        # Create a proper PDF with extractable text content
         pdf_content = b"""%PDF-1.4
 1 0 obj
 <<
@@ -345,36 +345,52 @@ endobj
 /Parent 2 0 R
 /MediaBox [0 0 612 792]
 /Contents 4 0 R
+/Resources <<
+/Font <<
+/F1 5 0 R
+>>
+>>
 >>
 endobj
 
 4 0 obj
 <<
-/Length 44
+/Length 85
 >>
 stream
 BT
 /F1 12 Tf
 72 720 Td
-(Test PDF content) Tj
+(This is a test PDF document with extractable text content.) Tj
+0 -20 Td
+(It contains multiple lines of text for testing purposes.) Tj
 ET
 endstream
 endobj
 
+5 0 obj
+<<
+/Type /Font
+/Subtype /Type1
+/BaseFont /Helvetica
+>>
+endobj
+
 xref
-0 5
+0 6
 0000000000 65535 f 
 0000000009 00000 n 
 0000000058 00000 n 
 0000000115 00000 n 
-0000000204 00000 n 
+0000000273 00000 n 
+0000000408 00000 n 
 trailer
 <<
-/Size 5
+/Size 6
 /Root 1 0 R
 >>
 startxref
-297
+486
 %%EOF"""
 
         # Test file upload
@@ -424,9 +440,14 @@ startxref
 
     def test_active_files_operations(self):
         """Test setting and getting active files for chats"""
-        if not self.test_user_token or not self.test_chat_id or not hasattr(self, 'test_file_id'):
+        if not self.test_user_token or not self.test_chat_id:
             self.log_test("Active Files - Missing requirements", False, 
-                         "Missing token, chat ID, or file ID")
+                         "Missing token or chat ID")
+            return
+            
+        if not hasattr(self, 'test_file_id') or not self.test_file_id:
+            self.log_test("Active Files - No file ID", False, 
+                         "No test file ID available (file upload may have failed)")
             return
 
         # Test set active files
