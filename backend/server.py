@@ -5,8 +5,9 @@ from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
 import os
 import logging
+import re
 from pathlib import Path
-from pydantic import BaseModel, Field, EmailStr
+from pydantic import BaseModel, Field, EmailStr, HttpUrl
 from typing import List, Optional, Literal
 import uuid
 from datetime import datetime, timezone, timedelta
@@ -16,6 +17,9 @@ from openai import OpenAI
 import PyPDF2
 import io
 import aiofiles
+import httpx
+from bs4 import BeautifulSoup
+from docx import Document
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
@@ -45,6 +49,15 @@ UPLOAD_DIR.mkdir(exist_ok=True)
 MAX_FILE_SIZE = 10 * 1024 * 1024  # 10MB
 CHUNK_SIZE = 1500  # characters per chunk
 MAX_CONTEXT_CHARS = 15000  # Max characters to include in context
+MAX_CHUNKS_PER_QUERY = 10  # Max chunks to include per query
+
+# Supported MIME types
+SUPPORTED_MIME_TYPES = {
+    "application/pdf": "pdf",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document": "docx",
+    "text/plain": "txt",
+    "text/markdown": "md",
+}
 
 # Create the main app
 app = FastAPI(title="Shared Project GPT")
@@ -99,7 +112,7 @@ class ChatResponse(BaseModel):
     projectId: str
     name: str
     createdAt: str
-    activeFileIds: Optional[List[str]] = []
+    activeSourceIds: Optional[List[str]] = []
 
 class MessageCreate(BaseModel):
     content: str
@@ -110,6 +123,7 @@ class MessageResponse(BaseModel):
     role: Literal["user", "assistant"]
     content: str
     createdAt: str
+    citations: Optional[List[dict]] = None
 
 class GPTConfigUpdate(BaseModel):
     model: Optional[str] = None
@@ -121,17 +135,22 @@ class GPTConfigResponse(BaseModel):
     developerPrompt: str
     updatedAt: str
 
-class ProjectFileResponse(BaseModel):
+class SourceResponse(BaseModel):
     id: str
     projectId: str
-    originalName: str
-    mimeType: str
-    sizeBytes: int
+    kind: Literal["file", "url"]
+    originalName: Optional[str] = None
+    url: Optional[str] = None
+    mimeType: Optional[str] = None
+    sizeBytes: Optional[int] = None
     createdAt: str
     chunkCount: int
 
-class ActiveFilesUpdate(BaseModel):
-    fileIds: List[str]
+class ActiveSourcesUpdate(BaseModel):
+    sourceIds: List[str]
+
+class UrlSourceCreate(BaseModel):
+    url: str
 
 # ==================== HELPERS ====================
 
@@ -171,17 +190,33 @@ def is_admin(email: str) -> bool:
     return email.endswith(ADMIN_EMAIL_DOMAIN)
 
 async def ensure_gpt_config():
-    """Ensure GPT config singleton exists"""
+    """Ensure GPT config singleton exists with citation-aware prompt"""
     config = await db.gpt_config.find_one({"id": "1"}, {"_id": 0})
     if not config:
         config = {
             "id": "1",
             "model": "gpt-4.1-mini",
-            "developerPrompt": "You are a helpful assistant. Be concise and clear in your responses.",
+            "developerPrompt": """You are a helpful assistant that answers questions based on provided source documents.
+
+INSTRUCTIONS:
+- Use PROJECT SOURCE CONTEXT as the primary source of truth.
+- If the answer is not in the context, say you cannot find it and ask for the missing document/link.
+- Do not fabricate facts.
+- When answering, cite your sources by referencing the source name and chunk numbers.
+- Format citations as [Source: filename, Chunk N] or [Source: URL, Chunk N].""",
             "updatedAt": datetime.now(timezone.utc).isoformat()
         }
         await db.gpt_config.insert_one(config)
     return config
+
+async def verify_project_ownership(project_id: str, user_id: str):
+    """Verify that the user owns the project"""
+    project = await db.projects.find_one({"id": project_id, "ownerId": user_id})
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+    return project
+
+# ==================== TEXT EXTRACTION ====================
 
 def extract_text_from_pdf(file_content: bytes) -> str:
     """Extract text from PDF file content"""
@@ -196,6 +231,48 @@ def extract_text_from_pdf(file_content: bytes) -> str:
     except Exception as e:
         logger.error(f"PDF extraction error: {str(e)}")
         raise HTTPException(status_code=400, detail=f"Failed to extract text from PDF: {str(e)}")
+
+def extract_text_from_docx(file_content: bytes) -> str:
+    """Extract text from DOCX file content"""
+    try:
+        doc = Document(io.BytesIO(file_content))
+        paragraphs = [para.text for para in doc.paragraphs if para.text.strip()]
+        return "\n\n".join(paragraphs)
+    except Exception as e:
+        logger.error(f"DOCX extraction error: {str(e)}")
+        raise HTTPException(status_code=400, detail=f"Failed to extract text from DOCX: {str(e)}")
+
+def extract_text_from_txt(file_content: bytes) -> str:
+    """Extract text from TXT/MD file content"""
+    try:
+        return file_content.decode('utf-8')
+    except UnicodeDecodeError:
+        try:
+            return file_content.decode('latin-1')
+        except Exception as e:
+            logger.error(f"TXT extraction error: {str(e)}")
+            raise HTTPException(status_code=400, detail=f"Failed to read text file: {str(e)}")
+
+def extract_text_from_html(html_content: str) -> str:
+    """Extract readable text from HTML content"""
+    try:
+        soup = BeautifulSoup(html_content, 'html.parser')
+        
+        # Remove script and style elements
+        for element in soup(['script', 'style', 'nav', 'footer', 'header', 'aside']):
+            element.decompose()
+        
+        # Get text
+        text = soup.get_text(separator='\n')
+        
+        # Clean up whitespace
+        lines = [line.strip() for line in text.splitlines()]
+        lines = [line for line in lines if line]
+        
+        return '\n\n'.join(lines)
+    except Exception as e:
+        logger.error(f"HTML extraction error: {str(e)}")
+        raise HTTPException(status_code=400, detail=f"Failed to extract text from URL: {str(e)}")
 
 def chunk_text(text: str, chunk_size: int = CHUNK_SIZE) -> List[str]:
     """Split text into chunks of approximately chunk_size characters"""
@@ -240,12 +317,55 @@ def chunk_text(text: str, chunk_size: int = CHUNK_SIZE) -> List[str]:
     
     return chunks
 
-async def verify_project_ownership(project_id: str, user_id: str):
-    """Verify that the user owns the project"""
-    project = await db.projects.find_one({"id": project_id, "ownerId": user_id})
-    if not project:
-        raise HTTPException(status_code=404, detail="Project not found")
-    return project
+def score_chunk_relevance(chunk_content: str, query: str) -> float:
+    """Score chunk relevance using simple keyword overlap"""
+    # Tokenize query and chunk
+    query_words = set(re.findall(r'\w+', query.lower()))
+    chunk_words = set(re.findall(r'\w+', chunk_content.lower()))
+    
+    if not query_words:
+        return 0.0
+    
+    # Calculate overlap
+    overlap = len(query_words & chunk_words)
+    return overlap / len(query_words)
+
+async def get_relevant_chunks(source_ids: List[str], project_id: str, query: str) -> List[dict]:
+    """Get most relevant chunks from active sources using keyword ranking"""
+    if not source_ids:
+        return []
+    
+    # Get all chunks from active sources (strict project isolation)
+    all_chunks = await db.source_chunks.find({
+        "sourceId": {"$in": source_ids},
+        "projectId": project_id  # Double-check project isolation
+    }, {"_id": 0}).to_list(10000)
+    
+    if not all_chunks:
+        return []
+    
+    # Score each chunk
+    scored_chunks = []
+    for chunk in all_chunks:
+        score = score_chunk_relevance(chunk["content"], query)
+        scored_chunks.append({**chunk, "score": score})
+    
+    # Sort by score descending
+    scored_chunks.sort(key=lambda x: x["score"], reverse=True)
+    
+    # Select top chunks up to MAX_CHUNKS_PER_QUERY, respecting MAX_CONTEXT_CHARS
+    selected_chunks = []
+    total_chars = 0
+    
+    for chunk in scored_chunks[:MAX_CHUNKS_PER_QUERY * 2]:  # Consider more for character limit
+        if len(selected_chunks) >= MAX_CHUNKS_PER_QUERY:
+            break
+        if total_chars + len(chunk["content"]) > MAX_CONTEXT_CHARS:
+            continue
+        selected_chunks.append(chunk)
+        total_chars += len(chunk["content"])
+    
+    return selected_chunks
 
 # ==================== AUTH ENDPOINTS ====================
 
@@ -353,15 +473,15 @@ async def delete_project(project_id: str, current_user: dict = Depends(get_curre
     # Delete all chats
     await db.chats.delete_many({"projectId": project_id})
     
-    # Delete all files and chunks for this project
-    files = await db.project_files.find({"projectId": project_id}).to_list(1000)
-    for file in files:
-        # Delete physical file
-        file_path = UPLOAD_DIR / file.get("storagePath", "")
-        if file_path.exists():
-            file_path.unlink()
-    await db.project_files.delete_many({"projectId": project_id})
-    await db.project_file_chunks.delete_many({"projectId": project_id})
+    # Delete all sources and chunks for this project
+    sources = await db.sources.find({"projectId": project_id}).to_list(1000)
+    for source in sources:
+        if source.get("storagePath"):
+            file_path = UPLOAD_DIR / source["storagePath"]
+            if file_path.exists():
+                file_path.unlink()
+    await db.sources.delete_many({"projectId": project_id})
+    await db.source_chunks.delete_many({"projectId": project_id})
     
     # Delete project
     await db.projects.delete_one({"id": project_id})
@@ -375,7 +495,7 @@ async def get_chats(project_id: str, current_user: dict = Depends(get_current_us
     await verify_project_ownership(project_id, current_user["id"])
     
     chats = await db.chats.find({"projectId": project_id}, {"_id": 0}).to_list(1000)
-    return [ChatResponse(**{**c, "activeFileIds": c.get("activeFileIds", [])}) for c in chats]
+    return [ChatResponse(**{**c, "activeSourceIds": c.get("activeSourceIds", [])}) for c in chats]
 
 @api_router.post("/projects/{project_id}/chats", response_model=ChatResponse)
 async def create_chat(project_id: str, chat_data: ChatCreate, current_user: dict = Depends(get_current_user)):
@@ -386,7 +506,7 @@ async def create_chat(project_id: str, chat_data: ChatCreate, current_user: dict
         "id": chat_id,
         "projectId": project_id,
         "name": chat_data.name or "New Chat",
-        "activeFileIds": [],
+        "activeSourceIds": [],
         "createdAt": datetime.now(timezone.utc).isoformat()
     }
     await db.chats.insert_one(chat)
@@ -399,7 +519,7 @@ async def get_chat(chat_id: str, current_user: dict = Depends(get_current_user))
         raise HTTPException(status_code=404, detail="Chat not found")
     
     await verify_project_ownership(chat["projectId"], current_user["id"])
-    return ChatResponse(**{**chat, "activeFileIds": chat.get("activeFileIds", [])})
+    return ChatResponse(**{**chat, "activeSourceIds": chat.get("activeSourceIds", [])})
 
 @api_router.delete("/chats/{chat_id}")
 async def delete_chat(chat_id: str, current_user: dict = Depends(get_current_user)):
@@ -414,20 +534,23 @@ async def delete_chat(chat_id: str, current_user: dict = Depends(get_current_use
     
     return {"message": "Chat deleted successfully"}
 
-# ==================== FILE ENDPOINTS ====================
+# ==================== SOURCE ENDPOINTS (FILES + URLS) ====================
 
-@api_router.post("/projects/{project_id}/files", response_model=ProjectFileResponse)
-async def upload_file(
+@api_router.post("/projects/{project_id}/sources/upload", response_model=SourceResponse)
+async def upload_source(
     project_id: str,
     file: UploadFile = File(...),
     current_user: dict = Depends(get_current_user)
 ):
-    """Upload a PDF file to a project"""
+    """Upload a file source (PDF, DOCX, TXT, MD) to a project"""
     await verify_project_ownership(project_id, current_user["id"])
     
     # Validate file type
-    if file.content_type != "application/pdf":
-        raise HTTPException(status_code=400, detail="Only PDF files are allowed")
+    if file.content_type not in SUPPORTED_MIME_TYPES:
+        raise HTTPException(
+            status_code=400, 
+            detail=f"Unsupported file type. Supported: PDF, DOCX, TXT, MD"
+        )
     
     # Read file content
     content = await file.read()
@@ -436,18 +559,25 @@ async def upload_file(
     if len(content) > MAX_FILE_SIZE:
         raise HTTPException(status_code=400, detail=f"File size exceeds maximum of {MAX_FILE_SIZE // (1024*1024)}MB")
     
-    # Extract text from PDF
-    extracted_text = extract_text_from_pdf(content)
+    # Extract text based on file type
+    file_type = SUPPORTED_MIME_TYPES[file.content_type]
+    
+    if file_type == "pdf":
+        extracted_text = extract_text_from_pdf(content)
+    elif file_type == "docx":
+        extracted_text = extract_text_from_docx(content)
+    else:  # txt or md
+        extracted_text = extract_text_from_txt(content)
     
     if not extracted_text or len(extracted_text.strip()) < 10:
         raise HTTPException(
             status_code=400, 
-            detail="This PDF seems to be image-based or contains no extractable text. Please upload a text-based PDF."
+            detail="This file appears to be empty or contains no extractable text. For PDFs, please ensure it's text-based, not image-based/scanned."
         )
     
-    # Generate file ID and storage path
-    file_id = str(uuid.uuid4())
-    storage_filename = f"{file_id}.pdf"
+    # Generate source ID and storage path
+    source_id = str(uuid.uuid4())
+    storage_filename = f"{source_id}.{file_type}"
     storage_path = UPLOAD_DIR / storage_filename
     
     # Save file to disk
@@ -457,144 +587,243 @@ async def upload_file(
     # Create chunks
     chunks = chunk_text(extracted_text)
     
-    # Save file metadata
-    file_doc = {
-        "id": file_id,
+    # Save source metadata
+    source_doc = {
+        "id": source_id,
         "projectId": project_id,
+        "kind": "file",
         "originalName": file.filename,
+        "url": None,
         "mimeType": file.content_type,
         "sizeBytes": len(content),
         "storagePath": storage_filename,
         "createdAt": datetime.now(timezone.utc).isoformat()
     }
-    await db.project_files.insert_one(file_doc)
+    await db.sources.insert_one(source_doc)
     
     # Save chunks
     for i, chunk_content in enumerate(chunks):
         chunk_doc = {
             "id": str(uuid.uuid4()),
-            "projectFileId": file_id,
+            "sourceId": source_id,
             "projectId": project_id,
             "chunkIndex": i,
             "content": chunk_content,
             "createdAt": datetime.now(timezone.utc).isoformat()
         }
-        await db.project_file_chunks.insert_one(chunk_doc)
+        await db.source_chunks.insert_one(chunk_doc)
     
     logger.info(f"Uploaded file {file.filename} with {len(chunks)} chunks for project {project_id}")
     
-    return ProjectFileResponse(
-        id=file_id,
+    return SourceResponse(
+        id=source_id,
         projectId=project_id,
+        kind="file",
         originalName=file.filename,
+        url=None,
         mimeType=file.content_type,
         sizeBytes=len(content),
-        createdAt=file_doc["createdAt"],
+        createdAt=source_doc["createdAt"],
         chunkCount=len(chunks)
     )
 
-@api_router.get("/projects/{project_id}/files", response_model=List[ProjectFileResponse])
-async def list_files(project_id: str, current_user: dict = Depends(get_current_user)):
-    """List all files in a project"""
+@api_router.post("/projects/{project_id}/sources/url", response_model=SourceResponse)
+async def add_url_source(
+    project_id: str,
+    data: UrlSourceCreate,
+    current_user: dict = Depends(get_current_user)
+):
+    """Add a URL source to a project"""
     await verify_project_ownership(project_id, current_user["id"])
     
-    files = await db.project_files.find({"projectId": project_id}, {"_id": 0}).to_list(1000)
+    url = data.url.strip()
+    
+    # Validate URL format
+    if not url.startswith(('http://', 'https://')):
+        raise HTTPException(status_code=400, detail="URL must start with http:// or https://")
+    
+    # Fetch URL content
+    try:
+        async with httpx.AsyncClient(timeout=30.0, follow_redirects=True) as http_client:
+            response = await http_client.get(url, headers={
+                "User-Agent": "Mozilla/5.0 (compatible; SharedProjectGPT/1.0)"
+            })
+            response.raise_for_status()
+    except httpx.TimeoutException:
+        raise HTTPException(status_code=400, detail="URL fetch timed out")
+    except httpx.HTTPStatusError as e:
+        raise HTTPException(status_code=400, detail=f"URL returned error: {e.response.status_code}")
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Failed to fetch URL: {str(e)[:100]}")
+    
+    # Check content type
+    content_type = response.headers.get('content-type', '')
+    if 'text/html' not in content_type and 'text/plain' not in content_type:
+        raise HTTPException(status_code=400, detail="URL must return HTML or text content")
+    
+    # Extract text from HTML
+    html_content = response.text
+    extracted_text = extract_text_from_html(html_content)
+    
+    if not extracted_text or len(extracted_text.strip()) < 10:
+        raise HTTPException(status_code=400, detail="Could not extract meaningful text from this URL")
+    
+    # Generate source ID
+    source_id = str(uuid.uuid4())
+    
+    # Create chunks
+    chunks = chunk_text(extracted_text)
+    
+    # Extract domain for display name
+    from urllib.parse import urlparse
+    parsed_url = urlparse(url)
+    display_name = f"{parsed_url.netloc}{parsed_url.path[:50]}"
+    
+    # Save source metadata
+    source_doc = {
+        "id": source_id,
+        "projectId": project_id,
+        "kind": "url",
+        "originalName": display_name,
+        "url": url,
+        "mimeType": "text/html",
+        "sizeBytes": len(html_content.encode('utf-8')),
+        "storagePath": None,
+        "createdAt": datetime.now(timezone.utc).isoformat()
+    }
+    await db.sources.insert_one(source_doc)
+    
+    # Save chunks
+    for i, chunk_content in enumerate(chunks):
+        chunk_doc = {
+            "id": str(uuid.uuid4()),
+            "sourceId": source_id,
+            "projectId": project_id,
+            "chunkIndex": i,
+            "content": chunk_content,
+            "createdAt": datetime.now(timezone.utc).isoformat()
+        }
+        await db.source_chunks.insert_one(chunk_doc)
+    
+    logger.info(f"Added URL {url} with {len(chunks)} chunks for project {project_id}")
+    
+    return SourceResponse(
+        id=source_id,
+        projectId=project_id,
+        kind="url",
+        originalName=display_name,
+        url=url,
+        mimeType="text/html",
+        sizeBytes=source_doc["sizeBytes"],
+        createdAt=source_doc["createdAt"],
+        chunkCount=len(chunks)
+    )
+
+@api_router.get("/projects/{project_id}/sources", response_model=List[SourceResponse])
+async def list_sources(project_id: str, current_user: dict = Depends(get_current_user)):
+    """List all sources in a project"""
+    await verify_project_ownership(project_id, current_user["id"])
+    
+    sources = await db.sources.find({"projectId": project_id}, {"_id": 0}).to_list(1000)
     
     result = []
-    for f in files:
-        chunk_count = await db.project_file_chunks.count_documents({"projectFileId": f["id"]})
-        result.append(ProjectFileResponse(
-            id=f["id"],
-            projectId=f["projectId"],
-            originalName=f["originalName"],
-            mimeType=f["mimeType"],
-            sizeBytes=f["sizeBytes"],
-            createdAt=f["createdAt"],
+    for s in sources:
+        chunk_count = await db.source_chunks.count_documents({"sourceId": s["id"]})
+        result.append(SourceResponse(
+            id=s["id"],
+            projectId=s["projectId"],
+            kind=s["kind"],
+            originalName=s.get("originalName"),
+            url=s.get("url"),
+            mimeType=s.get("mimeType"),
+            sizeBytes=s.get("sizeBytes"),
+            createdAt=s["createdAt"],
             chunkCount=chunk_count
         ))
     
     return result
 
-@api_router.delete("/projects/{project_id}/files/{file_id}")
-async def delete_file(project_id: str, file_id: str, current_user: dict = Depends(get_current_user)):
-    """Delete a file from a project"""
+@api_router.delete("/projects/{project_id}/sources/{source_id}")
+async def delete_source(project_id: str, source_id: str, current_user: dict = Depends(get_current_user)):
+    """Delete a source from a project"""
     await verify_project_ownership(project_id, current_user["id"])
     
-    file = await db.project_files.find_one({"id": file_id, "projectId": project_id})
-    if not file:
-        raise HTTPException(status_code=404, detail="File not found")
+    source = await db.sources.find_one({"id": source_id, "projectId": project_id})
+    if not source:
+        raise HTTPException(status_code=404, detail="Source not found")
     
-    # Delete physical file
-    file_path = UPLOAD_DIR / file.get("storagePath", "")
-    if file_path.exists():
-        file_path.unlink()
+    # Delete physical file if exists
+    if source.get("storagePath"):
+        file_path = UPLOAD_DIR / source["storagePath"]
+        if file_path.exists():
+            file_path.unlink()
     
     # Delete chunks
-    await db.project_file_chunks.delete_many({"projectFileId": file_id})
+    await db.source_chunks.delete_many({"sourceId": source_id})
     
-    # Delete file metadata
-    await db.project_files.delete_one({"id": file_id})
+    # Delete source metadata
+    await db.sources.delete_one({"id": source_id})
     
-    # Remove from active files in all chats
+    # Remove from active sources in all chats
     await db.chats.update_many(
         {"projectId": project_id},
-        {"$pull": {"activeFileIds": file_id}}
+        {"$pull": {"activeSourceIds": source_id}}
     )
     
-    return {"message": "File deleted successfully"}
+    return {"message": "Source deleted successfully"}
 
-# ==================== ACTIVE FILES ENDPOINTS ====================
+# ==================== ACTIVE SOURCES ENDPOINTS ====================
 
-@api_router.post("/chats/{chat_id}/active-files")
-async def set_active_files(chat_id: str, data: ActiveFilesUpdate, current_user: dict = Depends(get_current_user)):
-    """Set the active files for a chat"""
-    chat = await db.chats.find_one({"id": chat_id}, {"_id": 0})
-    if not chat:
-        raise HTTPException(status_code=404, detail="Chat not found")
-    
-    project = await verify_project_ownership(chat["projectId"], current_user["id"])
-    
-    # Verify all file IDs belong to this project
-    if data.fileIds:
-        files = await db.project_files.find({
-            "id": {"$in": data.fileIds},
-            "projectId": chat["projectId"]
-        }).to_list(1000)
-        
-        valid_ids = {f["id"] for f in files}
-        invalid_ids = set(data.fileIds) - valid_ids
-        
-        if invalid_ids:
-            raise HTTPException(status_code=400, detail=f"Invalid file IDs: {invalid_ids}")
-    
-    # Update chat with active file IDs
-    await db.chats.update_one(
-        {"id": chat_id},
-        {"$set": {"activeFileIds": data.fileIds}}
-    )
-    
-    return {"message": "Active files updated", "activeFileIds": data.fileIds}
-
-@api_router.get("/chats/{chat_id}/active-files")
-async def get_active_files(chat_id: str, current_user: dict = Depends(get_current_user)):
-    """Get the active files for a chat"""
+@api_router.post("/chats/{chat_id}/active-sources")
+async def set_active_sources(chat_id: str, data: ActiveSourcesUpdate, current_user: dict = Depends(get_current_user)):
+    """Set the active sources for a chat"""
     chat = await db.chats.find_one({"id": chat_id}, {"_id": 0})
     if not chat:
         raise HTTPException(status_code=404, detail="Chat not found")
     
     await verify_project_ownership(chat["projectId"], current_user["id"])
     
-    active_file_ids = chat.get("activeFileIds", [])
+    # Verify all source IDs belong to this project
+    if data.sourceIds:
+        sources = await db.sources.find({
+            "id": {"$in": data.sourceIds},
+            "projectId": chat["projectId"]
+        }).to_list(1000)
+        
+        valid_ids = {s["id"] for s in sources}
+        invalid_ids = set(data.sourceIds) - valid_ids
+        
+        if invalid_ids:
+            raise HTTPException(status_code=400, detail=f"Invalid source IDs: {invalid_ids}")
     
-    if not active_file_ids:
-        return {"activeFiles": []}
+    # Update chat with active source IDs
+    await db.chats.update_one(
+        {"id": chat_id},
+        {"$set": {"activeSourceIds": data.sourceIds}}
+    )
     
-    files = await db.project_files.find({
-        "id": {"$in": active_file_ids},
+    return {"message": "Active sources updated", "activeSourceIds": data.sourceIds}
+
+@api_router.get("/chats/{chat_id}/active-sources")
+async def get_active_sources(chat_id: str, current_user: dict = Depends(get_current_user)):
+    """Get the active sources for a chat"""
+    chat = await db.chats.find_one({"id": chat_id}, {"_id": 0})
+    if not chat:
+        raise HTTPException(status_code=404, detail="Chat not found")
+    
+    await verify_project_ownership(chat["projectId"], current_user["id"])
+    
+    active_source_ids = chat.get("activeSourceIds", [])
+    
+    if not active_source_ids:
+        return {"activeSources": []}
+    
+    sources = await db.sources.find({
+        "id": {"$in": active_source_ids},
         "projectId": chat["projectId"]
     }, {"_id": 0}).to_list(1000)
     
-    return {"activeFiles": files}
+    return {"activeSources": sources}
 
 # ==================== MESSAGE ENDPOINTS ====================
 
@@ -607,7 +836,7 @@ async def get_messages(chat_id: str, current_user: dict = Depends(get_current_us
     await verify_project_ownership(chat["projectId"], current_user["id"])
     
     messages = await db.messages.find({"chatId": chat_id}, {"_id": 0}).sort("createdAt", 1).to_list(1000)
-    return [MessageResponse(**m) for m in messages]
+    return [MessageResponse(**{**m, "citations": m.get("citations")}) for m in messages]
 
 @api_router.post("/chats/{chat_id}/messages", response_model=MessageResponse)
 async def send_message(chat_id: str, message_data: MessageCreate, current_user: dict = Depends(get_current_user)):
@@ -615,7 +844,7 @@ async def send_message(chat_id: str, message_data: MessageCreate, current_user: 
     if not chat:
         raise HTTPException(status_code=404, detail="Chat not found")
     
-    project = await verify_project_ownership(chat["projectId"], current_user["id"])
+    await verify_project_ownership(chat["projectId"], current_user["id"])
     
     # Save user message
     user_msg_id = str(uuid.uuid4())
@@ -624,6 +853,7 @@ async def send_message(chat_id: str, message_data: MessageCreate, current_user: 
         "chatId": chat_id,
         "role": "user",
         "content": message_data.content,
+        "citations": None,
         "createdAt": datetime.now(timezone.utc).isoformat()
     }
     await db.messages.insert_one(user_message)
@@ -634,28 +864,47 @@ async def send_message(chat_id: str, message_data: MessageCreate, current_user: 
     # Get chat history
     history = await db.messages.find({"chatId": chat_id}, {"_id": 0}).sort("createdAt", 1).to_list(1000)
     
-    # Get active file chunks for context
+    # Get active sources and relevant chunks
+    active_source_ids = chat.get("activeSourceIds", [])
+    citations = []
     document_context = ""
-    active_file_ids = chat.get("activeFileIds", [])
     
-    if active_file_ids:
-        # Get chunks ONLY from active files of THIS project (strict isolation)
-        chunks = await db.project_file_chunks.find({
-            "projectFileId": {"$in": active_file_ids},
-            "projectId": chat["projectId"]  # Double-check project isolation
-        }, {"_id": 0}).sort("chunkIndex", 1).to_list(1000)
+    if active_source_ids:
+        # Get relevant chunks using keyword ranking
+        relevant_chunks = await get_relevant_chunks(
+            active_source_ids, 
+            chat["projectId"], 
+            message_data.content
+        )
         
-        # Build context from chunks, respecting max context size
-        context_parts = []
-        total_chars = 0
-        
-        for chunk in chunks:
-            if total_chars + len(chunk["content"]) > MAX_CONTEXT_CHARS:
-                break
-            context_parts.append(chunk["content"])
-            total_chars += len(chunk["content"])
-        
-        if context_parts:
+        if relevant_chunks:
+            # Build context and track citations
+            context_parts = []
+            source_names = {}
+            
+            # Get source names for citations
+            sources = await db.sources.find({
+                "id": {"$in": active_source_ids},
+                "projectId": chat["projectId"]
+            }, {"_id": 0}).to_list(1000)
+            
+            for s in sources:
+                source_names[s["id"]] = s.get("originalName") or s.get("url") or "Unknown"
+            
+            # Build context with chunk markers
+            for chunk in relevant_chunks:
+                source_name = source_names.get(chunk["sourceId"], "Unknown")
+                chunk_marker = f"[Source: {source_name}, Chunk {chunk['chunkIndex']+1}]"
+                context_parts.append(f"{chunk_marker}\n{chunk['content']}")
+                
+                # Track citation
+                citations.append({
+                    "sourceName": source_name,
+                    "sourceId": chunk["sourceId"],
+                    "chunkIndex": chunk["chunkIndex"],
+                    "score": chunk.get("score", 0)
+                })
+            
             document_context = "\n\n---\n\n".join(context_parts)
     
     # Prepare messages for OpenAI
@@ -670,13 +919,13 @@ async def send_message(chat_id: str, message_data: MessageCreate, current_user: 
         
         # Add document context if available
         if document_context:
-            context_message = f"""PROJECT DOCUMENT CONTEXT:
-The user has attached documents to this conversation. Use the following content to answer their questions when relevant:
+            context_message = f"""PROJECT SOURCE CONTEXT:
+The following content is from user-uploaded documents and URLs. Use this as your primary source of truth.
 
 {document_context}
 
 ---
-END OF DOCUMENT CONTEXT
+END OF SOURCE CONTEXT
 """
             messages.append({"role": "system", "content": context_message})
         
@@ -704,6 +953,21 @@ END OF DOCUMENT CONTEXT
     except Exception as e:
         logger.error(f"OpenAI API error: {str(e)}")
         response_text = f"I apologize, but I encountered an error processing your request. Please try again later. (Error: {str(e)[:100]})"
+        citations = []
+    
+    # Deduplicate citations by source
+    unique_citations = {}
+    for c in citations:
+        key = c["sourceId"]
+        if key not in unique_citations:
+            unique_citations[key] = {
+                "sourceName": c["sourceName"],
+                "sourceId": c["sourceId"],
+                "chunks": []
+            }
+        unique_citations[key]["chunks"].append(c["chunkIndex"] + 1)
+    
+    final_citations = list(unique_citations.values()) if unique_citations else None
     
     # Save assistant message
     assistant_msg_id = str(uuid.uuid4())
@@ -712,6 +976,7 @@ END OF DOCUMENT CONTEXT
         "chatId": chat_id,
         "role": "assistant",
         "content": response_text,
+        "citations": final_citations,
         "createdAt": datetime.now(timezone.utc).isoformat()
     }
     await db.messages.insert_one(assistant_message)
