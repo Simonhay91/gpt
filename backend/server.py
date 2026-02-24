@@ -1335,15 +1335,23 @@ async def send_message(chat_id: str, message_data: MessageCreate, current_user: 
             
             document_context = "\n\n---\n\n".join(context_parts)
     
+    # Get user's custom prompt
+    user_prompt_doc = await db.user_prompts.find_one({"userId": current_user["id"]}, {"_id": 0})
+    user_custom_prompt = user_prompt_doc.get("customPrompt") if user_prompt_doc else None
+    
     # Prepare messages for OpenAI
     try:
         if not openai_client:
             raise Exception("OpenAI API key not configured")
         
-        # Build messages array with developer prompt, document context, and chat history
+        # Build messages array with developer prompt, user custom prompt, document context, and chat history
         messages = [
             {"role": "developer", "content": config["developerPrompt"]}
         ]
+        
+        # Add user's custom prompt if exists
+        if user_custom_prompt:
+            messages.append({"role": "system", "content": f"USER CUSTOM INSTRUCTIONS:\n{user_custom_prompt}"})
         
         # Add document context if available
         if document_context:
