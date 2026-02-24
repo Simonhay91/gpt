@@ -6,11 +6,11 @@ import './App.css';
 
 // Pages
 import LoginPage from './pages/LoginPage';
-import RegisterPage from './pages/RegisterPage';
 import DashboardPage from './pages/DashboardPage';
 import ProjectPage from './pages/ProjectPage';
 import ChatPage from './pages/ChatPage';
 import AdminConfigPage from './pages/AdminConfigPage';
+import AdminUsersPage from './pages/AdminUsersPage';
 
 // Protected Route Component
 const ProtectedRoute = ({ children }) => {
@@ -82,11 +82,6 @@ function AppRoutes() {
           <LoginPage />
         </PublicRoute>
       } />
-      <Route path="/register" element={
-        <PublicRoute>
-          <RegisterPage />
-        </PublicRoute>
-      } />
       
       {/* Protected Routes */}
       <Route path="/dashboard" element={
@@ -109,6 +104,11 @@ function AppRoutes() {
       <Route path="/admin/config" element={
         <AdminRoute>
           <AdminConfigPage />
+        </AdminRoute>
+      } />
+      <Route path="/admin/users" element={
+        <AdminRoute>
+          <AdminUsersPage />
         </AdminRoute>
       } />
       
