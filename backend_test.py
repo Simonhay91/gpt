@@ -712,17 +712,21 @@ startxref
             self.test_chats_crud()
             self.test_messages_crud()
             
-            # PDF file operations
-            self.test_pdf_file_operations()
-            self.test_active_files_operations()
-            self.test_message_with_file_context()
+            # Source operations (files and URLs)
+            self.test_source_file_operations()
+            self.test_url_source_operations()
+            self.test_active_sources_operations()
+            self.test_message_with_source_context()
             
             # Admin functionality
             self.test_admin_config()
             
             # Security tests
             self.test_project_isolation()
-            self.test_project_file_isolation()
+            self.test_project_source_isolation()
+            
+            # Cleanup tests (should be last)
+            self.test_source_deletion()
             
         except Exception as e:
             print(f"❌ Test suite failed with error: {str(e)}")
