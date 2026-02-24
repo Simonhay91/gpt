@@ -1396,6 +1396,22 @@ If the user asks about a document/file/URL:
         
         response_text = response.output_text
         
+        # Track token usage
+        tokens_used = 0
+        if hasattr(response, 'usage') and response.usage:
+            tokens_used = getattr(response.usage, 'total_tokens', 0)
+        
+        # Update user token usage in DB
+        if tokens_used > 0:
+            await db.token_usage.update_one(
+                {"userId": current_user["id"]},
+                {
+                    "$inc": {"totalTokens": tokens_used, "messageCount": 1},
+                    "$set": {"lastUsedAt": datetime.now(timezone.utc).isoformat()}
+                },
+                upsert=True
+            )
+        
     except Exception as e:
         logger.error(f"OpenAI API error: {str(e)}")
         response_text = f"I apologize, but I encountered an error processing your request. Please try again later. (Error: {str(e)[:100]})"
