@@ -113,6 +113,35 @@ const ChatPage = () => {
   // Check if this is a quick chat (no project)
   const isQuickChat = chat && !chat.projectId;
 
+  const fetchUserProjects = async () => {
+    try {
+      const response = await axios.get(`${API}/projects`);
+      setUserProjects(response.data);
+    } catch (error) {
+      console.error('Failed to load projects');
+    }
+  };
+
+  const openMoveDialog = () => {
+    fetchUserProjects();
+    setMoveDialogOpen(true);
+  };
+
+  const moveChat = async (targetProjectId) => {
+    setIsMovingChat(true);
+    try {
+      await axios.post(`${API}/chats/${chatId}/move`, { targetProjectId });
+      toast.success('Chat moved to project');
+      setMoveDialogOpen(false);
+      // Reload chat data to reflect new project
+      window.location.reload();
+    } catch (error) {
+      toast.error('Failed to move chat');
+    } finally {
+      setIsMovingChat(false);
+    }
+  };
+
   const handleImageGenerated = (newImage) => {
     setGeneratedImages(prev => [newImage, ...prev]);
     
