@@ -119,10 +119,16 @@ class ChatCreate(BaseModel):
 
 class ChatResponse(BaseModel):
     id: str
-    projectId: str
+    projectId: Optional[str] = None  # None for quick chats
     name: str
     createdAt: str
     activeSourceIds: Optional[List[str]] = []
+
+class QuickChatCreate(BaseModel):
+    name: Optional[str] = "Quick Chat"
+
+class MoveChatRequest(BaseModel):
+    targetProjectId: str
 
 class MessageCreate(BaseModel):
     content: str
