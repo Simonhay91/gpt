@@ -792,6 +792,161 @@ startxref
             self.log_test("Source Deletion - Delete source", False, 
                          f"Status: {status}, Data: {data}")
 
+    def test_auto_ingest_url_feature(self):
+        """Test auto-ingest URL feature in messages"""
+        if not self.test_user_token or not self.test_chat_id:
+            self.log_test("Auto-Ingest URL - Missing requirements", False, 
+                         "Missing token or chat ID")
+            return
+
+        # Test 1: Send message with URL - should auto-ingest and auto-activate
+        test_url = "https://httpbin.org/html"
+        message_with_url = f"Please analyze this webpage: {test_url} and tell me what it contains."
+        
+        success, data, status = self.make_request('POST', f'/chats/{self.test_chat_id}/messages', {
+            "content": message_with_url
+        }, token=self.test_user_token)
+        
+        if success and status == 200:
+            # Check if autoIngestedUrls field is present and populated
+            auto_ingested_urls = data.get('autoIngestedUrls', [])
+            has_auto_ingested = len(auto_ingested_urls) > 0
+            
+            self.log_test("Auto-Ingest URL - URL detected and ingested", has_auto_ingested,
+                         f"Auto-ingested URLs: {auto_ingested_urls}")
+            
+            # Check if AI response references the URL content
+            response_content = data.get('content', '').lower()
+            references_content = any(word in response_content for word in 
+                                   ['html', 'webpage', 'page', 'content', 'document'])
+            
+            self.log_test("Auto-Ingest URL - AI uses ingested content", references_content,
+                         f"AI Response: {data.get('content', '')[:150]}...")
+            
+            # Check if citations are present
+            citations = data.get('citations', [])
+            has_citations = len(citations) > 0
+            
+            self.log_test("Auto-Ingest URL - Citations from auto-ingested URL", has_citations,
+                         f"Citations: {citations}")
+            
+            # Store the auto-ingested source ID for reuse test
+            if auto_ingested_urls:
+                self.auto_ingested_source_id = auto_ingested_urls[0]
+        else:
+            self.log_test("Auto-Ingest URL - URL detected and ingested", False,
+                         f"Status: {status}, Data: {data}")
+            return
+
+        # Test 2: Check if chat activeSourceIds was updated
+        success, data, status = self.make_request('GET', f'/chats/{self.test_chat_id}', 
+                                                 token=self.test_user_token)
+        
+        if success and status == 200:
+            active_source_ids = data.get('activeSourceIds', [])
+            auto_activated = any(source_id in active_source_ids for source_id in auto_ingested_urls)
+            
+            self.log_test("Auto-Ingest URL - Auto-activated in chat", auto_activated,
+                         f"Active sources: {active_source_ids}, Auto-ingested: {auto_ingested_urls}")
+        else:
+            self.log_test("Auto-Ingest URL - Auto-activated in chat", False,
+                         f"Status: {status}, Data: {data}")
+
+        # Test 3: Check if source appears in project sources list
+        success, data, status = self.make_request('GET', f'/projects/{self.test_project_id}/sources', 
+                                                 token=self.test_user_token)
+        
+        if success and status == 200 and isinstance(data, list):
+            url_source_found = any(s.get('url') == test_url for s in data)
+            
+            self.log_test("Auto-Ingest URL - Source added to project", url_source_found,
+                         f"URL source found in project sources: {url_source_found}")
+        else:
+            self.log_test("Auto-Ingest URL - Source added to project", False,
+                         f"Status: {status}, Data: {data}")
+
+        # Test 4: Send same URL again - should reuse existing source (no duplicate)
+        message_with_same_url = f"Can you tell me more about {test_url}?"
+        
+        success, data, status = self.make_request('POST', f'/chats/{self.test_chat_id}/messages', {
+            "content": message_with_same_url
+        }, token=self.test_user_token)
+        
+        if success and status == 200:
+            # Should still have autoIngestedUrls but reusing existing source
+            auto_ingested_urls_reuse = data.get('autoIngestedUrls', [])
+            
+            self.log_test("Auto-Ingest URL - Reuses existing source", len(auto_ingested_urls_reuse) > 0,
+                         f"Reused auto-ingested URLs: {auto_ingested_urls_reuse}")
+            
+            # Check that no duplicate source was created
+            success_sources, data_sources, status_sources = self.make_request('GET', f'/projects/{self.test_project_id}/sources', 
+                                                                             token=self.test_user_token)
+            
+            if success_sources and status_sources == 200:
+                url_sources = [s for s in data_sources if s.get('url') == test_url]
+                no_duplicates = len(url_sources) == 1
+                
+                self.log_test("Auto-Ingest URL - No duplicate sources created", no_duplicates,
+                             f"Found {len(url_sources)} sources for URL (should be 1)")
+            else:
+                self.log_test("Auto-Ingest URL - No duplicate sources created", False,
+                             f"Failed to check sources: {status_sources}")
+        else:
+            self.log_test("Auto-Ingest URL - Reuses existing source", False,
+                         f"Status: {status}, Data: {data}")
+
+        # Test 5: Test multiple URLs in one message
+        multi_url_message = "Compare these two pages: https://httpbin.org/json and https://httpbin.org/xml"
+        
+        success, data, status = self.make_request('POST', f'/chats/{self.test_chat_id}/messages', {
+            "content": multi_url_message
+        }, token=self.test_user_token)
+        
+        if success and status == 200:
+            auto_ingested_multiple = data.get('autoIngestedUrls', [])
+            ingested_multiple_urls = len(auto_ingested_multiple) > 0
+            
+            self.log_test("Auto-Ingest URL - Multiple URLs in one message", ingested_multiple_urls,
+                         f"Auto-ingested from multiple URLs: {auto_ingested_multiple}")
+        else:
+            self.log_test("Auto-Ingest URL - Multiple URLs in one message", False,
+                         f"Status: {status}, Data: {data}")
+
+        # Test 6: Test message without URLs - should not have autoIngestedUrls
+        no_url_message = "What is the weather like today?"
+        
+        success, data, status = self.make_request('POST', f'/chats/{self.test_chat_id}/messages', {
+            "content": no_url_message
+        }, token=self.test_user_token)
+        
+        if success and status == 200:
+            auto_ingested_none = data.get('autoIngestedUrls')
+            no_auto_ingest = auto_ingested_none is None or len(auto_ingested_none) == 0
+            
+            self.log_test("Auto-Ingest URL - No URLs means no auto-ingest", no_auto_ingest,
+                         f"autoIngestedUrls field: {auto_ingested_none}")
+        else:
+            self.log_test("Auto-Ingest URL - No URLs means no auto-ingest", False,
+                         f"Status: {status}, Data: {data}")
+
+        # Test 7: Test invalid URL - should not break the message flow
+        invalid_url_message = "Check this broken link: https://this-domain-definitely-does-not-exist-12345.com/page"
+        
+        success, data, status = self.make_request('POST', f'/chats/{self.test_chat_id}/messages', {
+            "content": invalid_url_message
+        }, token=self.test_user_token)
+        
+        if success and status == 200:
+            # Message should still be processed even if URL ingestion fails
+            has_response = len(data.get('content', '')) > 0
+            
+            self.log_test("Auto-Ingest URL - Invalid URL doesn't break message flow", has_response,
+                         f"AI still responded despite invalid URL: {has_response}")
+        else:
+            self.log_test("Auto-Ingest URL - Invalid URL doesn't break message flow", False,
+                         f"Status: {status}, Data: {data}")
+
     def test_project_isolation(self):
         """Test that users can't access each other's projects"""
         if not self.test_user_token or not self.admin_user_token or not self.test_project_id:
