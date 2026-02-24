@@ -1458,6 +1458,47 @@ async def update_gpt_config(config_data: GPTConfigUpdate, current_user: dict = D
     updated_config = await db.gpt_config.find_one({"id": "1"}, {"_id": 0})
     return GPTConfigResponse(**updated_config)
 
+# ==================== USER PROMPT ENDPOINTS ====================
+
+@api_router.get("/user/prompt", response_model=UserPromptResponse)
+async def get_user_prompt(current_user: dict = Depends(get_current_user)):
+    """Get the current user's custom GPT prompt"""
+    user_prompt = await db.user_prompts.find_one({"userId": current_user["id"]}, {"_id": 0})
+    
+    if not user_prompt:
+        return UserPromptResponse(
+            userId=current_user["id"],
+            customPrompt=None,
+            updatedAt=datetime.now(timezone.utc).isoformat()
+        )
+    
+    return UserPromptResponse(**user_prompt)
+
+@api_router.put("/user/prompt", response_model=UserPromptResponse)
+async def update_user_prompt(data: UserPromptUpdate, current_user: dict = Depends(get_current_user)):
+    """Update the current user's custom GPT prompt"""
+    now = datetime.now(timezone.utc).isoformat()
+    
+    existing = await db.user_prompts.find_one({"userId": current_user["id"]})
+    
+    if existing:
+        await db.user_prompts.update_one(
+            {"userId": current_user["id"]},
+            {"$set": {"customPrompt": data.customPrompt, "updatedAt": now}}
+        )
+    else:
+        await db.user_prompts.insert_one({
+            "userId": current_user["id"],
+            "customPrompt": data.customPrompt,
+            "updatedAt": now
+        })
+    
+    return UserPromptResponse(
+        userId=current_user["id"],
+        customPrompt=data.customPrompt,
+        updatedAt=now
+    )
+
 # ==================== HEALTH CHECK ====================
 
 @api_router.get("/")
