@@ -833,9 +833,26 @@ const ChatPage = () => {
                             variant="ghost"
                             size="icon"
                             className="absolute -bottom-1 -right-1 h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity bg-background border border-border shadow-sm"
-                            onClick={() => {
-                              navigator.clipboard.writeText(message.content);
-                              toast.success('Copied to clipboard');
+                            onClick={async () => {
+                              try {
+                                await navigator.clipboard.writeText(message.content);
+                                toast.success('Copied to clipboard');
+                              } catch (err) {
+                                // Fallback for environments where clipboard API is restricted
+                                const textArea = document.createElement('textarea');
+                                textArea.value = message.content;
+                                textArea.style.position = 'fixed';
+                                textArea.style.left = '-9999px';
+                                document.body.appendChild(textArea);
+                                textArea.select();
+                                try {
+                                  document.execCommand('copy');
+                                  toast.success('Copied to clipboard');
+                                } catch (e) {
+                                  toast.error('Failed to copy');
+                                }
+                                document.body.removeChild(textArea);
+                              }
                             }}
                             data-testid={`copy-message-${index}`}
                           >
