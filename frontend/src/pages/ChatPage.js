@@ -32,7 +32,8 @@ import {
   FolderOpen,
   Pencil,
   Check,
-  X
+  X,
+  Copy
 } from 'lucide-react';
 import DashboardLayout from '../components/DashboardLayout';
 import ImageGenerator from '../components/ImageGenerator';
