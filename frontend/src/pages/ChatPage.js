@@ -816,14 +816,32 @@ const ChatPage = () => {
                         </div>
                       </div>
                     ) : (
-                      <div className={`px-4 py-3 rounded-2xl ${
-                        message.role === 'user' 
-                          ? 'bg-primary text-primary-foreground rounded-br-sm' 
-                          : 'bg-secondary text-secondary-foreground rounded-bl-sm'
-                      }`}>
-                        <p className="whitespace-pre-wrap text-sm leading-relaxed">
-                          {message.content}
-                        </p>
+                      <div className="group relative">
+                        <div className={`px-4 py-3 rounded-2xl ${
+                          message.role === 'user' 
+                            ? 'bg-primary text-primary-foreground rounded-br-sm' 
+                            : 'bg-secondary text-secondary-foreground rounded-bl-sm'
+                        }`}>
+                          <p className="whitespace-pre-wrap text-sm leading-relaxed">
+                            {message.content}
+                          </p>
+                        </div>
+                        
+                        {/* Copy button for assistant messages */}
+                        {message.role === 'assistant' && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="absolute -bottom-1 -right-1 h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity bg-background border border-border shadow-sm"
+                            onClick={() => {
+                              navigator.clipboard.writeText(message.content);
+                              toast.success('Copied to clipboard');
+                            }}
+                            data-testid={`copy-message-${index}`}
+                          >
+                            <Copy className="h-3.5 w-3.5" />
+                          </Button>
+                        )}
                       </div>
                     )}
                     
