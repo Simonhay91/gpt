@@ -1372,7 +1372,10 @@ async def send_message(chat_id: str, message_data: MessageCreate, current_user: 
         
         # Add user's custom prompt if exists
         if user_custom_prompt:
+            logger.info(f"Adding user custom prompt for user {current_user['id']}: {user_custom_prompt[:100]}...")
             messages.append({"role": "system", "content": f"USER CUSTOM INSTRUCTIONS:\n{user_custom_prompt}"})
+        else:
+            logger.info(f"No custom prompt for user {current_user['id']}")
         
         # Add document context if available
         if document_context:
