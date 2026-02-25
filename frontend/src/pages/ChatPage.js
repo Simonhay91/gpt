@@ -853,7 +853,7 @@ const ChatPage = () => {
                             : 'bg-secondary text-secondary-foreground rounded-bl-sm'
                         }`}>
                           <p className="whitespace-pre-wrap text-sm leading-relaxed">
-                            {message.content}
+                            {renderTextWithLinks(message.content)}
                           </p>
                         </div>
                         
