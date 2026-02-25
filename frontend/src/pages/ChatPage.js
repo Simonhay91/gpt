@@ -41,6 +41,36 @@ import AuthImage from '../components/AuthImage';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
+// URL regex pattern
+const URL_REGEX = /(https?:\/\/[^\s<>"{}|\\^`[\]]+)/g;
+
+// Function to render text with clickable URLs
+const renderTextWithLinks = (text) => {
+  if (!text) return null;
+  
+  const parts = text.split(URL_REGEX);
+  
+  return parts.map((part, index) => {
+    if (URL_REGEX.test(part)) {
+      // Reset regex lastIndex
+      URL_REGEX.lastIndex = 0;
+      return (
+        <a
+          key={index}
+          href={part}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-indigo-400 hover:text-indigo-300 underline underline-offset-2 break-all"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {part}
+        </a>
+      );
+    }
+    return part;
+  });
+};
+
 // File type icons
 const getFileIcon = (mimeType, kind) => {
   if (kind === 'url') return <Globe className="h-5 w-5 text-blue-400" />;
