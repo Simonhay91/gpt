@@ -99,6 +99,58 @@ export const translations = {
     en: 'New Chat',
     ru: 'Новый чат'
   },
+  'dashboard.newProject': {
+    en: 'New Project',
+    ru: 'Новый проект'
+  },
+  'dashboard.createNewProject': {
+    en: 'Create New Project',
+    ru: 'Создать новый проект'
+  },
+  'dashboard.createProjectDesc': {
+    en: 'Create a new project to organize your AI conversations with sources.',
+    ru: 'Создайте новый проект для организации AI-разговоров с источниками.'
+  },
+  'dashboard.projectName': {
+    en: 'Project Name',
+    ru: 'Название проекта'
+  },
+  'dashboard.quickChats': {
+    en: 'Quick Chats',
+    ru: 'Быстрые чаты'
+  },
+  'dashboard.noQuickChats': {
+    en: 'No quick chats yet',
+    ru: 'Пока нет быстрых чатов'
+  },
+  'dashboard.startNewChat': {
+    en: 'Start a new chat to begin',
+    ru: 'Начните новый чат'
+  },
+  'dashboard.moveToProject': {
+    en: 'Move to Project',
+    ru: 'Переместить в проект'
+  },
+  'dashboard.selectProject': {
+    en: 'Select a project',
+    ru: 'Выберите проект'
+  },
+  'dashboard.move': {
+    en: 'Move',
+    ru: 'Переместить'
+  },
+  'dashboard.chats': {
+    en: 'chats',
+    ru: 'чатов'
+  },
+  'dashboard.sources': {
+    en: 'sources',
+    ru: 'источников'
+  },
+  'dashboard.createFirst': {
+    en: 'Create your first project to get started',
+    ru: 'Создайте свой первый проект'
+  },
 
   // News
   'news.title': {
