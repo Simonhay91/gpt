@@ -248,7 +248,7 @@ const ProjectPage = () => {
               {/* Share Button */}
               <Dialog open={shareDialogOpen} onOpenChange={setShareDialogOpen}>
                 <DialogTrigger asChild>
-                  <Button variant="outline" data-testid="share-project-btn">
+                  <Button variant="outline" onClick={openShareDialog} data-testid="share-project-btn">
                     <Share2 className="mr-2 h-4 w-4" />
                     Share
                   </Button>
@@ -261,7 +261,7 @@ const ProjectPage = () => {
                     </DialogDescription>
                   </DialogHeader>
                   
-                  {/* Add member */}
+                  {/* Add member by email */}
                   <div className="flex gap-2 py-4">
                     <Input
                       placeholder="Enter email address"
@@ -279,9 +279,43 @@ const ProjectPage = () => {
                     </Button>
                   </div>
                   
-                  {/* Members list */}
+                  {/* Available users to share with */}
+                  {allUsers.length > 0 && (
+                    <div className="space-y-2 mb-4">
+                      <Label>Available Users</Label>
+                      <div className="max-h-[150px] overflow-y-auto space-y-1">
+                        {isLoadingUsers ? (
+                          <div className="text-center py-2"><div className="spinner" /></div>
+                        ) : (
+                          allUsers
+                            .filter(u => !members.find(m => m.id === u.id))
+                            .map((user) => (
+                              <div 
+                                key={user.id} 
+                                className="flex items-center justify-between py-2 px-3 bg-secondary/50 rounded-lg hover:bg-secondary cursor-pointer transition-colors"
+                                onClick={() => !isSharing && shareWithUser(user.email)}
+                                data-testid={`share-user-${user.id}`}
+                              >
+                                <div className="flex items-center gap-3">
+                                  <div className="w-7 h-7 rounded-full bg-gradient-to-br from-blue-500 to-cyan-500 flex items-center justify-center text-white text-xs font-medium">
+                                    {user.email?.charAt(0).toUpperCase()}
+                                  </div>
+                                  <span className="text-sm">{user.email}</span>
+                                </div>
+                                <Plus className="h-4 w-4 text-muted-foreground" />
+                              </div>
+                            ))
+                        )}
+                        {!isLoadingUsers && allUsers.filter(u => !members.find(m => m.id === u.id)).length === 0 && (
+                          <p className="text-sm text-muted-foreground text-center py-2">All users already have access</p>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                  
+                  {/* Current members list */}
                   <div className="space-y-2">
-                    <Label>Members</Label>
+                    <Label>Members ({members.length})</Label>
                     {members.map((member) => (
                       <div key={member.id} className="flex items-center justify-between py-2 px-3 bg-secondary rounded-lg">
                         <div className="flex items-center gap-3">
