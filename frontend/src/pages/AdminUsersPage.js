@@ -361,6 +361,19 @@ const AdminUsersPage = () => {
                           <MessageSquare className="h-4 w-4 text-emerald-400" />
                           <span>{formatNumber(user.totalMessagesCount)}</span>
                         </div>
+                        {/* Source Stats */}
+                        {getUserSourceStats(user.id) && (
+                          <>
+                            <div className="flex items-center gap-1 text-muted-foreground" title="Files uploaded">
+                              <FileText className="h-4 w-4 text-blue-400" />
+                              <span>{getUserSourceStats(user.id).sourceCount}</span>
+                            </div>
+                            <div className="flex items-center gap-1 text-muted-foreground" title="Storage used">
+                              <HardDrive className="h-4 w-4 text-purple-400" />
+                              <span>{formatBytes(getUserSourceStats(user.id).totalSizeBytes)}</span>
+                            </div>
+                          </>
+                        )}
                       </div>
                       
                       {/* Delete Button */}
