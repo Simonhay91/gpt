@@ -57,6 +57,9 @@ MAX_CONTEXT_CHARS = 15000  # Max characters to include in context
 MAX_CHUNKS_PER_QUERY = 10  # Max chunks to include per query
 MAX_AUTO_INGEST_URLS = 3  # Max URLs to auto-ingest per message
 
+# Global sources project ID marker
+GLOBAL_PROJECT_ID = "__global__"  # Special marker for global sources
+
 # Image generation settings
 IMAGE_RATE_LIMIT_PER_HOUR = 10  # Max images per user per hour
 VALID_IMAGE_SIZES = ["1024x1024", "1024x1792", "1792x1024"]
