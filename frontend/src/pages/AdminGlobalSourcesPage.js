@@ -65,8 +65,6 @@ const AdminGlobalSourcesPage = () => {
       console.error('Failed to fetch usage stats:', error);
     }
   }, []);
-    }
-  }, []);
 
   useEffect(() => {
     fetchSources();
