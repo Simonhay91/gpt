@@ -2,12 +2,13 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
+import { useLanguage } from '../contexts/LanguageContext';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card';
 import { toast } from 'sonner';
-import { LogIn, Mail, Lock, Globe, Sun, Moon } from 'lucide-react';
+import { LogIn, Mail, Lock, Globe, Sun, Moon, Languages } from 'lucide-react';
 
 const LoginPage = () => {
   const [email, setEmail] = useState('');
@@ -15,6 +16,7 @@ const LoginPage = () => {
   const [isLoading, setIsLoading] = useState(false);
   const { login } = useAuth();
   const { toggleTheme, isDark } = useTheme();
+  const { language, toggleLanguage, t } = useLanguage();
   const navigate = useNavigate();
 
   const handleSubmit = async (e) => {
@@ -23,10 +25,10 @@ const LoginPage = () => {
     
     try {
       await login(email, password);
-      toast.success('Welcome back!');
+      toast.success(t('login.welcome'));
       navigate('/dashboard');
     } catch (error) {
-      const message = error.response?.data?.detail || 'Login failed';
+      const message = error.response?.data?.detail || t('login.failed');
       toast.error(message);
     } finally {
       setIsLoading(false);
@@ -36,7 +38,16 @@ const LoginPage = () => {
   return (
     <div className="min-h-screen flex" data-testid="login-page">
       {/* Theme Toggle - Top Right */}
-      <div className="fixed top-4 right-4 z-50">
+      <div className="fixed top-4 right-4 z-50 flex gap-2">
+        <Button
+          variant="outline"
+          size="icon"
+          onClick={toggleLanguage}
+          className="h-10 w-10 rounded-full"
+          data-testid="login-language-toggle"
+        >
+          <Languages className="h-5 w-5" />
+        </Button>
         <Button
           variant="outline"
           size="icon"
