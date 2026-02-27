@@ -399,6 +399,58 @@ def extract_text_from_xlsx(file_content: bytes) -> str:
         logger.error(f"XLSX extraction error: {str(e)}")
         raise HTTPException(status_code=400, detail=f"Failed to extract text from Excel: {str(e)}")
 
+def extract_text_from_csv(file_content: bytes) -> str:
+    """Extract text from CSV file content - optimized for large product catalogs"""
+    import csv
+    from io import StringIO
+    
+    try:
+        # Try UTF-8 first, then fallback to other encodings
+        for encoding in ['utf-8', 'utf-8-sig', 'cp1251', 'latin-1']:
+            try:
+                text_content = file_content.decode(encoding)
+                break
+            except UnicodeDecodeError:
+                continue
+        else:
+            text_content = file_content.decode('utf-8', errors='replace')
+        
+        # Parse CSV
+        reader = csv.reader(StringIO(text_content))
+        rows = list(reader)
+        
+        if not rows:
+            return ""
+        
+        # Get headers
+        headers = rows[0] if rows else []
+        
+        # Format as structured text for better GPT comprehension
+        text_parts = []
+        text_parts.append(f"[CSV Data - {len(rows)-1} records]")
+        text_parts.append(f"Columns: {', '.join(headers)}")
+        text_parts.append("")
+        
+        # Format each row as a structured record
+        for i, row in enumerate(rows[1:], 1):
+            if not any(cell.strip() for cell in row):
+                continue  # Skip empty rows
+            
+            record_parts = []
+            for j, cell in enumerate(row):
+                if cell.strip():
+                    header = headers[j] if j < len(headers) else f"Column{j+1}"
+                    record_parts.append(f"{header}: {cell.strip()}")
+            
+            if record_parts:
+                text_parts.append(f"[Record {i}]")
+                text_parts.append(" | ".join(record_parts))
+        
+        return "\n".join(text_parts)
+    except Exception as e:
+        logger.error(f"CSV extraction error: {str(e)}")
+        raise HTTPException(status_code=400, detail=f"Failed to extract text from CSV: {str(e)}")
+
 def extract_text_from_image(file_content: bytes) -> str:
     """Extract text from image using OCR (pytesseract)"""
     try:
