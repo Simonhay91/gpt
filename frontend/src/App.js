@@ -135,6 +135,16 @@ function AppRoutes() {
           <AdminDepartmentsPage />
         </AdminRoute>
       } />
+      <Route path="/admin/departments/:departmentId/sources" element={
+        <AdminRoute>
+          <DepartmentSourcesPage />
+        </AdminRoute>
+      } />
+      <Route path="/departments/:departmentId/sources" element={
+        <ProtectedRoute>
+          <DepartmentSourcesPage />
+        </ProtectedRoute>
+      } />
       <Route path="/admin/audit-logs" element={
         <AdminRoute>
           <AdminAuditLogsPage />
