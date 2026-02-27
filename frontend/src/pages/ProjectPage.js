@@ -338,7 +338,7 @@ const ProjectPage = () => {
                     Share
                   </Button>
                 </DialogTrigger>
-                <DialogContent className="sm:max-w-lg">
+                <DialogContent className="sm:max-w-xl w-[95vw]">
                   <DialogHeader>
                     <DialogTitle>Share Project</DialogTitle>
                     <DialogDescription>
@@ -347,7 +347,7 @@ const ProjectPage = () => {
                   </DialogHeader>
                   
                   {/* Add member by email */}
-                  <div className="flex gap-2 py-4">
+                  <div className="flex gap-2 pt-4">
                     <Input
                       placeholder="Enter email address"
                       value={shareEmail}
