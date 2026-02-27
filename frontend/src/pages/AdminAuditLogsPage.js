@@ -127,10 +127,10 @@ const AdminAuditLogsPage = () => {
             <div>
               <h1 className="text-3xl font-bold tracking-tight flex items-center gap-3">
                 <ScrollText className="h-8 w-8 text-emerald-400" />
-                Журнал аудита
+                {t('audit.title')}
               </h1>
               <p className="text-muted-foreground mt-2">
-                История изменений в системе
+                {t('audit.subtitle')}
               </p>
             </div>
             
@@ -140,12 +140,12 @@ const AdminAuditLogsPage = () => {
                 onClick={() => setShowFilters(!showFilters)}
               >
                 <Filter className="h-4 w-4 mr-2" />
-                Фильтры
+                {t('audit.filter')}
                 <ChevronDown className={`h-4 w-4 ml-2 transition-transform ${showFilters ? 'rotate-180' : ''}`} />
               </Button>
               <Button onClick={fetchLogs} disabled={isLoading}>
                 <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
-                Обновить
+                {t('news.refresh')}
               </Button>
             </div>
           </div>
@@ -156,13 +156,13 @@ const AdminAuditLogsPage = () => {
               <CardContent className="py-4">
                 <div className="grid grid-cols-4 gap-4">
                   <div>
-                    <Label className="text-sm">Сущность</Label>
+                    <Label className="text-sm">Entity</Label>
                     <select
                       className="w-full mt-1 px-3 py-2 rounded-md border border-input bg-background text-sm"
                       value={filters.entity}
                       onChange={(e) => setFilters({ ...filters, entity: e.target.value })}
                     >
-                      <option value="">Все</option>
+                      <option value="">{t('audit.all')}</option>
                       <option value="source">Источники</option>
                       <option value="department">Отделы</option>
                       <option value="user">Пользователи</option>
