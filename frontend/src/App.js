@@ -126,6 +126,13 @@ function AppRoutes() {
         </AdminRoute>
       } />
       
+      {/* User Global Sources Route */}
+      <Route path="/global-sources" element={
+        <ProtectedRoute>
+          <GlobalSourcesPage />
+        </ProtectedRoute>
+      } />
+      
       {/* Default redirect */}
       <Route path="/" element={<Navigate to="/dashboard" replace />} />
       <Route path="*" element={<Navigate to="/dashboard" replace />} />
