@@ -2166,17 +2166,6 @@ If the user asks about a document/file/URL:
                     },
                     upsert=True
                 )
-            
-            # Save to cache if we have embedding and got a valid response
-            if question_embedding and not response_text.startswith("I apologize"):
-                await save_to_cache(
-                    question=message_data.content,
-                    answer=response_text,
-                    project_id=project_id,
-                    embedding=question_embedding,
-                    user_id=current_user["id"],
-                    sources_used=used_sources if citations else None
-                )
         
     except Exception as e:
         logger.error(f"OpenAI API error: {str(e)}")
