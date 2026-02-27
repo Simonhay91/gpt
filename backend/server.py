@@ -1998,6 +1998,64 @@ If the user asks about a document/file/URL:
 
 # ==================== ADMIN ENDPOINTS ====================
 
+@api_router.get("/admin/source-stats")
+async def get_source_stats(current_user: dict = Depends(get_current_user)):
+    """Get source statistics per user - for admin dashboard"""
+    if not is_admin(current_user["email"]):
+        raise HTTPException(status_code=403, detail="Admin access required")
+    
+    # Get all users
+    users = await db.users.find({}, {"_id": 0, "id": 1, "email": 1}).to_list(1000)
+    user_map = {u["id"]: u["email"] for u in users}
+    
+    # Get all projects with their owners
+    projects = await db.projects.find({}, {"_id": 0, "id": 1, "ownerId": 1, "name": 1}).to_list(1000)
+    project_owner_map = {p["id"]: p["ownerId"] for p in projects}
+    
+    # Get all sources with size info
+    sources = await db.sources.find({}, {"_id": 0, "projectId": 1, "sizeBytes": 1, "originalName": 1, "createdAt": 1, "kind": 1}).to_list(10000)
+    
+    # Aggregate by user
+    user_stats = {}
+    for source in sources:
+        project_id = source.get("projectId")
+        owner_id = project_owner_map.get(project_id)
+        
+        if not owner_id:
+            continue
+            
+        if owner_id not in user_stats:
+            user_stats[owner_id] = {
+                "userId": owner_id,
+                "email": user_map.get(owner_id, "Unknown"),
+                "sourceCount": 0,
+                "totalSizeBytes": 0,
+                "fileCount": 0,
+                "urlCount": 0
+            }
+        
+        user_stats[owner_id]["sourceCount"] += 1
+        user_stats[owner_id]["totalSizeBytes"] += source.get("sizeBytes", 0) or 0
+        
+        if source.get("kind") == "url":
+            user_stats[owner_id]["urlCount"] += 1
+        else:
+            user_stats[owner_id]["fileCount"] += 1
+    
+    # Convert to list and sort by size
+    result = list(user_stats.values())
+    result.sort(key=lambda x: x["totalSizeBytes"], reverse=True)
+    
+    # Calculate totals
+    total_sources = sum(u["sourceCount"] for u in result)
+    total_size = sum(u["totalSizeBytes"] for u in result)
+    
+    return {
+        "users": result,
+        "totalSources": total_sources,
+        "totalSizeBytes": total_size
+    }
+
 @api_router.get("/admin/config", response_model=GPTConfigResponse)
 async def get_gpt_config(current_user: dict = Depends(get_current_user)):
     if not is_admin(current_user["email"]):
