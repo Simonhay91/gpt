@@ -120,7 +120,8 @@ const DashboardLayout = ({ children }) => {
     navItems.push({
       name: 'Departments',
       path: '/admin/departments',
-      icon: Building2
+      icon: Building2,
+      badge: pendingCount > 0 ? pendingCount : null
     });
     navItems.push({
       name: 'Global Sources',
