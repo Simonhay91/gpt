@@ -31,6 +31,9 @@ const ProjectPage = () => {
   const [isOwner, setIsOwner] = useState(false);
   const [allUsers, setAllUsers] = useState([]);
   const [isLoadingUsers, setIsLoadingUsers] = useState(false);
+  const [selectedMemberForChats, setSelectedMemberForChats] = useState(null);
+  const [chatVisibility, setChatVisibility] = useState({});  // {chatId: boolean}
+  const [isUpdatingVisibility, setIsUpdatingVisibility] = useState(false);
 
   useEffect(() => {
     fetchProjectAndChats();
