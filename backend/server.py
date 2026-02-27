@@ -3427,8 +3427,50 @@ async def root():
 async def health():
     return {"status": "healthy", "timestamp": datetime.now(timezone.utc).isoformat()}
 
+# ==================== ENTERPRISE KNOWLEDGE ARCHITECTURE ====================
+
+# Initialize enterprise services
+audit_service = AuditService(db)
+version_service = VersionService(db)
+hierarchical_retrieval = HierarchicalRetrieval(db)
+
+# Helper function for text extraction (wrapper for existing functions)
+async def extract_text_wrapper(content: bytes, file_type: str) -> str:
+    """Wrapper to extract text based on file type"""
+    if file_type == "pdf":
+        return extract_text_from_pdf(content)
+    elif file_type == "docx":
+        return extract_text_from_docx(content)
+    elif file_type == "pptx":
+        return extract_text_from_pptx(content)
+    elif file_type == "xlsx":
+        return extract_text_from_xlsx(content)
+    elif file_type == "csv":
+        return extract_text_from_csv(content)
+    elif file_type in ["png", "jpeg", "jpg"]:
+        return extract_text_from_image(content)
+    else:
+        return extract_text_from_txt(content)
+
+# Setup enterprise routes with dependencies
+setup_department_routes(db, get_current_user, is_admin, audit_service)
+setup_enterprise_source_routes(
+    db, 
+    get_current_user, 
+    is_admin, 
+    audit_service, 
+    version_service,
+    extract_text_wrapper,
+    chunk_text,
+    UPLOAD_DIR,
+    MAX_FILE_SIZE,
+    SUPPORTED_MIME_TYPES
+)
+
 # Include the router in the main app
 app.include_router(api_router)
+app.include_router(departments_router)
+app.include_router(enterprise_sources_router)
 
 app.add_middleware(
     CORSMiddleware,
