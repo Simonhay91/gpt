@@ -1176,7 +1176,7 @@ async def unshare_project(project_id: str, user_id: str, current_user: dict = De
 
 @api_router.get("/projects/{project_id}/members")
 async def get_project_members(project_id: str, current_user: dict = Depends(get_current_user)):
-    """Get all members of a project"""
+    """Get all members of a project with their roles"""
     project = await verify_project_access(project_id, current_user["id"])
     
     members = []
@@ -1186,11 +1186,27 @@ async def get_project_members(project_id: str, current_user: dict = Depends(get_
     if owner:
         members.append({"id": owner["id"], "email": owner["email"], "role": "owner"})
     
-    # Get shared users
+    # Get shared users from sharedMembers (new format with roles)
+    shared_members = project.get("sharedMembers", [])
+    seen_user_ids = set()
+    
+    for member in shared_members:
+        user_id = member.get("userId")
+        if user_id and user_id not in seen_user_ids:
+            seen_user_ids.add(user_id)
+            members.append({
+                "id": user_id,
+                "email": member.get("email", ""),
+                "role": member.get("role", "viewer")
+            })
+    
+    # Fallback: check sharedWith for users not in sharedMembers (legacy)
     for user_id in project.get("sharedWith", []):
-        user = await db.users.find_one({"id": user_id}, {"_id": 0, "passwordHash": 0})
-        if user:
-            members.append({"id": user["id"], "email": user["email"], "role": "member"})
+        if user_id not in seen_user_ids:
+            user = await db.users.find_one({"id": user_id}, {"_id": 0, "passwordHash": 0})
+            if user:
+                members.append({"id": user["id"], "email": user["email"], "role": "viewer"})
+                seen_user_ids.add(user_id)
     
     return members
 
