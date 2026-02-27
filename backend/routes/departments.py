@@ -68,6 +68,8 @@ def setup_department_routes(db, get_current_user, is_admin, audit_service):
             level="department"
         )
         
+        # Return without _id
+        department.pop("_id", None)
         return department
     
     @router.get("/{department_id}", response_model=dict)
