@@ -102,7 +102,7 @@ const LoginPage = () => {
 
                 <div className="space-y-2">
                   <Label htmlFor="password" className="text-sm font-medium">
-                    Password
+                    {t('login.password')}
                   </Label>
                   <div className="relative">
                     <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -130,12 +130,12 @@ const LoginPage = () => {
                   ) : (
                     <LogIn className="mr-2 h-4 w-4" />
                   )}
-                  Sign in
+                  {t('login.signIn')}
                 </Button>
               </form>
 
               <div className="mt-6 text-center text-sm text-muted-foreground">
-                Contact your administrator if you need an account
+                {t('login.contactAdmin')}
               </div>
             </CardContent>
           </Card>
