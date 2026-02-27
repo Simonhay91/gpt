@@ -22,7 +22,10 @@ import {
   BarChart3,
   TrendingUp,
   Clock,
-  Users
+  Users,
+  Database,
+  Zap,
+  RefreshCw
 } from 'lucide-react';
 import DashboardLayout from '../components/DashboardLayout';
 
@@ -32,10 +35,12 @@ const AdminGlobalSourcesPage = () => {
   const navigate = useNavigate();
   const [sources, setSources] = useState([]);
   const [usageStats, setUsageStats] = useState(null);
+  const [cacheStats, setCacheStats] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isUploading, setIsUploading] = useState(false);
   const [isAddingUrl, setIsAddingUrl] = useState(false);
-  const [activeTab, setActiveTab] = useState('sources'); // 'sources' or 'stats'
+  const [isClearingCache, setIsClearingCache] = useState(false);
+  const [activeTab, setActiveTab] = useState('sources'); // 'sources', 'stats', or 'cache'
   
   // URL Dialog
   const [urlDialogOpen, setUrlDialogOpen] = useState(false);
@@ -63,6 +68,15 @@ const AdminGlobalSourcesPage = () => {
       setUsageStats(response.data);
     } catch (error) {
       console.error('Failed to fetch usage stats:', error);
+    }
+  }, []);
+
+  const fetchCacheStats = useCallback(async () => {
+    try {
+      const response = await axios.get(`${API}/admin/cache/stats`);
+      setCacheStats(response.data);
+    } catch (error) {
+      console.error('Failed to fetch cache stats:', error);
     }
   }, []);
 
