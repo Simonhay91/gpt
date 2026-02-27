@@ -259,7 +259,7 @@ const DashboardLayout = ({ children }) => {
             data-testid="logout-btn"
           >
             <LogOut className="mr-2 h-4 w-4" />
-            Sign out
+            {t('nav.signOut')}
           </Button>
         </div>
       </aside>
