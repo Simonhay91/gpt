@@ -109,6 +109,11 @@ const DashboardLayout = ({ children }) => {
       icon: LayoutDashboard
     },
     {
+      name: 'Tech News',
+      path: '/news',
+      icon: Newspaper
+    },
+    {
       name: 'My Sources',
       path: '/personal-sources',
       icon: Lock
