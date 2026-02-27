@@ -111,7 +111,8 @@ Planet GPT is a multi-user SaaS platform for AI-powered conversations with proje
 - `POST /api/projects/{id}/sources/upload-multiple` - Upload multiple files
 - `POST /api/projects/{id}/sources/url` - Add URL
 - `GET /api/projects/{id}/sources` - List sources
-- `GET /api/projects/{id}/sources/download-all` - Download all as ZIP
+- `GET /api/projects/{id}/sources/{id}/preview` - Preview extracted text
+- `GET /api/projects/{id}/sources/{id}/download` - Download file
 - `DELETE /api/projects/{id}/sources/{id}` - Delete source
 
 ### Images
