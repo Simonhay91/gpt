@@ -359,6 +359,10 @@ export const translations = {
     en: 'Close',
     ru: 'Закрыть'
   },
+  'action.confirmDelete': {
+    en: 'Are you sure you want to delete this source?',
+    ru: 'Вы уверены, что хотите удалить этот источник?'
+  },
 
   // Approval Dialog
   'approval.submitTitle': {
