@@ -462,26 +462,6 @@ const DepartmentSourcesPage = () => {
                       </div>
                     </div>
                   </CardContent>
-                          size="sm"
-                          onClick={() => openVersionsDialog(source)}
-                        >
-                          <History className="h-4 w-4 mr-1" />
-                          История
-                        </Button>
-                        
-                        {isManager && (
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="text-destructive"
-                            onClick={() => deleteSource(source.id)}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        )}
-                      </div>
-                    </div>
-                  </CardContent>
                 </Card>
               );
             })}
