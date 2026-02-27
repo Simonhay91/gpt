@@ -1043,6 +1043,13 @@ const ChatPage = () => {
                   <div className={`flex flex-col gap-1 max-w-[80%] ${
                     message.role === 'user' ? 'items-end' : 'items-start'
                   }`}>
+                    {/* Show sender name for user messages in shared projects */}
+                    {message.role === 'user' && message.senderName && (
+                      <span className="text-xs text-muted-foreground px-2">
+                        {message.senderName}
+                      </span>
+                    )}
+                    
                     {/* Generated Image Display */}
                     {message.isGeneratedImage && message.imageData ? (
                       <div className="space-y-2">
