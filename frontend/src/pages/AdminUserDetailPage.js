@@ -31,8 +31,10 @@ const AdminUserDetailPage = () => {
   const [userDetails, setUserDetails] = useState(null);
   const [userPrompt, setUserPrompt] = useState('');
   const [userModel, setUserModel] = useState('');
+  const [canEditGlobal, setCanEditGlobal] = useState(false);
   const [isSavingPrompt, setIsSavingPrompt] = useState(false);
   const [isSavingModel, setIsSavingModel] = useState(false);
+  const [isSavingGlobalPerm, setIsSavingGlobalPerm] = useState(false);
 
   const gptModels = [
     { value: '', label: 'По умолчанию (глобальная настройка)' },
