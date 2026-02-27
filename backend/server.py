@@ -1178,6 +1178,8 @@ async def upload_multiple_sources(
                     extracted_text = extract_text_from_pptx(content)
                 elif file_type == "xlsx":
                     extracted_text = extract_text_from_xlsx(content)
+                elif file_type == "csv":
+                    extracted_text = extract_text_from_csv(content)
                 elif file_type in ["png", "jpeg", "jpg"]:
                     extracted_text = extract_text_from_image(content)
                 else:
