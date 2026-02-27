@@ -2224,9 +2224,14 @@ async def get_user_details(user_id: str, current_user: dict = Depends(get_curren
     # Get user-specific model if set
     user_model = user.get("gptModel")
     
+    # Get prompt - check both field names for compatibility
+    prompt_text = ""
+    if user_prompt:
+        prompt_text = user_prompt.get("customPrompt") or user_prompt.get("prompt", "")
+    
     return {
         "user": user,
-        "prompt": user_prompt.get("prompt", "") if user_prompt else "",
+        "prompt": prompt_text,
         "gptModel": user_model,
         "projects": projects_with_stats,
         "tokenUsage": {
