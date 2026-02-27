@@ -1327,6 +1327,69 @@ async def delete_source(project_id: str, source_id: str, current_user: dict = De
     
     return {"message": "Source deleted successfully"}
 
+class SearchRequest(BaseModel):
+    query: str
+    limit: Optional[int] = 20
+
+class SearchResult(BaseModel):
+    sourceId: str
+    sourceName: str
+    sourceKind: str
+    chunkIndex: int
+    content: str
+    matchCount: int
+
+@api_router.post("/projects/{project_id}/sources/search")
+async def search_sources(project_id: str, search_data: SearchRequest, current_user: dict = Depends(get_current_user)):
+    """Search through all source chunks in project - NO GPT, NO TOKENS"""
+    await verify_project_access(project_id, current_user["id"])
+    
+    query = search_data.query.strip().lower()
+    if not query or len(query) < 2:
+        raise HTTPException(status_code=400, detail="Search query must be at least 2 characters")
+    
+    # Get all sources in project
+    sources = await db.sources.find({"projectId": project_id}, {"_id": 0}).to_list(1000)
+    source_map = {s["id"]: s for s in sources}
+    
+    # Search through chunks
+    results = []
+    chunks = await db.source_chunks.find(
+        {"projectId": project_id},
+        {"_id": 0}
+    ).to_list(10000)
+    
+    for chunk in chunks:
+        content_lower = chunk["content"].lower()
+        if query in content_lower:
+            source = source_map.get(chunk["sourceId"], {})
+            
+            # Count matches
+            match_count = content_lower.count(query)
+            
+            # Get snippet around first match (150 chars before and after)
+            idx = content_lower.find(query)
+            start = max(0, idx - 150)
+            end = min(len(chunk["content"]), idx + len(query) + 150)
+            snippet = chunk["content"][start:end]
+            if start > 0:
+                snippet = "..." + snippet
+            if end < len(chunk["content"]):
+                snippet = snippet + "..."
+            
+            results.append({
+                "sourceId": chunk["sourceId"],
+                "sourceName": source.get("originalName") or source.get("url", "Unknown"),
+                "sourceKind": source.get("kind", "file"),
+                "chunkIndex": chunk.get("chunkIndex", 0),
+                "content": snippet,
+                "matchCount": match_count
+            })
+    
+    # Sort by match count and limit
+    results.sort(key=lambda x: x["matchCount"], reverse=True)
+    return results[:search_data.limit]
+
 @api_router.get("/projects/{project_id}/sources/{source_id}/download")
 async def download_source(project_id: str, source_id: str, current_user: dict = Depends(get_current_user)):
     """Download a single source file"""
