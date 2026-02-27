@@ -288,10 +288,16 @@ RESPONSE STYLE:
     return config
 
 async def verify_project_ownership(project_id: str, user_id: str):
-    """Verify that the user owns the project"""
-    project = await db.projects.find_one({"id": project_id, "ownerId": user_id})
+    """Verify that the user owns or has access to the project"""
+    project = await db.projects.find_one({"id": project_id}, {"_id": 0})
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
+    
+    # Check if owner or shared with
+    shared_with = project.get("sharedWith", [])
+    if project["ownerId"] != user_id and user_id not in shared_with:
+        raise HTTPException(status_code=403, detail="Not authorized to access this project")
+    
     return project
 
 # ==================== TEXT EXTRACTION ====================
