@@ -17,6 +17,7 @@ const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 const ProjectPage = () => {
   const { projectId } = useParams();
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [project, setProject] = useState(null);
   const [chats, setChats] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
