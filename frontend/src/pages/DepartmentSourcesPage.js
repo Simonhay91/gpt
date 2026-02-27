@@ -14,19 +14,20 @@ import {
 } from 'lucide-react';
 import DashboardLayout from '../components/DashboardLayout';
 import { useAuth } from '../contexts/AuthContext';
+import { useLanguage } from '../contexts/LanguageContext';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
-const STATUS_CONFIG = {
+const getStatusConfig = (t) => ({
   draft: { 
-    label: 'Черновик', 
+    label: t('dept.statusDraft'), 
     color: 'text-gray-400 bg-gray-500/20', 
     icon: AlertCircle,
     cardBorder: 'border-gray-500/50',
     needsAction: true
   },
   pending: { 
-    label: '⏳ Ждёт одобрения', 
+    label: `⏳ ${t('dept.statusPending')}`, 
     color: 'text-amber-400 bg-amber-500/30', 
     icon: Clock,
     cardBorder: 'border-amber-500 border-2',
