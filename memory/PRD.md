@@ -163,9 +163,7 @@ draft → pending → approved → active
 ## Pending / Backlog
 
 ### P0 (High Priority)
-- [ ] UI for editing existing member roles (bug from prev session)
-- [ ] Department source upload page
-- [ ] Source approval workflow UI
+- [ ] UI for editing existing member roles in projects (bug from prev session)
 
 ### P1 (Medium Priority)
 - [ ] User-level token limits (daily/monthly)
