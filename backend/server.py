@@ -397,6 +397,9 @@ def extract_text_from_xlsx(file_content: bytes) -> str:
 def extract_text_from_image(file_content: bytes) -> str:
     """Extract text from image using OCR (pytesseract)"""
     try:
+        # Set tesseract path explicitly
+        pytesseract.pytesseract.tesseract_cmd = '/usr/bin/tesseract'
+        
         # Open image with PIL
         image = Image.open(io.BytesIO(file_content))
         
