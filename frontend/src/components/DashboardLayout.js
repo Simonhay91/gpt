@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
@@ -35,11 +35,34 @@ const DashboardLayout = ({ children }) => {
   const navigate = useNavigate();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   
+  // Pending approvals count for managers
+  const [pendingCount, setPendingCount] = useState(0);
+  
   // User Prompt State
   const [isPromptDialogOpen, setIsPromptDialogOpen] = useState(false);
   const [userPrompt, setUserPrompt] = useState('');
   const [isSavingPrompt, setIsSavingPrompt] = useState(false);
   const [promptLoaded, setPromptLoaded] = useState(false);
+
+  // Fetch pending approvals count for managers
+  useEffect(() => {
+    const fetchPendingCount = async () => {
+      try {
+        const response = await axios.get(`${API}/departments/pending-count`);
+        setPendingCount(response.data.count || 0);
+      } catch (error) {
+        // Silently fail - user might not be a manager
+        setPendingCount(0);
+      }
+    };
+    
+    if (user) {
+      fetchPendingCount();
+      // Refresh every 60 seconds
+      const interval = setInterval(fetchPendingCount, 60000);
+      return () => clearInterval(interval);
+    }
+  }, [user]);
 
   const handleLogout = () => {
     logout();
