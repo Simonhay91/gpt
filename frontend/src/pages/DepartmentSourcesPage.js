@@ -476,27 +476,64 @@ const DepartmentSourcesPage = () => {
           <DialogContent className="sm:max-w-md">
             <DialogHeader>
               <DialogTitle>
-                {approvalAction === 'submit' && 'Отправить на проверку'}
-                {approvalAction === 'approve' && 'Одобрить источник'}
-                {approvalAction === 'activate' && 'Активировать источник'}
-                {approvalAction === 'reject' && 'Отклонить источник'}
+                {approvalAction === 'submit' && '📤 Отправить на проверку'}
+                {approvalAction === 'approve' && '✅ Одобрить источник'}
+                {approvalAction === 'activate' && '🚀 Активировать источник'}
+                {approvalAction === 'reject' && '❌ Отклонить источник'}
               </DialogTitle>
-              <DialogDescription>
-                {selectedSource?.originalName}
+              <DialogDescription className="pt-2">
+                <span className="font-medium text-foreground">{selectedSource?.originalName}</span>
               </DialogDescription>
             </DialogHeader>
             
-            {(approvalAction === 'reject') && (
-              <div className="space-y-2 py-4">
-                <Label>Причина отклонения</Label>
-                <Textarea
-                  value={approvalComment}
-                  onChange={(e) => setApprovalComment(e.target.value)}
-                  placeholder="Укажите причину..."
-                  className="min-h-[100px]"
-                />
-              </div>
-            )}
+            {/* Action explanation */}
+            <div className="py-4 space-y-3">
+              {approvalAction === 'submit' && (
+                <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg p-3">
+                  <p className="text-sm">
+                    <strong>Что произойдёт:</strong> Источник будет отправлен менеджеру отдела на проверку. 
+                    Статус изменится на "Ожидает одобрения".
+                  </p>
+                </div>
+              )}
+              {approvalAction === 'approve' && (
+                <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-lg p-3">
+                  <p className="text-sm">
+                    <strong>Что произойдёт:</strong> Источник будет одобрен. После одобрения его нужно 
+                    <strong> активировать</strong>, чтобы GPT начал использовать эти знания при ответах.
+                  </p>
+                </div>
+              )}
+              {approvalAction === 'activate' && (
+                <div className="bg-indigo-500/10 border border-indigo-500/30 rounded-lg p-3">
+                  <p className="text-sm">
+                    <strong>Что произойдёт:</strong> Источник станет <strong>активным</strong>. 
+                    GPT будет использовать информацию из этого документа при ответах на вопросы 
+                    пользователей во всех проектах этого отдела.
+                  </p>
+                </div>
+              )}
+              {approvalAction === 'reject' && (
+                <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-3 mb-4">
+                  <p className="text-sm">
+                    <strong>Что произойдёт:</strong> Источник будет отклонён и возвращён автору. 
+                    Укажите причину, чтобы автор мог исправить проблему.
+                  </p>
+                </div>
+              )}
+              
+              {approvalAction === 'reject' && (
+                <div className="space-y-2">
+                  <Label>Причина отклонения</Label>
+                  <Textarea
+                    value={approvalComment}
+                    onChange={(e) => setApprovalComment(e.target.value)}
+                    placeholder="Укажите причину отклонения..."
+                    className="min-h-[100px]"
+                  />
+                </div>
+              )}
+            </div>
 
             <DialogFooter>
               <Button variant="outline" onClick={() => setApprovalAction(null)}>
@@ -506,9 +543,14 @@ const DepartmentSourcesPage = () => {
                 onClick={processApproval} 
                 disabled={isProcessing}
                 variant={approvalAction === 'reject' ? 'destructive' : 'default'}
+                className={approvalAction === 'activate' ? 'bg-indigo-500 hover:bg-indigo-600' : 
+                           approvalAction === 'approve' ? 'bg-emerald-500 hover:bg-emerald-600' : ''}
               >
                 {isProcessing ? <div className="spinner mr-2" /> : null}
-                Подтвердить
+                {approvalAction === 'submit' && 'Отправить'}
+                {approvalAction === 'approve' && 'Одобрить'}
+                {approvalAction === 'activate' && 'Активировать'}
+                {approvalAction === 'reject' && 'Отклонить'}
               </Button>
             </DialogFooter>
           </DialogContent>
