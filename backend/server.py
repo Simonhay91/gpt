@@ -28,6 +28,7 @@ from PIL import Image
 from services.enterprise import AuditService, VersionService, HierarchicalRetrieval
 from routes.departments import setup_department_routes, router as departments_router
 from routes.enterprise_sources import setup_enterprise_source_routes, router as enterprise_sources_router
+from routes.news import router as news_router
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
