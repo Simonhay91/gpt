@@ -2358,6 +2358,67 @@ async def get_global_sources_usage_stats(current_user: dict = Depends(get_curren
         "totalSourcesCount": len(result)
     }
 
+@api_router.get("/admin/cache/stats")
+async def get_cache_stats(current_user: dict = Depends(get_current_user)):
+    """Get semantic cache statistics"""
+    if not is_admin(current_user["email"]):
+        raise HTTPException(status_code=403, detail="Admin access required")
+    
+    # Get cache entries
+    cache_entries = await db.semantic_cache.find({}, {"_id": 0, "embedding": 0}).to_list(1000)
+    
+    total_entries = len(cache_entries)
+    total_hits = sum(e.get("hitCount", 0) for e in cache_entries)
+    
+    # Group by project
+    by_project = {}
+    for entry in cache_entries:
+        pid = entry.get("projectId") or "global"
+        if pid not in by_project:
+            by_project[pid] = {"count": 0, "hits": 0}
+        by_project[pid]["count"] += 1
+        by_project[pid]["hits"] += entry.get("hitCount", 0)
+    
+    # Get top cached questions
+    top_entries = sorted(cache_entries, key=lambda x: x.get("hitCount", 0), reverse=True)[:10]
+    
+    return {
+        "totalEntries": total_entries,
+        "totalHits": total_hits,
+        "byProject": by_project,
+        "topEntries": [{
+            "id": e["id"],
+            "question": e["question"][:100] + "..." if len(e.get("question", "")) > 100 else e.get("question", ""),
+            "hitCount": e.get("hitCount", 0),
+            "lastHitAt": e.get("lastHitAt"),
+            "createdAt": e.get("createdAt")
+        } for e in top_entries],
+        "settings": {
+            "similarityThreshold": CACHE_SIMILARITY_THRESHOLD,
+            "ttlDays": CACHE_TTL_DAYS
+        }
+    }
+
+@api_router.delete("/admin/cache/clear")
+async def clear_cache(current_user: dict = Depends(get_current_user)):
+    """Clear all semantic cache entries"""
+    if not is_admin(current_user["email"]):
+        raise HTTPException(status_code=403, detail="Admin access required")
+    
+    result = await db.semantic_cache.delete_many({})
+    return {"message": f"Cleared {result.deleted_count} cache entries"}
+
+@api_router.delete("/admin/cache/{cache_id}")
+async def delete_cache_entry(cache_id: str, current_user: dict = Depends(get_current_user)):
+    """Delete specific cache entry"""
+    if not is_admin(current_user["email"]):
+        raise HTTPException(status_code=403, detail="Admin access required")
+    
+    result = await db.semantic_cache.delete_one({"id": cache_id})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Cache entry not found")
+    return {"message": "Cache entry deleted"}
+
 # ==================== GLOBAL SOURCES ENDPOINTS ====================
 
 async def can_edit_global_sources(user: dict) -> bool:
