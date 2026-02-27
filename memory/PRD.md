@@ -35,6 +35,12 @@ Planet GPT is a multi-user SaaS platform for AI-powered conversations with proje
 - Auto-ingest URLs from chat messages
 - AI provides citations referencing source chunks
 
+### Global Sources (Admin Only)
+- **Centralized knowledge base** - Admin uploads files/URLs that are available to ALL users
+- All global sources are automatically included in GPT context for every chat
+- Managed at `/admin/global-sources`
+- Supports same file types as project sources
+
 ### User Custom Prompt
 - Each user can set their own custom GPT instructions
 - Custom prompt is added to all conversations
@@ -45,6 +51,10 @@ Planet GPT is a multi-user SaaS platform for AI-powered conversations with proje
   - Create new users with generated passwords
   - View all users with token usage stats
   - Delete users
+- **Global Sources** (`/admin/global-sources`)
+  - Upload files to central knowledge base
+  - Add URLs as global sources
+  - Preview/delete global sources
 - **GPT Config** (`/admin/config`)
   - Set global GPT model
   - Configure developer system prompt
