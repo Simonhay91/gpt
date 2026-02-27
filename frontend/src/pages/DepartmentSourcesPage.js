@@ -238,8 +238,8 @@ const DepartmentSourcesPage = () => {
     const status = source.status || 'active';
     
     if (isManager) {
+      // Manager can directly approve draft sources (no need to submit for review)
       if (status === 'draft') {
-        actions.push({ action: 'submit', label: t('action.submit'), icon: Send });
         actions.push({ action: 'approve', label: t('action.approve'), icon: CheckCircle });
       }
       if (status === 'pending') {
@@ -252,6 +252,19 @@ const DepartmentSourcesPage = () => {
     }
     
     return actions;
+  };
+
+  const deleteSource = async (sourceId, e) => {
+    e.stopPropagation();
+    if (!window.confirm(t('action.confirmDelete'))) return;
+    
+    try {
+      await axios.delete(`${API}/sources/${sourceId}`);
+      setSources(sources.filter(s => s.id !== sourceId));
+      toast.success(t('common.deleted'));
+    } catch (error) {
+      toast.error(t('common.deleteFailed'));
+    }
   };
 
   if (isLoading) {
