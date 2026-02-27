@@ -489,10 +489,10 @@ const DepartmentSourcesPage = () => {
           <DialogContent className="sm:max-w-md">
             <DialogHeader>
               <DialogTitle>
-                {approvalAction === 'submit' && '📤 Отправить на проверку'}
-                {approvalAction === 'approve' && '✅ Одобрить источник'}
-                {approvalAction === 'activate' && '🚀 Активировать источник'}
-                {approvalAction === 'reject' && '❌ Отклонить источник'}
+                {approvalAction === 'submit' && `📤 ${t('approval.submitTitle')}`}
+                {approvalAction === 'approve' && `✅ ${t('approval.approveTitle')}`}
+                {approvalAction === 'activate' && `🚀 ${t('approval.activateTitle')}`}
+                {approvalAction === 'reject' && `❌ ${t('approval.rejectTitle')}`}
               </DialogTitle>
               <DialogDescription className="pt-2">
                 <span className="font-medium text-foreground break-all">{selectedSource?.originalName}</span>
@@ -504,44 +504,39 @@ const DepartmentSourcesPage = () => {
               {approvalAction === 'submit' && (
                 <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg p-3">
                   <p className="text-sm">
-                    <strong>Что произойдёт:</strong> Источник будет отправлен менеджеру отдела на проверку. 
-                    Статус изменится на "Ожидает одобрения".
+                    <strong>{t('approval.whatHappens')}:</strong> {t('approval.submitDesc')}
                   </p>
                 </div>
               )}
               {approvalAction === 'approve' && (
                 <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-lg p-3">
                   <p className="text-sm">
-                    <strong>Что произойдёт:</strong> Источник будет одобрен. После одобрения его нужно 
-                    <strong> активировать</strong>, чтобы GPT начал использовать эти знания при ответах.
+                    <strong>{t('approval.whatHappens')}:</strong> {t('approval.approveDesc')}
                   </p>
                 </div>
               )}
               {approvalAction === 'activate' && (
                 <div className="bg-indigo-500/10 border border-indigo-500/30 rounded-lg p-3">
                   <p className="text-sm">
-                    <strong>Что произойдёт:</strong> Источник станет <strong>активным</strong>. 
-                    GPT будет использовать информацию из этого документа при ответах на вопросы 
-                    пользователей во всех проектах этого отдела.
+                    <strong>{t('approval.whatHappens')}:</strong> {t('approval.activateDesc')}
                   </p>
                 </div>
               )}
               {approvalAction === 'reject' && (
                 <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-3 mb-4">
                   <p className="text-sm">
-                    <strong>Что произойдёт:</strong> Источник будет отклонён и возвращён автору. 
-                    Укажите причину, чтобы автор мог исправить проблему.
+                    <strong>{t('approval.whatHappens')}:</strong> {t('approval.rejectDesc')}
                   </p>
                 </div>
               )}
               
               {approvalAction === 'reject' && (
                 <div className="space-y-2">
-                  <Label>Причина отклонения</Label>
+                  <Label>{t('approval.rejectReason')}</Label>
                   <Textarea
                     value={approvalComment}
                     onChange={(e) => setApprovalComment(e.target.value)}
-                    placeholder="Укажите причину отклонения..."
+                    placeholder=""
                     className="min-h-[100px]"
                   />
                 </div>
@@ -550,7 +545,7 @@ const DepartmentSourcesPage = () => {
 
             <DialogFooter>
               <Button variant="outline" onClick={() => setApprovalAction(null)}>
-                Отмена
+                {t('action.cancel')}
               </Button>
               <Button 
                 onClick={processApproval} 
@@ -560,10 +555,10 @@ const DepartmentSourcesPage = () => {
                            approvalAction === 'approve' ? 'bg-emerald-500 hover:bg-emerald-600' : ''}
               >
                 {isProcessing ? <div className="spinner mr-2" /> : null}
-                {approvalAction === 'submit' && 'Отправить'}
-                {approvalAction === 'approve' && 'Одобрить'}
-                {approvalAction === 'activate' && 'Активировать'}
-                {approvalAction === 'reject' && 'Отклонить'}
+                {approvalAction === 'submit' && t('action.submit')}
+                {approvalAction === 'approve' && t('action.approve')}
+                {approvalAction === 'activate' && t('action.activate')}
+                {approvalAction === 'reject' && t('action.reject')}
               </Button>
             </DialogFooter>
           </DialogContent>
