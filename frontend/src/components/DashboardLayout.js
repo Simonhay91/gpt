@@ -202,9 +202,24 @@ const DashboardLayout = ({ children }) => {
 
         {/* User Section */}
         <div className="absolute bottom-0 left-0 right-0 p-4 border-t border-border">
+          {/* Language Toggle */}
+          <div className="flex items-center justify-between mb-3 px-1">
+            <span className="text-sm text-muted-foreground">{t('common.language')}</span>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={toggleLanguage}
+              className="gap-2 h-8"
+              data-testid="language-toggle-btn"
+            >
+              <Languages className="h-4 w-4" />
+              {language === 'ru' ? 'RU' : 'EN'}
+            </Button>
+          </div>
+
           {/* Theme Toggle */}
           <div className="flex items-center justify-between mb-4 px-1">
-            <span className="text-sm text-muted-foreground">Theme</span>
+            <span className="text-sm text-muted-foreground">{t('nav.theme')}</span>
             <Button
               variant="outline"
               size="sm"
@@ -215,12 +230,12 @@ const DashboardLayout = ({ children }) => {
               {isDark ? (
                 <>
                   <Sun className="h-4 w-4" />
-                  Light
+                  {t('nav.light')}
                 </>
               ) : (
                 <>
                   <Moon className="h-4 w-4" />
-                  Dark
+                  {t('nav.dark')}
                 </>
               )}
             </Button>
@@ -233,7 +248,7 @@ const DashboardLayout = ({ children }) => {
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium truncate">{user?.email}</p>
               <p className="text-xs text-muted-foreground">
-                {user?.isAdmin ? '👑 Administrator' : isManager ? '📋 Manager' : 'User'}
+                {user?.isAdmin ? `👑 ${t('role.administrator')}` : isManager ? `📋 ${t('role.manager')}` : t('role.user')}
               </p>
             </div>
           </div>
