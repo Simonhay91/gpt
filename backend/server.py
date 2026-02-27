@@ -165,6 +165,8 @@ class MessageResponse(BaseModel):
     citations: Optional[List[dict]] = None
     usedSources: Optional[List[dict]] = None  # For UI to reliably show "Sources used"
     autoIngestedUrls: Optional[List[str]] = None  # IDs of auto-ingested URL sources
+    senderEmail: Optional[str] = None  # Email of user who sent the message
+    senderName: Optional[str] = None  # Display name of sender
 
 class GPTConfigUpdate(BaseModel):
     model: Optional[str] = None
