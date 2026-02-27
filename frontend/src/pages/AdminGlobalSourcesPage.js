@@ -245,9 +245,9 @@ const AdminGlobalSourcesPage = () => {
           </div>
         </div>
 
-        {/* Stats */}
+        {/* Stats Summary */}
         {sources.length > 0 && (
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+          <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 mb-6">
             <Card>
               <CardContent className="pt-4">
                 <div className="flex items-center gap-3">
@@ -258,6 +258,60 @@ const AdminGlobalSourcesPage = () => {
                   </div>
                 </div>
               </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="pt-4">
+                <div className="flex items-center gap-3">
+                  <HardDrive className="h-5 w-5 text-muted-foreground" />
+                  <div>
+                    <p className="text-2xl font-bold">{formatBytes(totalSize)}</p>
+                    <p className="text-sm text-muted-foreground">общий размер</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="pt-4">
+                <div className="flex items-center gap-3">
+                  <TrendingUp className="h-5 w-5 text-emerald-500" />
+                  <div>
+                    <p className="text-2xl font-bold">{usageStats?.totalUsageCount || 0}</p>
+                    <p className="text-sm text-muted-foreground">использований</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="pt-4">
+                <div className="flex items-center gap-3">
+                  <BarChart3 className="h-5 w-5 text-blue-500" />
+                  <div>
+                    <p className="text-2xl font-bold">{usageStats?.sourcesUsedCount || 0}/{sources.length}</p>
+                    <p className="text-sm text-muted-foreground">используются</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        )}
+
+        {/* Tabs */}
+        <div className="flex gap-2 mb-6">
+          <Button
+            variant={activeTab === 'sources' ? 'default' : 'outline'}
+            onClick={() => setActiveTab('sources')}
+          >
+            <FileText className="mr-2 h-4 w-4" />
+            Источники
+          </Button>
+          <Button
+            variant={activeTab === 'stats' ? 'default' : 'outline'}
+            onClick={() => setActiveTab('stats')}
+          >
+            <BarChart3 className="mr-2 h-4 w-4" />
+            Статистика
+          </Button>
+        </div>
             </Card>
             <Card>
               <CardContent className="pt-4">
