@@ -114,6 +114,11 @@ const ChatPage = () => {
   const [isSavingName, setIsSavingName] = useState(false);
   const nameInputRef = useRef(null);
   
+  // Preview dialog state
+  const [previewDialogOpen, setPreviewDialogOpen] = useState(false);
+  const [previewSource, setPreviewSource] = useState(null);
+  const [previewLoading, setPreviewLoading] = useState(false);
+  
   const messagesEndRef = useRef(null);
   const textareaRef = useRef(null);
   const fileInputRef = useRef(null);
