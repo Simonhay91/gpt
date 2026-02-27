@@ -3,64 +3,56 @@ The user wants to build a production-ready, full-stack SaaS web app, Planet GPT,
 
 **PRODUCT REQUIREMENTS:**
 *   **Core App:** Multi-user application with project-based data isolation using React, FastAPI, and MongoDB.
-*   **User Management:** Admin-centric model where an admin creates users, can view detailed usage statistics (tokens, messages, storage), and manage user-specific settings like GPT models and prompts.
-*   **GPT Configuration:** A global admin-configurable GPT system prompt and model, with overrides available on a per-user basis, also managed by the admin.
-*   **Project & Chat Functionality:**
-    *   Project-based chats with history. Quick Chats for non-project work.
-    *   Ability to rename chats and move them between projects.
-    *   **Project Sharing & Roles:** Owners can share projects with other users, assigning roles (e.g., Viewer, Editor, Manager) to control permissions.
-    *   Fine-grained Chat Visibility: Owners can control which specific chats are visible to each shared user within a project.
-    *   AI responses must have a Copy button and render clickable URLs.
-    *   Display the sender's name on messages in shared chats.
-*   **Source Management:**
-    *   Users can attach various file types (PDF, DOCX, TXT, MD, PPTX, XLSX, PNG, JPEG, CSV). The system must handle encrypted PDFs and large files.
-    *   **OCR:** Text must be automatically extracted from uploaded images (PNG/JPEG).
-    *   All sources within a project are always active for any chat in that project.
-    *   **Source Search:** Implement a token-free search functionality to find content within a project's sources without calling the LLM.
-    *   **Global Sources:** An admin-managed central knowledge base that is automatically available to all users. Permissions can be granted to non-admin users to manage these sources.
-    *   **Source Usage Analytics:** Admins can view statistics on how frequently sources are used in GPT responses.
-*   **Efficiency & Cost:**
-    *   **Semantic Caching:** Implement an intelligent caching layer using embeddings to find semantically similar questions and return cached answers to reduce token usage. The cache must be securely isolated by project, user permissions, and prompt configurations.
-*   **UX/UI:**
-    *   The app should have light and dark modes.
-    *   Fix navigation so the back button in a chat returns to the project's chat list, not the main dashboard.
+*   **User Management:** Admin-centric model where an admin creates users and manages their settings.
+*   **Project & Chat Functionality:** Project-based chats, sharing with roles (Viewer, Editor, Manager), and fine-grained chat visibility.
+*   **Source Management:** Users can attach various file types, with OCR for images. Sources are project-specific.
+*   **Enterprise Knowledge Architecture (New):** Implement a hierarchical knowledge base with four levels:
+    *   **Levels:** Personal, Project, Department, Global.
+    *   **Retrieval Order:** Project → Department → Global, with overrides.
+    *   **Permissions:** Strict role-based access for modifications (Admin for Global, Department Manager for Department, etc.).
+    *   **Workflow:** An approval process (draft → approved → active) for Department and Global sources.
+    *   **Auditing & Versioning:** All changes to high-level sources must be versioned and logged.
+*   **Efficiency & Cost:** Implement semantic caching to reduce token usage.
+*   **UX/UI:** The app should have light and dark modes and intuitive navigation.
 
 **User's preferred language**: Russian
 
 **what currently exists?**
-A full-stack Planet GPT application with a comprehensive feature set. The backend is a large FastAPI  file, and the frontend is built with React.
+The Planet GPT application is a feature-rich SaaS platform. A major session achievement was the refactoring of the monolithic  backend into a modular structure with , , and  directories.
 
-Key implemented features include:
-*   **Global Sources:** A fully functional admin-managed central knowledge base. The feature has been extended to allow admins to grant specific users permission to manage these sources as well.
-*   **Advanced File Handling:** The system supports a wide range of file types, including CSV. It has been hardened to handle large file uploads (up to 50MB), and various CSV parsing errors (newlines in fields, large fields). It also correctly diagnoses incorrect file format uploads (e.g., a  file renamed to ).
-*   **Source Analytics:** The backend tracks, and the frontend displays, statistics on how often global sources are used in GPT answers.
-*   **Secure Semantic Caching:** A sophisticated caching system is in place that uses OpenAI embeddings () to find and serve answers for semantically similar questions. The cache is securely segregated by project, prompts, model, and source access to prevent data leakage.
-*   **Role-Based Access Control (RBAC):** A permission matrix with 'Viewer', 'Editor', and 'Manager' roles has been implemented for shared projects. The backend enforces these roles for actions like uploading sources, and the frontend includes a UI for project owners to assign roles when sharing.
-*   **Enhanced Citations:** Citations in chat now indicate whether the source is from the local project or the global knowledge base.
+Key implemented features:
+*   **Enterprise Knowledge Architecture:** A complete, four-level knowledge base (Personal, Project, Department, Global) has been implemented on both the backend and frontend. This includes:
+    *   Role-based permissions for creating and managing knowledge at each level.
+    *   A full approval workflow (Draft → Pending Approval → Approved → Active) for department-level sources, manageable by Department Managers.
+    *   Hierarchical retrieval logic in the chat, which now correctly pulls context from Project, then Department, then Global sources.
+    *   Dedicated frontend pages for admins to manage departments (), for managers to manage their department sources (), and for users to manage their personal sources ().
+*   **Manager-Specific UX:** A notification system for Department Managers, featuring a badge in the sidebar that displays the count of sources pending their approval. This improves workflow efficiency.
+*   **Bug Fix:** The critical bug from the previous session, where a project member's role could not be changed, has been fixed and verified. The root cause was an incorrect data model being used in the backend's  function.
 
 **Last working item**:
-- Last item agent was working: Debugging a user-reported bug where changing the role of an already-shared user in a project does not work. The agent attempted to reproduce the issue and correctly deduced that the backend API endpoint to *update* an existing member's role is likely missing.
+- Last item agent was working: The agent was investigating a new bug reported by the user: the Departments navigation link in the sidebar disappears when an admin user navigates to the Global Sources page. The agent had just started debugging, theorizing that the issue lies in the conditional rendering logic within , possibly related to the asynchronous fetching of the pending approval count.
 - Status: IN PROGRESS
 - Agent Testing Done: N
-- Which testing method agent to use? backend testing agent. The agent needs to add and test a new backend endpoint (e.g., ) for updating a user's role.
+- Which testing method agent to use? screenshot tool or frontend testing agent. The agent should first try to reliably reproduce the bug as both an admin and a non-admin manager, then use screenshots to verify the fix.
 - User Testing Done: N
 
 **All Pending/In progress Issue list**:
-  - Issue 1: (P0) Cannot change the role of an existing member in a shared project.
-  - Issue 2: (P1) Investigate and fix the frontend navigation test failure from a previous session.
+  - Issue 1: (P0) Departments navigation link disappears on certain route changes.
+  - Issue 2: (P1) Investigate and fix the old frontend navigation test failure from a previous session.
   - Issue 3: (P2) Address the recurring frontend compilation warning: .
 
   **Issues Detail:**
-  - **Issue 1:** Cannot change role of existing project member.
-     - **Attempted fixes:** The agent tried to reproduce the bug but was blocked as the logged-in admin user was not the project owner. However, the agent correctly theorized that the root cause is a missing backend endpoint for updating roles, as the current API only supports adding a user with a role.
+  - **Issue 1:** Departments link disappears on navigation.
+     - **Attempted fixes:** The agent identified  as the likely location of the bug and hypothesized it's related to how the navigation items are re-calculated on route changes, especially for non-admin managers where the link's visibility depends on an async call for . No code changes were made yet.
      - **Next debug checklist:**
-        1.  In , create a new  endpoint, e.g., , that accepts a request body with the new role.
-        2.  Implement the logic for this endpoint to find the project, verify the current user is the owner, find the member in the  array, and update their .
-        3.  In , modify the UI logic to call this new  endpoint when an existing user's role is changed. Currently, there is only a UI to assign a role when adding a new user. A UI for editing existing roles needs to be added.
-     - **Why fix this issue and what will be achieved with the fix?** This is a critical bug in the core collaboration and permissions feature. Fixing it will allow project owners to manage their team effectively.
+        1. Reliably reproduce the bug for both admin and non-admin manager roles by navigating between Dashboard, Global Sources, and Departments.
+        2. Examine the  hooks in  that fetch  and construct .
+        3. Ensure the state for navigation items is stable and does not get incorrectly reset during re-renders caused by  navigation.
+        4. Consider moving the  fetching logic to a higher-level context or ensuring the  array is memoized correctly.
+     - **Why fix this issue and what will be achieved with the fix?** This is a critical UI bug that makes a core feature (Departments) inaccessible, breaking user navigation.
      - **Status:** IN PROGRESS
      - **Is recurring issue?** N
-     - **Should Test frontend/backend/both after fix?** both
+     - **Should Test frontend/backend/both after fix?** Frontend
      - **Blocked on other issue:** None
 
   - **Issue 2:** Frontend Navigation Test Failure.
@@ -80,8 +72,7 @@ Key implemented features include:
 
 **Upcoming and Future Tasks**
 - **Upcoming Tasks:**
-  - (P0) UI to edit roles for existing project members in .
-  - (P1) Implement user-level token limits (daily/monthly).
+  - (P1) Implement a dashboard widget or a dedicated page () for managers to see all pending approvals in one place.
   - (P1) Add UI for admins to configure the semantic cache (e.g., TTL, similarity threshold).
   - (P2) Create question templates for common tasks.
 - **Future Tasks:**
@@ -91,27 +82,16 @@ Key implemented features include:
   - (P2) Create dedicated tests for cross-project access attempts to validate security.
 
 **Completed work in this session**
-- **Global Sources Feature (Completed):**
-  - Implemented the frontend UI for admins to upload, view, and delete global sources.
-  - Extended the feature to allow admins to grant  permission to specific users.
-  - Added a separate page () for permissioned users to manage sources.
-- **CSV Upload & Debugging (Completed):**
-  - Added backend support for  file uploads.
-  - Implemented robust error handling for large files (increased  to 50MB), newlines within fields, and fields exceeding size limits.
-- **Source Usage Analytics (Completed):**
-  - Implemented backend logic to track the usage count of each source.
-  - Added a Statistics tab to the admin page showing usage metrics.
-- **Secure Semantic Caching (Completed):**
-  - Built a caching system using OpenAI embeddings () to serve answers for similar questions.
-  - Secured the cache by creating a composite key including project ID, prompts, model, and source access to prevent data leakage.
-  - Added an admin UI to view cache statistics and clear the cache.
-- **Role-Based Access Control (RBAC) (Completed):**
-  - Implemented 'Viewer', 'Editor', and 'Manager' roles on the backend.
-  - Added a UI to the Share Project dialog for owners to assign roles to new members.
-  - The backend now enforces role permissions for actions like uploading sources.
-- **UI/UX Fixes:**
-  - Adjusted the width and spacing of the Share Project modal as per user feedback.
-  - Added icons and labels to chat citations to distinguish between  and  sources.
+- **Feature: Enterprise Knowledge Architecture (Completed):**
+  - **Backend:** Refactored  into a modular structure. Created Pydantic models, services, and API routes for Departments, Enterprise Sources, Versioning, and Audit Logs.
+  - **Frontend:** Built pages for managing Departments (), Personal Sources (), Department-specific sources (), and viewing Audit Logs ().
+  - **Hierarchical Retrieval:** Modified the  endpoint to correctly retrieve and prioritize context from Project → Department → Global sources.
+- **Feature: Approval Workflow & Manager UX (Completed):**
+  - Implemented the full  →  →  →  workflow for department sources.
+  - Created a UI for Department Managers to see sources awaiting their review, preview file contents, and approve/reject them.
+  - Added a notification badge to the sidebar to show managers the count of pending approvals.
+- **Bug Fix: Project Role Editing (Completed):**
+  - Fixed the bug preventing project owners from changing a member's role. The issue was in  which was reading from an old data structure. The fix was verified via manual testing and the testing agent.
 
 **Earlier issues found/mentioned but not fixed**
    - **Issue 1: Frontend Navigation Test Failure**
@@ -121,74 +101,75 @@ Key implemented features include:
      - **Is recurring issue?** Y
 
 **Known issue recurrence from previous fork**
-- None
+- None.
 
 **Code Architecture**
 
 
 **Key Technical Concepts**
-- **Backend:** FastAPI, MongoDB (), Pydantic.
+- **Backend:** FastAPI, MongoDB (), Pydantic. Refactored into  modules.
 - **Frontend:** React, Tailwind CSS, , .
-- **Authentication:** Admin-centric JWT flow.
-- **File Handling:** OCR (), PDF decryption (), CSV parsing ().
-- **Semantic Caching:** OpenAI embeddings () and  for cosine similarity search in MongoDB.
-- **Security:** Role-Based Access Control (RBAC), secure cache key generation using .
+- **Data Hierarchy:** Multi-level data model (Personal, Project, Department, Global) with distinct permissions and retrieval logic.
+- **Approval Workflow:** State machine logic (draft, pending, approved, active) managed on the backend and reflected in the frontend UI.
 
 **key DB schema**
 - **users:** 
-- **projects:**  where role is 'viewer', 'editor', or 'manager'.
-- **sources:** 
-- **cache_secure:** 
+- **departments:** 
+- **sources:**  (level can be 'personal', 'project', 'department', 'global')
+- **source_versions:** 
+- **audit_logs:** 
 
 **changes in tech stack**
-- Added  for vector calculations in semantic caching.
+- No new technologies, but a significant architectural shift in the backend from a single file to a modular structure.
 
 **All files of reference**
-- : The monolithic backend file, now over 3400 lines. Contains all logic for RBAC, secure caching, source analytics, and advanced file handling.
-- : New page for admins to manage global sources and view usage/cache statistics.
-- : New page for permissioned users to manage global sources.
-- : Modified to include the UI for assigning roles when sharing a project. Needs further modification for editing existing roles.
-- : Modified to display icons indicating if a citation is from a 'project' or 'global' source.
-- : Modified to include the UI toggle for granting global source management permissions.
-- : Modified to conditionally show the Global Sources link.
-- : Updated with routes for the new pages.
+*   **/app/backend/routes/departments.py**: New file for all department-related API endpoints.
+*   **/app/backend/routes/enterprise_sources.py**: New file for knowledge source endpoints (upload, versioning, preview).
+*   **/app/backend/server.py**: Heavily modified. Main routers were moved out, but chat logic and user management remain.
+*   **/app/frontend/src/components/DashboardLayout.js**: Heavily modified to include logic for the manager badge and conditional navigation links. **This is the location of the current bug.**
+*   **/app/frontend/src/pages/AdminDepartmentsPage.js**: New page for admins to manage all departments.
+*   **/app/frontend/src/pages/DepartmentSourcesPage.js**: New page for managers to manage a specific department's knowledge sources.
+*   **/app/frontend/src/pages/MyDepartmentsPage.js**: New page for non-admin managers to see a list of their departments.
+*   **/app/frontend/src/App.js**: Modified to include all new frontend routes.
 
 **Areas that need refactoring**:
-- **CRITICAL:**  is now extremely large and difficult to maintain. It is imperative to break it down into modular s (e.g., , , , ). This should be the highest priority refactoring task.
+- **:** While a significant refactoring was done, the file is still very large (over 3500 lines). The process of breaking down logic (especially chat, user management, and project management) into their own router files should continue.
 
 **key api endpoints**
-- : (GET) Get usage statistics for global sources.
-- : (GET) Get statistics for the semantic cache.
-- : (POST) Clear all entries from the cache.
-- : (PUT) Grant/revoke a user's permission to edit global sources.
-- : (POST) Share a project with a user, assigning them a role.
+- : (POST, GET) Create and list departments.
+- : (POST, DELETE) Add/remove members from a department.
+- : (POST, DELETE) Promote/demote managers.
+- : (GET) Get count of sources pending approval for the current manager.
+- : (POST) Upload a personal source.
+- : (POST) Upload a department source.
+- , : (POST) Endpoints for the approval workflow.
+- : (GET) Get raw content of a source for preview.
 
 **Critical Info for New Agent**
-- **Refactoring Urgency:**  has grown to an unmanageable size. The next major task, after fixing the current bug, should be to refactor the backend into multiple router files. This will prevent future development from becoming exponentially more difficult.
-- **Role Editing Bug:** The immediate task is to fix the bug where user roles cannot be changed. This will require creating a new  endpoint on the backend and updating the frontend  to call it.
-- **Security Context:** The user has recently emphasized security. All new features, especially those related to data access, must be implemented with a security-first mindset, respecting the new RBAC and secure caching patterns.
+- **Priority Bug:** The most urgent task is to fix the disappearing Departments link in the sidebar. This is a regression that impacts core navigation. Start by debugging .
+- **Backend Architecture:** A major refactoring of the backend has begun. All new backend functionality should follow the new modular pattern (models, services, routes). Avoid adding more logic to .
+- **User Personas:** The application now has distinct user personas with different UIs: Admin, Department Manager (non-admin), and regular User. Be mindful of which persona you are logged in as during testing, as the UI changes significantly.
 
 **documents and test reports created in this job**
 - 
--  (overwritten with new documentation)
-- 
+-  (updated with Enterprise Knowledge Architecture)
 
 **Last 10 User Messages and any pending HUMAN messages**
-1.  **User:** Reports a bug: cannot change the role of an existing user in a shared project. (Current task)
-2.  **User:** Provides UI feedback: fix popup width and add margin. (Completed)
-3.  **Agent:** Finishes frontend implementation for roles and sourceType. (Completed)
-4.  **User:** Asks for the frontend for managing roles and displaying source types. (Completed)
-5.  **Agent:** Finishes backend implementation of security features (roles, secure cache, source priority). (Completed)
-6.  **User:** Provides detailed requirements for a security overhaul: Permission Matrix, Zero Data Leakage Cache, and Source Priority. (Completed)
-7.  **Agent:** Creates prompt documentation. (Completed)
-8.  **User:** Asks agent to write a prompt for the product. (Completed)
-9.  **Agent:** Creates PRD documentation. (Completed)
-10. **User:** Asks agent to write PRD documentation. (Completed)
+1.  **User:** Reports a bug: When I click on Global Sources, the Departments button disappears.
+2.  **User:** Praises the new UX improvements (preview, role display, colored borders) and asks what's next.
+3.  **User:** Reports multiple UX issues: can't preview files before approval, it's not clear which files need review, and the user's role isn't visible.
+4.  **User:** Reports the site is stuck on a loading screen. (Agent diagnosed as a potential cache issue).
+5.  **User:** Asks to proceed with testing the manager flow.
+6.  **User:** Confirms they want to test the manager flow.
+7.  **User:** Confirms they want the sidebar badge to be for managers.
+8.  **User:** Asks if the manager is supposed to go to a specific place to see approval tasks.
+9.  **User:** Asks who is responsible for approving knowledge at different levels.
+10. **User:** Asks how a manager gives their approval for knowledge.
 
 **Project Health Check:**
-- **Broken:** The functionality to edit a user's role in a project is broken.
+- **Broken:** The navigation link for Departments disappears on some route changes.
 - **Mocked:** None.
-- **In Progress:** The bug fix for editing user roles.
+- **In Progress:** The bug fix for the disappearing navigation link.
 
 **3rd Party Integrations**
 - **OpenAI GPT-4.1-mini, text-embedding-3-small, DALL-E 3:** Used for chat, semantic caching, and image generation.
@@ -199,15 +180,14 @@ Key implemented features include:
 - **numpy:** For vector math in the caching mechanism.
 
 **Testing status**
-- **Testing agent used after significant changes:** YES, for the initial Global Sources feature.
+- **Testing agent used after significant changes:** YES, used to validate the Enterprise Knowledge Architecture implementation, where it found and fixed a serialization bug.
 - **Troubleshoot agent used after agent stuck in loop:** NO
 - **Test files created:** None
-- **Known regressions:** A frontend navigation failure from a previous session () is still unaddressed.
+- **Known regressions:** The old frontend navigation failure from  remains. The new disappearing Departments link is a new regression.
 
 **Credentials to test flow:**
 - **Admin:**  / 
-- **Standard User:** Create one via the admin panel. To test the role bug, you must log in as a standard user, create a project (making them the owner), and share it with another user.
+- **Manager:**  /  (Is a manager of the Engineering department, not an admin).
 
 **What agent forgot to execute**
-- The agent has not yet created the backend endpoint or the frontend UI to **edit** an existing user's role, which is the cause of the current bug.
-- The two carried-over issues (navigation test failure and  warning) have not been addressed.</analysis>
+- The two long-standing issues (navigation test failure from  and the  exhaustive-deps warning) were not addressed in this session.</analysis>
