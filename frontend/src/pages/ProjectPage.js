@@ -302,7 +302,7 @@ const ProjectPage = () => {
                     Share
                   </Button>
                 </DialogTrigger>
-                <DialogContent className="sm:max-w-md">
+                <DialogContent className="sm:max-w-lg">
                   <DialogHeader>
                     <DialogTitle>Share Project</DialogTitle>
                     <DialogDescription>
