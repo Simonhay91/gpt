@@ -437,6 +437,44 @@ const ChatPage = () => {
     }
   };
 
+  const openPreview = async (source, e) => {
+    e.stopPropagation();
+    setPreviewLoading(true);
+    setPreviewDialogOpen(true);
+    
+    try {
+      const response = await axios.get(`${API}/projects/${chat.projectId}/sources/${source.id}/preview`);
+      setPreviewSource(response.data);
+    } catch (error) {
+      toast.error('Failed to load preview');
+      setPreviewDialogOpen(false);
+    } finally {
+      setPreviewLoading(false);
+    }
+  };
+
+  const downloadSource = async (source, e) => {
+    e.stopPropagation();
+    
+    try {
+      const response = await axios.get(
+        `${API}/projects/${chat.projectId}/sources/${source.id}/download`,
+        { responseType: 'blob' }
+      );
+      
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', source.originalName || 'file');
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      toast.error('Failed to download file');
+    }
+  };
+
   const sendMessage = async () => {
     const content = input.trim();
     if (!content || isSending) return;
