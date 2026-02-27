@@ -2380,12 +2380,15 @@ async def send_message(chat_id: str, message_data: MessageCreate, current_user: 
         if not openai_client:
             raise Exception("OpenAI API key not configured")
         
+        from_cache = False
+        
         # If cache hit, use cached answer
         if cache_hit:
             response_text = cache_hit["answer"]
             # Add cache indicator to response
             response_text += f"\n\n---\n_📦 Ответ из кэша (схожесть: {cache_hit['similarity']:.0%})_"
             tokens_used = 0  # No tokens used for cached response
+            from_cache = True
         else:
             # Build messages array with developer prompt, user custom prompt, document context, and chat history
             messages = [
@@ -2399,12 +2402,24 @@ async def send_message(chat_id: str, message_data: MessageCreate, current_user: 
             else:
                 logger.info(f"No custom prompt for user {current_user['id']}")
             
-            # Add document context if available
+            # Add document context if available WITH PRIORITY INFO
             if document_context:
                 active_sources_list = ", ".join(active_source_names) if active_source_names else "None"
+                
+                # Add source priority explanation
+                priority_note = ""
+                if project_source_ids and global_source_ids:
+                    priority_note = """
+IMPORTANT - SOURCE PRIORITY:
+- PROJECT sources have HIGHER priority than GLOBAL sources
+- If there's a conflict between PROJECT and GLOBAL data, prefer PROJECT data
+- Always indicate which source type (PROJECT/GLOBAL) provided the information
+- If you detect conflicting information, explicitly mention the conflict and ask user which source to trust
+"""
+                
                 context_message = f"""PROJECT SOURCE CONTEXT:
 ACTIVE SOURCES FOR THIS CHAT: {active_sources_list}
-
+{priority_note}
 The following content is from user-uploaded documents and URLs that are ACTIVE for this chat. Use this as your primary source of truth.
 
 {document_context}
