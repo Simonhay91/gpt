@@ -10,7 +10,7 @@ import { toast } from 'sonner';
 import { 
   Building2, Upload, FileText, Trash2, Clock, Database,
   ArrowLeft, CheckCircle, XCircle, AlertCircle, Send,
-  Eye, History, Download, Image, FileSpreadsheet
+  Eye, History, Download, Image, FileSpreadsheet, ChevronDown, ChevronRight
 } from 'lucide-react';
 import DashboardLayout from '../components/DashboardLayout';
 import { useAuth } from '../contexts/AuthContext';
