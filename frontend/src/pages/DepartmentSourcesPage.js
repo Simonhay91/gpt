@@ -479,8 +479,8 @@ const DepartmentSourcesPage = () => {
                           <Button
                             variant="ghost"
                             size="icon"
-                            className="text-destructive"
-                            onClick={() => deleteSource(source.id)}
+                            className="text-destructive hover:text-destructive"
+                            onClick={(e) => deleteSource(source.id, e)}
                           >
                             <Trash2 className="h-4 w-4" />
                           </Button>
