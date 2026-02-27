@@ -26,7 +26,8 @@ Planet GPT is a multi-user SaaS platform for AI-powered conversations with proje
 ### Source Management (Project-only)
 - Upload files: **PDF, DOCX, PPTX, XLSX, TXT, MD, PNG, JPEG**
 - **Multiple file upload** supported
-- **Download all files** as ZIP
+- **Preview extracted text** from any source
+- **Download individual files**
 - Add URLs as sources
 - Auto-ingest URLs from chat messages
 - AI provides citations referencing source chunks
