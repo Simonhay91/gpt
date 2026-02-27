@@ -142,13 +142,13 @@ const DashboardLayout = ({ children }) => {
       icon: Settings
     });
   } else {
-    // Non-admin users: show Departments link only if they are managers or have pending items
-    if (pendingCount > 0) {
+    // Non-admin users: show Departments link if they are managers
+    if (isManager) {
       navItems.push({
         name: 'Departments',
         path: '/departments',
         icon: Building2,
-        badge: pendingCount
+        badge: pendingCount > 0 ? pendingCount : null
       });
     }
     
