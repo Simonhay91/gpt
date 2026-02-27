@@ -3178,7 +3178,11 @@ async def admin_create_user(user_data: UserCreate, current_user: dict = Depends(
         "id": user_id,
         "email": user_data.email,
         "passwordHash": hash_password(user_data.password),
-        "createdAt": datetime.now(timezone.utc).isoformat()
+        "createdAt": datetime.now(timezone.utc).isoformat(),
+        # Enterprise Knowledge Architecture fields
+        "departments": [],  # List of department IDs user belongs to
+        "primaryDepartmentId": None,  # Default department for the user
+        "canEditGlobalSources": False
     }
     await db.users.insert_one(user)
     
