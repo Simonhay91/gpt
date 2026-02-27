@@ -1658,7 +1658,11 @@ async def send_message(chat_id: str, message_data: MessageCreate, current_user: 
     else:
         active_source_ids = []
     
-    # Save user message
+    # Get sender display name (use part before @ in email)
+    sender_email = current_user["email"]
+    sender_name = sender_email.split("@")[0] if sender_email else "User"
+    
+    # Save user message with sender info
     user_msg_id = str(uuid.uuid4())
     user_message = {
         "id": user_msg_id,
@@ -1667,6 +1671,8 @@ async def send_message(chat_id: str, message_data: MessageCreate, current_user: 
         "content": message_data.content,
         "citations": None,
         "autoIngestedUrls": [s["id"] for s in auto_ingested_sources] if auto_ingested_sources else None,
+        "senderEmail": sender_email,
+        "senderName": sender_name,
         "createdAt": datetime.now(timezone.utc).isoformat()
     }
     await db.messages.insert_one(user_message)
