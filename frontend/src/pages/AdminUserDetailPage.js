@@ -17,7 +17,8 @@ import {
   Clock, 
   Save,
   Settings,
-  Activity
+  Activity,
+  Globe2
 } from 'lucide-react';
 import DashboardLayout from '../components/DashboardLayout';
 
