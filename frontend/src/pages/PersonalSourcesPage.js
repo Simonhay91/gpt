@@ -12,11 +12,13 @@ import {
 } from 'lucide-react';
 import DashboardLayout from '../components/DashboardLayout';
 import { useAuth } from '../contexts/AuthContext';
+import { useLanguage } from '../contexts/LanguageContext';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
 const PersonalSourcesPage = () => {
   const { user } = useAuth();
+  const { t } = useLanguage();
   const [sources, setSources] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isUploading, setIsUploading] = useState(false);
@@ -41,7 +43,7 @@ const PersonalSourcesPage = () => {
       const response = await axios.get(`${API}/personal-sources`);
       setSources(response.data);
     } catch (error) {
-      toast.error('Failed to load sources');
+      toast.error(t('common.error'));
     } finally {
       setIsLoading(false);
     }
