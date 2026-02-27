@@ -14,6 +14,7 @@ import AdminConfigPage from './pages/AdminConfigPage';
 import AdminUsersPage from './pages/AdminUsersPage';
 import AdminUserDetailPage from './pages/AdminUserDetailPage';
 import AdminGlobalSourcesPage from './pages/AdminGlobalSourcesPage';
+import GlobalSourcesPage from './pages/GlobalSourcesPage';
 
 // Protected Route Component
 const ProtectedRoute = ({ children }) => {
