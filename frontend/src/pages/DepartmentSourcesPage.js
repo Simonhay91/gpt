@@ -480,7 +480,7 @@ const DepartmentSourcesPage = () => {
                 {approvalAction === 'reject' && '❌ Отклонить источник'}
               </DialogTitle>
               <DialogDescription className="pt-2">
-                <span className="font-medium text-foreground">{selectedSource?.originalName}</span>
+                <span className="font-medium text-foreground break-all">{selectedSource?.originalName}</span>
               </DialogDescription>
             </DialogHeader>
             
