@@ -143,6 +143,7 @@ class ChatResponse(BaseModel):
     name: str
     createdAt: str
     activeSourceIds: Optional[List[str]] = []
+    sharedWithUsers: Optional[List[str]] = None  # None = visible to all shared users, [] or [ids] = only those users
 
 class QuickChatCreate(BaseModel):
     name: Optional[str] = "Quick Chat"
@@ -152,6 +153,9 @@ class MoveChatRequest(BaseModel):
 
 class RenameChatRequest(BaseModel):
     name: str
+
+class UpdateChatVisibilityRequest(BaseModel):
+    sharedWithUsers: List[str]  # List of user IDs who can see this chat
 
 class MessageCreate(BaseModel):
     content: str
