@@ -1834,10 +1834,10 @@ async def send_message(chat_id: str, message_data: MessageCreate, current_user: 
     active_source_names = []
     
     if active_source_ids:
-        # Get source names first
+        # Get source names first (include both project and global sources)
         sources = await db.sources.find({
             "id": {"$in": active_source_ids},
-            "projectId": project_id
+            "projectId": {"$in": [project_id, GLOBAL_PROJECT_ID]}  # Include project and global sources
         }, {"_id": 0}).to_list(1000)
         
         source_names = {}
