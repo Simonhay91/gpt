@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
+import { useLanguage } from '../contexts/LanguageContext';
 import { Button } from './ui/button';
 import axios from 'axios';
 import { 
@@ -20,7 +21,8 @@ import {
   Building2,
   ScrollText,
   Lock,
-  Newspaper
+  Newspaper,
+  Languages
 } from 'lucide-react';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
@@ -28,6 +30,7 @@ const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 const DashboardLayout = ({ children }) => {
   const { user, logout } = useAuth();
   const { theme, toggleTheme, isDark } = useTheme();
+  const { language, toggleLanguage, t } = useLanguage();
   const location = useLocation();
   const navigate = useNavigate();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
