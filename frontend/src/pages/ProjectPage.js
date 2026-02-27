@@ -124,9 +124,13 @@ const ProjectPage = () => {
     
     setIsSharing(true);
     try {
-      await axios.post(`${API}/projects/${projectId}/share`, { email: shareEmail.trim() });
-      toast.success(`Shared with ${shareEmail}`);
+      await axios.post(`${API}/projects/${projectId}/share`, { 
+        email: shareEmail.trim(),
+        role: shareRole 
+      });
+      toast.success(`Shared with ${shareEmail} as ${ROLES[shareRole]?.label || shareRole}`);
       setShareEmail('');
+      setShareRole('viewer');
       // Refresh members
       const membersRes = await axios.get(`${API}/projects/${projectId}/members`);
       setMembers(membersRes.data);
@@ -138,11 +142,11 @@ const ProjectPage = () => {
     }
   };
 
-  const shareWithUser = async (email) => {
+  const shareWithUser = async (email, role = 'viewer') => {
     setIsSharing(true);
     try {
-      await axios.post(`${API}/projects/${projectId}/share`, { email });
-      toast.success(`Shared with ${email}`);
+      await axios.post(`${API}/projects/${projectId}/share`, { email, role });
+      toast.success(`Shared with ${email} as ${ROLES[role]?.label || role}`);
       // Refresh members
       const membersRes = await axios.get(`${API}/projects/${projectId}/members`);
       setMembers(membersRes.data);
@@ -151,6 +155,24 @@ const ProjectPage = () => {
       toast.error(msg);
     } finally {
       setIsSharing(false);
+    }
+  };
+
+  const updateMemberRole = async (userId, newRole) => {
+    setIsUpdatingRole(userId);
+    try {
+      await axios.put(`${API}/projects/${projectId}/members/${userId}/role`, null, {
+        params: { role: newRole }
+      });
+      toast.success(`Role updated to ${ROLES[newRole]?.label || newRole}`);
+      // Refresh members
+      const membersRes = await axios.get(`${API}/projects/${projectId}/members`);
+      setMembers(membersRes.data);
+    } catch (error) {
+      const msg = error.response?.data?.detail || 'Failed to update role';
+      toast.error(msg);
+    } finally {
+      setIsUpdatingRole(null);
     }
   };
 
