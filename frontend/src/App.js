@@ -12,6 +12,7 @@ import ProjectPage from './pages/ProjectPage';
 import ChatPage from './pages/ChatPage';
 import AdminConfigPage from './pages/AdminConfigPage';
 import AdminUsersPage from './pages/AdminUsersPage';
+import AdminUserDetailPage from './pages/AdminUserDetailPage';
 
 // Protected Route Component
 const ProtectedRoute = ({ children }) => {
