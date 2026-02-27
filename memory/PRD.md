@@ -131,10 +131,11 @@ Planet GPT is a multi-user SaaS platform for AI-powered conversations with proje
   - Removed manual checkbox selection
 - **New File Types** - Added support for PPTX, XLSX, PNG, JPEG
 - **Multiple File Upload** - Upload multiple files at once
-- **ZIP Download** - Download all project files as ZIP
+- **Source Preview** - View extracted text from any source
+- **Source Download** - Download individual files
 - **UI Improvements**
   - 5px padding on chat list
-  - Improved source panel UI
+  - Preview/Download buttons on source items
 
 ### 2026-02-24
 - Renamed from "Shared GPT" to "Planet GPT"
