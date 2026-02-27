@@ -1929,9 +1929,13 @@ If the user asks about a document/file/URL:
             "content": message_data.content
         })
         
+        # Use user-specific model if set, otherwise use global config
+        user_model = current_user.get("gptModel")
+        model_to_use = user_model if user_model else config["model"]
+        
         # Call OpenAI Responses API
         response = openai_client.responses.create(
-            model=config["model"],
+            model=model_to_use,
             input=messages
         )
         
