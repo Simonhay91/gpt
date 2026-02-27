@@ -295,6 +295,8 @@ def setup_enterprise_source_routes(
         )
         
         new_source["chunkCount"] = len(chunk_contents)
+        # Remove _id added by insert_one
+        new_source.pop("_id", None)
         return {
             "message": f"Published to {target_level}",
             "source": new_source,
