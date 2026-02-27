@@ -477,6 +477,182 @@ export const translations = {
     en: 'Login failed',
     ru: 'Ошибка входа'
   },
+
+  // Personal Sources Page
+  'personal.title': {
+    en: 'My Personal Sources',
+    ru: 'Мои личные источники'
+  },
+  'personal.subtitle': {
+    en: 'Private knowledge base for your personal use',
+    ru: 'Личная база знаний для персонального использования'
+  },
+  'personal.upload': {
+    en: 'Upload Source',
+    ru: 'Загрузить'
+  },
+  'personal.noSources': {
+    en: 'No personal sources yet',
+    ru: 'Пока нет личных источников'
+  },
+  'personal.uploadDesc': {
+    en: 'Upload files to create your personal knowledge base',
+    ru: 'Загрузите файлы для создания личной базы знаний'
+  },
+  'personal.infoTitle': {
+    en: 'How personal sources work',
+    ru: 'Как работают личные источники'
+  },
+  'personal.infoDesc': {
+    en: 'Personal sources are private and only visible to you. They can be used in your chats for additional context.',
+    ru: 'Личные источники приватны и видны только вам. Их можно использовать в чатах для дополнительного контекста.'
+  },
+
+  // Departments Page
+  'departments.title': {
+    en: 'Departments',
+    ru: 'Отделы'
+  },
+  'departments.subtitle': {
+    en: 'Manage organization departments and their knowledge bases',
+    ru: 'Управление отделами организации и их базами знаний'
+  },
+  'departments.create': {
+    en: 'Create Department',
+    ru: 'Создать отдел'
+  },
+  'departments.noDepartments': {
+    en: 'No departments yet',
+    ru: 'Пока нет отделов'
+  },
+  'departments.createFirst': {
+    en: 'Create your first department to organize knowledge',
+    ru: 'Создайте первый отдел для организации знаний'
+  },
+  'departments.name': {
+    en: 'Department Name',
+    ru: 'Название отдела'
+  },
+  'departments.description': {
+    en: 'Description',
+    ru: 'Описание'
+  },
+  'departments.members': {
+    en: 'members',
+    ru: 'участников'
+  },
+  'departments.managers': {
+    en: 'managers',
+    ru: 'менеджеров'
+  },
+  'departments.sources': {
+    en: 'sources',
+    ru: 'источников'
+  },
+  'departments.manage': {
+    en: 'Manage',
+    ru: 'Управление'
+  },
+  'departments.viewSources': {
+    en: 'View Sources',
+    ru: 'Источники'
+  },
+  'departments.addMember': {
+    en: 'Add Member',
+    ru: 'Добавить участника'
+  },
+  'departments.removeMember': {
+    en: 'Remove',
+    ru: 'Удалить'
+  },
+  'departments.makeManager': {
+    en: 'Make Manager',
+    ru: 'Сделать менеджером'
+  },
+  'departments.removeManager': {
+    en: 'Remove Manager',
+    ru: 'Убрать менеджера'
+  },
+
+  // Audit Logs Page
+  'audit.title': {
+    en: 'Audit Logs',
+    ru: 'Журнал аудита'
+  },
+  'audit.subtitle': {
+    en: 'Track all changes to enterprise knowledge',
+    ru: 'Отслеживание всех изменений в корпоративных знаниях'
+  },
+  'audit.noLogs': {
+    en: 'No audit logs yet',
+    ru: 'Пока нет записей'
+  },
+  'audit.noLogsDesc': {
+    en: 'Actions on department and global sources will appear here',
+    ru: 'Действия с источниками отделов и глобальными источниками появятся здесь'
+  },
+  'audit.filter': {
+    en: 'Filter',
+    ru: 'Фильтр'
+  },
+  'audit.all': {
+    en: 'All',
+    ru: 'Все'
+  },
+  'audit.created': {
+    en: 'Created',
+    ru: 'Создано'
+  },
+  'audit.updated': {
+    en: 'Updated',
+    ru: 'Обновлено'
+  },
+  'audit.deleted': {
+    en: 'Deleted',
+    ru: 'Удалено'
+  },
+  'audit.approved': {
+    en: 'Approved',
+    ru: 'Одобрено'
+  },
+  'audit.activated': {
+    en: 'Activated',
+    ru: 'Активировано'
+  },
+  'audit.rejected': {
+    en: 'Rejected',
+    ru: 'Отклонено'
+  },
+
+  // Global Sources Page
+  'global.title': {
+    en: 'Global Sources',
+    ru: 'Глобальные источники'
+  },
+  'global.subtitle': {
+    en: 'Organization-wide knowledge available to all users',
+    ru: 'Общие знания организации, доступные всем пользователям'
+  },
+  'global.upload': {
+    en: 'Upload Global Source',
+    ru: 'Загрузить'
+  },
+  'global.noSources': {
+    en: 'No global sources yet',
+    ru: 'Пока нет глобальных источников'
+  },
+  'global.noSourcesDesc': {
+    en: 'Upload files to create organization-wide knowledge base',
+    ru: 'Загрузите файлы для создания общей базы знаний'
+  },
+  'global.infoTitle': {
+    en: 'About global sources',
+    ru: 'О глобальных источниках'
+  },
+  'global.infoDesc': {
+    en: 'Global sources are available to all users in all projects. Only admins can manage them.',
+    ru: 'Глобальные источники доступны всем пользователям во всех проектах. Только администраторы могут ими управлять.'
+  },
 };
 
 export const getTranslation = (key, lang = 'en') => {
