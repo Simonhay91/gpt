@@ -331,6 +331,54 @@ def extract_text_from_txt(file_content: bytes) -> str:
             logger.error(f"TXT extraction error: {str(e)}")
             raise HTTPException(status_code=400, detail=f"Failed to read text file: {str(e)}")
 
+def extract_text_from_pptx(file_content: bytes) -> str:
+    """Extract text from PowerPoint file content"""
+    try:
+        from pptx import Presentation
+        from io import BytesIO
+        
+        prs = Presentation(BytesIO(file_content))
+        text_parts = []
+        
+        for slide_num, slide in enumerate(prs.slides, 1):
+            slide_text = [f"[Slide {slide_num}]"]
+            for shape in slide.shapes:
+                if hasattr(shape, "text") and shape.text.strip():
+                    slide_text.append(shape.text.strip())
+            if len(slide_text) > 1:
+                text_parts.append("\n".join(slide_text))
+        
+        return "\n\n".join(text_parts)
+    except Exception as e:
+        logger.error(f"PPTX extraction error: {str(e)}")
+        raise HTTPException(status_code=400, detail=f"Failed to extract text from PowerPoint: {str(e)}")
+
+def extract_text_from_xlsx(file_content: bytes) -> str:
+    """Extract text from Excel file content"""
+    try:
+        from openpyxl import load_workbook
+        from io import BytesIO
+        
+        wb = load_workbook(BytesIO(file_content), data_only=True)
+        text_parts = []
+        
+        for sheet_name in wb.sheetnames:
+            sheet = wb[sheet_name]
+            sheet_text = [f"[Sheet: {sheet_name}]"]
+            
+            for row in sheet.iter_rows(values_only=True):
+                row_values = [str(cell) if cell is not None else "" for cell in row]
+                if any(row_values):
+                    sheet_text.append(" | ".join(row_values))
+            
+            if len(sheet_text) > 1:
+                text_parts.append("\n".join(sheet_text))
+        
+        return "\n\n".join(text_parts)
+    except Exception as e:
+        logger.error(f"XLSX extraction error: {str(e)}")
+        raise HTTPException(status_code=400, detail=f"Failed to extract text from Excel: {str(e)}")
+
 def extract_text_from_html(html_content: str) -> str:
     """Extract readable text from HTML content"""
     try:
