@@ -163,6 +163,57 @@ def setup_enterprise_source_routes(
         
         return {"message": "Personal source deleted"}
     
+    # ==================== DELETE DEPARTMENT/GENERAL SOURCE ====================
+    
+    @router.delete("/api/sources/{source_id}")
+    async def delete_source(
+        source_id: str,
+        current_user: dict = Depends(get_current_user)
+    ):
+        """Delete department or other source (manager only)"""
+        source = await db.sources.find_one({"id": source_id}, {"_id": 0})
+        if not source:
+            raise HTTPException(status_code=404, detail="Source not found")
+        
+        # Check permissions
+        level = source.get("level", "project")
+        
+        if level == "department":
+            # Only department manager or admin can delete
+            dept_id = source.get("departmentId")
+            if dept_id:
+                dept = await db.departments.find_one({"id": dept_id}, {"_id": 0})
+                if dept:
+                    is_dept_manager = current_user["id"] in dept.get("managers", [])
+                    if not is_admin(current_user["email"]) and not is_dept_manager:
+                        raise HTTPException(status_code=403, detail="Only department manager can delete")
+        elif level == "global":
+            if not is_admin(current_user["email"]):
+                raise HTTPException(status_code=403, detail="Only admin can delete global sources")
+        
+        # Delete file
+        if source.get("storagePath"):
+            file_path = UPLOAD_DIR / source["storagePath"]
+            if file_path.exists():
+                file_path.unlink()
+        
+        # Delete chunks, versions and source
+        await db.source_chunks.delete_many({"sourceId": source_id})
+        await db.source_versions.delete_many({"sourceId": source_id})
+        await db.sources.delete_one({"id": source_id})
+        
+        # Log audit for department/global sources
+        if level in ["department", "global"]:
+            await audit_service.log(
+                entity="source",
+                entity_id=source_id,
+                action="deleted",
+                user_id=current_user["id"],
+                details={"level": level, "name": source.get("originalName")}
+            )
+        
+        return {"message": "Source deleted"}
+    
     # ==================== PUBLISH (Personal → Project/Department) ====================
     
     @router.post("/api/personal-sources/{source_id}/publish")
