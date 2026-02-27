@@ -32,6 +32,54 @@ def setup_department_routes(db, get_current_user, is_admin, audit_service):
         
         return departments
     
+    @router.get("/pending-count")
+    async def get_pending_approvals_count(current_user: dict = Depends(get_current_user)):
+        """Get count of sources pending approval for departments where user is manager"""
+        # Find departments where user is manager
+        if is_admin(current_user["email"]):
+            # Admin sees all departments
+            managed_depts = await db.departments.find({}, {"_id": 0, "id": 1}).to_list(100)
+        else:
+            managed_depts = await db.departments.find(
+                {"managers": current_user["id"]},
+                {"_id": 0, "id": 1}
+            ).to_list(100)
+        
+        if not managed_depts:
+            return {"count": 0, "departments": []}
+        
+        dept_ids = [d["id"] for d in managed_depts]
+        
+        # Count sources with status draft or pending in these departments
+        pending_count = await db.sources.count_documents({
+            "departmentId": {"$in": dept_ids},
+            "level": "department",
+            "status": {"$in": ["draft", "pending"]}
+        })
+        
+        # Get breakdown by department
+        pipeline = [
+            {
+                "$match": {
+                    "departmentId": {"$in": dept_ids},
+                    "level": "department",
+                    "status": {"$in": ["draft", "pending"]}
+                }
+            },
+            {
+                "$group": {
+                    "_id": "$departmentId",
+                    "count": {"$sum": 1}
+                }
+            }
+        ]
+        breakdown = await db.sources.aggregate(pipeline).to_list(100)
+        
+        return {
+            "count": pending_count,
+            "departments": [{"departmentId": b["_id"], "count": b["count"]} for b in breakdown]
+        }
+    
     @router.post("", response_model=dict)
     async def create_department(
         data: dict,
