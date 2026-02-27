@@ -60,6 +60,11 @@ MAX_AUTO_INGEST_URLS = 3  # Max URLs to auto-ingest per message
 # Global sources project ID marker
 GLOBAL_PROJECT_ID = "__global__"  # Special marker for global sources
 
+# Semantic cache settings
+CACHE_SIMILARITY_THRESHOLD = 0.92  # Minimum cosine similarity to consider a cache hit
+CACHE_TTL_DAYS = 30  # Cache entries expire after this many days
+EMBEDDING_MODEL = "text-embedding-3-small"  # OpenAI embedding model
+
 # Image generation settings
 IMAGE_RATE_LIMIT_PER_HOUR = 10  # Max images per user per hour
 VALID_IMAGE_SIZES = ["1024x1024", "1024x1792", "1792x1024"]
