@@ -128,7 +128,7 @@ const DashboardLayout = ({ children }) => {
     if (user?.canEditGlobalSources) {
       // Non-admin users with global sources permission
       navItems.push({
-        name: 'Global Sources',
+        name: t('nav.globalSources'),
         path: '/global-sources',
         icon: Globe2
       });
