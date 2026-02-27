@@ -435,6 +435,14 @@ export const translations = {
     en: 'Language',
     ru: 'Язык'
   },
+  'common.deleted': {
+    en: 'Deleted successfully',
+    ru: 'Успешно удалено'
+  },
+  'common.deleteFailed': {
+    en: 'Failed to delete',
+    ru: 'Не удалось удалить'
+  },
 
   // Login
   'login.title': {
