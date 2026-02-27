@@ -1,201 +1,504 @@
-# Planet GPT - Product Requirements Document
+# Planet GPT — Product Requirements Document
 
-## Overview
-Planet GPT is a multi-user SaaS platform for AI-powered conversations with project-based data isolation. Users share a single, admin-configurable GPT configuration while maintaining separate projects and chats.
+## Обзор продукта
 
-## Core Features
+**Planet GPT** — корпоративная SaaS-платформа для работы с AI (GPT), позволяющая командам совместно использовать базу знаний компании через интеллектуальный чат-интерфейс.
 
-### Authentication & User Management
-- **Admin-only user creation** - No self-registration, admin creates users
-- **Email/password login** - Simple JWT-based authentication
-- **Admin detection** - Users with `@admin.com` email have admin privileges
-- **User token tracking** - Admin can see how many tokens each user consumed
+### Ключевые преимущества
+- 🔒 **Изоляция данных** — проекты и данные строго разделены между пользователями
+- 📚 **Централизованная база знаний** — глобальные источники доступны всем
+- 💰 **Экономия токенов** — семантический кэш снижает затраты на 30-70%
+- 👥 **Гибкий доступ** — fine-grained контроль видимости чатов в shared проектах
 
-### Quick Chats (No Project)
-- Users can start chats without creating a project first
-- Quick chats appear in "My Chats" section on Dashboard
-- Users can move quick chats to a project later
-- Quick chats don't have access to file sources
+---
 
-### Project-based Conversations
-- Each user can create multiple projects
-- Projects contain chats with access to file/URL sources
-- **Project Sharing** - Owner can share projects with other users
-- **Chat Visibility Control** - Owner can choose which chats shared users can see
-- **Auto-active Sources** - All sources in a project are automatically used as AI context
-- **Sender Names in Chat** - Messages show who sent them (for shared projects)
+## Архитектура
 
-### Source Management (Project-only)
-- Upload files: **PDF, DOCX, PPTX, XLSX, TXT, MD, PNG, JPEG**
-- **OCR for Images** - Text is automatically extracted from PNG/JPEG using pytesseract
-- **Multiple file upload** supported
-- **Preview extracted text** from any source
-- **Download individual files**
-- Add URLs as sources
-- Auto-ingest URLs from chat messages
-- AI provides citations referencing source chunks
+```
+┌─────────────────────────────────────────────────────────────┐
+│                        Frontend                              │
+│                   React + Tailwind CSS                       │
+│                      (Port 3000)                             │
+└─────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────┐
+│                        Backend                               │
+│                   FastAPI + Python                           │
+│                      (Port 8001)                             │
+├─────────────────────────────────────────────────────────────┤
+│  • JWT Authentication                                        │
+│  • OpenAI GPT Integration (chat, embeddings)                │
+│  • File Processing (PDF, DOCX, XLSX, PPTX, CSV, Images)    │
+│  • OCR (Tesseract)                                          │
+│  • Semantic Cache                                           │
+└─────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────┐
+│                        Database                              │
+│                        MongoDB                               │
+├─────────────────────────────────────────────────────────────┤
+│  Collections:                                                │
+│  • users, projects, chats, messages                         │
+│  • sources, source_chunks                                   │
+│  • semantic_cache, source_usage                             │
+│  • token_usage, user_prompts, gpt_config                   │
+└─────────────────────────────────────────────────────────────┘
+```
 
-### Global Sources (Admin Only)
-- **Centralized knowledge base** - Admin uploads files/URLs that are available to ALL users
-- All global sources are automatically included in GPT context for every chat
-- Managed at `/admin/global-sources`
-- Supports same file types as project sources
+---
 
-### User Custom Prompt
-- Each user can set their own custom GPT instructions
-- Custom prompt is added to all conversations
-- Private to each user
+## Модули и функционал
 
-### Admin Panel
-- **User Management** (`/admin/users`)
-  - Create new users with generated passwords
-  - View all users with token usage stats
-  - Delete users
-- **Global Sources** (`/admin/global-sources`)
-  - Upload files to central knowledge base
-  - Add URLs as global sources
-  - Preview/delete global sources
-- **GPT Config** (`/admin/config`)
-  - Set global GPT model
-  - Configure developer system prompt
+### 1. Аутентификация и пользователи
 
-### Image Generation (Project-only)
-- Generate images using OpenAI DALL-E
-- Images stored per project
-- Authenticated image access
+#### 1.1 Модель доступа
+- **Admin-only создание** — только администратор создаёт пользователей
+- **Email-based admin detection** — пользователи с `@admin.com` автоматически админы
+- **JWT токены** — срок действия 24 часа
 
-## Technical Stack
-- **Frontend**: React + Tailwind CSS + Shadcn/UI
-- **Backend**: FastAPI (Python)
-- **Database**: MongoDB
-- **AI**: OpenAI GPT-4.1-mini for chat, DALL-E 3 for images
+#### 1.2 Роли
+| Роль | Возможности |
+|------|-------------|
+| **Admin** | Всё + создание пользователей, GPT config, глобальные источники |
+| **User** | Проекты, чаты, источники в своих проектах |
+| **User + Global Edit** | + редактирование глобальных источников |
 
-## Database Collections
-- `users` - User accounts
-- `projects` - User projects (with sharedWith array for collaboration)
-- `chats` - Conversations (can belong to project or be "quick chat")
-- `messages` - Chat messages with citations
-- `sources` - Uploaded files and URLs
-- `source_chunks` - Chunked source text for retrieval
-- `gpt_config` - Global GPT configuration (singleton)
-- `user_prompts` - User custom instructions
-- `token_usage` - Per-user token consumption tracking
-- `generated_images` - AI-generated images
+#### 1.3 API
+```
+POST /api/auth/register     — Создание пользователя (admin only)
+POST /api/auth/login        — Вход, возврат JWT
+GET  /api/auth/me           — Текущий пользователь
+```
 
-## API Endpoints
+---
 
-### Auth
-- `POST /api/auth/login` - User login
+### 2. Проекты
 
-### Admin - User Management
-- `POST /api/admin/users` - Create user (admin only)
-- `GET /api/admin/users` - List all users with usage stats
-- `DELETE /api/admin/users/{id}` - Delete user
+#### 2.1 Описание
+Проект — контейнер для чатов и источников. Все источники проекта автоматически используются во всех чатах этого проекта.
 
-### Admin - Global Sources
-- `GET /api/admin/global-sources` - List all global sources (admin only)
-- `POST /api/admin/global-sources/upload` - Upload global source file
-- `POST /api/admin/global-sources/url` - Add URL as global source
-- `GET /api/admin/global-sources/{id}/preview` - Preview global source content
-- `DELETE /api/admin/global-sources/{id}` - Delete global source
-- `GET /api/global-sources` - List global sources (any authenticated user, read-only)
+#### 2.2 Sharing
+- Владелец может поделиться проектом с другими пользователями
+- Fine-grained контроль: можно указать какие конкретно чаты видны каждому shared-пользователю
+- `sharedWithUsers: null` — виден всем shared участникам
+- `sharedWithUsers: [userId1, userId2]` — виден только указанным
 
-### Admin - Config
-- `GET /api/admin/config` - Get GPT config
-- `PUT /api/admin/config` - Update GPT config
+#### 2.3 API
+```
+GET    /api/projects                          — Список проектов
+POST   /api/projects                          — Создать проект
+GET    /api/projects/{id}                     — Детали проекта
+DELETE /api/projects/{id}                     — Удалить проект
+POST   /api/projects/{id}/share               — Поделиться с пользователем
+DELETE /api/projects/{id}/share/{userId}      — Убрать пользователя
+PUT    /api/chats/{chatId}/visibility         — Настроить видимость чата
+```
 
-### Users
-- `GET /api/users/list` - Get list of users (for sharing)
+---
 
-### Quick Chats
-- `GET /api/quick-chats` - List user's quick chats
-- `POST /api/quick-chats` - Create quick chat
-- `POST /api/chats/{id}/move` - Move chat to project
-- `PUT /api/chats/{id}/rename` - Rename chat
+### 3. Чаты
 
-### User Settings
-- `GET /api/user/prompt` - Get user's custom prompt
-- `PUT /api/user/prompt` - Update user's custom prompt
+#### 3.1 Типы чатов
+| Тип | Описание |
+|-----|----------|
+| **Project Chat** | Привязан к проекту, имеет доступ к источникам |
+| **Quick Chat** | Без проекта, без источников, для быстрых вопросов |
 
-### Projects & Chats
-- `GET/POST /api/projects` - List/Create projects
-- `GET/DELETE /api/projects/{id}` - Get/Delete project
-- `POST /api/projects/{id}/share` - Share project with user
-- `DELETE /api/projects/{id}/share/{userId}` - Remove user from project
-- `GET /api/projects/{id}/members` - Get project members
-- `GET/POST /api/projects/{id}/chats` - List/Create chats
-- `GET/DELETE /api/chats/{id}` - Get/Delete chat
-- `PUT /api/chats/{id}/visibility` - Update chat visibility for shared users
-- `GET/POST /api/chats/{id}/messages` - Get/Send messages
+#### 3.2 Возможности
+- Переименование чатов
+- Перемещение Quick Chat в проект
+- Отображение имени отправителя в shared чатах
+- Copy-кнопка для ответов GPT
+- Кликабельные URL в ответах
 
-### Sources
-- `POST /api/projects/{id}/sources/upload` - Upload single file
-- `POST /api/projects/{id}/sources/upload-multiple` - Upload multiple files
-- `POST /api/projects/{id}/sources/url` - Add URL
-- `GET /api/projects/{id}/sources` - List sources
-- `GET /api/projects/{id}/sources/{id}/preview` - Preview extracted text
-- `GET /api/projects/{id}/sources/{id}/download` - Download file
-- `DELETE /api/projects/{id}/sources/{id}` - Delete source
+#### 3.3 API
+```
+POST   /api/projects/{projectId}/chats    — Создать чат в проекте
+POST   /api/quick-chats                   — Создать Quick Chat
+GET    /api/chats/{id}/messages           — История сообщений
+POST   /api/chats/{id}/messages           — Отправить сообщение
+PUT    /api/chats/{id}                    — Переименовать
+POST   /api/chats/{id}/move               — Переместить в проект
+DELETE /api/chats/{id}                    — Удалить чат
+```
 
-### Images
-- `POST /api/projects/{id}/generate-image` - Generate image
-- `GET /api/projects/{id}/images` - List images
-- `GET /api/images/{id}` - Get image file
+---
+
+### 4. Источники (Sources)
+
+#### 4.1 Поддерживаемые форматы
+| Формат | Обработка |
+|--------|-----------|
+| PDF | PyPDF2 + поддержка зашифрованных (pycryptodome) |
+| DOCX | python-docx |
+| PPTX | python-pptx |
+| XLSX | openpyxl |
+| CSV | Встроенный парсер с поддержкой больших файлов |
+| TXT, MD | Прямое чтение |
+| PNG, JPEG | OCR через Tesseract |
+| URL | Web scraping через httpx + BeautifulSoup |
+
+#### 4.2 Обработка
+1. Файл загружается
+2. Текст извлекается
+3. Разбивается на chunks (~1500 символов)
+4. Chunks сохраняются в `source_chunks`
+5. При запросе — keyword ranking для выбора релевантных chunks
+
+#### 4.3 Глобальные источники
+- Управляются администратором
+- Автоматически включаются в контекст ВСЕХ чатов
+- Пользователи с разрешением `canEditGlobalSources` могут добавлять
+- Статистика использования для каждого источника
+
+#### 4.4 API
+```
+# Project Sources
+POST   /api/projects/{id}/sources/upload     — Загрузить файл
+POST   /api/projects/{id}/sources/url        — Добавить URL
+GET    /api/projects/{id}/sources            — Список источников
+DELETE /api/sources/{id}                     — Удалить
+GET    /api/projects/{id}/sources/{id}/preview — Превью текста
+GET    /api/projects/{id}/search-sources     — Поиск по источникам
+
+# Global Sources
+GET    /api/global-sources                   — Список (для пользователей)
+POST   /api/global-sources/upload            — Загрузить (с разрешением)
+DELETE /api/global-sources/{id}              — Удалить своё
+GET    /api/global-sources/{id}/preview      — Превью
+
+# Admin Global Sources
+GET    /api/admin/global-sources             — Полный список
+POST   /api/admin/global-sources/upload      — Загрузить
+POST   /api/admin/global-sources/url         — Добавить URL
+DELETE /api/admin/global-sources/{id}        — Удалить любой
+GET    /api/admin/global-sources/stats       — Статистика использования
+```
+
+---
+
+### 5. Семантический кэш
+
+#### 5.1 Принцип работы
+```
+┌─────────────┐     ┌──────────────┐     ┌─────────────┐
+│  Вопрос     │────▶│  Embedding   │────▶│  Поиск в    │
+│  пользов.   │     │  (OpenAI)    │     │  кэше       │
+└─────────────┘     └──────────────┘     └──────┬──────┘
+                                                │
+                    ┌───────────────────────────┴───────────────┐
+                    ▼                                           ▼
+            ┌───────────────┐                         ┌─────────────────┐
+            │ Similarity    │                         │ Нет похожего    │
+            │ ≥ 92%        │                         │ вопроса         │
+            └───────┬───────┘                         └────────┬────────┘
+                    ▼                                          ▼
+            ┌───────────────┐                         ┌─────────────────┐
+            │ Вернуть       │                         │ Вызвать GPT     │
+            │ кэшированный  │                         │ + сохранить     │
+            │ ответ         │                         │ в кэш           │
+            └───────────────┘                         └─────────────────┘
+```
+
+#### 5.2 Настройки
+| Параметр | Значение | Описание |
+|----------|----------|----------|
+| `CACHE_SIMILARITY_THRESHOLD` | 0.92 | Минимальная схожесть для cache hit |
+| `CACHE_TTL_DAYS` | 30 | Срок жизни записи в кэше |
+| `EMBEDDING_MODEL` | text-embedding-3-small | Модель для embeddings |
+
+#### 5.3 Экономия
+- Идентичные вопросы: **100% экономия**
+- Похожие формулировки: **~80% экономия** (при схожести ≥92%)
+- Индикатор в ответе: `📦 Ответ из кэша (схожесть: X%)`
+
+#### 5.4 API
+```
+GET    /api/admin/cache/stats        — Статистика кэша
+DELETE /api/admin/cache/clear        — Очистить весь кэш
+DELETE /api/admin/cache/{id}         — Удалить запись
+```
+
+---
+
+### 6. Администрирование
+
+#### 6.1 Управление пользователями
+- Создание с автогенерацией пароля
+- Просмотр статистики: токены, сообщения, источники
+- Настройка индивидуальной GPT модели
+- Настройка custom prompt для пользователя
+- Выдача разрешения на глобальные источники
+
+#### 6.2 GPT Configuration
+- Глобальная модель (по умолчанию gpt-4.1-mini)
+- Developer system prompt
+- Per-user override модели
+
+#### 6.3 Статистика
+- Использование токенов по пользователям
+- Использование источников (какие файлы чаще всего помогают)
+- Эффективность кэша (записи, попадания)
+
+#### 6.4 API
+```
+GET    /api/admin/users                      — Список пользователей
+GET    /api/admin/users/{id}/details         — Детали пользователя
+PUT    /api/admin/users/{id}/prompt          — Установить prompt
+PUT    /api/admin/users/{id}/gpt-model       — Установить модель
+PUT    /api/admin/users/{id}/global-permission — Разрешение на global
+DELETE /api/admin/users/{id}                 — Удалить пользователя
+GET    /api/admin/config                     — GPT конфигурация
+PUT    /api/admin/config                     — Обновить конфиг
+GET    /api/admin/source-stats               — Статистика источников
+```
+
+---
+
+### 7. UI/UX
+
+#### 7.1 Страницы
+| Путь | Описание | Доступ |
+|------|----------|--------|
+| `/login` | Вход | Все |
+| `/dashboard` | Главная, список проектов и Quick Chats | Auth |
+| `/projects/{id}` | Проект: чаты, источники, sharing | Auth |
+| `/chats/{id}` | Чат с GPT | Auth |
+| `/admin/users` | Управление пользователями | Admin |
+| `/admin/users/{id}` | Детали пользователя | Admin |
+| `/admin/config` | GPT конфигурация | Admin |
+| `/admin/global-sources` | Глобальные источники + статистика + кэш | Admin |
+| `/global-sources` | Глобальные источники (для пользователей с разрешением) | Auth + Permission |
+
+#### 7.2 Компоненты
+- Shadcn/UI как база
+- Dark/Light mode
+- Responsive design
+- Toast notifications (sonner)
+- Dialog modals
+
+---
+
+## База данных — Схема
+
+### users
+```javascript
+{
+  id: string,
+  email: string,
+  passwordHash: string,
+  isAdmin: boolean,
+  gptModel: string | null,        // Per-user model override
+  canEditGlobalSources: boolean,  // Permission for global sources
+  createdAt: string,
+  lastActivity: string
+}
+```
+
+### projects
+```javascript
+{
+  id: string,
+  name: string,
+  ownerId: string,
+  sharedWith: [userId, ...],
+  createdAt: string
+}
+```
+
+### chats
+```javascript
+{
+  id: string,
+  projectId: string | null,      // null = Quick Chat
+  ownerId: string,
+  title: string,
+  sharedWithUsers: [userId, ...] | null,  // null = visible to all shared
+  createdAt: string
+}
+```
+
+### messages
+```javascript
+{
+  id: string,
+  chatId: string,
+  role: "user" | "assistant",
+  content: string,
+  citations: [...],
+  usedSources: [...],
+  senderEmail: string,
+  senderName: string,
+  createdAt: string
+}
+```
+
+### sources
+```javascript
+{
+  id: string,
+  projectId: string,             // "__global__" for global sources
+  kind: "file" | "url",
+  originalName: string,
+  mimeType: string,
+  storagePath: string,
+  sizeBytes: number,
+  chunkCount: number,
+  uploadedBy: string,
+  createdAt: string
+}
+```
+
+### source_chunks
+```javascript
+{
+  id: string,
+  sourceId: string,
+  projectId: string,
+  chunkIndex: number,
+  content: string,
+  createdAt: string
+}
+```
+
+### semantic_cache
+```javascript
+{
+  id: string,
+  question: string,
+  answer: string,
+  embedding: [float, ...],       // 1536 dimensions
+  projectId: string | null,
+  sourcesUsed: [...],
+  createdBy: string,
+  createdAt: string,
+  hitCount: number,
+  lastHitAt: string
+}
+```
+
+### source_usage
+```javascript
+{
+  sourceId: string,
+  sourceName: string,
+  usageCount: number,
+  lastUsedAt: string,
+  usageHistory: [{
+    userId: string,
+    userEmail: string,
+    chatId: string,
+    timestamp: string
+  }, ...]  // последние 100
+}
+```
+
+### token_usage
+```javascript
+{
+  userId: string,
+  totalTokens: number,
+  messageCount: number,
+  lastUsedAt: string
+}
+```
+
+### user_prompts
+```javascript
+{
+  userId: string,
+  customPrompt: string
+}
+```
+
+### gpt_config
+```javascript
+{
+  id: "1",
+  model: string,
+  developerPrompt: string,
+  updatedAt: string
+}
+```
+
+---
+
+## Конфигурация
+
+### Environment Variables
+
+#### Backend (.env)
+```
+MONGO_URL=mongodb://...
+DB_NAME=planet_gpt
+OPENAI_API_KEY=sk-...
+JWT_SECRET=your-secret-key
+```
+
+#### Frontend (.env)
+```
+REACT_APP_BACKEND_URL=https://your-domain.com
+```
+
+### Лимиты
+| Параметр | Значение |
+|----------|----------|
+| MAX_FILE_SIZE | 50 MB |
+| CHUNK_SIZE | 1500 chars |
+| MAX_CONTEXT_CHARS | 15000 |
+| MAX_CHUNKS_PER_QUERY | 10 |
+| CACHE_TTL_DAYS | 30 |
+
+---
+
+## Roadmap
+
+### ✅ Реализовано
+- [x] Аутентификация и управление пользователями
+- [x] Проекты с sharing и fine-grained visibility
+- [x] Project и Quick чаты
+- [x] Загрузка файлов (PDF, DOCX, XLSX, PPTX, CSV, TXT, MD)
+- [x] OCR для изображений
+- [x] URL sources с auto-ingest
+- [x] Глобальные источники
+- [x] Семантический кэш с embeddings
+- [x] Статистика использования источников
+- [x] Per-user GPT model и prompts
+- [x] Dark/Light mode
+
+### 🔜 Планируется
+- [ ] Token limits per user (daily/monthly)
+- [ ] Question templates
+- [ ] Usage/cost dashboard
+- [ ] Background processing for large files
+- [ ] Export chat history
+- [ ] Webhook integrations
+
+---
 
 ## Changelog
 
 ### 2026-02-27
-- **Global Sources Feature** - Centralized knowledge base for all users
-  - Admin can upload files/URLs to global sources at `/admin/global-sources`
-  - All global sources automatically included in GPT context for every chat
-  - Regular users can view global sources (read-only) via `/api/global-sources`
-  - Fixed bug where global sources weren't being included in chat context
+- ✨ Семантический кэш с OpenAI embeddings
+- ✨ UI для просмотра статистики кэша
+- ✨ Разрешение пользователям редактировать глобальные источники
+- ✨ Статистика использования источников
+- 🐛 Исправлен CSV парсинг для больших файлов
 
 ### 2025-12-28
-- **Project Sharing** - Share projects with other users
-  - User list selection in Share dialog
-  - `/api/users/list` endpoint for available users
-  - Members management in project
-  - **Chat Visibility Control** - Choose which chats each shared user can see
-- **Sender Names in Chat** - User messages show sender name for collaboration
-- **OCR for Images** - Text extracted from PNG/JPEG using pytesseract (Russian + English)
-- **Auto-active Sources** - All sources automatically active in project chats
-  - Removed manual checkbox selection
-- **New File Types** - Added support for PPTX, XLSX, PNG, JPEG
-- **Multiple File Upload** - Upload multiple files at once
-- **Source Preview** - View extracted text from any source
-- **Source Download** - Download individual files
-- **UI Improvements**
-  - 5px padding on chat list
-  - Preview/Download buttons on source items
+- ✨ Глобальные источники
+- ✨ OCR для изображений
+- ✨ Fine-grained chat visibility
+- ✨ Source preview и download
+- ✨ Token-free source search
+- 🐛 Исправлена навигация "Назад" в чатах
 
-### 2026-02-24
-- Renamed from "Shared GPT" to "Planet GPT"
-- Removed user self-registration
-- Added admin user management with:
-  - Create/delete users
-  - Password generation
-  - Token usage tracking per user
-- Added Quick Chats feature (chats without project)
-- Added "Move chat to project" functionality
-- Added User custom GPT prompt settings
+---
 
-### Previous
-- Initial MVP with projects, chats, file sources
-- Multi-format source support (PDF, DOCX, TXT, MD, URLs)
-- Auto-ingest URLs from messages
-- Active source persistence per chat
-- AI citations in responses
-- Image generation with DALL-E
+## Контакты
 
-## Admin Credentials
-- Email: `admin@admin.com`
-- Password: `admin123`
-
-## Future Tasks (Backlog)
-- P1: Caching for frequently asked questions to reduce token usage
-- P1: User-level token limits (daily/monthly)
-- P2: Question templates for common tasks
-- P2: Show which sources will be used before sending to LLM
-- P2: Usage/cost dashboard for project owners and admins
-- P2: Background ingestion for large files
+**Продукт:** Planet GPT  
+**Технологии:** React, FastAPI, MongoDB, OpenAI  
+**Язык интерфейса:** Русский
