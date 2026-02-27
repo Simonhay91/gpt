@@ -13,12 +13,14 @@ import {
 } from 'lucide-react';
 import DashboardLayout from '../components/DashboardLayout';
 import { useAuth } from '../contexts/AuthContext';
+import { useLanguage } from '../contexts/LanguageContext';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
 const AdminDepartmentsPage = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { t } = useLanguage();
   const [departments, setDepartments] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
@@ -38,7 +40,7 @@ const AdminDepartmentsPage = () => {
       const response = await axios.get(`${API}/departments`);
       setDepartments(response.data);
     } catch (error) {
-      toast.error('Failed to load departments');
+      toast.error(t('common.error'));
     } finally {
       setIsLoading(false);
     }
