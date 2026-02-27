@@ -163,7 +163,8 @@ draft → pending → approved → active
 ## Pending / Backlog
 
 ### P0 (High Priority)
-- [ ] UI for editing existing member roles in projects (bug from prev session)
+- [x] ~~UI for editing existing member roles in projects~~ (fixed in prev session)
+- [x] ~~"Departments" navigation link disappearing on route changes~~ (fixed)
 
 ### P1 (Medium Priority)
 - [ ] User-level token limits (daily/monthly)
