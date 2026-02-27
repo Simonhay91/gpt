@@ -2192,6 +2192,17 @@ If the user asks about a document/file/URL:
     final_citations = list(unique_citations.values()) if unique_citations else None
     final_used_sources = used_sources if used_sources else None
     
+    # Save to semantic cache if we have embedding and got a valid response (not from cache and not error)
+    if question_embedding and not cache_hit and not response_text.startswith("I apologize"):
+        await save_to_cache(
+            question=message_data.content,
+            answer=response_text,
+            project_id=project_id,
+            embedding=question_embedding,
+            user_id=current_user["id"],
+            sources_used=final_used_sources
+        )
+    
     # Save assistant message
     assistant_msg_id = str(uuid.uuid4())
     assistant_message = {
