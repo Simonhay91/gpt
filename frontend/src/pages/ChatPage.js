@@ -33,6 +33,7 @@ import {
   Check,
   X,
   Copy,
+  Search,
   Plus,
   Eye
 } from 'lucide-react';
