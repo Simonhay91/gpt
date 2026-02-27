@@ -166,6 +166,11 @@ const AdminUsersPage = () => {
                 <h1 className="text-3xl font-bold tracking-tight">User Management</h1>
                 <p className="text-muted-foreground mt-1">
                   {users.length} {users.length === 1 ? 'user' : 'users'} registered
+                  {sourceStats && (
+                    <span className="ml-2">
+                      • {sourceStats.totalSources} files • {formatBytes(sourceStats.totalSizeBytes)} total
+                    </span>
+                  )}
                 </p>
               </div>
             </div>
