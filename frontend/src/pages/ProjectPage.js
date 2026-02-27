@@ -192,28 +192,30 @@ const ProjectPage = () => {
     
     setIsUpdatingVisibility(true);
     try {
-      // For each chat, update its sharedWithUsers
+      // For each chat, update visibility for this specific member
       for (const chat of chats) {
         const isVisible = chatVisibility[chat.id];
-        const currentShared = chat.sharedWithUsers || [];
+        
+        // Get current sharedWithUsers or empty array
+        let currentShared = chat.sharedWithUsers || [];
+        
+        // If chat was visible to all (null), convert to array of all member IDs first
+        if (chat.sharedWithUsers === null || chat.sharedWithUsers === undefined) {
+          // Get all shared member IDs (not owner)
+          currentShared = members.filter(m => m.role !== 'owner').map(m => m.id);
+        }
         
         let newSharedWith;
         if (isVisible) {
-          // Add member to sharedWithUsers (or set to null if all should see)
-          if (currentShared.length === 0 && chat.sharedWithUsers === null) {
-            // Already visible to all, no change needed
-            continue;
-          }
-          newSharedWith = [...new Set([...currentShared, selectedMemberForChats.id])];
-        } else {
-          // Remove member from sharedWithUsers
-          if (chat.sharedWithUsers === null) {
-            // Was visible to all, now need to set to all members except this one
-            const otherMembers = members.filter(m => m.role !== 'owner' && m.id !== selectedMemberForChats.id);
-            newSharedWith = otherMembers.map(m => m.id);
+          // Add this member if not already present
+          if (!currentShared.includes(selectedMemberForChats.id)) {
+            newSharedWith = [...currentShared, selectedMemberForChats.id];
           } else {
-            newSharedWith = currentShared.filter(id => id !== selectedMemberForChats.id);
+            newSharedWith = currentShared;
           }
+        } else {
+          // Remove this member
+          newSharedWith = currentShared.filter(id => id !== selectedMemberForChats.id);
         }
         
         await axios.put(`${API}/chats/${chat.id}/visibility`, { sharedWithUsers: newSharedWith });
@@ -226,6 +228,7 @@ const ProjectPage = () => {
       toast.success('Chat visibility updated');
       setSelectedMemberForChats(null);
     } catch (error) {
+      console.error('Error:', error);
       toast.error('Failed to update visibility');
     } finally {
       setIsUpdatingVisibility(false);
