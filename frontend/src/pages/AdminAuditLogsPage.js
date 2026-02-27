@@ -44,6 +44,7 @@ const LEVEL_COLORS = {
 const AdminAuditLogsPage = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { t } = useLanguage();
   const [logs, setLogs] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [filters, setFilters] = useState({
@@ -72,7 +73,7 @@ const AdminAuditLogsPage = () => {
       const response = await axios.get(`${API}/admin/audit-logs?${params}`);
       setLogs(response.data);
     } catch (error) {
-      toast.error('Failed to load audit logs');
+      toast.error(t('common.error'));
     } finally {
       setIsLoading(false);
     }
