@@ -378,13 +378,13 @@ const DepartmentSourcesPage = () => {
                   <CardContent className="py-4">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-4">
-                        <div className="rounded-lg bg-indigo-500/20 p-2">
-                          <FileText className="h-5 w-5 text-indigo-400" />
+                        <div className={`rounded-lg p-2 ${needsAction ? 'bg-amber-500/20' : 'bg-indigo-500/20'}`}>
+                          <FileIcon className={`h-5 w-5 ${needsAction ? 'text-amber-400' : 'text-indigo-400'}`} />
                         </div>
                         <div>
                           <div className="flex items-center gap-2">
                             <h3 className="font-semibold">{source.originalName}</h3>
-                            <span className={`text-xs px-2 py-0.5 rounded flex items-center gap-1 ${statusConfig.color}`}>
+                            <span className={`text-xs px-2 py-0.5 rounded flex items-center gap-1 font-medium ${statusConfig.color}`}>
                               <StatusIcon className="h-3 w-3" />
                               {statusConfig.label}
                             </span>
@@ -412,14 +412,28 @@ const DepartmentSourcesPage = () => {
                         </div>
                       </div>
                       
-                      <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <div className="flex items-center gap-2">
+                        {/* Preview button - always visible for pending/draft */}
+                        {needsAction && (
+                          <Button
+                            variant="default"
+                            size="sm"
+                            onClick={() => openPreview(source)}
+                            className="bg-amber-500 hover:bg-amber-600"
+                          >
+                            <Eye className="h-4 w-4 mr-1" />
+                            Preview
+                          </Button>
+                        )}
+                        
                         {/* Approval Actions */}
                         {actions.map(({ action, label, icon: Icon }) => (
                           <Button
                             key={action}
-                            variant="outline"
+                            variant={action === 'approve' ? 'default' : 'outline'}
                             size="sm"
                             onClick={() => openApprovalDialog(source, action)}
+                            className={action === 'approve' ? 'bg-emerald-500 hover:bg-emerald-600' : ''}
                           >
                             <Icon className="h-4 w-4 mr-1" />
                             {label}
@@ -428,6 +442,26 @@ const DepartmentSourcesPage = () => {
                         
                         <Button
                           variant="outline"
+                          size="sm"
+                          onClick={() => openVersionsDialog(source)}
+                        >
+                          <History className="h-4 w-4 mr-1" />
+                          История
+                        </Button>
+                        
+                        {isManager && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="text-destructive"
+                            onClick={() => deleteSource(source.id)}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  </CardContent>
                           size="sm"
                           onClick={() => openVersionsDialog(source)}
                         >
