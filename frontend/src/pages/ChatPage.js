@@ -78,6 +78,9 @@ const getFileIcon = (mimeType, kind) => {
   if (kind === 'url') return <Globe className="h-5 w-5 text-blue-400" />;
   if (mimeType?.includes('pdf')) return <FileText className="h-5 w-5 text-red-400" />;
   if (mimeType?.includes('wordprocessingml')) return <File className="h-5 w-5 text-blue-500" />;
+  if (mimeType?.includes('presentationml')) return <File className="h-5 w-5 text-orange-500" />;
+  if (mimeType?.includes('spreadsheetml')) return <File className="h-5 w-5 text-green-500" />;
+  if (mimeType?.includes('image')) return <ImageIcon className="h-5 w-5 text-purple-400" />;
   return <FileText className="h-5 w-5 text-gray-400" />;
 };
 
