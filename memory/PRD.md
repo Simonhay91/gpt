@@ -81,6 +81,8 @@ draft → pending → approved → active
 - [x] Hierarchical retrieval (Project > Department > Global)
 - [x] Audit logging for Department/Global changes
 - [x] Approval workflow (draft → approved → active)
+- [x] **Department sources page** with full workflow UI
+- [x] **Retrieval integration** - department sources используются в чатах
 
 ### ✅ Admin Features
 - [x] User management with department assignment
