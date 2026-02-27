@@ -413,18 +413,16 @@ const DepartmentSourcesPage = () => {
                       </div>
                       
                       <div className="flex items-center gap-2">
-                        {/* Preview button - always visible for pending/draft */}
-                        {needsAction && (
-                          <Button
-                            variant="default"
-                            size="sm"
-                            onClick={() => openPreview(source)}
-                            className="bg-amber-500 hover:bg-amber-600"
-                          >
-                            <Eye className="h-4 w-4 mr-1" />
-                            Preview
-                          </Button>
-                        )}
+                        {/* Preview button - always visible */}
+                        <Button
+                          variant={needsAction ? "default" : "outline"}
+                          size="sm"
+                          onClick={() => openPreview(source)}
+                          className={needsAction ? "bg-amber-500 hover:bg-amber-600" : ""}
+                        >
+                          <Eye className="h-4 w-4 mr-1" />
+                          Preview
+                        </Button>
                         
                         {/* Approval Actions */}
                         {actions.map(({ action, label, icon: Icon }) => (
