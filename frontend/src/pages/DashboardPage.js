@@ -204,7 +204,7 @@ const DashboardPage = () => {
                     onClick={() => setIsDialogOpen(false)}
                     data-testid="cancel-create-btn"
                   >
-                    Cancel
+                    {t('action.cancel')}
                   </Button>
                   <Button
                     onClick={createProject}
@@ -212,7 +212,7 @@ const DashboardPage = () => {
                     data-testid="confirm-create-btn"
                   >
                     {isCreating ? <div className="spinner mr-2" /> : null}
-                    Create
+                    {t('dashboard.createProject')}
                   </Button>
                 </DialogFooter>
               </DialogContent>
@@ -231,7 +231,7 @@ const DashboardPage = () => {
               <div>
                 <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
                   <MessageSquare className="h-5 w-5 text-emerald-400" />
-                  My Chats
+                  {t('dashboard.myChats')}
                 </h2>
                 <div className="space-y-3">
                   {quickChats.map((chat, index) => (
