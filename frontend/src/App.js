@@ -13,6 +13,7 @@ import ChatPage from './pages/ChatPage';
 import AdminConfigPage from './pages/AdminConfigPage';
 import AdminUsersPage from './pages/AdminUsersPage';
 import AdminUserDetailPage from './pages/AdminUserDetailPage';
+import AdminGlobalSourcesPage from './pages/AdminGlobalSourcesPage';
 
 // Protected Route Component
 const ProtectedRoute = ({ children }) => {
@@ -116,6 +117,11 @@ function AppRoutes() {
       <Route path="/admin/users/:userId" element={
         <AdminRoute>
           <AdminUserDetailPage />
+        </AdminRoute>
+      } />
+      <Route path="/admin/global-sources" element={
+        <AdminRoute>
+          <AdminGlobalSourcesPage />
         </AdminRoute>
       } />
       

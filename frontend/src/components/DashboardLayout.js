@@ -13,6 +13,7 @@ import {
   Settings, 
   LogOut, 
   Globe, 
+  Globe2,
   Menu, 
   X,
   ChevronRight,
@@ -84,6 +85,11 @@ const DashboardLayout = ({ children }) => {
       name: 'Users',
       path: '/admin/users',
       icon: Users
+    });
+    navItems.push({
+      name: 'Global Sources',
+      path: '/admin/global-sources',
+      icon: Globe2
     });
     navItems.push({
       name: 'GPT Config',
