@@ -269,7 +269,7 @@ const DashboardLayout = ({ children }) => {
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium truncate">{user?.email}</p>
               <p className="text-xs text-muted-foreground">
-                {user?.isAdmin ? '👑 Administrator' : pendingCount > 0 ? '📋 Manager' : 'User'}
+                {user?.isAdmin ? '👑 Administrator' : isManager ? '📋 Manager' : 'User'}
               </p>
             </div>
           </div>
