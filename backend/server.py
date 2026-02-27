@@ -1249,6 +1249,46 @@ async def delete_source(project_id: str, source_id: str, current_user: dict = De
     
     return {"message": "Source deleted successfully"}
 
+@api_router.get("/projects/{project_id}/sources/download-all")
+async def download_all_sources(project_id: str, current_user: dict = Depends(get_current_user)):
+    """Download all file sources as a ZIP archive"""
+    import zipfile
+    from io import BytesIO
+    
+    await verify_project_access(project_id, current_user["id"])
+    
+    # Get all file sources (not URLs)
+    sources = await db.sources.find({
+        "projectId": project_id,
+        "kind": "file"
+    }, {"_id": 0}).to_list(1000)
+    
+    if not sources:
+        raise HTTPException(status_code=404, detail="No files to download")
+    
+    # Create ZIP in memory
+    zip_buffer = BytesIO()
+    
+    with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
+        for source in sources:
+            if source.get("storagePath"):
+                file_path = UPLOAD_DIR / source["storagePath"]
+                if file_path.exists():
+                    # Use original filename in zip
+                    filename = source.get("originalName", source["storagePath"])
+                    with open(file_path, 'rb') as f:
+                        zip_file.writestr(filename, f.read())
+    
+    zip_buffer.seek(0)
+    
+    return StreamingResponse(
+        zip_buffer,
+        media_type="application/zip",
+        headers={
+            "Content-Disposition": f"attachment; filename=project_files.zip"
+        }
+    )
+
 # ==================== IMAGE GENERATION ENDPOINTS ====================
 
 async def check_image_rate_limit(user_id: str) -> bool:
