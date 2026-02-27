@@ -9,10 +9,12 @@ import { Label } from '../components/ui/label';
 import { toast } from 'sonner';
 import { Plus, FolderOpen, Trash2, Clock, ArrowRight, MessageSquare, MoveRight } from 'lucide-react';
 import DashboardLayout from '../components/DashboardLayout';
+import { useLanguage } from '../contexts/LanguageContext';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
 const DashboardPage = () => {
+  const { t } = useLanguage();
   const [projects, setProjects] = useState([]);
   const [quickChats, setQuickChats] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
