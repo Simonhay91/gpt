@@ -8,113 +8,110 @@ The user wants to build a production-ready, full-stack SaaS web app, Planet GPT,
 *   **Project & Chat Functionality:**
     *   Project-based chats with history. Quick Chats for non-project work.
     *   Ability to rename chats and move them between projects.
-    *   Project Sharing: Owners can share projects with other users.
+    *   **Project Sharing & Roles:** Owners can share projects with other users, assigning roles (e.g., Viewer, Editor, Manager) to control permissions.
     *   Fine-grained Chat Visibility: Owners can control which specific chats are visible to each shared user within a project.
     *   AI responses must have a Copy button and render clickable URLs.
     *   Display the sender's name on messages in shared chats.
 *   **Source Management:**
-    *   Users can attach various file types (PDF, DOCX, TXT, MD, PPTX, XLSX, PNG, JPEG). The system must handle encrypted PDFs.
+    *   Users can attach various file types (PDF, DOCX, TXT, MD, PPTX, XLSX, PNG, JPEG, CSV). The system must handle encrypted PDFs and large files.
     *   **OCR:** Text must be automatically extracted from uploaded images (PNG/JPEG).
     *   All sources within a project are always active for any chat in that project.
-    *   Users can upload multiple files at once.
-    *   **File Preview & Download:** Users must be able to preview the extracted text from any source file and download individual files.
     *   **Source Search:** Implement a token-free search functionality to find content within a project's sources without calling the LLM.
-    *   **Global Sources:** An admin-only section to manage a central knowledge base (files/sources) that is automatically available to all users across all projects.
+    *   **Global Sources:** An admin-managed central knowledge base that is automatically available to all users. Permissions can be granted to non-admin users to manage these sources.
+    *   **Source Usage Analytics:** Admins can view statistics on how frequently sources are used in GPT responses.
+*   **Efficiency & Cost:**
+    *   **Semantic Caching:** Implement an intelligent caching layer using embeddings to find semantically similar questions and return cached answers to reduce token usage. The cache must be securely isolated by project, user permissions, and prompt configurations.
 *   **UX/UI:**
     *   The app should have light and dark modes.
-    *   The UI should provide good feedback, such as showing the quality of extracted text in previews.
     *   Fix navigation so the back button in a chat returns to the project's chat list, not the main dashboard.
 
 **User's preferred language**: Russian
 
 **what currently exists?**
-A full-stack Planet GPT application (FastAPI, React, MongoDB) with an admin-centric user management system. Admins can create users and view a detailed user page with stats on token usage, storage, projects, and manage user-specific GPT models/prompts.
+A full-stack Planet GPT application with a comprehensive feature set. The backend is a large FastAPI  file, and the frontend is built with React.
 
-The app supports project-based collaboration with fine-grained sharing controls, allowing owners to specify which users can see which chats. The backend supports a wide range of file types, including encrypted PDFs and images, with OCR functionality to extract text from images.
-
-Key features include:
-*   Project-based and quick chats.
-*   Display of sender's name in shared chats.
-*   A token-free source search within projects.
-*   Individual file preview (with text quality indicators) and download.
-*   The backend logic for Global Sources (an admin-managed central knowledge base) has been created, but the frontend is not yet implemented.
+Key implemented features include:
+*   **Global Sources:** A fully functional admin-managed central knowledge base. The feature has been extended to allow admins to grant specific users permission to manage these sources as well.
+*   **Advanced File Handling:** The system supports a wide range of file types, including CSV. It has been hardened to handle large file uploads (up to 50MB), and various CSV parsing errors (newlines in fields, large fields). It also correctly diagnoses incorrect file format uploads (e.g., a  file renamed to ).
+*   **Source Analytics:** The backend tracks, and the frontend displays, statistics on how often global sources are used in GPT answers.
+*   **Secure Semantic Caching:** A sophisticated caching system is in place that uses OpenAI embeddings () to find and serve answers for semantically similar questions. The cache is securely segregated by project, prompts, model, and source access to prevent data leakage.
+*   **Role-Based Access Control (RBAC):** A permission matrix with 'Viewer', 'Editor', and 'Manager' roles has been implemented for shared projects. The backend enforces these roles for actions like uploading sources, and the frontend includes a UI for project owners to assign roles when sharing.
+*   **Enhanced Citations:** Citations in chat now indicate whether the source is from the local project or the global knowledge base.
 
 **Last working item**:
-- Last item agent was working: Implementing the Global Sources feature. The agent added the necessary backend endpoints () and logic to include these sources in the GPT context for all users. The next step was to build the frontend page for admins to manage these sources.
+- Last item agent was working: Debugging a user-reported bug where changing the role of an already-shared user in a project does not work. The agent attempted to reproduce the issue and correctly deduced that the backend API endpoint to *update* an existing member's role is likely missing.
 - Status: IN PROGRESS
-- Agent Testing Done: N (Backend endpoints were created but not tested via a UI flow).
-- Which testing method agent to use? both (A new frontend page and backend logic need to be tested together).
+- Agent Testing Done: N
+- Which testing method agent to use? backend testing agent. The agent needs to add and test a new backend endpoint (e.g., ) for updating a user's role.
 - User Testing Done: N
 
 **All Pending/In progress Issue list**:
-  - Issue 1: (P0) Complete the Global Sources feature.
+  - Issue 1: (P0) Cannot change the role of an existing member in a shared project.
   - Issue 2: (P1) Investigate and fix the frontend navigation test failure from a previous session.
   - Issue 3: (P2) Address the recurring frontend compilation warning: .
 
   **Issues Detail:**
-  - **Issue 1:** Complete the Global Sources feature.
-     - **Attempted fixes:** Backend endpoints (, , ) and the logic to inject global sources into the GPT context have been added to .
+  - **Issue 1:** Cannot change role of existing project member.
+     - **Attempted fixes:** The agent tried to reproduce the bug but was blocked as the logged-in admin user was not the project owner. However, the agent correctly theorized that the root cause is a missing backend endpoint for updating roles, as the current API only supports adding a user with a role.
      - **Next debug checklist:**
-        1. Create a new frontend page: .
-        2. Add a route for  in .
-        3. Add a link to this new page in the admin sidebar ().
-        4. Implement the UI for uploading, viewing, and deleting global sources on the new page.
-        5. Test the full flow: admin uploads a global source, and a regular user in a separate project can ask questions related to that source.
-     - **Why fix this issue and what will be achieved with the fix?** This will create a centralized, reusable knowledge base for the entire organization, a key feature requested by the user.
+        1.  In , create a new  endpoint, e.g., , that accepts a request body with the new role.
+        2.  Implement the logic for this endpoint to find the project, verify the current user is the owner, find the member in the  array, and update their .
+        3.  In , modify the UI logic to call this new  endpoint when an existing user's role is changed. Currently, there is only a UI to assign a role when adding a new user. A UI for editing existing roles needs to be added.
+     - **Why fix this issue and what will be achieved with the fix?** This is a critical bug in the core collaboration and permissions feature. Fixing it will allow project owners to manage their team effectively.
      - **Status:** IN PROGRESS
      - **Is recurring issue?** N
      - **Should Test frontend/backend/both after fix?** both
      - **Blocked on other issue:** None
 
   - **Issue 2:** Frontend Navigation Test Failure.
-     - **Attempted fixes:** None. This was noted in the previous handoff and has not been addressed.
+     - **Attempted fixes:** None in this session.
      - **Next debug checklist:**
         1. Review the old test report at .
         2. Attempt to reproduce the failure with the testing agent, focusing on navigation flows.
-        3. Examine routing logic in  and how  is used in components like  and .
+        3. Examine routing logic in  and how  is used.
      - **Why fix this issue and what will be achieved with the fix?** It's a latent bug that could affect application stability and user experience.
      - **Status:** NOT STARTED
-     - **Is recurring issue?** Y (Carried over from a previous session).
+     - **Is recurring issue?** Y
      - **Should Test frontend/backend/both after fix?** Frontend
      - **Blocked on other issue:** None
 
 **In progress Task List**:
-  - **Task 1:** (P0) Implement the frontend for Global Sources.
-     - **Where to resume:** Create the new page  and integrate it into the application's routing and navigation.
-     - **What will be achieved with this?** A fully functional interface for admins to manage the company-wide knowledge base.
-     - **Status:** IN PROGRESS
-     - **Should Test frontend/backend/both after fix?** both
-     - **Blocked on something:** None
+- None.
 
 **Upcoming and Future Tasks**
 - **Upcoming Tasks:**
-  - (P1) Implement caching for frequently asked questions to reduce token usage.
-  - (P1) Add user-level token limits (daily/monthly) to control costs.
+  - (P0) UI to edit roles for existing project members in .
+  - (P1) Implement user-level token limits (daily/monthly).
+  - (P1) Add UI for admins to configure the semantic cache (e.g., TTL, similarity threshold).
+  - (P2) Create question templates for common tasks.
 - **Future Tasks:**
-  - (P2) Create question templates for common tasks (e.g., Summarize this document).
   - (P2) Show the user which sources will be used for a query *before* sending it to the LLM.
   - (P2) Build a usage/cost dashboard for project owners and admins.
   - (P2) Implement background ingestion for very large files.
+  - (P2) Create dedicated tests for cross-project access attempts to validate security.
 
 **Completed work in this session**
-- **File Management Overhaul:**
-  - Replaced Download All as ZIP with individual file preview and download functionality per user request.
-  - Implemented OCR for images (PNG/JPEG) using  and added support for encrypted PDFs with .
-- **Collaboration & Sharing Enhancements:**
-  - Implemented fine-grained chat visibility, allowing project owners to control which chats are visible to shared users.
-  - Fixed a bug preventing owners from removing shared members from a project.
-  - Added the sender's name to messages in shared project chats.
-- **Admin & User Experience:**
-  - Created a detailed user page in the admin panel () to manage user-specific GPT models/prompts and view their projects and activity.
-  - Added source usage statistics (file count, total size) to the main admin user list.
-  - Implemented a token-free source search feature within projects.
-  - Improved the file preview dialog to show text quality indicators.
-  - Fixed a key navigation bug where the Back button in a chat incorrectly led to the dashboard.
-- **Bug Fixes:**
-  - Resolved a critical access control issue where shared users couldn't access project sources.
-  - Diagnosed and clarified that a user's book not found issue was due to project data isolation, not a bug.
-  - Fixed an issue where  path was lost on service restart by hardcoding the path.
-  - Fixed a bug where user-specific prompts were not being displayed on the admin detail page.
+- **Global Sources Feature (Completed):**
+  - Implemented the frontend UI for admins to upload, view, and delete global sources.
+  - Extended the feature to allow admins to grant  permission to specific users.
+  - Added a separate page () for permissioned users to manage sources.
+- **CSV Upload & Debugging (Completed):**
+  - Added backend support for  file uploads.
+  - Implemented robust error handling for large files (increased  to 50MB), newlines within fields, and fields exceeding size limits.
+- **Source Usage Analytics (Completed):**
+  - Implemented backend logic to track the usage count of each source.
+  - Added a Statistics tab to the admin page showing usage metrics.
+- **Secure Semantic Caching (Completed):**
+  - Built a caching system using OpenAI embeddings () to serve answers for similar questions.
+  - Secured the cache by creating a composite key including project ID, prompts, model, and source access to prevent data leakage.
+  - Added an admin UI to view cache statistics and clear the cache.
+- **Role-Based Access Control (RBAC) (Completed):**
+  - Implemented 'Viewer', 'Editor', and 'Manager' roles on the backend.
+  - Added a UI to the Share Project dialog for owners to assign roles to new members.
+  - The backend now enforces role permissions for actions like uploading sources.
+- **UI/UX Fixes:**
+  - Adjusted the width and spacing of the Share Project modal as per user feedback.
+  - Added icons and labels to chat citations to distinguish between  and  sources.
 
 **Earlier issues found/mentioned but not fixed**
    - **Issue 1: Frontend Navigation Test Failure**
@@ -133,91 +130,84 @@ Key features include:
 - **Backend:** FastAPI, MongoDB (), Pydantic.
 - **Frontend:** React, Tailwind CSS, , .
 - **Authentication:** Admin-centric JWT flow.
-- **File Handling:** Now includes OCR for images (, ) and decryption for PDFs ().
-- **Data Isolation:** Data is strictly segregated by . A new  flag on the  collection marks sources available everywhere.
+- **File Handling:** OCR (), PDF decryption (), CSV parsing ().
+- **Semantic Caching:** OpenAI embeddings () and  for cosine similarity search in MongoDB.
+- **Security:** Role-Based Access Control (RBAC), secure cache key generation using .
 
 **key DB schema**
 - **users:** 
-- **chats:**  (null means visible to all shared users)
-- **messages:** 
+- **projects:**  where role is 'viewer', 'editor', or 'manager'.
 - **sources:** 
-- **user_prompts:** 
+- **cache_secure:** 
 
 **changes in tech stack**
-- Added  for OCR.
-- Added  to handle encrypted PDFs.
+- Added  for vector calculations in semantic caching.
 
 **All files of reference**
-- : The monolithic backend file, now significantly larger. Contains all new logic for OCR, global sources, user details, source search, and statistics.
-- : Heavily modified to include source search UI, improved file preview dialog, and corrected back-navigation logic.
-- : UI updated for chat visibility controls and fixing the member removal flow.
-- : UI updated to show source usage stats and link to the new detail page.
-- : New page created to display and manage details for a single user.
-- : Updated with the route for .
-- : Fixed to correctly handle user information for ownership checks.
+- : The monolithic backend file, now over 3400 lines. Contains all logic for RBAC, secure caching, source analytics, and advanced file handling.
+- : New page for admins to manage global sources and view usage/cache statistics.
+- : New page for permissioned users to manage global sources.
+- : Modified to include the UI for assigning roles when sharing a project. Needs further modification for editing existing roles.
+- : Modified to display icons indicating if a citation is from a 'project' or 'global' source.
+- : Modified to include the UI toggle for granting global source management permissions.
+- : Modified to conditionally show the Global Sources link.
+- : Updated with routes for the new pages.
 
 **Areas that need refactoring**:
--  is now over 2500 lines. It is critical to break it down into modular s for auth, projects, chats, users, and sources to maintain the codebase.
--  and  are also becoming very large and could benefit from being broken down into smaller components.
+- **CRITICAL:**  is now extremely large and difficult to maintain. It is imperative to break it down into modular s (e.g., , , , ). This should be the highest priority refactoring task.
 
 **key api endpoints**
-- : (GET) Token-free search within project sources.
-- : (GET) Get source text and quality metrics.
-- : (PUT) Update which users can see a specific chat.
-- : (DELETE) Remove a user from a project.
-- : (GET) Get source usage statistics for all users.
-- : (GET) Get detailed information for a single user.
-- : (PUT) Update a specific user's custom prompt.
-- : (GET, POST) Manage global sources.
-- : (DELETE) Delete a global source.
+- : (GET) Get usage statistics for global sources.
+- : (GET) Get statistics for the semantic cache.
+- : (POST) Clear all entries from the cache.
+- : (PUT) Grant/revoke a user's permission to edit global sources.
+- : (POST) Share a project with a user, assigning them a role.
 
 **Critical Info for New Agent**
-- **Global Sources:** A new concept of Global Sources has been introduced. These are managed by an admin and are automatically included in the GPT context for all users, in addition to the project-specific sources. The backend is ready, but the frontend UI needs to be built.
-- **User-Specific Models:** The system now supports setting a GPT model on a per-user basis from the admin detail page. The backend logic for sending messages respects this override.
-- **Refactoring Urgency:** The  file has become unmanageably large. Prioritizing its refactoring into smaller routers will be crucial for future development.
+- **Refactoring Urgency:**  has grown to an unmanageable size. The next major task, after fixing the current bug, should be to refactor the backend into multiple router files. This will prevent future development from becoming exponentially more difficult.
+- **Role Editing Bug:** The immediate task is to fix the bug where user roles cannot be changed. This will require creating a new  endpoint on the backend and updating the frontend  to call it.
+- **Security Context:** The user has recently emphasized security. All new features, especially those related to data access, must be implemented with a security-first mindset, respecting the new RBAC and secure caching patterns.
 
 **documents and test reports created in this job**
-- : Updated to reflect all the newly completed features and future tasks.
-- : A successful test run was completed after implementing the 5-point feature list.
+- 
+-  (overwritten with new documentation)
+- 
 
 **Last 10 User Messages and any pending HUMAN messages**
-1.  **User:** Asks for source search and improved preview to save tokens. (Completed)
-2.  **User:** Reports encrypted PDF failure. (Completed by installing )
-3.  **User:** Asks for source usage stats (count & size) in the admin panel. (Completed)
-4.  **User:** Requests a detailed user card/page for admins to manage user prompts, models, and see activity. (Completed)
-5.  **User:** Reports that the user prompt isn't visible in the new admin detail page. (Completed - bug fix)
-6.  **User:** Asks for a Global Sources feature for all users, managed by an admin. (In Progress - backend done)
-7.  **User:** Confirm request for Global sources (In Progress)
-8.  **User:** Asks for clarification on how AI uses source materials. (Answered)
-9.  **User:** Asks about file size limits. (Answered)
-10. **User:** Asks for recommendations on which GPT model to use. (Answered)
-11. **User:** Confirms that he can change the GPT model from the admin panel. (Answered)
-12. **User:** Asks for a like/dislike functionality for GPT responses. (User rejected the implementation after explanation)
-13. **User:** Asks for ideas on how to improve efficiency and reduce token usage. (Agent provided suggestions, two of which were implemented)
+1.  **User:** Reports a bug: cannot change the role of an existing user in a shared project. (Current task)
+2.  **User:** Provides UI feedback: fix popup width and add margin. (Completed)
+3.  **Agent:** Finishes frontend implementation for roles and sourceType. (Completed)
+4.  **User:** Asks for the frontend for managing roles and displaying source types. (Completed)
+5.  **Agent:** Finishes backend implementation of security features (roles, secure cache, source priority). (Completed)
+6.  **User:** Provides detailed requirements for a security overhaul: Permission Matrix, Zero Data Leakage Cache, and Source Priority. (Completed)
+7.  **Agent:** Creates prompt documentation. (Completed)
+8.  **User:** Asks agent to write a prompt for the product. (Completed)
+9.  **Agent:** Creates PRD documentation. (Completed)
+10. **User:** Asks agent to write PRD documentation. (Completed)
 
 **Project Health Check:**
-- **Broken:** None.
+- **Broken:** The functionality to edit a user's role in a project is broken.
 - **Mocked:** None.
-- **In Progress:** The Global Sources feature is partially implemented (backend is done, frontend is pending).
+- **In Progress:** The bug fix for editing user roles.
 
 **3rd Party Integrations**
-- **OpenAI GPT-4.1-mini & DALL-E 3:** Used for chat and image generation.
+- **OpenAI GPT-4.1-mini, text-embedding-3-small, DALL-E 3:** Used for chat, semantic caching, and image generation.
 - **python-pptx:** For parsing  files.
 - **openpyxl:** For parsing  files.
 - **Tesseract-OCR / pytesseract:** For extracting text from images.
 - **pycryptodome:** For handling encrypted PDFs.
+- **numpy:** For vector math in the caching mechanism.
 
 **Testing status**
-- **Testing agent used after significant changes:** YES (A full test suite was run after the initial 5-point feature set was completed).
+- **Testing agent used after significant changes:** YES, for the initial Global Sources feature.
 - **Troubleshoot agent used after agent stuck in loop:** NO
 - **Test files created:** None
 - **Known regressions:** A frontend navigation failure from a previous session () is still unaddressed.
 
 **Credentials to test flow:**
 - **Admin:**  / 
-- **Standard User:** Create one via the admin panel.
+- **Standard User:** Create one via the admin panel. To test the role bug, you must log in as a standard user, create a project (making them the owner), and share it with another user.
 
 **What agent forgot to execute**
-- The agent has not built the frontend UI for the Global Sources feature.
-- The agent did not fix the long-standing frontend navigation bug reported in a previous test run.
-- The agent did not fix the recurring  warning in the frontend.</analysis>
+- The agent has not yet created the backend endpoint or the frontend UI to **edit** an existing user's role, which is the cause of the current bug.
+- The two carried-over issues (navigation test failure and  warning) have not been addressed.</analysis>
