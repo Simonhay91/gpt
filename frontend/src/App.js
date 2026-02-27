@@ -19,6 +19,7 @@ import GlobalSourcesPage from './pages/GlobalSourcesPage';
 import AdminDepartmentsPage from './pages/AdminDepartmentsPage';
 import AdminAuditLogsPage from './pages/AdminAuditLogsPage';
 import PersonalSourcesPage from './pages/PersonalSourcesPage';
+import DepartmentSourcesPage from './pages/DepartmentSourcesPage';
 
 // Protected Route Component
 const ProtectedRoute = ({ children }) => {
