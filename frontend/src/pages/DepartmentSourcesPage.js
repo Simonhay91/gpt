@@ -239,15 +239,15 @@ const DepartmentSourcesPage = () => {
     
     if (isManager) {
       if (status === 'draft') {
-        actions.push({ action: 'submit', label: 'На проверку', icon: Send });
-        actions.push({ action: 'approve', label: 'Одобрить', icon: CheckCircle });
+        actions.push({ action: 'submit', label: t('action.submit'), icon: Send });
+        actions.push({ action: 'approve', label: t('action.approve'), icon: CheckCircle });
       }
       if (status === 'pending') {
-        actions.push({ action: 'approve', label: 'Одобрить', icon: CheckCircle });
-        actions.push({ action: 'reject', label: 'Отклонить', icon: XCircle });
+        actions.push({ action: 'approve', label: t('action.approve'), icon: CheckCircle });
+        actions.push({ action: 'reject', label: t('action.reject'), icon: XCircle });
       }
       if (status === 'approved') {
-        actions.push({ action: 'activate', label: 'Активировать', icon: CheckCircle });
+        actions.push({ action: 'activate', label: t('action.activate'), icon: CheckCircle });
       }
     }
     
@@ -275,7 +275,7 @@ const DepartmentSourcesPage = () => {
             onClick={() => navigate('/admin/departments')}
           >
             <ArrowLeft className="h-4 w-4 mr-2" />
-            Назад к отделам
+            {t('dept.backToDepts')}
           </Button>
           
           <div className="flex items-center justify-between">
