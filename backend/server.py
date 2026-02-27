@@ -406,17 +406,22 @@ def extract_text_from_csv(file_content: bytes) -> str:
     
     try:
         # Try UTF-8 first, then fallback to other encodings
+        text_content = None
         for encoding in ['utf-8', 'utf-8-sig', 'cp1251', 'latin-1']:
             try:
                 text_content = file_content.decode(encoding)
                 break
             except UnicodeDecodeError:
                 continue
-        else:
+        
+        if text_content is None:
             text_content = file_content.decode('utf-8', errors='replace')
         
-        # Parse CSV
-        reader = csv.reader(StringIO(text_content))
+        # Normalize line endings and parse CSV
+        text_content = text_content.replace('\r\n', '\n').replace('\r', '\n')
+        
+        # Parse CSV with proper newline handling
+        reader = csv.reader(StringIO(text_content, newline=''))
         rows = list(reader)
         
         if not rows:
@@ -433,14 +438,16 @@ def extract_text_from_csv(file_content: bytes) -> str:
         
         # Format each row as a structured record
         for i, row in enumerate(rows[1:], 1):
-            if not any(cell.strip() for cell in row):
+            if not any(cell.strip() for cell in row if cell):
                 continue  # Skip empty rows
             
             record_parts = []
             for j, cell in enumerate(row):
-                if cell.strip():
+                if cell and cell.strip():
                     header = headers[j] if j < len(headers) else f"Column{j+1}"
-                    record_parts.append(f"{header}: {cell.strip()}")
+                    # Replace newlines in cell content with spaces
+                    clean_cell = cell.strip().replace('\n', ' ').replace('\r', ' ')
+                    record_parts.append(f"{header}: {clean_cell}")
             
             if record_parts:
                 text_parts.append(f"[Record {i}]")
