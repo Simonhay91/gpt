@@ -2355,7 +2355,8 @@ async def send_message(chat_id: str, message_data: MessageCreate, current_user: 
         relevant_chunks = await get_relevant_chunks(
             active_source_ids, 
             project_id, 
-            message_data.content
+            message_data.content,
+            user_department_ids  # Pass department IDs for chunk lookup
         )
         
         if relevant_chunks:
