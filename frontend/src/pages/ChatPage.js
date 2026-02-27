@@ -170,7 +170,33 @@ const ChatPage = () => {
 
   const openMoveDialog = () => {
     fetchUserProjects();
+    setShowCreateProject(false);
+    setNewProjectName('');
     setMoveDialogOpen(true);
+  };
+
+  const createProjectAndMove = async () => {
+    if (!newProjectName.trim()) {
+      toast.error('Project name is required');
+      return;
+    }
+    
+    setIsCreatingProject(true);
+    try {
+      // Create project
+      const response = await axios.post(`${API}/projects`, { name: newProjectName.trim() });
+      const newProject = response.data;
+      
+      // Move chat to new project
+      await axios.post(`${API}/chats/${chatId}/move`, { targetProjectId: newProject.id });
+      toast.success('Project created and chat moved');
+      setMoveDialogOpen(false);
+      window.location.reload();
+    } catch (error) {
+      toast.error('Failed to create project');
+    } finally {
+      setIsCreatingProject(false);
+    }
   };
 
   const moveChat = async (targetProjectId) => {
