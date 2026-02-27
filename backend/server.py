@@ -1820,8 +1820,8 @@ async def admin_create_user(user_data: UserCreate, current_user: dict = Depends(
 @api_router.get("/users/list")
 async def list_users_for_sharing(current_user: dict = Depends(get_current_user)):
     """Get list of all users (for sharing projects)"""
-    users = await db.users.find({}, {"_id": 0, "passwordHash": 0, "id": 1, "email": 1}).to_list(1000)
-    # Exclude current user
+    users = await db.users.find({}, {"_id": 0, "passwordHash": 0}).to_list(1000)
+    # Exclude current user and return only id and email
     return [{"id": u["id"], "email": u["email"]} for u in users if u["id"] != current_user["id"]]
 
 @api_router.get("/admin/users", response_model=List[UserWithUsageResponse])
