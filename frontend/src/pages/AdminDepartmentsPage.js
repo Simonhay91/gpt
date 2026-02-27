@@ -271,12 +271,38 @@ const AdminDepartmentsPage = () => {
                       <span>{dept.managerCount || 0} менеджеров</span>
                     </div>
                   </div>
-                  {dept.sourceCount > 0 && (
-                    <div className="flex items-center gap-1 text-sm text-muted-foreground mt-2">
-                      <FileText className="h-4 w-4" />
-                      <span>{dept.sourceCount} источников</span>
-                    </div>
-                  )}
+                  <div className="flex items-center gap-1 text-sm text-muted-foreground mt-2">
+                    <FileText className="h-4 w-4" />
+                    <span>{dept.sourceCount || 0} источников</span>
+                  </div>
+                  <div className="flex items-center gap-2 mt-4">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="flex-1"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        navigate(`/admin/departments/${dept.id}/sources`);
+                      }}
+                      data-testid={`dept-sources-btn-${dept.id}`}
+                    >
+                      <FileText className="h-4 w-4 mr-1" />
+                      Источники
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="flex-1"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        openMembersDialog(dept);
+                      }}
+                      data-testid={`dept-members-btn-${dept.id}`}
+                    >
+                      <Users className="h-4 w-4 mr-1" />
+                      Участники
+                    </Button>
+                  </div>
                 </CardContent>
               </Card>
             ))}
