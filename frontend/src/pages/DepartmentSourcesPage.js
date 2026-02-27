@@ -305,7 +305,7 @@ const DepartmentSourcesPage = () => {
                   ) : (
                     <Upload className="mr-2 h-4 w-4" />
                   )}
-                  Загрузить
+                  {t('dept.upload')}
                 </Button>
               </div>
             )}
@@ -325,14 +325,14 @@ const DepartmentSourcesPage = () => {
                 <ChevronRight className="h-4 w-4 text-indigo-400" />
               )}
               <AlertCircle className="h-4 w-4 text-indigo-400" />
-              <span className="text-sm font-medium">Как работает одобрение знаний отдела</span>
+              <span className="text-sm font-medium">{t('dept.workflowTitle')}</span>
             </button>
             {showWorkflowInfo && (
               <div className="text-sm text-muted-foreground space-y-1 mt-3 ml-6 pl-4 border-l border-indigo-500/30">
-                <p><span className="text-gray-400 font-medium">Черновик</span> — загруженный файл, ещё не проверен</p>
-                <p><span className="text-amber-400 font-medium">На проверке</span> — ждёт одобрения менеджера</p>
-                <p><span className="text-blue-400 font-medium">Одобрено</span> — проверен, но GPT ещё не использует</p>
-                <p><span className="text-emerald-400 font-medium">Активно</span> — GPT использует эти знания в ответах</p>
+                <p><span className="text-gray-400 font-medium">{t('dept.statusDraft')}</span> — {t('dept.statusDraftDesc')}</p>
+                <p><span className="text-amber-400 font-medium">{t('dept.statusPending')}</span> — {t('dept.statusPendingDesc')}</p>
+                <p><span className="text-blue-400 font-medium">{t('dept.statusApproved')}</span> — {t('dept.statusApprovedDesc')}</p>
+                <p><span className="text-emerald-400 font-medium">{t('dept.statusActive')}</span> — {t('dept.statusActiveDesc')}</p>
               </div>
             )}
           </CardContent>
@@ -347,8 +347,8 @@ const DepartmentSourcesPage = () => {
                   {sources.filter(s => s.status === 'draft' || s.status === 'pending').length}
                 </div>
                 <div>
-                  <p className="text-sm font-medium text-amber-400">Ожидают вашего одобрения</p>
-                  <p className="text-xs text-muted-foreground">Нажмите на карточку для preview и одобрения</p>
+                  <p className="text-sm font-medium text-amber-400">{t('dept.awaitingApproval')}</p>
+                  <p className="text-xs text-muted-foreground">{t('dept.clickToPreview')}</p>
                 </div>
               </div>
             </CardContent>
