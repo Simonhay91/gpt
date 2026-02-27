@@ -172,10 +172,16 @@ const ProjectPage = () => {
     // Initialize visibility state for this member
     const visibility = {};
     chats.forEach(chat => {
-      // If sharedWithUsers is null, all members can see it
+      // If sharedWithUsers is null/undefined, all members can see it (true)
       // If it's an array, check if member is in it
       const sharedWith = chat.sharedWithUsers;
-      visibility[chat.id] = sharedWith === null || sharedWith === undefined || sharedWith.includes(member.id);
+      if (sharedWith === null || sharedWith === undefined) {
+        visibility[chat.id] = true; // visible to all
+      } else if (Array.isArray(sharedWith)) {
+        visibility[chat.id] = sharedWith.includes(member.id);
+      } else {
+        visibility[chat.id] = true; // default to visible
+      }
     });
     setChatVisibility(visibility);
   };
