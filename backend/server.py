@@ -272,6 +272,106 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(s
 def is_admin(email: str) -> bool:
     return email.endswith(ADMIN_EMAIL_DOMAIN)
 
+# ==================== SEMANTIC CACHE FUNCTIONS ====================
+
+import numpy as np
+
+def cosine_similarity(vec1: List[float], vec2: List[float]) -> float:
+    """Calculate cosine similarity between two vectors"""
+    a = np.array(vec1)
+    b = np.array(vec2)
+    return np.dot(a, b) / (np.linalg.norm(a) * np.linalg.norm(b))
+
+async def get_embedding(text: str) -> Optional[List[float]]:
+    """Get embedding for text using OpenAI"""
+    if not openai_client:
+        return None
+    try:
+        response = openai_client.embeddings.create(
+            model=EMBEDDING_MODEL,
+            input=text[:8000]  # Limit input length
+        )
+        return response.data[0].embedding
+    except Exception as e:
+        logger.error(f"Embedding error: {e}")
+        return None
+
+async def find_cached_answer(
+    question: str, 
+    project_id: Optional[str],
+    question_embedding: List[float]
+) -> Optional[dict]:
+    """Find similar cached question and return its answer if above threshold"""
+    
+    # Build query - match project context
+    query = {"projectId": project_id} if project_id else {"projectId": None}
+    
+    # Add TTL check
+    cutoff_date = (datetime.now(timezone.utc) - timedelta(days=CACHE_TTL_DAYS)).isoformat()
+    query["createdAt"] = {"$gte": cutoff_date}
+    
+    # Get all cache entries for this project context
+    cache_entries = await db.semantic_cache.find(query, {"_id": 0}).to_list(500)
+    
+    if not cache_entries:
+        return None
+    
+    best_match = None
+    best_similarity = 0
+    
+    for entry in cache_entries:
+        if not entry.get("embedding"):
+            continue
+        
+        similarity = cosine_similarity(question_embedding, entry["embedding"])
+        
+        if similarity > best_similarity and similarity >= CACHE_SIMILARITY_THRESHOLD:
+            best_similarity = similarity
+            best_match = entry
+    
+    if best_match:
+        # Update hit count and last hit time
+        await db.semantic_cache.update_one(
+            {"id": best_match["id"]},
+            {
+                "$inc": {"hitCount": 1},
+                "$set": {"lastHitAt": datetime.now(timezone.utc).isoformat()}
+            }
+        )
+        return {
+            "answer": best_match["answer"],
+            "originalQuestion": best_match["question"],
+            "similarity": best_similarity,
+            "hitCount": best_match.get("hitCount", 0) + 1,
+            "cacheId": best_match["id"]
+        }
+    
+    return None
+
+async def save_to_cache(
+    question: str,
+    answer: str,
+    project_id: Optional[str],
+    embedding: List[float],
+    user_id: str,
+    sources_used: Optional[List[dict]] = None
+):
+    """Save question-answer pair to semantic cache"""
+    cache_entry = {
+        "id": str(uuid.uuid4()),
+        "question": question,
+        "answer": answer,
+        "embedding": embedding,
+        "projectId": project_id,
+        "sourcesUsed": sources_used,
+        "createdBy": user_id,
+        "createdAt": datetime.now(timezone.utc).isoformat(),
+        "hitCount": 0,
+        "lastHitAt": None
+    }
+    await db.semantic_cache.insert_one(cache_entry)
+    logger.info(f"Cached answer for question: {question[:50]}...")
+
 async def ensure_gpt_config():
     """Ensure GPT config singleton exists with strict active sources rules"""
     config = await db.gpt_config.find_one({"id": "1"}, {"_id": 0})
