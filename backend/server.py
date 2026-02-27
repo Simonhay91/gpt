@@ -3205,6 +3205,51 @@ async def list_users_for_sharing(current_user: dict = Depends(get_current_user))
     # Exclude current user and return only id and email
     return [{"id": u["id"], "email": u["email"]} for u in users if u["id"] != current_user["id"]]
 
+@api_router.put("/users/me/primary-department")
+async def set_primary_department(
+    data: dict,
+    current_user: dict = Depends(get_current_user)
+):
+    """Set user's primary department"""
+    department_id = data.get("departmentId")
+    
+    if department_id:
+        # Verify department exists and user is member
+        department = await db.departments.find_one({"id": department_id}, {"_id": 0})
+        if not department:
+            raise HTTPException(status_code=404, detail="Department not found")
+        
+        user_depts = current_user.get("departments", [])
+        if department_id not in user_depts:
+            raise HTTPException(status_code=403, detail="You are not a member of this department")
+    
+    await db.users.update_one(
+        {"id": current_user["id"]},
+        {"$set": {"primaryDepartmentId": department_id}}
+    )
+    
+    return {"message": "Primary department updated", "primaryDepartmentId": department_id}
+
+@api_router.get("/users/me/departments")
+async def get_my_departments(current_user: dict = Depends(get_current_user)):
+    """Get current user's departments with details"""
+    user_dept_ids = current_user.get("departments", [])
+    
+    if not user_dept_ids:
+        return []
+    
+    departments = await db.departments.find(
+        {"id": {"$in": user_dept_ids}},
+        {"_id": 0}
+    ).to_list(100)
+    
+    # Add isManager flag
+    for dept in departments:
+        dept["isManager"] = current_user["id"] in dept.get("managers", [])
+        dept["isPrimary"] = dept["id"] == current_user.get("primaryDepartmentId")
+    
+    return departments
+
 @api_router.get("/admin/users", response_model=List[UserWithUsageResponse])
 async def admin_list_users(current_user: dict = Depends(get_current_user)):
     """Admin gets list of all users with token usage"""
