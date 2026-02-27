@@ -359,43 +359,46 @@ const ProjectPage = () => {
                   {/* Current members list */}
                   <div className="space-y-2">
                     <Label>Members ({members.length})</Label>
-                    {members.map((member) => (
-                      <div key={member.id} className="flex items-center justify-between py-2 px-3 bg-secondary rounded-lg">
-                        <div className="flex items-center gap-3">
-                          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-indigo-500 to-purple-500 flex items-center justify-center text-white text-sm font-medium">
-                            {member.email?.charAt(0).toUpperCase()}
+                    <div className="space-y-2 max-h-[200px] overflow-y-auto">
+                      {members.map((member) => (
+                        <div key={member.id} className="flex items-center justify-between py-2 px-3 bg-secondary rounded-lg gap-2">
+                          <div className="flex items-center gap-3 min-w-0 flex-1">
+                            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-indigo-500 to-purple-500 flex items-center justify-center text-white text-sm font-medium flex-shrink-0">
+                              {member.email?.charAt(0).toUpperCase()}
+                            </div>
+                            <div className="min-w-0">
+                              <p className="text-sm font-medium truncate">{member.email}</p>
+                              <p className="text-xs text-muted-foreground capitalize">{member.role}</p>
+                            </div>
                           </div>
-                          <div>
-                            <p className="text-sm font-medium">{member.email}</p>
-                            <p className="text-xs text-muted-foreground capitalize">{member.role}</p>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-1">
-                          {member.role !== 'owner' && isOwner && chats.length > 0 && (
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              className="h-8 text-xs"
-                              onClick={() => openChatVisibilityForMember(member)}
-                              data-testid={`manage-chats-${member.id}`}
-                            >
-                              <MessageSquare className="h-3 w-3 mr-1" />
-                              Chats
-                            </Button>
-                          )}
                           {member.role !== 'owner' && isOwner && (
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-8 w-8"
-                              onClick={() => removeMember(member.id)}
-                            >
-                              <X className="h-4 w-4" />
-                            </Button>
+                            <div className="flex items-center gap-1 flex-shrink-0">
+                              {chats.length > 0 && (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="h-7 text-xs px-2"
+                                  onClick={() => openChatVisibilityForMember(member)}
+                                  data-testid={`manage-chats-${member.id}`}
+                                >
+                                  <MessageSquare className="h-3 w-3 mr-1" />
+                                  Chats
+                                </Button>
+                              )}
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-7 w-7 text-destructive hover:text-destructive"
+                                onClick={() => removeMember(member.id)}
+                                data-testid={`remove-member-${member.id}`}
+                              >
+                                <X className="h-4 w-4" />
+                              </Button>
+                            </div>
                           )}
                         </div>
-                      </div>
-                    ))}
+                      ))}
+                    </div>
                   </div>
                 </DialogContent>
               </Dialog>
@@ -404,9 +407,9 @@ const ProjectPage = () => {
               <Dialog open={!!selectedMemberForChats} onOpenChange={(open) => !open && setSelectedMemberForChats(null)}>
                 <DialogContent className="sm:max-w-md">
                   <DialogHeader>
-                    <DialogTitle>Chat Access for {selectedMemberForChats?.email}</DialogTitle>
+                    <DialogTitle>Chat Access</DialogTitle>
                     <DialogDescription>
-                      Select which chats this user can see in the project.
+                      Select which chats <span className="font-medium">{selectedMemberForChats?.email?.split('@')[0]}</span> can see.
                     </DialogDescription>
                   </DialogHeader>
                   
