@@ -87,6 +87,21 @@ const AdminUserDetailPage = () => {
     }
   };
 
+  const toggleGlobalPermission = async () => {
+    setIsSavingGlobalPerm(true);
+    try {
+      await axios.put(`${API}/admin/users/${userId}/global-permission`, { 
+        canEditGlobalSources: !canEditGlobal 
+      });
+      setCanEditGlobal(!canEditGlobal);
+      toast.success(canEditGlobal ? 'Разрешение отозвано' : 'Разрешение выдано');
+    } catch (error) {
+      toast.error('Ошибка сохранения');
+    } finally {
+      setIsSavingGlobalPerm(false);
+    }
+  };
+
   const formatDate = (dateString) => {
     if (!dateString) return '-';
     return new Date(dateString).toLocaleString('ru-RU', {
