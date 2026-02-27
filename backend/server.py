@@ -1799,6 +1799,10 @@ async def send_message(chat_id: str, message_data: MessageCreate, current_user: 
     else:
         active_source_ids = []
     
+    # ALWAYS include global sources for all chats
+    global_sources = await db.sources.find({"projectId": GLOBAL_PROJECT_ID}, {"_id": 0, "id": 1}).to_list(1000)
+    active_source_ids.extend([s["id"] for s in global_sources])
+    
     # Get sender display name (use part before @ in email)
     sender_email = current_user["email"]
     sender_name = sender_email.split("@")[0] if sender_email else "User"
