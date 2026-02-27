@@ -113,6 +113,11 @@ function AppRoutes() {
           <AdminUsersPage />
         </AdminRoute>
       } />
+      <Route path="/admin/users/:userId" element={
+        <AdminRoute>
+          <AdminUserDetailPage />
+        </AdminRoute>
+      } />
       
       {/* Default redirect */}
       <Route path="/" element={<Navigate to="/dashboard" replace />} />
