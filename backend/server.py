@@ -936,11 +936,13 @@ async def upload_source(
     else:  # txt or md
         extracted_text = extract_text_from_txt(content)
     
-    if not extracted_text or len(extracted_text.strip()) < 10:
-        raise HTTPException(
-            status_code=400, 
-            detail="This file appears to be empty or contains no extractable text. For PDFs, please ensure it's text-based, not image-based/scanned."
-        )
+    # For non-image files, check if text was extracted
+    if file_type not in ["png", "jpeg", "jpg"]:
+        if not extracted_text or len(extracted_text.strip()) < 10:
+            raise HTTPException(
+                status_code=400, 
+                detail="This file appears to be empty or contains no extractable text. For PDFs, please ensure it's text-based, not image-based/scanned."
+            )
     
     # Generate source ID and storage path
     source_id = str(uuid.uuid4())
