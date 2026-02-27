@@ -506,56 +506,6 @@ const AdminGlobalSourcesPage = () => {
             )}
           </>
         )}
-                style={{ animationDelay: `${index * 50}ms` }}
-                data-testid={`source-card-${source.id}`}
-              >
-                <CardContent className="py-4">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-4 flex-1 min-w-0">
-                      <div className="rounded-lg bg-secondary p-2">
-                        {getSourceIcon(source)}
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <h3 className="font-semibold truncate">
-                          {source.originalName || source.url || 'Без названия'}
-                        </h3>
-                        <div className="flex items-center gap-3 text-sm text-muted-foreground mt-1">
-                          <span>{source.kind === 'url' ? 'URL' : 'Файл'}</span>
-                          {source.sizeBytes && (
-                            <span>• {formatBytes(source.sizeBytes)}</span>
-                          )}
-                          <span>• {source.chunkCount || 0} фрагментов</span>
-                          <span className="hidden sm:inline">• {formatDate(source.createdAt)}</span>
-                        </div>
-                      </div>
-                    </div>
-                    
-                    <div className="flex items-center gap-2 ml-4">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity"
-                        onClick={() => handlePreview(source.id)}
-                        data-testid={`preview-source-${source.id}`}
-                      >
-                        <Eye className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity"
-                        onClick={() => handleDelete(source.id, source.originalName || source.url)}
-                        data-testid={`delete-source-${source.id}`}
-                      >
-                        <Trash2 className="h-4 w-4 text-destructive" />
-                      </Button>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        )}
 
         {/* Add URL Dialog */}
         <Dialog open={urlDialogOpen} onOpenChange={setUrlDialogOpen}>
