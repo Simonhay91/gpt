@@ -1847,11 +1847,19 @@ If the user asks about a document/file/URL:
         "citations": final_citations,
         "usedSources": final_used_sources,
         "autoIngestedUrls": [s["id"] for s in auto_ingested_sources] if auto_ingested_sources else None,
+        "senderEmail": None,
+        "senderName": "GPT",
         "createdAt": datetime.now(timezone.utc).isoformat()
     }
     await db.messages.insert_one(assistant_message)
     
-    return MessageResponse(**assistant_message)
+    # Return the user message with sender info (not assistant message)
+    user_msg_response = {
+        **user_message,
+        "senderEmail": sender_email,
+        "senderName": sender_name
+    }
+    return MessageResponse(**user_msg_response)
 
 # ==================== ADMIN ENDPOINTS ====================
 
