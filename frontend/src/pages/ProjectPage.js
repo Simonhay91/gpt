@@ -50,15 +50,13 @@ const ProjectPage = () => {
       setProject(projectRes.data);
       setChats(chatsRes.data);
       
-      // Check if current user is owner (we'll know from the API response)
-      // Fetch members to determine ownership
+      // Check if current user is owner
       try {
         const membersRes = await axios.get(`${API}/projects/${projectId}/members`);
         setMembers(membersRes.data);
-        // Current user is owner if they have owner role
-        const currentUserEmail = localStorage.getItem('userEmail');
+        // Current user is owner if they have owner role and matching email
         const ownerMember = membersRes.data.find(m => m.role === 'owner');
-        setIsOwner(ownerMember?.email === currentUserEmail);
+        setIsOwner(ownerMember?.email === user?.email);
       } catch (e) {
         console.error('Failed to fetch members');
       }
