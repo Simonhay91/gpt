@@ -2384,11 +2384,6 @@ async def send_message(chat_id: str, message_data: MessageCreate, current_user: 
             
             relevant_chunks.sort(key=chunk_priority)
             
-            # Log top chunks
-            logger.info(f"Top 5 relevant chunks:")
-            for i, c in enumerate(relevant_chunks[:5]):
-                logger.info(f"  {i+1}. {source_names.get(c['sourceId'], 'Unknown')} ({source_types.get(c['sourceId'], '?')}): score={c.get('score', 0):.2f}")
-            
             # Build context with chunk markers and conflict detection
             context_parts = []
             seen_topics = {}  # For conflict detection
