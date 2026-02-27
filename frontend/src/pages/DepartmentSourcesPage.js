@@ -10,7 +10,7 @@ import { toast } from 'sonner';
 import { 
   Building2, Upload, FileText, Trash2, Clock, Database,
   ArrowLeft, CheckCircle, XCircle, AlertCircle, Send,
-  Eye, History
+  Eye, History, Download, Image, FileSpreadsheet
 } from 'lucide-react';
 import DashboardLayout from '../components/DashboardLayout';
 import { useAuth } from '../contexts/AuthContext';
@@ -18,10 +18,34 @@ import { useAuth } from '../contexts/AuthContext';
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
 const STATUS_CONFIG = {
-  draft: { label: 'Черновик', color: 'text-gray-400 bg-gray-500/20', icon: AlertCircle },
-  pending: { label: 'На проверке', color: 'text-amber-400 bg-amber-500/20', icon: Clock },
-  approved: { label: 'Одобрено', color: 'text-blue-400 bg-blue-500/20', icon: CheckCircle },
-  active: { label: 'Активно', color: 'text-emerald-400 bg-emerald-500/20', icon: CheckCircle },
+  draft: { 
+    label: 'Черновик', 
+    color: 'text-gray-400 bg-gray-500/20', 
+    icon: AlertCircle,
+    cardBorder: 'border-gray-500/50',
+    needsAction: true
+  },
+  pending: { 
+    label: '⏳ Ждёт одобрения', 
+    color: 'text-amber-400 bg-amber-500/30', 
+    icon: Clock,
+    cardBorder: 'border-amber-500 border-2',
+    needsAction: true
+  },
+  approved: { 
+    label: 'Одобрено', 
+    color: 'text-blue-400 bg-blue-500/20', 
+    icon: CheckCircle,
+    cardBorder: 'border-blue-500/50',
+    needsAction: false
+  },
+  active: { 
+    label: '✓ Активно', 
+    color: 'text-emerald-400 bg-emerald-500/20', 
+    icon: CheckCircle,
+    cardBorder: 'border-emerald-500/30',
+    needsAction: false
+  },
 };
 
 const DepartmentSourcesPage = () => {
@@ -45,6 +69,11 @@ const DepartmentSourcesPage = () => {
   const [versionsDialogOpen, setVersionsDialogOpen] = useState(false);
   const [versions, setVersions] = useState([]);
   const [isLoadingVersions, setIsLoadingVersions] = useState(false);
+  
+  // Preview dialog
+  const [previewSource, setPreviewSource] = useState(null);
+  const [previewContent, setPreviewContent] = useState('');
+  const [isLoadingPreview, setIsLoadingPreview] = useState(false);
 
   useEffect(() => {
     fetchData();
