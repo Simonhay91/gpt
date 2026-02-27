@@ -7,10 +7,12 @@ import { Textarea } from '../components/ui/textarea';
 import { toast } from 'sonner';
 import { Sparkles, Save, Info } from 'lucide-react';
 import DashboardLayout from '../components/DashboardLayout';
+import { useLanguage } from '../contexts/LanguageContext';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
 const MyGptPromptPage = () => {
+  const { t, language } = useLanguage();
   const [userPrompt, setUserPrompt] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -34,13 +36,41 @@ const MyGptPromptPage = () => {
     setIsSaving(true);
     try {
       await axios.put(`${API}/user/prompt`, { customPrompt: userPrompt.trim() || null });
-      toast.success('Custom prompt saved successfully');
+      toast.success(t('prompt.saved'));
     } catch (error) {
-      toast.error('Failed to save prompt');
+      toast.error(t('prompt.saveFailed'));
     } finally {
       setIsSaving(false);
     }
   };
+
+  const examples = language === 'ru' ? [
+    "Всегда отвечай на русском. Будь краток.",
+    "Я senior разработчик. Пропускай базовые объяснения, фокусируйся на продвинутых концепциях.",
+    "Форматируй код с комментариями. Используй TypeScript когда возможно.",
+    "Я работаю в финансах. Используй соответствующую терминологию и примеры.",
+    "Объясняй пошагово. Я учусь программированию."
+  ] : [
+    "Always respond in Russian. Be concise.",
+    "I'm a senior developer. Skip basic explanations, focus on advanced concepts.",
+    "Format all code with comments. Use TypeScript when possible.",
+    "I work in finance. Use relevant terminology and examples.",
+    "Explain things step by step. I'm learning programming."
+  ];
+
+  const placeholder = language === 'ru' 
+    ? `Примеры:
+• Всегда отвечай на русском
+• Будь краток и по делу
+• Используй примеры кода при объяснении технических концепций
+• Форматируй ответы списками
+• Объясняй как для новичка`
+    : `Examples:
+• Always respond in Russian
+• Be concise and to the point
+• Use code examples when explaining technical concepts
+• Format responses with bullet points
+• Explain things as if I'm a beginner`;
 
   return (
     <DashboardLayout>
@@ -51,10 +81,10 @@ const MyGptPromptPage = () => {
             <div className="p-2 rounded-lg bg-purple-500/20">
               <Sparkles className="h-7 w-7 text-purple-500" />
             </div>
-            My GPT Prompt
+            {t('prompt.title')}
           </h1>
           <p className="text-muted-foreground mt-2">
-            Customize how AI responds to you across all conversations
+            {t('prompt.subtitle')}
           </p>
         </div>
 
@@ -70,10 +100,10 @@ const MyGptPromptPage = () => {
                 <div className="flex items-start gap-3">
                   <Info className="h-5 w-5 text-purple-400 mt-0.5 flex-shrink-0" />
                   <div>
-                    <p className="text-sm font-medium mb-2">How it works</p>
+                    <p className="text-sm font-medium mb-2">{t('prompt.howItWorks')}</p>
                     <div className="text-sm text-muted-foreground space-y-1">
-                      <p>Your custom prompt is added to every conversation to personalize AI responses.</p>
-                      <p>This is <strong>private</strong> and only affects your conversations.</p>
+                      <p>{t('prompt.howItWorksDesc1')}</p>
+                      <p>{t('prompt.howItWorksDesc2')}</p>
                     </div>
                   </div>
                 </div>
@@ -83,22 +113,17 @@ const MyGptPromptPage = () => {
             {/* Prompt Editor */}
             <Card>
               <CardHeader>
-                <CardTitle>Custom Instructions</CardTitle>
+                <CardTitle>{t('prompt.customInstructions')}</CardTitle>
                 <CardDescription>
-                  Tell the AI how you want it to respond. This will be included in every chat.
+                  {t('prompt.customInstructionsDesc')}
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="space-y-2">
-                  <Label htmlFor="userPrompt">Your instructions</Label>
+                  <Label htmlFor="userPrompt">{t('prompt.yourInstructions')}</Label>
                   <Textarea
                     id="userPrompt"
-                    placeholder="Examples:
-• Always respond in Russian
-• Be concise and to the point
-• Use code examples when explaining technical concepts
-• Format responses with bullet points
-• Explain things as if I'm a beginner"
+                    placeholder={placeholder}
                     value={userPrompt}
                     onChange={(e) => setUserPrompt(e.target.value)}
                     className="min-h-[200px] font-mono text-sm"
@@ -108,7 +133,7 @@ const MyGptPromptPage = () => {
 
                 <div className="flex items-center justify-between pt-4">
                   <p className="text-xs text-muted-foreground">
-                    {userPrompt.length} characters
+                    {userPrompt.length} {t('prompt.characters')}
                   </p>
                   <Button
                     onClick={saveUserPrompt}
@@ -121,7 +146,7 @@ const MyGptPromptPage = () => {
                     ) : (
                       <Save className="h-4 w-4 mr-2" />
                     )}
-                    Save Prompt
+                    {t('prompt.savePrompt')}
                   </Button>
                 </div>
               </CardContent>
@@ -130,17 +155,11 @@ const MyGptPromptPage = () => {
             {/* Examples */}
             <Card>
               <CardHeader>
-                <CardTitle className="text-base">Example prompts</CardTitle>
+                <CardTitle className="text-base">{t('prompt.examplePrompts')}</CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="grid gap-3">
-                  {[
-                    "Always respond in Russian. Be concise.",
-                    "I'm a senior developer. Skip basic explanations, focus on advanced concepts.",
-                    "Format all code with comments. Use TypeScript when possible.",
-                    "I work in finance. Use relevant terminology and examples.",
-                    "Explain things step by step. I'm learning programming."
-                  ].map((example, i) => (
+                  {examples.map((example, i) => (
                     <button
                       key={i}
                       onClick={() => setUserPrompt(example)}
