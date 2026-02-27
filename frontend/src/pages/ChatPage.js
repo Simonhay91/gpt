@@ -865,19 +865,10 @@ const ChatPage = () => {
                   {projectSources.map((source) => (
                     <div
                       key={source.id}
-                      className={`flex items-center gap-3 p-3 rounded-lg border transition-colors cursor-pointer ${
-                        activeSourceIds.includes(source.id)
-                          ? 'border-indigo-500/50 bg-indigo-500/10'
-                          : 'border-border hover:border-border/80 bg-background/50'
-                      }`}
-                      onClick={() => toggleSourceActive(source.id)}
+                      className="flex items-center gap-3 p-3 rounded-lg border border-indigo-500/50 bg-indigo-500/10 transition-colors"
                       data-testid={`source-item-${source.id}`}
                     >
-                      <Checkbox
-                        checked={activeSourceIds.includes(source.id)}
-                        onCheckedChange={() => toggleSourceActive(source.id)}
-                        data-testid={`source-checkbox-${source.id}`}
-                      />
+                      <span className="inline-block w-2 h-2 rounded-full bg-indigo-500 flex-shrink-0"></span>
                       {getFileIcon(source.mimeType, source.kind)}
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-medium truncate">
@@ -905,10 +896,10 @@ const ChatPage = () => {
                 </div>
               )}
               
-              {activeSourceIds.length > 0 && (
+              {projectSources.length > 0 && (
                 <p className="text-xs text-muted-foreground mt-3 flex items-center gap-1">
                   <span className="inline-block w-2 h-2 rounded-full bg-indigo-500"></span>
-                  Selected sources will be used as context for AI responses with citations
+                  All project sources are automatically used as context for AI responses
                 </p>
               )}
             </div>
