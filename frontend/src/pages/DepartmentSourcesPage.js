@@ -189,6 +189,27 @@ const DepartmentSourcesPage = () => {
     }
   };
 
+  const openPreview = async (source) => {
+    setPreviewSource(source);
+    setIsLoadingPreview(true);
+    setPreviewContent('');
+    
+    try {
+      const res = await axios.get(`${API}/sources/${source.id}/preview`);
+      setPreviewContent(res.data.content || 'Нет содержимого');
+    } catch (error) {
+      setPreviewContent('Не удалось загрузить preview');
+    } finally {
+      setIsLoadingPreview(false);
+    }
+  };
+
+  const getFileIcon = (mimeType) => {
+    if (mimeType?.includes('image')) return Image;
+    if (mimeType?.includes('spreadsheet') || mimeType?.includes('csv')) return FileSpreadsheet;
+    return FileText;
+  };
+
   const formatDate = (dateString) => {
     return new Date(dateString).toLocaleDateString('ru-RU', {
       day: 'numeric',
