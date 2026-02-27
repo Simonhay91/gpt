@@ -927,7 +927,34 @@ async def get_chat(chat_id: str, current_user: dict = Depends(get_current_user))
     elif chat.get("ownerId") != current_user["id"]:
         raise HTTPException(status_code=403, detail="Not authorized")
     
-    return ChatResponse(**{**chat, "activeSourceIds": chat.get("activeSourceIds", [])})
+    return ChatResponse(**{**chat, "activeSourceIds": chat.get("activeSourceIds", []), "sharedWithUsers": chat.get("sharedWithUsers")})
+
+@api_router.put("/chats/{chat_id}/visibility")
+async def update_chat_visibility(chat_id: str, data: UpdateChatVisibilityRequest, current_user: dict = Depends(get_current_user)):
+    """Update which shared users can see this chat (owner only)"""
+    chat = await db.chats.find_one({"id": chat_id}, {"_id": 0})
+    if not chat:
+        raise HTTPException(status_code=404, detail="Chat not found")
+    
+    if not chat.get("projectId"):
+        raise HTTPException(status_code=400, detail="Quick chats cannot be shared")
+    
+    # Only project owner can change visibility
+    project = await db.projects.find_one({"id": chat["projectId"]}, {"_id": 0})
+    if not project or project["ownerId"] != current_user["id"]:
+        raise HTTPException(status_code=403, detail="Only project owner can change chat visibility")
+    
+    # Update chat visibility
+    # Empty list means hidden from all, None means visible to all
+    shared_with = data.sharedWithUsers if data.sharedWithUsers else None
+    
+    await db.chats.update_one(
+        {"id": chat_id},
+        {"$set": {"sharedWithUsers": shared_with}}
+    )
+    
+    updated_chat = await db.chats.find_one({"id": chat_id}, {"_id": 0})
+    return ChatResponse(**{**updated_chat, "activeSourceIds": updated_chat.get("activeSourceIds", []), "sharedWithUsers": updated_chat.get("sharedWithUsers")})
 
 @api_router.delete("/chats/{chat_id}")
 async def delete_chat(chat_id: str, current_user: dict = Depends(get_current_user)):
