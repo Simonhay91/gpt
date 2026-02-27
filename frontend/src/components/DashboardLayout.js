@@ -96,6 +96,13 @@ const DashboardLayout = ({ children }) => {
       path: '/admin/config',
       icon: Settings
     });
+  } else if (user?.canEditGlobalSources) {
+    // Non-admin users with global sources permission
+    navItems.push({
+      name: 'Global Sources',
+      path: '/global-sources',
+      icon: Globe2
+    });
   }
 
   const isActive = (path) => {
