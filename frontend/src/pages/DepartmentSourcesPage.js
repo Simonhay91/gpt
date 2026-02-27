@@ -360,11 +360,11 @@ const DepartmentSourcesPage = () => {
           <Card className="border-dashed">
             <CardContent className="flex flex-col items-center justify-center py-12">
               <FileText className="h-12 w-12 text-muted-foreground mb-4" />
-              <h3 className="text-lg font-semibold mb-2">Нет источников</h3>
+              <h3 className="text-lg font-semibold mb-2">{t('dept.noSources')}</h3>
               <p className="text-muted-foreground text-center mb-4">
                 {isManager 
-                  ? 'Загрузите документы для базы знаний отдела'
-                  : 'Менеджер ещё не добавил источники'
+                  ? t('dept.uploadDocs')
+                  : t('dept.managerNotAdded')
                 }
               </p>
             </CardContent>
