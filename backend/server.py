@@ -848,11 +848,15 @@ async def get_relevant_chunks(source_ids: List[str], project_id: str, query: str
     if department_ids:
         project_id_filter.extend(department_ids)
     
+    logger.info(f"get_relevant_chunks: source_ids={source_ids[:5]}..., project_id_filter={project_id_filter}")
+    
     # Get all chunks from active sources (include project, department, and global sources)
     all_chunks = await db.source_chunks.find({
         "sourceId": {"$in": source_ids},
         "projectId": {"$in": project_id_filter}
     }, {"_id": 0}).to_list(10000)
+    
+    logger.info(f"get_relevant_chunks: found {len(all_chunks)} chunks")
     
     if not all_chunks:
         return []
