@@ -131,6 +131,9 @@ Planet GPT is a multi-user SaaS platform for AI-powered conversations with proje
   - User list selection in Share dialog
   - `/api/users/list` endpoint for available users
   - Members management in project
+  - **Chat Visibility Control** - Choose which chats each shared user can see
+- **Sender Names in Chat** - User messages show sender name for collaboration
+- **OCR for Images** - Text extracted from PNG/JPEG using pytesseract (Russian + English)
 - **Auto-active Sources** - All sources automatically active in project chats
   - Removed manual checkbox selection
 - **New File Types** - Added support for PPTX, XLSX, PNG, JPEG
