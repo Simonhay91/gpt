@@ -39,14 +39,16 @@ def setup_department_routes(db, get_current_user, is_admin, audit_service):
         if is_admin(current_user["email"]):
             # Admin sees all departments
             managed_depts = await db.departments.find({}, {"_id": 0, "id": 1}).to_list(100)
+            is_manager = True  # Admin is always considered a manager
         else:
             managed_depts = await db.departments.find(
                 {"managers": current_user["id"]},
                 {"_id": 0, "id": 1}
             ).to_list(100)
+            is_manager = len(managed_depts) > 0
         
         if not managed_depts:
-            return {"count": 0, "departments": []}
+            return {"count": 0, "departments": [], "isManager": is_manager}
         
         dept_ids = [d["id"] for d in managed_depts]
         
@@ -77,7 +79,8 @@ def setup_department_routes(db, get_current_user, is_admin, audit_service):
         
         return {
             "count": pending_count,
-            "departments": [{"departmentId": b["_id"], "count": b["count"]} for b in breakdown]
+            "departments": [{"departmentId": b["_id"], "count": b["count"]} for b in breakdown],
+            "isManager": is_manager
         }
     
     @router.post("", response_model=dict)
