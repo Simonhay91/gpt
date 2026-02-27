@@ -2276,6 +2276,7 @@ async def send_message(chat_id: str, message_data: MessageCreate, current_user: 
     
     # Department sources (from user's departments)
     user_department_ids = current_user.get("departments", [])
+    logger.info(f"User department IDs: {user_department_ids}")
     if user_department_ids:
         department_sources = await db.sources.find({
             "departmentId": {"$in": user_department_ids},
@@ -2283,6 +2284,7 @@ async def send_message(chat_id: str, message_data: MessageCreate, current_user: 
             "status": "active"
         }, {"_id": 0, "id": 1}).to_list(1000)
         department_source_ids = [s["id"] for s in department_sources]
+        logger.info(f"Found {len(department_source_ids)} department sources: {department_source_ids}")
     
     # Global sources (always included)
     global_sources = await db.sources.find({
