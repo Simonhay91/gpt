@@ -323,6 +323,23 @@ const DepartmentSourcesPage = () => {
           </CardContent>
         </Card>
 
+        {/* Pending Counter */}
+        {isManager && sources.filter(s => s.status === 'draft' || s.status === 'pending').length > 0 && (
+          <Card className="mb-6 border-amber-500/50 bg-amber-500/10">
+            <CardContent className="py-4">
+              <div className="flex items-center gap-3">
+                <div className="bg-amber-500 text-white rounded-full w-8 h-8 flex items-center justify-center font-bold">
+                  {sources.filter(s => s.status === 'draft' || s.status === 'pending').length}
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-amber-400">Ожидают вашего одобрения</p>
+                  <p className="text-xs text-muted-foreground">Нажмите на карточку для preview и одобрения</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
         {/* Sources List */}
         {sources.length === 0 ? (
           <Card className="border-dashed">
@@ -339,13 +356,25 @@ const DepartmentSourcesPage = () => {
           </Card>
         ) : (
           <div className="space-y-3">
-            {sources.map((source) => {
+            {/* Sort: pending first, then draft, then others */}
+            {sources
+              .sort((a, b) => {
+                const order = { pending: 0, draft: 1, approved: 2, active: 3 };
+                return (order[a.status] || 4) - (order[b.status] || 4);
+              })
+              .map((source) => {
               const statusConfig = STATUS_CONFIG[source.status] || STATUS_CONFIG.active;
               const StatusIcon = statusConfig.icon;
+              const FileIcon = getFileIcon(source.mimeType);
               const actions = getAvailableActions(source);
+              const needsAction = statusConfig.needsAction;
 
               return (
-                <Card key={source.id} className="card-hover group" data-testid={`dept-source-${source.id}`}>
+                <Card 
+                  key={source.id} 
+                  className={`card-hover group ${statusConfig.cardBorder} ${needsAction ? 'bg-amber-500/5' : ''}`}
+                  data-testid={`dept-source-${source.id}`}
+                >
                   <CardContent className="py-4">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-4">
