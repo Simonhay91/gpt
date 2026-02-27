@@ -74,6 +74,9 @@ const DepartmentSourcesPage = () => {
   const [previewSource, setPreviewSource] = useState(null);
   const [previewContent, setPreviewContent] = useState('');
   const [isLoadingPreview, setIsLoadingPreview] = useState(false);
+  
+  // Workflow info collapsed by default
+  const [showWorkflowInfo, setShowWorkflowInfo] = useState(false);
 
   useEffect(() => {
     fetchData();
