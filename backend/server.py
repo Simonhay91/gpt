@@ -1414,7 +1414,7 @@ async def download_source(project_id: str, source_id: str, current_user: dict = 
 
 @api_router.get("/projects/{project_id}/sources/{source_id}/preview")
 async def preview_source(project_id: str, source_id: str, current_user: dict = Depends(get_current_user)):
-    """Get source preview - extracted text content"""
+    """Get source preview - extracted text content with quality info"""
     await verify_project_access(project_id, current_user["id"])
     
     source = await db.sources.find_one({"id": source_id, "projectId": project_id}, {"_id": 0})
@@ -1430,13 +1430,42 @@ async def preview_source(project_id: str, source_id: str, current_user: dict = D
     # Combine chunks into full text
     full_text = "\n\n".join([c["content"] for c in chunks])
     
+    # Calculate quality metrics
+    char_count = len(full_text)
+    word_count = len(full_text.split())
+    
+    # Determine quality based on content
+    is_image = source.get("mimeType", "").startswith("image/")
+    quality = "good"
+    quality_message = "Текст извлечён успешно"
+    
+    if char_count == 0:
+        quality = "empty"
+        quality_message = "Текст не извлечён"
+    elif is_image:
+        if "[Image: No text detected]" in full_text or "[Image: OCR failed" in full_text:
+            quality = "poor"
+            quality_message = "OCR не смог распознать текст. Попробуйте загрузить изображение лучшего качества"
+        elif word_count < 10:
+            quality = "low"
+            quality_message = "Мало текста распознано. Возможно изображение низкого качества"
+        else:
+            quality_message = f"OCR распознал {word_count} слов"
+    elif word_count < 20:
+        quality = "low"
+        quality_message = "Мало текста извлечено"
+    
     return {
         "id": source_id,
         "name": source.get("originalName") or source.get("url"),
         "kind": source["kind"],
         "mimeType": source.get("mimeType"),
         "text": full_text,
-        "chunkCount": len(chunks)
+        "chunkCount": len(chunks),
+        "charCount": char_count,
+        "wordCount": word_count,
+        "quality": quality,
+        "qualityMessage": quality_message
     }
 
 @api_router.get("/projects/{project_id}/sources/download-all")
