@@ -68,22 +68,22 @@ const DashboardLayout = ({ children }) => {
 
   const navItems = [
     {
-      name: 'Dashboard',
+      name: t('nav.dashboard'),
       path: '/dashboard',
       icon: LayoutDashboard
     },
     {
-      name: 'Tech News',
+      name: t('nav.techNews'),
       path: '/news',
       icon: Newspaper
     },
     {
-      name: 'My Sources',
+      name: t('nav.mySources'),
       path: '/personal-sources',
       icon: Lock
     },
     {
-      name: 'My GPT Prompt',
+      name: t('nav.myGptPrompt'),
       path: '/my-prompt',
       icon: Sparkles
     }
@@ -91,35 +91,35 @@ const DashboardLayout = ({ children }) => {
 
   if (user?.isAdmin) {
     navItems.push({
-      name: 'Users',
+      name: t('nav.users'),
       path: '/admin/users',
       icon: Users
     });
     navItems.push({
-      name: 'Departments',
+      name: t('nav.departments'),
       path: '/admin/departments',
       icon: Building2,
       badge: pendingCount > 0 ? pendingCount : null
     });
     navItems.push({
-      name: 'Global Sources',
+      name: t('nav.globalSources'),
       path: '/admin/global-sources',
       icon: Globe2
     });
     navItems.push({
-      name: 'Audit Logs',
+      name: t('nav.auditLogs'),
       path: '/admin/audit-logs',
       icon: ScrollText
     });
     navItems.push({
-      name: 'GPT Config',
+      name: t('nav.gptConfig'),
       path: '/admin/config',
       icon: Settings
     });
   } else {
     // Non-admin users: always show Departments link for managers
     navItems.push({
-      name: 'Departments',
+      name: t('nav.departments'),
       path: '/departments',
       icon: Building2,
       badge: pendingCount > 0 ? pendingCount : null
