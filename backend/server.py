@@ -188,6 +188,16 @@ class UpdateChatVisibilityRequest(BaseModel):
 class MessageCreate(BaseModel):
     content: str
 
+class EnhancedCitation(BaseModel):
+    """Enhanced citation with full context"""
+    sourceId: str
+    sourceName: str
+    sourceType: str  # "project" or "global"
+    chunkId: str
+    chunkIndex: int
+    textFragment: str  # First 200 chars of chunk
+    score: float
+
 class MessageResponse(BaseModel):
     id: str
     chatId: str
@@ -199,6 +209,8 @@ class MessageResponse(BaseModel):
     autoIngestedUrls: Optional[List[str]] = None  # IDs of auto-ingested URL sources
     senderEmail: Optional[str] = None  # Email of user who sent the message
     senderName: Optional[str] = None  # Display name of sender
+    fromCache: Optional[bool] = False  # Whether response is from cache
+    cacheInfo: Optional[dict] = None  # Cache hit details
 
 class GPTConfigUpdate(BaseModel):
     model: Optional[str] = None
