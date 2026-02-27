@@ -132,18 +132,6 @@ const DepartmentSourcesPage = () => {
     }
   };
 
-  const deleteSource = async (sourceId) => {
-    if (!window.confirm('Удалить этот источник?')) return;
-
-    try {
-      await axios.delete(`${API}/sources/${sourceId}`);
-      setSources(sources.filter(s => s.id !== sourceId));
-      toast.success('Источник удалён');
-    } catch (error) {
-      toast.error('Не удалось удалить');
-    }
-  };
-
   const openApprovalDialog = (source, action) => {
     setSelectedSource(source);
     setApprovalAction(action);
