@@ -503,15 +503,19 @@ async def save_to_cache(
     project_id: Optional[str],
     embedding: List[float],
     user_id: str,
+    cache_context_hash: str,
+    source_ids: List[str],
     sources_used: Optional[List[dict]] = None
 ):
-    """Save question-answer pair to semantic cache"""
+    """Save question-answer pair to semantic cache with full context"""
     cache_entry = {
         "id": str(uuid.uuid4()),
         "question": question,
         "answer": answer,
         "embedding": embedding,
         "projectId": project_id,
+        "cacheContextHash": cache_context_hash,  # For ZERO DATA LEAKAGE
+        "sourceIds": source_ids,  # Source IDs used in this response
         "sourcesUsed": sources_used,
         "createdBy": user_id,
         "createdAt": datetime.now(timezone.utc).isoformat(),
@@ -519,7 +523,7 @@ async def save_to_cache(
         "lastHitAt": None
     }
     await db.semantic_cache.insert_one(cache_entry)
-    logger.info(f"Cached answer for question: {question[:50]}...")
+    logger.info(f"Cached answer for question: {question[:50]}... (context: {cache_context_hash})")
 
 async def ensure_gpt_config():
     """Ensure GPT config singleton exists with strict active sources rules"""
