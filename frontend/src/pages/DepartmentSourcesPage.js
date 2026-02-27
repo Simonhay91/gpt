@@ -305,21 +305,29 @@ const DepartmentSourcesPage = () => {
           </div>
         </div>
 
-        {/* Approval Workflow Info */}
+        {/* Approval Workflow Info - Collapsible */}
         <Card className="mb-6 border-indigo-500/30 bg-indigo-500/5">
-          <CardContent className="py-4">
-            <div className="flex items-start gap-3">
-              <AlertCircle className="h-5 w-5 text-indigo-400 mt-0.5" />
-              <div>
-                <p className="text-sm font-medium mb-2">Как работает одобрение знаний отдела</p>
-                <div className="text-sm text-muted-foreground space-y-1">
-                  <p><span className="text-gray-400 font-medium">Черновик</span> — загруженный файл, ещё не проверен</p>
-                  <p><span className="text-amber-400 font-medium">На проверке</span> — ждёт одобрения менеджера</p>
-                  <p><span className="text-blue-400 font-medium">Одобрено</span> — проверен, но GPT ещё не использует</p>
-                  <p><span className="text-emerald-400 font-medium">Активно</span> — GPT использует эти знания в ответах</p>
-                </div>
+          <CardContent className="py-3">
+            <button 
+              onClick={() => setShowWorkflowInfo(!showWorkflowInfo)}
+              className="flex items-center gap-2 w-full text-left"
+            >
+              {showWorkflowInfo ? (
+                <ChevronDown className="h-4 w-4 text-indigo-400" />
+              ) : (
+                <ChevronRight className="h-4 w-4 text-indigo-400" />
+              )}
+              <AlertCircle className="h-4 w-4 text-indigo-400" />
+              <span className="text-sm font-medium">Как работает одобрение знаний отдела</span>
+            </button>
+            {showWorkflowInfo && (
+              <div className="text-sm text-muted-foreground space-y-1 mt-3 ml-6 pl-4 border-l border-indigo-500/30">
+                <p><span className="text-gray-400 font-medium">Черновик</span> — загруженный файл, ещё не проверен</p>
+                <p><span className="text-amber-400 font-medium">На проверке</span> — ждёт одобрения менеджера</p>
+                <p><span className="text-blue-400 font-medium">Одобрено</span> — проверен, но GPT ещё не использует</p>
+                <p><span className="text-emerald-400 font-medium">Активно</span> — GPT использует эти знания в ответах</p>
               </div>
-            </div>
+            )}
           </CardContent>
         </Card>
 
