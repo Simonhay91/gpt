@@ -21,6 +21,7 @@ import AdminAuditLogsPage from './pages/AdminAuditLogsPage';
 import PersonalSourcesPage from './pages/PersonalSourcesPage';
 import DepartmentSourcesPage from './pages/DepartmentSourcesPage';
 import MyDepartmentsPage from './pages/MyDepartmentsPage';
+import NewsPage from './pages/NewsPage';
 
 // Protected Route Component
 const ProtectedRoute = ({ children }) => {
