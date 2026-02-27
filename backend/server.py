@@ -113,6 +113,7 @@ class UserResponse(BaseModel):
     email: str
     isAdmin: bool
     createdAt: str
+    canEditGlobalSources: Optional[bool] = False
 
 class UserWithUsageResponse(BaseModel):
     id: str
