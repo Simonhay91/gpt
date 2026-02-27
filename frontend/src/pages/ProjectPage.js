@@ -367,19 +367,76 @@ const ProjectPage = () => {
                             <p className="text-xs text-muted-foreground capitalize">{member.role}</p>
                           </div>
                         </div>
-                        {member.role !== 'owner' && isOwner && (
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8"
-                            onClick={() => removeMember(member.id)}
-                          >
-                            <X className="h-4 w-4" />
-                          </Button>
-                        )}
+                        <div className="flex items-center gap-1">
+                          {member.role !== 'owner' && isOwner && chats.length > 0 && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="h-8 text-xs"
+                              onClick={() => openChatVisibilityForMember(member)}
+                              data-testid={`manage-chats-${member.id}`}
+                            >
+                              <MessageSquare className="h-3 w-3 mr-1" />
+                              Chats
+                            </Button>
+                          )}
+                          {member.role !== 'owner' && isOwner && (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8"
+                              onClick={() => removeMember(member.id)}
+                            >
+                              <X className="h-4 w-4" />
+                            </Button>
+                          )}
+                        </div>
                       </div>
                     ))}
                   </div>
+                </DialogContent>
+              </Dialog>
+              
+              {/* Chat Visibility Dialog */}
+              <Dialog open={!!selectedMemberForChats} onOpenChange={(open) => !open && setSelectedMemberForChats(null)}>
+                <DialogContent className="sm:max-w-md">
+                  <DialogHeader>
+                    <DialogTitle>Chat Access for {selectedMemberForChats?.email}</DialogTitle>
+                    <DialogDescription>
+                      Select which chats this user can see in the project.
+                    </DialogDescription>
+                  </DialogHeader>
+                  
+                  <div className="space-y-3 py-4 max-h-[300px] overflow-y-auto">
+                    {chats.map((chat) => (
+                      <div 
+                        key={chat.id} 
+                        className="flex items-center gap-3 p-3 rounded-lg border border-border hover:bg-secondary/50 cursor-pointer transition-colors"
+                        onClick={() => toggleChatVisibility(chat.id)}
+                      >
+                        <Checkbox
+                          checked={chatVisibility[chat.id] || false}
+                          onCheckedChange={() => toggleChatVisibility(chat.id)}
+                          data-testid={`chat-visibility-${chat.id}`}
+                        />
+                        <MessageSquare className="h-4 w-4 text-muted-foreground" />
+                        <span className="text-sm flex-1">{chat.name}</span>
+                      </div>
+                    ))}
+                    {chats.length === 0 && (
+                      <p className="text-sm text-muted-foreground text-center py-4">No chats in this project</p>
+                    )}
+                  </div>
+                  
+                  <DialogFooter>
+                    <Button variant="outline" onClick={() => setSelectedMemberForChats(null)}>
+                      Cancel
+                    </Button>
+                    <Button onClick={saveChatVisibility} disabled={isUpdatingVisibility}>
+                      {isUpdatingVisibility ? <div className="spinner mr-2" /> : null}
+                      Save
+                    </Button>
+                  </DialogFooter>
                 </DialogContent>
               </Dialog>
               
