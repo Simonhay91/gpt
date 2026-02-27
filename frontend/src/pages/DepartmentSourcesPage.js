@@ -502,7 +502,6 @@ const DepartmentSourcesPage = () => {
           <DialogContent className="sm:max-w-md">
             <DialogHeader>
               <DialogTitle>
-                {approvalAction === 'submit' && `📤 ${t('approval.submitTitle')}`}
                 {approvalAction === 'approve' && `✅ ${t('approval.approveTitle')}`}
                 {approvalAction === 'activate' && `🚀 ${t('approval.activateTitle')}`}
                 {approvalAction === 'reject' && `❌ ${t('approval.rejectTitle')}`}
