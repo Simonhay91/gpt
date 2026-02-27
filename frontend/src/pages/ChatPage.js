@@ -33,7 +33,8 @@ import {
   Check,
   X,
   Copy,
-  Plus
+  Plus,
+  Eye
 } from 'lucide-react';
 import { Label } from '../components/ui/label';
 import DashboardLayout from '../components/DashboardLayout';
