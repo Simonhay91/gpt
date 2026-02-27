@@ -7,13 +7,14 @@ import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '../components/ui/dialog';
 import { Label } from '../components/ui/label';
 import { toast } from 'sonner';
-import { Plus, Users, Trash2, Copy, Eye, EyeOff, ArrowLeft, Coins, MessageSquare, Shield } from 'lucide-react';
+import { Plus, Users, Trash2, Copy, Eye, EyeOff, ArrowLeft, Coins, MessageSquare, Shield, HardDrive, FileText } from 'lucide-react';
 import DashboardLayout from '../components/DashboardLayout';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
 const AdminUsersPage = () => {
   const [users, setUsers] = useState([]);
+  const [sourceStats, setSourceStats] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
@@ -25,6 +26,7 @@ const AdminUsersPage = () => {
 
   useEffect(() => {
     fetchUsers();
+    fetchSourceStats();
   }, []);
 
   const fetchUsers = async () => {
@@ -35,6 +37,15 @@ const AdminUsersPage = () => {
       toast.error('Failed to load users');
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const fetchSourceStats = async () => {
+    try {
+      const response = await axios.get(`${API}/admin/source-stats`);
+      setSourceStats(response.data);
+    } catch (error) {
+      console.error('Failed to load source stats');
     }
   };
 
