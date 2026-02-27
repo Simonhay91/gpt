@@ -23,7 +23,8 @@ import {
   Sparkles,
   Building2,
   ScrollText,
-  Lock
+  Lock,
+  Newspaper
 } from 'lucide-react';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
