@@ -1269,34 +1269,71 @@ const ChatPage = () => {
                         </div>
                         <div className="flex flex-wrap gap-2">
                           {message.citations ? (
-                            message.citations.map((citation, cidx) => (
-                              <span
-                                key={cidx}
-                                className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-indigo-500/10 text-indigo-400 text-xs border border-indigo-500/20"
-                                data-testid={`citation-${cidx}`}
-                              >
-                                <FileText className="h-3 w-3" />
-                                {citation.sourceName.length > 30 
-                                  ? citation.sourceName.slice(0, 30) + '...' 
-                                  : citation.sourceName}
-                                <span className="text-indigo-300/70">
-                                  (chunks {citation.chunks.join(', ')})
+                            message.citations.map((citation, cidx) => {
+                              const isGlobal = citation.sourceType === 'global';
+                              const bgColor = isGlobal ? 'bg-emerald-500/10' : 'bg-indigo-500/10';
+                              const textColor = isGlobal ? 'text-emerald-400' : 'text-indigo-400';
+                              const borderColor = isGlobal ? 'border-emerald-500/20' : 'border-indigo-500/20';
+                              const Icon = isGlobal ? Globe : FileText;
+                              
+                              return (
+                                <span
+                                  key={cidx}
+                                  className={`inline-flex items-center gap-1 px-2 py-1 rounded-md ${bgColor} ${textColor} text-xs border ${borderColor}`}
+                                  data-testid={`citation-${cidx}`}
+                                  title={citation.textFragment || citation.sourceName}
+                                >
+                                  <Icon className="h-3 w-3" />
+                                  <span className="font-medium">
+                                    {isGlobal ? '🌐 ' : '📁 '}
+                                    {citation.sourceName.length > 25 
+                                      ? citation.sourceName.slice(0, 25) + '...' 
+                                      : citation.sourceName}
+                                  </span>
+                                  {citation.chunks && (
+                                    <span className="opacity-70">
+                                      (chunks {Array.isArray(citation.chunks) 
+                                        ? citation.chunks.map(c => c.index || c).join(', ')
+                                        : citation.chunks})
+                                    </span>
+                                  )}
                                 </span>
+                              );
+                            })
+                          ) : message.usedSources?.map((source, sidx) => {
+                            const isGlobal = source.sourceType === 'global';
+                            const bgColor = isGlobal ? 'bg-emerald-500/10' : 'bg-indigo-500/10';
+                            const textColor = isGlobal ? 'text-emerald-400' : 'text-indigo-400';
+                            const borderColor = isGlobal ? 'border-emerald-500/20' : 'border-indigo-500/20';
+                            const Icon = isGlobal ? Globe : FileText;
+                            
+                            return (
+                              <span
+                                key={sidx}
+                                className={`inline-flex items-center gap-1 px-2 py-1 rounded-md ${bgColor} ${textColor} text-xs border ${borderColor}`}
+                                data-testid={`used-source-${sidx}`}
+                              >
+                                <Icon className="h-3 w-3" />
+                                {isGlobal ? '🌐 ' : '📁 '}
+                                {source.sourceName.length > 25 
+                                  ? source.sourceName.slice(0, 25) + '...' 
+                                  : source.sourceName}
                               </span>
-                            ))
-                          ) : message.usedSources?.map((source, sidx) => (
-                            <span
-                              key={sidx}
-                              className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-indigo-500/10 text-indigo-400 text-xs border border-indigo-500/20"
-                              data-testid={`used-source-${sidx}`}
-                            >
-                              <FileText className="h-3 w-3" />
-                              {source.sourceName.length > 30 
-                                ? source.sourceName.slice(0, 30) + '...' 
-                                : source.sourceName}
-                            </span>
-                          ))}
+                            );
+                          })}
                         </div>
+                      </div>
+                    )}
+                    
+                    {/* Cache indicator */}
+                    {message.fromCache && (
+                      <div className="mt-1 px-2">
+                        <span className="inline-flex items-center gap-1 text-xs text-amber-500">
+                          📦 Из кэша 
+                          {message.cacheInfo?.similarity && (
+                            <span className="opacity-70">({(message.cacheInfo.similarity * 100).toFixed(0)}%)</span>
+                          )}
+                        </span>
                       </div>
                     )}
                     
