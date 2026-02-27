@@ -188,4 +188,4 @@ draft → pending → approved → active
 - **Test Users**: Create via admin panel
 
 ## Last Updated
-2026-02-27 - Enterprise Knowledge Architecture implemented
+2026-02-27 - Fixed "Departments" navigation link bug, Enterprise Knowledge Architecture implemented
