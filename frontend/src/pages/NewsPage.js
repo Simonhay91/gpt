@@ -84,7 +84,7 @@ const NewsPage = () => {
               data-testid="refresh-news-btn"
             >
               <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
-              Refresh
+              {t('news.refresh')}
             </Button>
           </div>
 
@@ -117,9 +117,9 @@ const NewsPage = () => {
           <Card className="border-dashed">
             <CardContent className="flex flex-col items-center justify-center py-12">
               <Newspaper className="h-12 w-12 text-muted-foreground mb-4" />
-              <h3 className="text-lg font-semibold mb-2">No stories found</h3>
+              <h3 className="text-lg font-semibold mb-2">{t('news.noStories')}</h3>
               <p className="text-muted-foreground text-center">
-                Try refreshing or check back later
+                {t('news.tryRefresh')}
               </p>
             </CardContent>
           </Card>
