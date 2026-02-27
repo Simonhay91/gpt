@@ -107,6 +107,7 @@ Planet GPT is a multi-user SaaS platform for AI-powered conversations with proje
 - `GET /api/projects/{id}/members` - Get project members
 - `GET/POST /api/projects/{id}/chats` - List/Create chats
 - `GET/DELETE /api/chats/{id}` - Get/Delete chat
+- `PUT /api/chats/{id}/visibility` - Update chat visibility for shared users
 - `GET/POST /api/chats/{id}/messages` - Get/Send messages
 
 ### Sources
