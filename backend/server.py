@@ -2321,13 +2321,12 @@ async def send_message(chat_id: str, message_data: MessageCreate, current_user: 
     citations = []
     document_context = ""
     active_source_names = []
-    source_types = {}  # Track source type (project/global)
+    source_types = {}  # Track source type (project/department/global)
     
     if active_source_ids:
-        # Get source info with type
+        # Get source info with type - need to query all sources not just by projectId
         sources = await db.sources.find({
-            "id": {"$in": active_source_ids},
-            "projectId": {"$in": [project_id, GLOBAL_PROJECT_ID] if project_id else [GLOBAL_PROJECT_ID]}
+            "id": {"$in": active_source_ids}
         }, {"_id": 0}).to_list(1000)
         
         source_names = {}
@@ -2335,11 +2334,17 @@ async def send_message(chat_id: str, message_data: MessageCreate, current_user: 
             name = s.get("originalName") or s.get("url") or "Unknown"
             source_names[s["id"]] = name
             active_source_names.append(name)
-            # Track if source is project or global
-            source_types[s["id"]] = "project" if s.get("projectId") != GLOBAL_PROJECT_ID else "global"
+            # Track source level: project > department > global
+            level = s.get("level")
+            if level == "department":
+                source_types[s["id"]] = "department"
+            elif s.get("projectId") == GLOBAL_PROJECT_ID or level == "global":
+                source_types[s["id"]] = "global"
+            else:
+                source_types[s["id"]] = "project"
         
         # Get relevant chunks using keyword ranking
-        # Priority: project chunks first, then global
+        # Priority: project chunks first, then department, then global
         relevant_chunks = await get_relevant_chunks(
             active_source_ids, 
             project_id, 
@@ -2347,11 +2352,11 @@ async def send_message(chat_id: str, message_data: MessageCreate, current_user: 
         )
         
         if relevant_chunks:
-            # Sort by priority (project sources first) and then by score
+            # Sort by priority (project > department > global) and then by score
             def chunk_priority(chunk):
                 source_type = source_types.get(chunk["sourceId"], "global")
-                # Project sources get priority 0, global get 1
-                type_priority = 0 if source_type == "project" else 1
+                # Priority: project=0, department=1, global=2
+                type_priority = {"project": 0, "department": 1, "global": 2}.get(source_type, 2)
                 return (type_priority, -chunk.get("score", 0))
             
             relevant_chunks.sort(key=chunk_priority)
