@@ -843,7 +843,7 @@ const ChatPage = () => {
               </div>
 
               <div className="text-xs text-muted-foreground mb-3">
-                Supported: PDF, DOCX, TXT, MD files and web URLs
+                Supported: PDF, DOCX, PPTX, XLSX, TXT, MD, PNG, JPEG files and web URLs (multiple files allowed)
               </div>
 
               {/* Sources List */}
