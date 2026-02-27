@@ -473,6 +473,140 @@ const AdminGlobalSourcesPage = () => {
               </Card>
             )}
           </div>
+        ) : activeTab === 'cache' ? (
+          /* Cache Tab */
+          <div className="space-y-4">
+            {/* Cache Stats Cards */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <Card>
+                <CardContent className="pt-4">
+                  <div className="flex items-center gap-3">
+                    <Database className="h-5 w-5 text-blue-500" />
+                    <div>
+                      <p className="text-2xl font-bold">{cacheStats?.totalEntries || 0}</p>
+                      <p className="text-sm text-muted-foreground">записей в кэше</p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="pt-4">
+                  <div className="flex items-center gap-3">
+                    <Zap className="h-5 w-5 text-emerald-500" />
+                    <div>
+                      <p className="text-2xl font-bold">{cacheStats?.totalHits || 0}</p>
+                      <p className="text-sm text-muted-foreground">попаданий</p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="pt-4">
+                  <div className="flex items-center gap-3">
+                    <TrendingUp className="h-5 w-5 text-orange-500" />
+                    <div>
+                      <p className="text-2xl font-bold">{cacheStats?.settings?.similarityThreshold ? `${(cacheStats.settings.similarityThreshold * 100).toFixed(0)}%` : '92%'}</p>
+                      <p className="text-sm text-muted-foreground">порог схожести</p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Cache Info */}
+            <Card className="border-blue-500/30 bg-blue-500/5">
+              <CardContent className="pt-4">
+                <div className="flex items-start gap-3">
+                  <Database className="h-5 w-5 text-blue-500 mt-0.5" />
+                  <div>
+                    <h4 className="font-medium text-blue-500">Семантический кэш</h4>
+                    <p className="text-sm text-muted-foreground mt-1">
+                      Кэш использует embeddings для поиска похожих вопросов. Если новый вопрос достаточно 
+                      похож на ранее заданный (≥{cacheStats?.settings?.similarityThreshold ? `${(cacheStats.settings.similarityThreshold * 100).toFixed(0)}%` : '92%'}), 
+                      возвращается кэшированный ответ без вызова GPT. Экономит токены!
+                    </p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Top Cached Questions */}
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between">
+                <div>
+                  <CardTitle className="flex items-center gap-2">
+                    <Zap className="h-5 w-5" />
+                    Топ кэшированных вопросов
+                  </CardTitle>
+                  <CardDescription>
+                    Самые популярные вопросы по количеству попаданий
+                  </CardDescription>
+                </div>
+                <Button 
+                  variant="destructive" 
+                  size="sm"
+                  onClick={handleClearCache}
+                  disabled={isClearingCache || !cacheStats?.totalEntries}
+                >
+                  {isClearingCache ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <RefreshCw className="h-4 w-4 mr-2" />
+                  )}
+                  Очистить кэш
+                </Button>
+              </CardHeader>
+              <CardContent>
+                {cacheStats?.topEntries?.length > 0 ? (
+                  <div className="space-y-3">
+                    {cacheStats.topEntries.map((entry, index) => (
+                      <div 
+                        key={entry.id}
+                        className="flex items-center justify-between p-3 bg-secondary/30 rounded-lg group"
+                      >
+                        <div className="flex items-center gap-3 min-w-0 flex-1">
+                          <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${
+                            entry.hitCount > 0 ? 'bg-emerald-500/20 text-emerald-500' : 'bg-secondary text-muted-foreground'
+                          }`}>
+                            {index + 1}
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <p className="font-medium truncate">{entry.question}</p>
+                            <div className="flex items-center gap-3 text-sm text-muted-foreground">
+                              <span className="text-emerald-500 font-medium">{entry.hitCount} попаданий</span>
+                              {entry.lastHitAt && (
+                                <>
+                                  <span>•</span>
+                                  <span className="flex items-center gap-1">
+                                    <Clock className="h-3 w-3" />
+                                    {formatDate(entry.lastHitAt)}
+                                  </span>
+                                </>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity"
+                          onClick={() => handleDeleteCacheEntry(entry.id)}
+                        >
+                          <Trash2 className="h-4 w-4 text-destructive" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-8 text-muted-foreground">
+                    <Database className="h-12 w-12 mx-auto mb-3 opacity-50" />
+                    <p>Кэш пуст</p>
+                    <p className="text-sm">Записи появятся после того, как пользователи начнут задавать вопросы</p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
         ) : (
           /* Sources Tab */
           <>
