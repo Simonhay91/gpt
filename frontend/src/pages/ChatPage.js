@@ -528,8 +528,12 @@ const ChatPage = () => {
     if (kind === 'url') return 'URL';
     if (mimeType?.includes('pdf')) return 'PDF';
     if (mimeType?.includes('wordprocessingml')) return 'DOCX';
+    if (mimeType?.includes('presentationml')) return 'PPTX';
+    if (mimeType?.includes('spreadsheetml')) return 'XLSX';
     if (mimeType?.includes('markdown')) return 'MD';
     if (mimeType?.includes('plain')) return 'TXT';
+    if (mimeType?.includes('png')) return 'PNG';
+    if (mimeType?.includes('jpeg') || mimeType?.includes('jpg')) return 'JPEG';
     return 'File';
   };
 
