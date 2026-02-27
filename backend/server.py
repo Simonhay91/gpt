@@ -2069,8 +2069,6 @@ async def get_source_stats(current_user: dict = Depends(get_current_user)):
 
 # ==================== GLOBAL SOURCES ENDPOINTS ====================
 
-GLOBAL_PROJECT_ID = "__global__"  # Special marker for global sources
-
 @api_router.get("/admin/global-sources")
 async def get_global_sources(current_user: dict = Depends(get_current_user)):
     """Get all global sources - admin only for full list"""
