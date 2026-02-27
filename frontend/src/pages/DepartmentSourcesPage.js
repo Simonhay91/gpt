@@ -562,6 +562,56 @@ const DepartmentSourcesPage = () => {
             )}
           </DialogContent>
         </Dialog>
+
+        {/* Preview Dialog */}
+        <Dialog open={!!previewSource} onOpenChange={(open) => !open && setPreviewSource(null)}>
+          <DialogContent className="sm:max-w-2xl max-h-[80vh]">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Eye className="h-5 w-5 text-amber-400" />
+                Preview: {previewSource?.originalName}
+              </DialogTitle>
+              <DialogDescription>
+                Просмотрите содержимое перед одобрением
+              </DialogDescription>
+            </DialogHeader>
+            
+            {isLoadingPreview ? (
+              <div className="flex justify-center py-8">
+                <div className="spinner" />
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <div className="bg-secondary/50 rounded-lg p-4 max-h-[400px] overflow-y-auto">
+                  <pre className="text-sm whitespace-pre-wrap font-mono">{previewContent}</pre>
+                </div>
+                
+                <div className="flex items-center justify-between pt-4 border-t">
+                  <div className="text-sm text-muted-foreground">
+                    {formatBytes(previewSource?.sizeBytes)} • {previewSource?.chunkCount} chunks
+                  </div>
+                  <div className="flex gap-2">
+                    <Button variant="outline" onClick={() => setPreviewSource(null)}>
+                      Закрыть
+                    </Button>
+                    {previewSource?.status !== 'active' && (
+                      <Button 
+                        className="bg-emerald-500 hover:bg-emerald-600"
+                        onClick={() => {
+                          setPreviewSource(null);
+                          openApprovalDialog(previewSource, 'approve');
+                        }}
+                      >
+                        <CheckCircle className="h-4 w-4 mr-1" />
+                        Одобрить
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
       </div>
     </DashboardLayout>
   );
