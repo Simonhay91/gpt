@@ -68,22 +68,22 @@ const LoginPage = () => {
               <span className="text-xl font-bold tracking-tight">PLANET KNOWLEDGE</span>
             </div>
             <p className="text-muted-foreground text-sm">
-              Sign in to access your workspace
+              {t('login.subtitle')}
             </p>
           </div>
 
           <Card className="border-border bg-card/50 backdrop-blur">
             <CardHeader className="space-y-1 pb-4">
-              <CardTitle className="text-2xl font-bold tracking-tight">Sign in</CardTitle>
+              <CardTitle className="text-2xl font-bold tracking-tight">{t('login.title')}</CardTitle>
               <CardDescription>
-                Enter your credentials to continue
+                {t('login.subtitle')}
               </CardDescription>
             </CardHeader>
             <CardContent>
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div className="space-y-2">
                   <Label htmlFor="email" className="text-sm font-medium">
-                    Email
+                    {t('login.email')}
                   </Label>
                   <div className="relative">
                     <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
