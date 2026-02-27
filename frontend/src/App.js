@@ -172,6 +172,13 @@ function AppRoutes() {
         </ProtectedRoute>
       } />
       
+      {/* News Route */}
+      <Route path="/news" element={
+        <ProtectedRoute>
+          <NewsPage />
+        </ProtectedRoute>
+      } />
+      
       {/* Default redirect */}
       <Route path="/" element={<Navigate to="/dashboard" replace />} />
       <Route path="*" element={<Navigate to="/dashboard" replace />} />
