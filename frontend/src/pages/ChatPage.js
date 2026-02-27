@@ -291,51 +291,90 @@ const ChatPage = () => {
   };
 
   const handleFileUpload = async (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0) return;
 
     const supportedTypes = [
       'application/pdf',
       'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
       'text/plain',
-      'text/markdown'
+      'text/markdown',
+      'image/png',
+      'image/jpeg'
     ];
 
-    if (!supportedTypes.includes(file.type)) {
-      toast.error('Unsupported file type. Please upload PDF, DOCX, TXT, or MD files.');
-      return;
-    }
+    // Filter valid files
+    const validFiles = files.filter(file => {
+      if (!supportedTypes.includes(file.type)) {
+        toast.error(`${file.name}: Unsupported file type`);
+        return false;
+      }
+      if (file.size > 10 * 1024 * 1024) {
+        toast.error(`${file.name}: File size must be less than 10MB`);
+        return false;
+      }
+      return true;
+    });
 
-    if (file.size > 10 * 1024 * 1024) {
-      toast.error('File size must be less than 10MB');
-      return;
-    }
+    if (validFiles.length === 0) return;
 
     setIsUploading(true);
-    const formData = new FormData();
-    formData.append('file', file);
-
-    try {
-      const response = await axios.post(
-        `${API}/projects/${chat.projectId}/sources/upload`,
-        formData,
-        { headers: { 'Content-Type': 'multipart/form-data' } }
-      );
+    
+    // Use multiple upload endpoint if more than one file
+    if (validFiles.length > 1) {
+      const formData = new FormData();
+      validFiles.forEach(file => formData.append('files', file));
       
-      setProjectSources(prev => [...prev, response.data]);
-      toast.success(`Uploaded ${file.name} (${response.data.chunkCount} chunks extracted)`);
-      
-      // Auto-activate the uploaded source
-      const newActiveIds = [...activeSourceIds, response.data.id];
-      await updateActiveSources(newActiveIds);
-    } catch (error) {
-      const message = error.response?.data?.detail || 'Failed to upload file';
-      toast.error(message);
-    } finally {
-      setIsUploading(false);
-      if (fileInputRef.current) {
-        fileInputRef.current.value = '';
+      try {
+        const response = await axios.post(
+          `${API}/projects/${chat.projectId}/sources/upload-multiple`,
+          formData,
+          { headers: { 'Content-Type': 'multipart/form-data' } }
+        );
+        
+        // Refresh sources list
+        const sourcesRes = await axios.get(`${API}/projects/${chat.projectId}/sources`);
+        setProjectSources(sourcesRes.data);
+        
+        const uploaded = response.data.uploaded || [];
+        const errors = response.data.errors || [];
+        
+        if (uploaded.length > 0) {
+          toast.success(`Uploaded ${uploaded.length} file(s)`);
+        }
+        if (errors.length > 0) {
+          errors.forEach(err => toast.error(`${err.filename}: ${err.error}`));
+        }
+      } catch (error) {
+        const message = error.response?.data?.detail || 'Failed to upload files';
+        toast.error(message);
       }
+    } else {
+      // Single file upload
+      const file = validFiles[0];
+      const formData = new FormData();
+      formData.append('file', file);
+
+      try {
+        const response = await axios.post(
+          `${API}/projects/${chat.projectId}/sources/upload`,
+          formData,
+          { headers: { 'Content-Type': 'multipart/form-data' } }
+        );
+        
+        setProjectSources(prev => [...prev, response.data]);
+        toast.success(`Uploaded ${file.name} (${response.data.chunkCount} chunks extracted)`);
+      } catch (error) {
+        const message = error.response?.data?.detail || 'Failed to upload file';
+        toast.error(message);
+      }
+    }
+    
+    setIsUploading(false);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
     }
   };
 
