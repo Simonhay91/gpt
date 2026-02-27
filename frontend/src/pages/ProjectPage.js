@@ -235,16 +235,6 @@ const ProjectPage = () => {
             </div>
             
             <div className="flex items-center gap-2">
-              {/* Download All Files */}
-              <Button
-                variant="outline"
-                onClick={downloadAllFiles}
-                data-testid="download-all-btn"
-              >
-                <Download className="mr-2 h-4 w-4" />
-                Download Files
-              </Button>
-              
               {/* Share Button */}
               <Dialog open={shareDialogOpen} onOpenChange={setShareDialogOpen}>
                 <DialogTrigger asChild>
