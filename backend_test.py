@@ -11,7 +11,7 @@ from datetime import datetime
 from typing import Dict, Any, Optional
 
 class SharedProjectGPTTester:
-    def __init__(self, base_url: str = "https://team-gpt-platform.preview.emergentagent.com"):
+    def __init__(self, base_url: str = "https://shared-collab-ai.preview.emergentagent.com"):
         self.base_url = base_url
         self.api_url = f"{base_url}/api"
         self.test_user_token = None
