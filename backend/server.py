@@ -1408,7 +1408,10 @@ async def upload_source(
     current_user: dict = Depends(get_current_user)
 ):
     """Upload a file source (PDF, DOCX, TXT, MD) to a project"""
-    await verify_project_ownership(project_id, current_user["id"])
+    # Permission check: require manager or owner role
+    access = await check_project_access(current_user, project_id, required_role="manager")
+    if not can_manage_sources(access["role"]):
+        raise HTTPException(status_code=403, detail="Only owners and managers can upload sources")
     
     # Validate file type
     if file.content_type not in SUPPORTED_MIME_TYPES:
