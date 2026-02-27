@@ -2592,7 +2592,8 @@ async def admin_list_users(current_user: dict = Depends(get_current_user)):
             isAdmin=is_admin(user["email"]),
             createdAt=user["createdAt"],
             totalTokensUsed=total_tokens,
-            totalMessagesCount=message_count
+            totalMessagesCount=message_count,
+            canEditGlobalSources=user.get("canEditGlobalSources", False)
         ))
     
     return result
