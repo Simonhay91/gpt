@@ -15,6 +15,10 @@ import AdminUsersPage from './pages/AdminUsersPage';
 import AdminUserDetailPage from './pages/AdminUserDetailPage';
 import AdminGlobalSourcesPage from './pages/AdminGlobalSourcesPage';
 import GlobalSourcesPage from './pages/GlobalSourcesPage';
+// Enterprise Knowledge Architecture Pages
+import AdminDepartmentsPage from './pages/AdminDepartmentsPage';
+import AdminAuditLogsPage from './pages/AdminAuditLogsPage';
+import PersonalSourcesPage from './pages/PersonalSourcesPage';
 
 // Protected Route Component
 const ProtectedRoute = ({ children }) => {
