@@ -2237,7 +2237,7 @@ async def get_user_details(user_id: str, current_user: dict = Depends(get_curren
     }
 
 @api_router.put("/admin/users/{user_id}/prompt")
-async def update_user_prompt_admin(user_id: str, data: UserPromptCreate, current_user: dict = Depends(get_current_user)):
+async def update_user_prompt_admin(user_id: str, data: UserPromptUpdate, current_user: dict = Depends(get_current_user)):
     """Admin updates user's custom prompt"""
     if not is_admin(current_user["email"]):
         raise HTTPException(status_code=403, detail="Admin access required")
