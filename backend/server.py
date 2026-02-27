@@ -2252,10 +2252,10 @@ async def update_user_prompt_admin(user_id: str, data: UserPromptUpdate, current
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
     
-    # Update or create prompt
+    # Update or create prompt - use customPrompt field for consistency
     await db.user_prompts.update_one(
         {"userId": user_id},
-        {"$set": {"userId": user_id, "prompt": data.prompt, "updatedAt": datetime.now(timezone.utc).isoformat()}},
+        {"$set": {"userId": user_id, "customPrompt": data.prompt, "updatedAt": datetime.now(timezone.utc).isoformat()}},
         upsert=True
     )
     
