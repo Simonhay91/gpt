@@ -2495,25 +2495,33 @@ If the user asks about a document/file/URL:
             unique_citations[key] = {
                 "sourceName": c["sourceName"],
                 "sourceId": c["sourceId"],
+                "sourceType": c.get("sourceType", "unknown"),  # project or global
                 "chunks": []
             }
             used_sources.append({
                 "sourceId": c["sourceId"],
-                "sourceName": c["sourceName"]
+                "sourceName": c["sourceName"],
+                "sourceType": c.get("sourceType", "unknown")
             })
-        unique_citations[key]["chunks"].append(c["chunkIndex"] + 1)
+        unique_citations[key]["chunks"].append({
+            "index": c["chunkIndex"] + 1,
+            "chunkId": c.get("chunkId", ""),
+            "textFragment": c.get("textFragment", "")
+        })
     
     final_citations = list(unique_citations.values()) if unique_citations else None
     final_used_sources = used_sources if used_sources else None
     
     # Save to semantic cache if we have embedding and got a valid response (not from cache and not error)
-    if question_embedding and not cache_hit and not response_text.startswith("I apologize"):
+    if question_embedding and not from_cache and not response_text.startswith("I apologize"):
         await save_to_cache(
             question=message_data.content,
             answer=response_text,
             project_id=project_id,
             embedding=question_embedding,
             user_id=current_user["id"],
+            cache_context_hash=cache_context_hash,
+            source_ids=active_source_ids,
             sources_used=final_used_sources
         )
     
@@ -2529,6 +2537,8 @@ If the user asks about a document/file/URL:
         "autoIngestedUrls": [s["id"] for s in auto_ingested_sources] if auto_ingested_sources else None,
         "senderEmail": None,
         "senderName": "GPT",
+        "fromCache": from_cache,
+        "cacheInfo": cache_info,
         "createdAt": datetime.now(timezone.utc).isoformat()
     }
     await db.messages.insert_one(assistant_message)
