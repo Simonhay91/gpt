@@ -34,25 +34,28 @@ const getStatusConfig = (t) => ({
     needsAction: true
   },
   approved: { 
-    label: 'Одобрено', 
+    label: t('dept.statusApproved'), 
     color: 'text-blue-400 bg-blue-500/20', 
     icon: CheckCircle,
     cardBorder: 'border-blue-500/50',
     needsAction: false
   },
   active: { 
-    label: '✓ Активно', 
+    label: `✓ ${t('dept.statusActive')}`, 
     color: 'text-emerald-400 bg-emerald-500/20', 
     icon: CheckCircle,
     cardBorder: 'border-emerald-500/30',
     needsAction: false
   },
-};
+});
 
 const DepartmentSourcesPage = () => {
   const { departmentId } = useParams();
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { t } = useLanguage();
+  
+  const STATUS_CONFIG = getStatusConfig(t);
   
   const [department, setDepartment] = useState(null);
   const [sources, setSources] = useState([]);
