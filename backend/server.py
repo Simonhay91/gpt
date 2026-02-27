@@ -735,7 +735,8 @@ async def get_me(current_user: dict = Depends(get_current_user)):
         id=current_user["id"],
         email=current_user["email"],
         isAdmin=is_admin(current_user["email"]),
-        createdAt=current_user["createdAt"]
+        createdAt=current_user["createdAt"],
+        canEditGlobalSources=current_user.get("canEditGlobalSources", False)
     )
 
 # ==================== PROJECT ENDPOINTS ====================
