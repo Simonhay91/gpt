@@ -408,6 +408,8 @@ def setup_enterprise_source_routes(
         )
         
         source_doc["chunkCount"] = len(chunks)
+        # Remove _id added by insert_one
+        source_doc.pop("_id", None)
         return source_doc
     
     @router.get("/api/departments/{department_id}/sources")
