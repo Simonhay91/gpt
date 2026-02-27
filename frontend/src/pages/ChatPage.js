@@ -414,23 +414,6 @@ const ChatPage = () => {
     }
   };
 
-  const updateActiveSources = async (sourceIds) => {
-    try {
-      await axios.post(`${API}/chats/${chatId}/active-sources`, { sourceIds });
-      setActiveSourceIds(sourceIds);
-    } catch (error) {
-      toast.error('Failed to update active sources');
-    }
-  };
-
-  const toggleSourceActive = async (sourceId) => {
-    const newActiveIds = activeSourceIds.includes(sourceId)
-      ? activeSourceIds.filter(id => id !== sourceId)
-      : [...activeSourceIds, sourceId];
-    
-    await updateActiveSources(newActiveIds);
-  };
-
   const deleteSource = async (sourceId, e) => {
     e.stopPropagation();
     
