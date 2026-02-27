@@ -129,6 +129,19 @@ const AdminUsersPage = () => {
     return num.toString();
   };
 
+  const formatBytes = (bytes) => {
+    if (!bytes || bytes === 0) return '0 B';
+    if (bytes >= 1073741824) return (bytes / 1073741824).toFixed(1) + ' GB';
+    if (bytes >= 1048576) return (bytes / 1048576).toFixed(1) + ' MB';
+    if (bytes >= 1024) return (bytes / 1024).toFixed(1) + ' KB';
+    return bytes + ' B';
+  };
+
+  const getUserSourceStats = (userId) => {
+    if (!sourceStats?.users) return null;
+    return sourceStats.users.find(s => s.userId === userId);
+  };
+
   return (
     <DashboardLayout>
       <div className="p-6 lg:p-8" data-testid="admin-users-page">
