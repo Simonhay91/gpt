@@ -28,11 +28,13 @@ import {
   RefreshCw
 } from 'lucide-react';
 import DashboardLayout from '../components/DashboardLayout';
+import { useLanguage } from '../contexts/LanguageContext';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
 const AdminGlobalSourcesPage = () => {
   const navigate = useNavigate();
+  const { t } = useLanguage();
   const [sources, setSources] = useState([]);
   const [usageStats, setUsageStats] = useState(null);
   const [cacheStats, setCacheStats] = useState(null);
