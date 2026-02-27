@@ -2168,6 +2168,56 @@ async def get_source_stats(current_user: dict = Depends(get_current_user)):
         "totalSizeBytes": total_size
     }
 
+@api_router.get("/admin/global-sources/stats")
+async def get_global_sources_usage_stats(current_user: dict = Depends(get_current_user)):
+    """Get usage statistics for all global sources"""
+    if not is_admin(current_user["email"]):
+        raise HTTPException(status_code=403, detail="Admin access required")
+    
+    # Get all global sources
+    sources = await db.sources.find(
+        {"projectId": GLOBAL_PROJECT_ID}, 
+        {"_id": 0, "id": 1, "originalName": 1, "url": 1, "chunkCount": 1, "sizeBytes": 1, "createdAt": 1}
+    ).to_list(1000)
+    
+    # Get usage stats for each source
+    result = []
+    for source in sources:
+        usage = await db.source_usage.find_one(
+            {"sourceId": source["id"]}, 
+            {"_id": 0}
+        )
+        
+        source_name = source.get("originalName") or source.get("url") or "Unknown"
+        
+        result.append({
+            "sourceId": source["id"],
+            "sourceName": source_name,
+            "chunkCount": source.get("chunkCount", 0),
+            "sizeBytes": source.get("sizeBytes", 0),
+            "createdAt": source.get("createdAt"),
+            "usageCount": usage.get("usageCount", 0) if usage else 0,
+            "lastUsedAt": usage.get("lastUsedAt") if usage else None,
+            "recentUsers": [
+                {"email": u["userEmail"], "timestamp": u["timestamp"]} 
+                for u in (usage.get("usageHistory", []) if usage else [])[-5:]
+            ]
+        })
+    
+    # Sort by usage count descending
+    result.sort(key=lambda x: x["usageCount"], reverse=True)
+    
+    # Calculate totals
+    total_usage = sum(s["usageCount"] for s in result)
+    sources_used = sum(1 for s in result if s["usageCount"] > 0)
+    
+    return {
+        "sources": result,
+        "totalUsageCount": total_usage,
+        "sourcesUsedCount": sources_used,
+        "totalSourcesCount": len(result)
+    }
+
 # ==================== GLOBAL SOURCES ENDPOINTS ====================
 
 async def can_edit_global_sources(user: dict) -> bool:
