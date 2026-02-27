@@ -63,35 +63,6 @@ const DashboardLayout = ({ children }) => {
     navigate('/login');
   };
 
-  const loadUserPrompt = async () => {
-    if (promptLoaded) return;
-    try {
-      const response = await axios.get(`${API}/user/prompt`);
-      setUserPrompt(response.data.customPrompt || '');
-      setPromptLoaded(true);
-    } catch (error) {
-      console.error('Failed to load prompt');
-    }
-  };
-
-  const openPromptDialog = () => {
-    loadUserPrompt();
-    setIsPromptDialogOpen(true);
-  };
-
-  const saveUserPrompt = async () => {
-    setIsSavingPrompt(true);
-    try {
-      await axios.put(`${API}/user/prompt`, { customPrompt: userPrompt.trim() || null });
-      toast.success('Custom prompt saved');
-      setIsPromptDialogOpen(false);
-    } catch (error) {
-      toast.error('Failed to save prompt');
-    } finally {
-      setIsSavingPrompt(false);
-    }
-  };
-
   const navItems = [
     {
       name: 'Dashboard',
@@ -107,6 +78,11 @@ const DashboardLayout = ({ children }) => {
       name: 'My Sources',
       path: '/personal-sources',
       icon: Lock
+    },
+    {
+      name: 'My GPT Prompt',
+      path: '/my-prompt',
+      icon: Sparkles
     }
   ];
 
