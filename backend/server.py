@@ -463,6 +463,14 @@ async def find_cached_answer(
         if not entry.get("embedding"):
             continue
         
+        # SECURITY: Check user has access to ALL sources used in cached answer
+        cached_source_ids = entry.get("sourceIds", [])
+        if cached_source_ids:
+            # User must have access to ALL sources used in the cached response
+            if not all(sid in user_accessible_source_ids for sid in cached_source_ids):
+                logger.info(f"Cache SKIP: User lacks access to some sources in cached entry {entry['id']}")
+                continue
+        
         similarity = cosine_similarity(question_embedding, entry["embedding"])
         
         if similarity > best_similarity and similarity >= CACHE_SIMILARITY_THRESHOLD:
@@ -483,7 +491,8 @@ async def find_cached_answer(
             "originalQuestion": best_match["question"],
             "similarity": best_similarity,
             "hitCount": best_match.get("hitCount", 0) + 1,
-            "cacheId": best_match["id"]
+            "cacheId": best_match["id"],
+            "sourceIds": best_match.get("sourceIds", [])
         }
     
     return None
