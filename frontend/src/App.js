@@ -20,6 +20,7 @@ import AdminDepartmentsPage from './pages/AdminDepartmentsPage';
 import AdminAuditLogsPage from './pages/AdminAuditLogsPage';
 import PersonalSourcesPage from './pages/PersonalSourcesPage';
 import DepartmentSourcesPage from './pages/DepartmentSourcesPage';
+import MyDepartmentsPage from './pages/MyDepartmentsPage';
 
 // Protected Route Component
 const ProtectedRoute = ({ children }) => {
