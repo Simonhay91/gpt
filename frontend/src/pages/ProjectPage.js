@@ -353,8 +353,19 @@ const ProjectPage = () => {
                       value={shareEmail}
                       onChange={(e) => setShareEmail(e.target.value)}
                       onKeyDown={(e) => e.key === 'Enter' && shareProject()}
+                      className="flex-1"
                       data-testid="share-email-input"
                     />
+                    <select
+                      value={shareRole}
+                      onChange={(e) => setShareRole(e.target.value)}
+                      className="w-28 px-2 py-1 rounded-md border border-input bg-background text-sm"
+                      data-testid="share-role-select"
+                    >
+                      <option value="viewer">Viewer</option>
+                      <option value="editor">Editor</option>
+                      {isOwner && <option value="manager">Manager</option>}
+                    </select>
                     <Button 
                       onClick={shareProject}
                       disabled={isSharing}
@@ -362,6 +373,17 @@ const ProjectPage = () => {
                     >
                       {isSharing ? <div className="spinner" /> : 'Add'}
                     </Button>
+                  </div>
+
+                  {/* Role Legend */}
+                  <div className="flex flex-wrap gap-3 pb-4 text-xs text-muted-foreground">
+                    {Object.entries(ROLES).map(([key, { label, icon: Icon, color, description }]) => (
+                      <div key={key} className="flex items-center gap-1">
+                        <Icon className={`h-3 w-3 ${color}`} />
+                        <span>{label}:</span>
+                        <span className="opacity-70">{description}</span>
+                      </div>
+                    ))}
                   </div>
                   
                   {/* Available users to share with */}
@@ -374,20 +396,23 @@ const ProjectPage = () => {
                         ) : (
                           allUsers
                             .filter(u => !members.find(m => m.id === u.id))
-                            .map((user) => (
+                            .map((u) => (
                               <div 
-                                key={user.id} 
+                                key={u.id} 
                                 className="flex items-center justify-between py-2 px-3 bg-secondary/50 rounded-lg hover:bg-secondary cursor-pointer transition-colors"
-                                onClick={() => !isSharing && shareWithUser(user.email)}
-                                data-testid={`share-user-${user.id}`}
+                                onClick={() => !isSharing && shareWithUser(u.email, shareRole)}
+                                data-testid={`share-user-${u.id}`}
                               >
                                 <div className="flex items-center gap-3">
                                   <div className="w-7 h-7 rounded-full bg-gradient-to-br from-blue-500 to-cyan-500 flex items-center justify-center text-white text-xs font-medium">
-                                    {user.email?.charAt(0).toUpperCase()}
+                                    {u.email?.charAt(0).toUpperCase()}
                                   </div>
-                                  <span className="text-sm">{user.email}</span>
+                                  <span className="text-sm">{u.email}</span>
                                 </div>
-                                <Plus className="h-4 w-4 text-muted-foreground" />
+                                <div className="flex items-center gap-2">
+                                  <span className="text-xs text-muted-foreground">{ROLES[shareRole]?.label}</span>
+                                  <Plus className="h-4 w-4 text-muted-foreground" />
+                                </div>
                               </div>
                             ))
                         )}
@@ -402,32 +427,51 @@ const ProjectPage = () => {
                   <div className="space-y-2">
                     <Label>Members ({members.length})</Label>
                     <div className="space-y-2 max-h-[200px] overflow-y-auto">
-                      {members.map((member) => (
-                        <div key={member.id} className="flex items-center justify-between py-2 px-3 bg-secondary rounded-lg gap-2">
-                          <div className="flex items-center gap-3 min-w-0 flex-1">
-                            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-indigo-500 to-purple-500 flex items-center justify-center text-white text-sm font-medium flex-shrink-0">
-                              {member.email?.charAt(0).toUpperCase()}
+                      {members.map((member) => {
+                        const roleConfig = ROLES[member.role] || {};
+                        const RoleIcon = roleConfig.icon || Shield;
+                        
+                        return (
+                          <div key={member.id} className="flex items-center justify-between py-2 px-3 bg-secondary rounded-lg gap-2">
+                            <div className="flex items-center gap-3 min-w-0 flex-1">
+                              <div className="w-8 h-8 rounded-full bg-gradient-to-br from-indigo-500 to-purple-500 flex items-center justify-center text-white text-sm font-medium flex-shrink-0">
+                                {member.email?.charAt(0).toUpperCase()}
+                              </div>
+                              <div className="min-w-0">
+                                <p className="text-sm font-medium truncate">{member.email}</p>
+                                <div className="flex items-center gap-1">
+                                  <RoleIcon className={`h-3 w-3 ${roleConfig.color || 'text-muted-foreground'}`} />
+                                  <p className="text-xs text-muted-foreground capitalize">{member.role}</p>
+                                </div>
+                              </div>
                             </div>
-                            <div className="min-w-0">
-                              <p className="text-sm font-medium truncate">{member.email}</p>
-                              <p className="text-xs text-muted-foreground capitalize">{member.role}</p>
-                            </div>
-                          </div>
-                          {member.role !== 'owner' && isOwner && (
-                            <div className="flex items-center gap-1 flex-shrink-0">
-                              {chats.length > 0 && (
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  className="h-7 text-xs px-2"
-                                  onClick={() => openChatVisibilityForMember(member)}
-                                  data-testid={`manage-chats-${member.id}`}
+                            {member.role !== 'owner' && isOwner && (
+                              <div className="flex items-center gap-1 flex-shrink-0">
+                                {/* Role selector */}
+                                <select
+                                  value={member.role}
+                                  onChange={(e) => updateMemberRole(member.id, e.target.value)}
+                                  disabled={isUpdatingRole === member.id}
+                                  className="h-7 px-2 text-xs rounded border border-input bg-background"
+                                  data-testid={`role-select-${member.id}`}
                                 >
-                                  <MessageSquare className="h-3 w-3 mr-1" />
-                                  Chats
-                                </Button>
-                              )}
-                              <Button
+                                  <option value="viewer">Viewer</option>
+                                  <option value="editor">Editor</option>
+                                  <option value="manager">Manager</option>
+                                </select>
+                                {chats.length > 0 && (
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    className="h-7 text-xs px-2"
+                                    onClick={() => openChatVisibilityForMember(member)}
+                                    data-testid={`manage-chats-${member.id}`}
+                                  >
+                                    <MessageSquare className="h-3 w-3 mr-1" />
+                                    Chats
+                                  </Button>
+                                )}
+                                <Button
                                 variant="ghost"
                                 size="icon"
                                 className="h-7 w-7 text-destructive hover:text-destructive"
