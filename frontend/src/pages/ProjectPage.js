@@ -163,25 +163,6 @@ const ProjectPage = () => {
     }
   };
 
-  const downloadAllFiles = async () => {
-    try {
-      const response = await axios.get(`${API}/projects/${projectId}/sources/download-all`, {
-        responseType: 'blob'
-      });
-      
-      const url = window.URL.createObjectURL(new Blob([response.data]));
-      const link = document.createElement('a');
-      link.href = url;
-      link.setAttribute('download', `${project?.name || 'project'}_files.zip`);
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      window.URL.revokeObjectURL(url);
-    } catch (error) {
-      toast.error('No files to download');
-    }
-  };
-
   const formatDate = (dateString) => {
     return new Date(dateString).toLocaleDateString('en-US', {
       month: 'short',
