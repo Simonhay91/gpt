@@ -2171,7 +2171,7 @@ async def upload_global_source(
     return {**source_doc, "_id": None}
 
 @api_router.post("/admin/global-sources/url")
-async def add_global_url_source(url_data: URLSourceCreate, current_user: dict = Depends(get_current_user)):
+async def add_global_url_source(url_data: UrlSourceCreate, current_user: dict = Depends(get_current_user)):
     """Admin adds a URL as global source"""
     if not is_admin(current_user["email"]):
         raise HTTPException(status_code=403, detail="Admin access required")
