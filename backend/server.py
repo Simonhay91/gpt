@@ -139,15 +139,28 @@ class TokenResponse(BaseModel):
 class ProjectCreate(BaseModel):
     name: str
 
+class ProjectRole(str):
+    """Project sharing roles"""
+    VIEWER = "viewer"      # Read-only: view chats and sources
+    EDITOR = "editor"      # Create/edit chats, but no source management
+    MANAGER = "manager"    # Full access: manage sources and members
+
+class ProjectMember(BaseModel):
+    userId: str
+    email: str
+    role: str  # viewer, editor, manager
+
 class ProjectResponse(BaseModel):
     id: str
     name: str
     ownerId: str
     sharedWith: Optional[List[str]] = []
+    sharedMembers: Optional[List[ProjectMember]] = []  # With roles
     createdAt: str
 
 class ShareProjectRequest(BaseModel):
     email: str
+    role: Optional[str] = "viewer"  # Default to viewer
 
 class ChatCreate(BaseModel):
     name: Optional[str] = "New Chat"
