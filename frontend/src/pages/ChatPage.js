@@ -634,43 +634,108 @@ const ChatPage = () => {
             <DialogHeader>
               <DialogTitle>Move Chat to Project</DialogTitle>
               <DialogDescription>
-                Select a project to move this chat into.
-                {chat?.projectId && " The chat will be removed from its current project."}
+                {showCreateProject 
+                  ? "Create a new project and move this chat into it."
+                  : "Select a project to move this chat into."
+                }
+                {chat?.projectId && !showCreateProject && " The chat will be removed from its current project."}
               </DialogDescription>
             </DialogHeader>
-            <div className="space-y-2 py-4 max-h-[300px] overflow-y-auto">
-              {userProjects.length === 0 ? (
-                <p className="text-center text-muted-foreground py-4">
-                  No projects available. Create a project first.
-                </p>
-              ) : (
-                userProjects
-                  .filter(p => p.id !== chat?.projectId) // Exclude current project
-                  .map((project) => (
+            
+            {showCreateProject ? (
+              // Create Project Form
+              <div className="space-y-4 py-4">
+                <div className="space-y-2">
+                  <Label htmlFor="newProjectName">Project Name</Label>
+                  <Input
+                    id="newProjectName"
+                    placeholder="My New Project"
+                    value={newProjectName}
+                    onChange={(e) => setNewProjectName(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && createProjectAndMove()}
+                    disabled={isCreatingProject}
+                    data-testid="new-project-name-input"
+                  />
+                </div>
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    className="flex-1"
+                    onClick={() => setShowCreateProject(false)}
+                    disabled={isCreatingProject}
+                  >
+                    Back
+                  </Button>
+                  <Button
+                    className="flex-1"
+                    onClick={createProjectAndMove}
+                    disabled={isCreatingProject || !newProjectName.trim()}
+                    data-testid="create-and-move-btn"
+                  >
+                    {isCreatingProject ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Plus className="mr-2 h-4 w-4" />}
+                    Create & Move
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              // Project List
+              <div className="space-y-2 py-4 max-h-[300px] overflow-y-auto">
+                {userProjects.length === 0 ? (
+                  <div className="text-center py-4">
+                    <FolderOpen className="h-12 w-12 text-muted-foreground mx-auto mb-3" />
+                    <p className="text-muted-foreground mb-4">No projects yet</p>
+                    <Button 
+                      onClick={() => setShowCreateProject(true)}
+                      data-testid="create-project-in-dialog-btn"
+                    >
+                      <Plus className="mr-2 h-4 w-4" />
+                      Create Project
+                    </Button>
+                  </div>
+                ) : (
+                  <>
+                    {userProjects
+                      .filter(p => p.id !== chat?.projectId)
+                      .map((project) => (
+                        <Card
+                          key={project.id}
+                          className="cursor-pointer hover:border-indigo-500/50 transition-colors"
+                          onClick={() => moveChat(project.id)}
+                          data-testid={`move-to-project-${project.id}`}
+                        >
+                          <CardContent className="py-3 flex items-center gap-3">
+                            <FolderOpen className="h-5 w-5 text-indigo-400" />
+                            <span className="font-medium">{project.name}</span>
+                          </CardContent>
+                        </Card>
+                      ))
+                    }
+                    {userProjects.filter(p => p.id !== chat?.projectId).length === 0 && (
+                      <p className="text-center text-muted-foreground py-4">
+                        No other projects available to move to.
+                      </p>
+                    )}
+                    {/* Create new project option */}
                     <Card
-                      key={project.id}
-                      className="cursor-pointer hover:border-indigo-500/50 transition-colors"
-                      onClick={() => moveChat(project.id)}
-                      data-testid={`move-to-project-${project.id}`}
+                      className="cursor-pointer hover:border-emerald-500/50 transition-colors border-dashed"
+                      onClick={() => setShowCreateProject(true)}
+                      data-testid="create-new-project-option"
                     >
                       <CardContent className="py-3 flex items-center gap-3">
-                        <FolderOpen className="h-5 w-5 text-indigo-400" />
-                        <span className="font-medium">{project.name}</span>
+                        <Plus className="h-5 w-5 text-emerald-400" />
+                        <span className="font-medium text-emerald-400">Create New Project</span>
                       </CardContent>
                     </Card>
-                  ))
-              )}
-              {userProjects.length > 0 && userProjects.filter(p => p.id !== chat?.projectId).length === 0 && (
-                <p className="text-center text-muted-foreground py-4">
-                  No other projects available to move to.
-                </p>
-              )}
-            </div>
+                  </>
+                )}
+              </div>
+            )}
+            
             <DialogFooter>
               <Button
                 variant="outline"
                 onClick={() => setMoveDialogOpen(false)}
-                disabled={isMovingChat}
+                disabled={isMovingChat || isCreatingProject}
               >
                 Cancel
               </Button>
