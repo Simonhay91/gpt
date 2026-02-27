@@ -54,6 +54,7 @@ const AdminUserDetailPage = () => {
       setUserDetails(response.data);
       setUserPrompt(response.data.prompt || '');
       setUserModel(response.data.gptModel || '');
+      setCanEditGlobal(response.data.user?.canEditGlobalSources || false);
     } catch (error) {
       toast.error('Failed to load user details');
       navigate('/admin/users');
