@@ -945,12 +945,12 @@ async def update_chat_visibility(chat_id: str, data: UpdateChatVisibilityRequest
         raise HTTPException(status_code=403, detail="Only project owner can change chat visibility")
     
     # Update chat visibility
-    # Empty list means hidden from all, None means visible to all
-    shared_with = data.sharedWithUsers if data.sharedWithUsers else None
-    
+    # Empty list [] means hidden from all shared users
+    # List with IDs means only those users can see it
+    # To make visible to all, send list with all shared user IDs
     await db.chats.update_one(
         {"id": chat_id},
-        {"$set": {"sharedWithUsers": shared_with}}
+        {"$set": {"sharedWithUsers": data.sharedWithUsers}}
     )
     
     updated_chat = await db.chats.find_one({"id": chat_id}, {"_id": 0})
