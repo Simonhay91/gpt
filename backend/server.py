@@ -2365,8 +2365,6 @@ async def send_message(chat_id: str, message_data: MessageCreate, current_user: 
             else:
                 source_types[s["id"]] = "project"
         
-        logger.info(f"Source types: {source_types}")
-        
         # Get relevant chunks using keyword ranking
         # Priority: project chunks first, then department, then global
         relevant_chunks = await get_relevant_chunks(
