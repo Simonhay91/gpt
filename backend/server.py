@@ -65,8 +65,13 @@ URL_PATTERN = re.compile(r'https?://[^\s<>"{}|\\^`\[\]]+', re.IGNORECASE)
 SUPPORTED_MIME_TYPES = {
     "application/pdf": "pdf",
     "application/vnd.openxmlformats-officedocument.wordprocessingml.document": "docx",
+    "application/vnd.openxmlformats-officedocument.presentationml.presentation": "pptx",
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": "xlsx",
     "text/plain": "txt",
     "text/markdown": "md",
+    "image/png": "png",
+    "image/jpeg": "jpeg",
+    "image/jpg": "jpg",
 }
 
 # Create the main app
