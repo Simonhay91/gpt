@@ -125,7 +125,11 @@ class ProjectResponse(BaseModel):
     id: str
     name: str
     ownerId: str
+    sharedWith: Optional[List[str]] = []
     createdAt: str
+
+class ShareProjectRequest(BaseModel):
+    email: str
 
 class ChatCreate(BaseModel):
     name: Optional[str] = "New Chat"
