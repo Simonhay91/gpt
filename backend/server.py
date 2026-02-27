@@ -2197,19 +2197,26 @@ async def send_message(chat_id: str, message_data: MessageCreate, current_user: 
     if not chat:
         raise HTTPException(status_code=404, detail="Chat not found")
     
-    # Verify ownership - for quick chats check ownerId, for project chats check project ownership
+    # Verify access - for quick chats check ownerId, for project chats use permission matrix
     project_id = chat.get("projectId")
+    user_role = None
+    
     if project_id:
-        await verify_project_ownership(project_id, current_user["id"])
+        # Use permission matrix for project chats
+        try:
+            access = await check_project_access(current_user, project_id, required_role="viewer")
+            user_role = access["role"]
+        except HTTPException:
+            raise HTTPException(status_code=403, detail="Not authorized to access this project")
     elif chat.get("ownerId") != current_user["id"]:
         raise HTTPException(status_code=403, detail="Not authorized to access this chat")
     
-    # === AUTO-INGEST URLs from message (only for project chats) ===
+    # === AUTO-INGEST URLs from message (only for project chats with editor+ permission) ===
     detected_urls = extract_urls_from_text(message_data.content)
     auto_ingested_sources = []
     auto_ingest_notes = []
     
-    if detected_urls and project_id:
+    if detected_urls and project_id and can_edit_chats(user_role):
         logger.info(f"Detected {len(detected_urls)} URL(s) in message: {detected_urls}")
         
         for url in detected_urls:
@@ -2220,16 +2227,24 @@ async def send_message(chat_id: str, message_data: MessageCreate, current_user: 
             else:
                 auto_ingest_notes.append(f"Could not fetch: {url}")
     
-    # In project chats, ALL sources are always active
-    if project_id:
-        all_project_sources = await db.sources.find({"projectId": project_id}, {"_id": 0, "id": 1}).to_list(1000)
-        active_source_ids = [s["id"] for s in all_project_sources]
-    else:
-        active_source_ids = []
+    # === GET SOURCE IDS WITH PRIORITY (Project > Global) ===
+    project_source_ids = []
+    global_source_ids = []
     
-    # ALWAYS include global sources for all chats
+    # Project sources (if in a project)
+    if project_id:
+        project_sources = await db.sources.find({"projectId": project_id}, {"_id": 0, "id": 1}).to_list(1000)
+        project_source_ids = [s["id"] for s in project_sources]
+    
+    # Global sources (always included)
     global_sources = await db.sources.find({"projectId": GLOBAL_PROJECT_ID}, {"_id": 0, "id": 1}).to_list(1000)
-    active_source_ids.extend([s["id"] for s in global_sources])
+    global_source_ids = [s["id"] for s in global_sources]
+    
+    # Combined list (project first for priority)
+    active_source_ids = project_source_ids + global_source_ids
+    
+    # Get user's accessible source IDs for cache security
+    user_accessible_source_ids = project_source_ids + global_source_ids
     
     # Get sender display name (use part before @ in email)
     sender_email = current_user["email"]
