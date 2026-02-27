@@ -964,8 +964,8 @@ async def upload_source(
     elif file_type == "xlsx":
         extracted_text = extract_text_from_xlsx(content)
     elif file_type in ["png", "jpeg", "jpg"]:
-        # For images, store without text extraction (can add OCR later)
-        extracted_text = f"[Image file: {file.filename}]"
+        # Use OCR to extract text from images
+        extracted_text = extract_text_from_image(content)
     else:  # txt or md
         extracted_text = extract_text_from_txt(content)
     
