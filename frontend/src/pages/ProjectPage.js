@@ -376,7 +376,7 @@ const ProjectPage = () => {
                   </div>
 
                   {/* Role Legend */}
-                  <div className="flex flex-wrap gap-3 pb-4 text-xs text-muted-foreground">
+                  <div className="flex flex-wrap gap-3 pb-2 text-xs text-muted-foreground">
                     {Object.entries(ROLES).map(([key, { label, icon: Icon, color, description }]) => (
                       <div key={key} className="flex items-center gap-1">
                         <Icon className={`h-3 w-3 ${color}`} />
@@ -388,7 +388,7 @@ const ProjectPage = () => {
                   
                   {/* Available users to share with */}
                   {allUsers.length > 0 && (
-                    <div className="space-y-2 mb-4">
+                    <div className="space-y-2 mt-4">
                       <Label>Available Users</Label>
                       <div className="max-h-[150px] overflow-y-auto space-y-1">
                         {isLoadingUsers ? (
@@ -424,7 +424,7 @@ const ProjectPage = () => {
                   )}
                   
                   {/* Current members list */}
-                  <div className="space-y-2">
+                  <div className="space-y-2 mt-4">
                     <Label>Members ({members.length})</Label>
                     <div className="space-y-2 max-h-[200px] overflow-y-auto">
                       {members.map((member) => {
