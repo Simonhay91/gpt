@@ -163,7 +163,7 @@ const DashboardLayout = ({ children }) => {
         {/* Logo */}
         <div className="h-16 flex items-center gap-2 px-6 border-b border-border">
           <Globe className="h-5 w-5 text-indigo-500" />
-          <span className="font-bold tracking-tight">PLANET GPT</span>
+          <span className="font-bold tracking-tight">PLANET KNOWLEDGE</span>
         </div>
 
         {/* Navigation */}

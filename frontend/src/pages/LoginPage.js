@@ -54,7 +54,7 @@ const LoginPage = () => {
           <div className="mb-8">
             <div className="flex items-center gap-2 mb-2">
               <Globe className="h-6 w-6 text-indigo-500" />
-              <span className="text-xl font-bold tracking-tight">PLANET GPT</span>
+              <span className="text-xl font-bold tracking-tight">PLANET KNOWLEDGE</span>
             </div>
             <p className="text-muted-foreground text-sm">
               Sign in to access your workspace
@@ -139,7 +139,7 @@ const LoginPage = () => {
             <blockquote className="text-xl font-medium leading-relaxed text-foreground/90 mb-4">
               "One GPT configuration, infinite possibilities. Build isolated projects with shared intelligence."
             </blockquote>
-            <p className="text-sm text-muted-foreground">— Planet GPT</p>
+            <p className="text-sm text-muted-foreground">— Planet Knowledge</p>
           </div>
         </div>
       </div>

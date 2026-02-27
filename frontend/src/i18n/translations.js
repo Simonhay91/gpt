@@ -1,4 +1,4 @@
-// Translations for Planet GPT
+// Translations for Planet Knowledge
 // Add new languages by adding new keys to each translation object
 
 export const translations = {
