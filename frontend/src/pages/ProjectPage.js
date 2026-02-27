@@ -120,6 +120,39 @@ const ProjectPage = () => {
     }
   };
 
+  const shareWithUser = async (email) => {
+    setIsSharing(true);
+    try {
+      await axios.post(`${API}/projects/${projectId}/share`, { email });
+      toast.success(`Shared with ${email}`);
+      // Refresh members
+      const membersRes = await axios.get(`${API}/projects/${projectId}/members`);
+      setMembers(membersRes.data);
+    } catch (error) {
+      const msg = error.response?.data?.detail || 'Failed to share';
+      toast.error(msg);
+    } finally {
+      setIsSharing(false);
+    }
+  };
+
+  const fetchUsersForSharing = async () => {
+    setIsLoadingUsers(true);
+    try {
+      const response = await axios.get(`${API}/users/list`);
+      setAllUsers(response.data);
+    } catch (error) {
+      console.error('Failed to load users');
+    } finally {
+      setIsLoadingUsers(false);
+    }
+  };
+
+  const openShareDialog = () => {
+    fetchUsersForSharing();
+    setShareDialogOpen(true);
+  };
+
   const removeMember = async (userId) => {
     try {
       await axios.delete(`${API}/projects/${projectId}/share/${userId}`);
