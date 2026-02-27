@@ -22,6 +22,7 @@ import PersonalSourcesPage from './pages/PersonalSourcesPage';
 import DepartmentSourcesPage from './pages/DepartmentSourcesPage';
 import MyDepartmentsPage from './pages/MyDepartmentsPage';
 import NewsPage from './pages/NewsPage';
+import MyGptPromptPage from './pages/MyGptPromptPage';
 
 // Protected Route Component
 const ProtectedRoute = ({ children }) => {
