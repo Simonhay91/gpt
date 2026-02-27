@@ -7,10 +7,12 @@ import {
   TrendingUp, Sparkles, RefreshCw, Zap
 } from 'lucide-react';
 import DashboardLayout from '../components/DashboardLayout';
+import { useLanguage } from '../contexts/LanguageContext';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
 const NewsPage = () => {
+  const { t } = useLanguage();
   const [stories, setStories] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('top');
@@ -52,9 +54,9 @@ const NewsPage = () => {
   };
 
   const tabs = [
-    { id: 'top', label: 'Top', icon: TrendingUp },
-    { id: 'best', label: 'Best', icon: Sparkles },
-    { id: 'new', label: 'New', icon: Zap },
+    { id: 'top', label: t('news.top'), icon: TrendingUp },
+    { id: 'best', label: t('news.best'), icon: Sparkles },
+    { id: 'new', label: t('news.new'), icon: Zap },
   ];
 
   return (
@@ -68,10 +70,10 @@ const NewsPage = () => {
                 <div className="p-2 rounded-lg bg-orange-500/20">
                   <Newspaper className="h-7 w-7 text-orange-500" />
                 </div>
-                Tech News
+                {t('news.title')}
               </h1>
               <p className="text-muted-foreground mt-2">
-                Latest tech news from Hacker News
+                {t('news.subtitle')}
               </p>
             </div>
             
