@@ -209,7 +209,9 @@ def setup_enterprise_source_routes(
                 entity_id=source_id,
                 action="deleted",
                 user_id=current_user["id"],
-                details={"level": level, "name": source.get("originalName")}
+                user_email=current_user["email"],
+                level=level,
+                entity_name=source.get("originalName")
             )
         
         return {"message": "Source deleted"}
