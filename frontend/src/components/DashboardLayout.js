@@ -50,11 +50,9 @@ const DashboardLayout = ({ children }) => {
       try {
         const response = await axios.get(`${API}/departments/pending-count`);
         setPendingCount(response.data.count || 0);
-        setIsManager(response.data.isManager || false);
       } catch (error) {
         // Silently fail - user might not be a manager
         setPendingCount(0);
-        setIsManager(false);
       }
     };
     
