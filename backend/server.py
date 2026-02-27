@@ -2180,6 +2180,117 @@ async def admin_delete_user(user_id: str, current_user: dict = Depends(get_curre
     
     return {"message": "User deleted successfully"}
 
+@api_router.get("/admin/users/{user_id}/details")
+async def get_user_details(user_id: str, current_user: dict = Depends(get_current_user)):
+    """Get detailed user info for admin - prompt, projects, activity"""
+    if not is_admin(current_user["email"]):
+        raise HTTPException(status_code=403, detail="Admin access required")
+    
+    # Get user
+    user = await db.users.find_one({"id": user_id}, {"_id": 0, "passwordHash": 0})
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    # Get user's prompt
+    user_prompt = await db.user_prompts.find_one({"userId": user_id}, {"_id": 0})
+    
+    # Get user's projects
+    projects = await db.projects.find({"ownerId": user_id}, {"_id": 0}).to_list(100)
+    
+    # Get project stats
+    projects_with_stats = []
+    for p in projects:
+        chat_count = await db.chats.count_documents({"projectId": p["id"]})
+        source_count = await db.sources.count_documents({"projectId": p["id"]})
+        projects_with_stats.append({
+            **p,
+            "chatCount": chat_count,
+            "sourceCount": source_count
+        })
+    
+    # Get token usage
+    usage = await db.token_usage.find_one({"userId": user_id}, {"_id": 0})
+    
+    # Get recent activity (last 20 messages)
+    user_messages = await db.messages.find(
+        {"senderEmail": user["email"], "role": "user"},
+        {"_id": 0, "id": 1, "chatId": 1, "content": 1, "createdAt": 1}
+    ).sort("createdAt", -1).to_list(20)
+    
+    # Get user-specific model if set
+    user_model = user.get("gptModel")
+    
+    return {
+        "user": user,
+        "prompt": user_prompt.get("prompt", "") if user_prompt else "",
+        "gptModel": user_model,
+        "projects": projects_with_stats,
+        "tokenUsage": {
+            "totalTokens": usage.get("totalTokensUsed", 0) if usage else 0,
+            "totalMessages": usage.get("totalMessagesCount", 0) if usage else 0
+        },
+        "recentActivity": user_messages
+    }
+
+@api_router.put("/admin/users/{user_id}/prompt")
+async def update_user_prompt_admin(user_id: str, data: UserPromptCreate, current_user: dict = Depends(get_current_user)):
+    """Admin updates user's custom prompt"""
+    if not is_admin(current_user["email"]):
+        raise HTTPException(status_code=403, detail="Admin access required")
+    
+    # Check user exists
+    user = await db.users.find_one({"id": user_id}, {"_id": 0})
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    # Update or create prompt
+    await db.user_prompts.update_one(
+        {"userId": user_id},
+        {"$set": {"userId": user_id, "prompt": data.prompt, "updatedAt": datetime.now(timezone.utc).isoformat()}},
+        upsert=True
+    )
+    
+    return {"message": "Prompt updated"}
+
+@api_router.put("/admin/users/{user_id}/model")
+async def update_user_model(user_id: str, current_user: dict = Depends(get_current_user), model: str = None):
+    """Admin sets user-specific GPT model (overrides global)"""
+    if not is_admin(current_user["email"]):
+        raise HTTPException(status_code=403, detail="Admin access required")
+    
+    # Check user exists
+    user = await db.users.find_one({"id": user_id}, {"_id": 0})
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    # Update user's model (None = use global)
+    await db.users.update_one(
+        {"id": user_id},
+        {"$set": {"gptModel": model}}
+    )
+    
+    return {"message": "Model updated"}
+
+class UpdateUserModelRequest(BaseModel):
+    model: Optional[str] = None
+
+@api_router.put("/admin/users/{user_id}/gpt-model")
+async def update_user_gpt_model(user_id: str, data: UpdateUserModelRequest, current_user: dict = Depends(get_current_user)):
+    """Admin sets user-specific GPT model (overrides global)"""
+    if not is_admin(current_user["email"]):
+        raise HTTPException(status_code=403, detail="Admin access required")
+    
+    user = await db.users.find_one({"id": user_id}, {"_id": 0})
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    await db.users.update_one(
+        {"id": user_id},
+        {"$set": {"gptModel": data.model}}
+    )
+    
+    return {"message": "Model updated", "model": data.model}
+
 # ==================== USER PROMPT ENDPOINTS ====================
 
 @api_router.get("/user/prompt", response_model=UserPromptResponse)
