@@ -537,6 +537,45 @@ def setup_enterprise_source_routes(
     
     # ==================== VERSION MANAGEMENT ====================
     
+    @router.get("/api/sources/{source_id}/preview")
+    async def get_source_preview(
+        source_id: str,
+        current_user: dict = Depends(get_current_user)
+    ):
+        """Get source content preview for approval"""
+        source = await db.sources.find_one({"id": source_id}, {"_id": 0})
+        if not source:
+            raise HTTPException(status_code=404, detail="Source not found")
+        
+        # Check access - must be manager of the department or admin
+        level = source.get("level")
+        if level == "department":
+            dept_id = source.get("departmentId")
+            department = await db.departments.find_one({"id": dept_id}, {"_id": 0})
+            if department:
+                is_manager = current_user["id"] in department.get("managers", [])
+                if not is_manager and not is_admin(current_user["email"]):
+                    raise HTTPException(status_code=403, detail="Only managers can preview")
+        
+        # Get chunks content
+        chunks = await db.source_chunks.find(
+            {"sourceId": source_id},
+            {"_id": 0, "content": 1, "chunkIndex": 1}
+        ).sort("chunkIndex", 1).to_list(100)
+        
+        # Combine chunks into preview (limit to first 5000 chars)
+        content = "\n\n---\n\n".join([c.get("content", "") for c in chunks])
+        if len(content) > 5000:
+            content = content[:5000] + "\n\n... [содержимое обрезано] ..."
+        
+        return {
+            "sourceId": source_id,
+            "originalName": source.get("originalName"),
+            "content": content,
+            "totalChunks": len(chunks),
+            "status": source.get("status")
+        }
+    
     @router.get("/api/sources/{source_id}/versions")
     async def get_source_versions(
         source_id: str,
