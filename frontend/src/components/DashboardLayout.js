@@ -80,6 +80,11 @@ const DashboardLayout = ({ children }) => {
       name: 'Dashboard',
       path: '/dashboard',
       icon: LayoutDashboard
+    },
+    {
+      name: 'My Sources',
+      path: '/personal-sources',
+      icon: Lock
     }
   ];
 
@@ -90,9 +95,19 @@ const DashboardLayout = ({ children }) => {
       icon: Users
     });
     navItems.push({
+      name: 'Departments',
+      path: '/admin/departments',
+      icon: Building2
+    });
+    navItems.push({
       name: 'Global Sources',
       path: '/admin/global-sources',
       icon: Globe2
+    });
+    navItems.push({
+      name: 'Audit Logs',
+      path: '/admin/audit-logs',
+      icon: ScrollText
     });
     navItems.push({
       name: 'GPT Config',
