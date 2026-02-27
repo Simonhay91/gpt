@@ -1606,12 +1606,21 @@ async def get_messages(chat_id: str, current_user: dict = Depends(get_current_us
         raise HTTPException(status_code=403, detail="Not authorized")
     
     messages = await db.messages.find({"chatId": chat_id}, {"_id": 0}).sort("createdAt", 1).to_list(1000)
-    return [MessageResponse(**{
-        **m, 
-        "citations": m.get("citations"), 
-        "usedSources": m.get("usedSources"),
-        "autoIngestedUrls": m.get("autoIngestedUrls")
-    }) for m in messages]
+    
+    # Get sender info for user messages
+    result = []
+    for m in messages:
+        msg_data = {
+            **m, 
+            "citations": m.get("citations"), 
+            "usedSources": m.get("usedSources"),
+            "autoIngestedUrls": m.get("autoIngestedUrls"),
+            "senderEmail": m.get("senderEmail"),
+            "senderName": m.get("senderName")
+        }
+        result.append(MessageResponse(**msg_data))
+    
+    return result
 
 @api_router.post("/chats/{chat_id}/messages", response_model=MessageResponse)
 async def send_message(chat_id: str, message_data: MessageCreate, current_user: dict = Depends(get_current_user)):
