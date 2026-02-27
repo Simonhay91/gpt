@@ -98,6 +98,11 @@ const ChatPage = () => {
   const [userProjects, setUserProjects] = useState([]);
   const [isMovingChat, setIsMovingChat] = useState(false);
   
+  // Create project in move dialog
+  const [isCreatingProject, setIsCreatingProject] = useState(false);
+  const [newProjectName, setNewProjectName] = useState('');
+  const [showCreateProject, setShowCreateProject] = useState(false);
+  
   // Rename chat state
   const [isEditingName, setIsEditingName] = useState(false);
   const [editedName, setEditedName] = useState('');
