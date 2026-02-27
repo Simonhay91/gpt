@@ -1069,7 +1069,7 @@ async def upload_multiple_sources(
                 elif file_type == "xlsx":
                     extracted_text = extract_text_from_xlsx(content)
                 elif file_type in ["png", "jpeg", "jpg"]:
-                    extracted_text = f"[Image file: {file.filename}]"
+                    extracted_text = extract_text_from_image(content)
                 else:
                     extracted_text = extract_text_from_txt(content)
             except Exception as e:
