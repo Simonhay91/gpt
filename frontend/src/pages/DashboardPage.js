@@ -151,9 +151,9 @@ const DashboardPage = () => {
         {/* Header */}
         <div className="flex items-center justify-between mb-8">
           <div>
-            <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
+            <h1 className="text-3xl font-bold tracking-tight">{t('dashboard.title')}</h1>
             <p className="text-muted-foreground mt-1">
-              Manage your AI conversations and projects
+              {t('dashboard.subtitle')}
             </p>
           </div>
           
@@ -167,7 +167,7 @@ const DashboardPage = () => {
               data-testid="quick-chat-btn"
             >
               {isCreatingQuickChat ? <div className="spinner" /> : <MessageSquare className="h-4 w-4" />}
-              New Chat
+              {t('dashboard.newChat')}
             </Button>
             
             {/* New Project Dialog */}
@@ -175,19 +175,19 @@ const DashboardPage = () => {
               <DialogTrigger asChild>
                 <Button className="btn-hover" data-testid="create-project-btn">
                   <Plus className="mr-2 h-4 w-4" />
-                  New Project
+                  {t('dashboard.newProject')}
                 </Button>
               </DialogTrigger>
               <DialogContent className="sm:max-w-md">
                 <DialogHeader>
-                  <DialogTitle>Create New Project</DialogTitle>
+                  <DialogTitle>{t('dashboard.createNewProject')}</DialogTitle>
                   <DialogDescription>
-                    Create a new project to organize your AI conversations with sources.
+                    {t('dashboard.createProjectDesc')}
                   </DialogDescription>
                 </DialogHeader>
                 <div className="space-y-4 py-4">
                   <div className="space-y-2">
-                    <Label htmlFor="name">Project Name</Label>
+                    <Label htmlFor="name">{t('dashboard.projectName')}</Label>
                     <Input
                       id="name"
                       placeholder="My Awesome Project"
