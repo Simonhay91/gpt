@@ -996,6 +996,108 @@ async def upload_source(
         chunkCount=len(chunks)
     )
 
+@api_router.post("/projects/{project_id}/sources/upload-multiple")
+async def upload_multiple_sources(
+    project_id: str,
+    files: List[UploadFile] = File(...),
+    current_user: dict = Depends(get_current_user)
+):
+    """Upload multiple file sources to a project"""
+    await verify_project_access(project_id, current_user["id"])
+    
+    results = []
+    errors = []
+    
+    for file in files:
+        try:
+            # Validate file type
+            if file.content_type not in SUPPORTED_MIME_TYPES:
+                errors.append({"filename": file.filename, "error": "Unsupported file type"})
+                continue
+            
+            # Read file content
+            content = await file.read()
+            
+            # Check file size
+            if len(content) > MAX_FILE_SIZE:
+                errors.append({"filename": file.filename, "error": f"File size exceeds maximum"})
+                continue
+            
+            # Extract text based on file type
+            file_type = SUPPORTED_MIME_TYPES[file.content_type]
+            
+            try:
+                if file_type == "pdf":
+                    extracted_text = extract_text_from_pdf(content)
+                elif file_type == "docx":
+                    extracted_text = extract_text_from_docx(content)
+                elif file_type == "pptx":
+                    extracted_text = extract_text_from_pptx(content)
+                elif file_type == "xlsx":
+                    extracted_text = extract_text_from_xlsx(content)
+                elif file_type in ["png", "jpeg", "jpg"]:
+                    extracted_text = f"[Image file: {file.filename}]"
+                else:
+                    extracted_text = extract_text_from_txt(content)
+            except Exception as e:
+                errors.append({"filename": file.filename, "error": str(e)[:100]})
+                continue
+            
+            # For non-image files, check if text was extracted
+            if file_type not in ["png", "jpeg", "jpg"]:
+                if not extracted_text or len(extracted_text.strip()) < 10:
+                    errors.append({"filename": file.filename, "error": "No extractable text"})
+                    continue
+            
+            # Generate source ID and storage path
+            source_id = str(uuid.uuid4())
+            storage_filename = f"{source_id}.{file_type}"
+            storage_path = UPLOAD_DIR / storage_filename
+            
+            # Save file to disk
+            async with aiofiles.open(storage_path, 'wb') as f:
+                await f.write(content)
+            
+            # Create chunks
+            chunks = chunk_text(extracted_text)
+            
+            # Save source metadata
+            source_doc = {
+                "id": source_id,
+                "projectId": project_id,
+                "kind": "file",
+                "originalName": file.filename,
+                "url": None,
+                "mimeType": file.content_type,
+                "sizeBytes": len(content),
+                "storagePath": storage_filename,
+                "createdAt": datetime.now(timezone.utc).isoformat()
+            }
+            await db.sources.insert_one(source_doc)
+            
+            # Save chunks
+            for i, chunk_content in enumerate(chunks):
+                chunk_doc = {
+                    "id": str(uuid.uuid4()),
+                    "sourceId": source_id,
+                    "projectId": project_id,
+                    "chunkIndex": i,
+                    "content": chunk_content,
+                    "createdAt": datetime.now(timezone.utc).isoformat()
+                }
+                await db.source_chunks.insert_one(chunk_doc)
+            
+            results.append({
+                "id": source_id,
+                "filename": file.filename,
+                "chunkCount": len(chunks)
+            })
+            
+        except Exception as e:
+            errors.append({"filename": file.filename, "error": str(e)[:100]})
+    
+    return {"uploaded": results, "errors": errors}
+
 @api_router.post("/projects/{project_id}/sources/url", response_model=SourceResponse)
 async def add_url_source(
     project_id: str,
