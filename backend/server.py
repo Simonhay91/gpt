@@ -2060,6 +2060,213 @@ async def get_source_stats(current_user: dict = Depends(get_current_user)):
         "totalSizeBytes": total_size
     }
 
+# ==================== GLOBAL SOURCES ENDPOINTS ====================
+
+GLOBAL_PROJECT_ID = "__global__"  # Special marker for global sources
+
+@api_router.get("/admin/global-sources")
+async def get_global_sources(current_user: dict = Depends(get_current_user)):
+    """Get all global sources - admin only for full list"""
+    if not is_admin(current_user["email"]):
+        raise HTTPException(status_code=403, detail="Admin access required")
+    
+    sources = await db.sources.find({"projectId": GLOBAL_PROJECT_ID}, {"_id": 0}).to_list(1000)
+    return sources
+
+@api_router.get("/global-sources")
+async def get_global_sources_for_users(current_user: dict = Depends(get_current_user)):
+    """Get global sources for any authenticated user (read-only)"""
+    sources = await db.sources.find({"projectId": GLOBAL_PROJECT_ID}, {"_id": 0}).to_list(1000)
+    return sources
+
+@api_router.post("/admin/global-sources/upload")
+async def upload_global_source(
+    file: UploadFile = File(...),
+    current_user: dict = Depends(get_current_user)
+):
+    """Admin uploads a global source file"""
+    if not is_admin(current_user["email"]):
+        raise HTTPException(status_code=403, detail="Admin access required")
+    
+    # Validate file type
+    allowed_types = {
+        "application/pdf": "pdf",
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document": "docx",
+        "application/vnd.openxmlformats-officedocument.presentationml.presentation": "pptx",
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": "xlsx",
+        "text/plain": "txt",
+        "text/markdown": "md",
+        "image/png": "png",
+        "image/jpeg": "jpeg"
+    }
+    
+    if file.content_type not in allowed_types:
+        raise HTTPException(status_code=400, detail=f"Unsupported file type: {file.content_type}")
+    
+    file_type = allowed_types[file.content_type]
+    
+    # Check file size
+    content = await file.read()
+    if len(content) > MAX_FILE_SIZE:
+        raise HTTPException(status_code=400, detail=f"File too large. Max size: {MAX_FILE_SIZE // (1024*1024)}MB")
+    
+    # Save file
+    source_id = str(uuid.uuid4())
+    file_ext = file.filename.split(".")[-1] if "." in file.filename else file_type
+    storage_name = f"global_{source_id}.{file_ext}"
+    file_path = UPLOAD_DIR / storage_name
+    
+    async with aiofiles.open(file_path, 'wb') as f:
+        await f.write(content)
+    
+    # Extract text based on file type
+    if file_type == "pdf":
+        extracted_text = extract_text_from_pdf(content)
+    elif file_type == "docx":
+        extracted_text = extract_text_from_docx(content)
+    elif file_type == "pptx":
+        extracted_text = extract_text_from_pptx(content)
+    elif file_type == "xlsx":
+        extracted_text = extract_text_from_xlsx(content)
+    elif file_type in ["png", "jpeg", "jpg"]:
+        extracted_text = extract_text_from_image(content)
+    else:
+        extracted_text = extract_text_from_txt(content)
+    
+    # Chunk the text
+    chunks = chunk_text(extracted_text)
+    
+    # Save source
+    source_doc = {
+        "id": source_id,
+        "projectId": GLOBAL_PROJECT_ID,
+        "kind": "file",
+        "originalName": file.filename,
+        "mimeType": file.content_type,
+        "storagePath": storage_name,
+        "sizeBytes": len(content),
+        "createdAt": datetime.now(timezone.utc).isoformat(),
+        "chunkCount": len(chunks)
+    }
+    await db.sources.insert_one(source_doc)
+    
+    # Save chunks
+    for i, chunk_content in enumerate(chunks):
+        chunk_doc = {
+            "id": str(uuid.uuid4()),
+            "sourceId": source_id,
+            "projectId": GLOBAL_PROJECT_ID,
+            "chunkIndex": i,
+            "content": chunk_content,
+            "createdAt": datetime.now(timezone.utc).isoformat()
+        }
+        await db.source_chunks.insert_one(chunk_doc)
+    
+    logger.info(f"Uploaded global source {file.filename} with {len(chunks)} chunks")
+    
+    return {**source_doc, "_id": None}
+
+@api_router.post("/admin/global-sources/url")
+async def add_global_url_source(url_data: URLSourceCreate, current_user: dict = Depends(get_current_user)):
+    """Admin adds a URL as global source"""
+    if not is_admin(current_user["email"]):
+        raise HTTPException(status_code=403, detail="Admin access required")
+    
+    url = str(url_data.url)
+    
+    # Fetch URL content
+    try:
+        async with httpx.AsyncClient(timeout=30.0, follow_redirects=True) as client:
+            response = await client.get(url, headers={"User-Agent": "Mozilla/5.0"})
+            response.raise_for_status()
+            html_content = response.text
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Failed to fetch URL: {str(e)}")
+    
+    # Extract text
+    extracted_text = extract_text_from_html(html_content)
+    
+    if not extracted_text or len(extracted_text) < 50:
+        raise HTTPException(status_code=400, detail="Could not extract meaningful content from URL")
+    
+    # Chunk the text
+    chunks = chunk_text(extracted_text)
+    
+    # Save source
+    source_id = str(uuid.uuid4())
+    source_doc = {
+        "id": source_id,
+        "projectId": GLOBAL_PROJECT_ID,
+        "kind": "url",
+        "url": url,
+        "createdAt": datetime.now(timezone.utc).isoformat(),
+        "chunkCount": len(chunks)
+    }
+    await db.sources.insert_one(source_doc)
+    
+    # Save chunks
+    for i, chunk_content in enumerate(chunks):
+        chunk_doc = {
+            "id": str(uuid.uuid4()),
+            "sourceId": source_id,
+            "projectId": GLOBAL_PROJECT_ID,
+            "chunkIndex": i,
+            "content": chunk_content,
+            "createdAt": datetime.now(timezone.utc).isoformat()
+        }
+        await db.source_chunks.insert_one(chunk_doc)
+    
+    return {**source_doc, "_id": None}
+
+@api_router.delete("/admin/global-sources/{source_id}")
+async def delete_global_source(source_id: str, current_user: dict = Depends(get_current_user)):
+    """Admin deletes a global source"""
+    if not is_admin(current_user["email"]):
+        raise HTTPException(status_code=403, detail="Admin access required")
+    
+    source = await db.sources.find_one({"id": source_id, "projectId": GLOBAL_PROJECT_ID}, {"_id": 0})
+    if not source:
+        raise HTTPException(status_code=404, detail="Global source not found")
+    
+    # Delete file if exists
+    if source.get("storagePath"):
+        file_path = UPLOAD_DIR / source["storagePath"]
+        if file_path.exists():
+            file_path.unlink()
+    
+    # Delete chunks
+    await db.source_chunks.delete_many({"sourceId": source_id})
+    
+    # Delete source
+    await db.sources.delete_one({"id": source_id})
+    
+    return {"message": "Global source deleted"}
+
+@api_router.get("/admin/global-sources/{source_id}/preview")
+async def preview_global_source(source_id: str, current_user: dict = Depends(get_current_user)):
+    """Preview global source content"""
+    if not is_admin(current_user["email"]):
+        raise HTTPException(status_code=403, detail="Admin access required")
+    
+    source = await db.sources.find_one({"id": source_id, "projectId": GLOBAL_PROJECT_ID}, {"_id": 0})
+    if not source:
+        raise HTTPException(status_code=404, detail="Global source not found")
+    
+    chunks = await db.source_chunks.find(
+        {"sourceId": source_id},
+        {"_id": 0, "content": 1, "chunkIndex": 1}
+    ).sort("chunkIndex", 1).to_list(1000)
+    
+    full_text = "\n\n".join([c["content"] for c in chunks])
+    
+    return {
+        "id": source_id,
+        "name": source.get("originalName") or source.get("url"),
+        "text": full_text,
+        "chunkCount": len(chunks),
+        "wordCount": len(full_text.split())
+    }
+
 @api_router.get("/admin/config", response_model=GPTConfigResponse)
 async def get_gpt_config(current_user: dict = Depends(get_current_user)):
     if not is_admin(current_user["email"]):
