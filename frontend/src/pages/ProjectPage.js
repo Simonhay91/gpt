@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '../components/ui/dialog';
 import { Label } from '../components/ui/label';
 import { toast } from 'sonner';
-import { Plus, MessageSquare, Trash2, Clock, ArrowRight, ArrowLeft, FolderOpen } from 'lucide-react';
+import { Plus, MessageSquare, Trash2, Clock, ArrowRight, ArrowLeft, FolderOpen, Share2, Users, X, Download } from 'lucide-react';
 import DashboardLayout from '../components/DashboardLayout';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
@@ -21,6 +21,13 @@ const ProjectPage = () => {
   const [newChatName, setNewChatName] = useState('');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
+  
+  // Share dialog
+  const [shareDialogOpen, setShareDialogOpen] = useState(false);
+  const [shareEmail, setShareEmail] = useState('');
+  const [isSharing, setIsSharing] = useState(false);
+  const [members, setMembers] = useState([]);
+  const [isOwner, setIsOwner] = useState(false);
 
   useEffect(() => {
     fetchProjectAndChats();
@@ -34,6 +41,19 @@ const ProjectPage = () => {
       ]);
       setProject(projectRes.data);
       setChats(chatsRes.data);
+      
+      // Check if current user is owner (we'll know from the API response)
+      // Fetch members to determine ownership
+      try {
+        const membersRes = await axios.get(`${API}/projects/${projectId}/members`);
+        setMembers(membersRes.data);
+        // Current user is owner if they have owner role
+        const currentUserEmail = localStorage.getItem('userEmail');
+        const ownerMember = membersRes.data.find(m => m.role === 'owner');
+        setIsOwner(ownerMember?.email === currentUserEmail);
+      } catch (e) {
+        console.error('Failed to fetch members');
+      }
     } catch (error) {
       toast.error('Failed to load project');
       navigate('/dashboard');
@@ -52,7 +72,6 @@ const ProjectPage = () => {
       setNewChatName('');
       setIsDialogOpen(false);
       toast.success('Chat created');
-      // Navigate to the new chat
       navigate(`/chats/${response.data.id}`);
     } catch (error) {
       toast.error('Failed to create chat');
@@ -74,6 +93,57 @@ const ProjectPage = () => {
       toast.success('Chat deleted');
     } catch (error) {
       toast.error('Failed to delete chat');
+    }
+  };
+
+  const shareProject = async () => {
+    if (!shareEmail.trim()) {
+      toast.error('Please enter an email');
+      return;
+    }
+    
+    setIsSharing(true);
+    try {
+      await axios.post(`${API}/projects/${projectId}/share`, { email: shareEmail.trim() });
+      toast.success(`Shared with ${shareEmail}`);
+      setShareEmail('');
+      // Refresh members
+      const membersRes = await axios.get(`${API}/projects/${projectId}/members`);
+      setMembers(membersRes.data);
+    } catch (error) {
+      const msg = error.response?.data?.detail || 'Failed to share';
+      toast.error(msg);
+    } finally {
+      setIsSharing(false);
+    }
+  };
+
+  const removeMember = async (userId) => {
+    try {
+      await axios.delete(`${API}/projects/${projectId}/share/${userId}`);
+      setMembers(members.filter(m => m.id !== userId));
+      toast.success('Member removed');
+    } catch (error) {
+      toast.error('Failed to remove member');
+    }
+  };
+
+  const downloadAllFiles = async () => {
+    try {
+      const response = await axios.get(`${API}/projects/${projectId}/sources/download-all`, {
+        responseType: 'blob'
+      });
+      
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `${project?.name || 'project'}_files.zip`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      toast.error('No files to download');
     }
   };
 
@@ -119,120 +189,203 @@ const ProjectPage = () => {
               <div>
                 <h1 className="text-3xl font-bold tracking-tight">{project?.name}</h1>
                 <p className="text-muted-foreground mt-1">
-                  {chats.length} {chats.length === 1 ? 'chat' : 'chats'} in this project
+                  {chats.length} {chats.length === 1 ? 'chat' : 'chats'}
+                  {members.length > 1 && (
+                    <span className="ml-2 text-emerald-400">
+                      • {members.length} members
+                    </span>
+                  )}
                 </p>
               </div>
             </div>
             
-            <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-              <DialogTrigger asChild>
-                <Button className="btn-hover" data-testid="create-chat-btn">
-                  <Plus className="mr-2 h-4 w-4" />
-                  New Chat
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="sm:max-w-md">
-                <DialogHeader>
-                  <DialogTitle>Create New Chat</DialogTitle>
-                  <DialogDescription>
-                    Start a new conversation within this project.
-                  </DialogDescription>
-                </DialogHeader>
-                <div className="space-y-4 py-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="chatName">Chat Name (optional)</Label>
+            <div className="flex items-center gap-2">
+              {/* Download All Files */}
+              <Button
+                variant="outline"
+                onClick={downloadAllFiles}
+                data-testid="download-all-btn"
+              >
+                <Download className="mr-2 h-4 w-4" />
+                Download Files
+              </Button>
+              
+              {/* Share Button */}
+              <Dialog open={shareDialogOpen} onOpenChange={setShareDialogOpen}>
+                <DialogTrigger asChild>
+                  <Button variant="outline" data-testid="share-project-btn">
+                    <Share2 className="mr-2 h-4 w-4" />
+                    Share
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="sm:max-w-md">
+                  <DialogHeader>
+                    <DialogTitle>Share Project</DialogTitle>
+                    <DialogDescription>
+                      Invite team members to collaborate on this project.
+                    </DialogDescription>
+                  </DialogHeader>
+                  
+                  {/* Add member */}
+                  <div className="flex gap-2 py-4">
                     <Input
-                      id="chatName"
-                      placeholder="e.g., Feature Discussion"
-                      value={newChatName}
-                      onChange={(e) => setNewChatName(e.target.value)}
-                      onKeyDown={(e) => e.key === 'Enter' && createChat()}
-                      data-testid="chat-name-input"
+                      placeholder="Enter email address"
+                      value={shareEmail}
+                      onChange={(e) => setShareEmail(e.target.value)}
+                      onKeyDown={(e) => e.key === 'Enter' && shareProject()}
+                      data-testid="share-email-input"
                     />
+                    <Button 
+                      onClick={shareProject}
+                      disabled={isSharing}
+                      data-testid="share-btn"
+                    >
+                      {isSharing ? <div className="spinner" /> : 'Add'}
+                    </Button>
                   </div>
-                </div>
-                <DialogFooter>
-                  <Button
-                    variant="outline"
-                    onClick={() => setIsDialogOpen(false)}
-                    data-testid="cancel-chat-btn"
-                  >
-                    Cancel
+                  
+                  {/* Members list */}
+                  <div className="space-y-2">
+                    <Label>Members</Label>
+                    {members.map((member) => (
+                      <div key={member.id} className="flex items-center justify-between py-2 px-3 bg-secondary rounded-lg">
+                        <div className="flex items-center gap-3">
+                          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-indigo-500 to-purple-500 flex items-center justify-center text-white text-sm font-medium">
+                            {member.email?.charAt(0).toUpperCase()}
+                          </div>
+                          <div>
+                            <p className="text-sm font-medium">{member.email}</p>
+                            <p className="text-xs text-muted-foreground capitalize">{member.role}</p>
+                          </div>
+                        </div>
+                        {member.role !== 'owner' && isOwner && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8"
+                            onClick={() => removeMember(member.id)}
+                          >
+                            <X className="h-4 w-4" />
+                          </Button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </DialogContent>
+              </Dialog>
+              
+              {/* New Chat Button */}
+              <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+                <DialogTrigger asChild>
+                  <Button className="btn-hover" data-testid="new-chat-btn">
+                    <Plus className="mr-2 h-4 w-4" />
+                    New Chat
                   </Button>
-                  <Button
-                    onClick={createChat}
-                    disabled={isCreating}
-                    data-testid="confirm-chat-btn"
-                  >
-                    {isCreating ? <div className="spinner mr-2" /> : null}
-                    Create
-                  </Button>
-                </DialogFooter>
-              </DialogContent>
-            </Dialog>
+                </DialogTrigger>
+                <DialogContent className="sm:max-w-md">
+                  <DialogHeader>
+                    <DialogTitle>Create New Chat</DialogTitle>
+                    <DialogDescription>
+                      Start a new conversation in this project.
+                    </DialogDescription>
+                  </DialogHeader>
+                  <div className="space-y-4 py-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="chatName">Chat Name (optional)</Label>
+                      <Input
+                        id="chatName"
+                        placeholder="New Chat"
+                        value={newChatName}
+                        onChange={(e) => setNewChatName(e.target.value)}
+                        onKeyDown={(e) => e.key === 'Enter' && createChat()}
+                        data-testid="chat-name-input"
+                      />
+                    </div>
+                  </div>
+                  <DialogFooter>
+                    <Button
+                      variant="outline"
+                      onClick={() => setIsDialogOpen(false)}
+                    >
+                      Cancel
+                    </Button>
+                    <Button
+                      onClick={createChat}
+                      disabled={isCreating}
+                      data-testid="confirm-create-chat-btn"
+                    >
+                      {isCreating ? <div className="spinner mr-2" /> : null}
+                      Create Chat
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
+            </div>
           </div>
         </div>
 
-        {/* Chats List */}
-        {chats.length === 0 ? (
-          <Card className="border-dashed card-hover cursor-pointer" onClick={() => setIsDialogOpen(true)} data-testid="empty-chats-card">
-            <CardContent className="flex flex-col items-center justify-center py-12">
-              <div className="rounded-full bg-secondary p-4 mb-4">
-                <MessageSquare className="h-8 w-8 text-muted-foreground" />
-              </div>
-              <h3 className="text-lg font-semibold mb-2">No chats yet</h3>
-              <p className="text-muted-foreground text-center mb-4">
-                Start your first conversation in this project
-              </p>
-              <Button variant="outline" data-testid="create-first-chat-btn">
-                <Plus className="mr-2 h-4 w-4" />
-                Start Chat
-              </Button>
-            </CardContent>
-          </Card>
-        ) : (
-          <div className="space-y-3">
-            {chats.map((chat, index) => (
-              <Card 
-                key={chat.id}
-                className="card-hover cursor-pointer group"
-                onClick={() => navigate(`/chats/${chat.id}`)}
-                style={{ animationDelay: `${index * 50}ms` }}
-                data-testid={`chat-card-${chat.id}`}
-              >
-                <CardContent className="py-4">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-4">
-                      <div className="rounded-lg bg-secondary p-2">
-                        <MessageSquare className="h-5 w-5 text-emerald-400" />
-                      </div>
-                      <div>
-                        <h3 className="font-semibold">{chat.name}</h3>
-                        <div className="flex items-center gap-1 text-sm text-muted-foreground mt-1">
-                          <Clock className="h-3 w-3" />
-                          <span>{formatDate(chat.createdAt)}</span>
+        {/* Chats List with 5px padding */}
+        <div className="p-[5px]">
+          {chats.length === 0 ? (
+            <Card className="border-dashed">
+              <CardContent className="flex flex-col items-center justify-center py-12">
+                <div className="rounded-full bg-secondary p-4 mb-4">
+                  <MessageSquare className="h-8 w-8 text-muted-foreground" />
+                </div>
+                <h3 className="text-lg font-semibold mb-2">No chats yet</h3>
+                <p className="text-muted-foreground text-center mb-4">
+                  Start a new conversation with the AI assistant
+                </p>
+                <Button onClick={() => setIsDialogOpen(true)}>
+                  <Plus className="mr-2 h-4 w-4" />
+                  New Chat
+                </Button>
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="space-y-3">
+              {chats.map((chat, index) => (
+                <Card
+                  key={chat.id}
+                  className="card-hover cursor-pointer group"
+                  onClick={() => navigate(`/chats/${chat.id}`)}
+                  style={{ animationDelay: `${index * 50}ms` }}
+                  data-testid={`chat-card-${chat.id}`}
+                >
+                  <CardContent className="py-4">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-4">
+                        <div className="rounded-lg bg-emerald-500/20 p-2">
+                          <MessageSquare className="h-5 w-5 text-emerald-400" />
+                        </div>
+                        <div>
+                          <h3 className="font-semibold">{chat.name || 'Untitled Chat'}</h3>
+                          <div className="flex items-center gap-1 text-sm text-muted-foreground mt-1">
+                            <Clock className="h-3 w-3" />
+                            <span>{formatDate(chat.createdAt)}</span>
+                          </div>
                         </div>
                       </div>
+                      
+                      <div className="flex items-center gap-2">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="opacity-0 group-hover:opacity-100 transition-opacity h-8 w-8"
+                          onClick={(e) => deleteChat(chat.id, e)}
+                          data-testid={`delete-chat-${chat.id}`}
+                        >
+                          <Trash2 className="h-4 w-4 text-destructive" />
+                        </Button>
+                        <ArrowRight className="h-4 w-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+                      </div>
                     </div>
-                    
-                    <div className="flex items-center gap-2">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="opacity-0 group-hover:opacity-100 transition-opacity h-8 w-8"
-                        onClick={(e) => deleteChat(chat.id, e)}
-                        data-testid={`delete-chat-${chat.id}`}
-                      >
-                        <Trash2 className="h-4 w-4 text-destructive" />
-                      </Button>
-                      <ArrowRight className="h-4 w-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        )}
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
     </DashboardLayout>
   );
