@@ -349,6 +349,18 @@ const AdminGlobalSourcesPage = () => {
             <BarChart3 className="mr-2 h-4 w-4" />
             Статистика
           </Button>
+          <Button
+            variant={activeTab === 'cache' ? 'default' : 'outline'}
+            onClick={() => setActiveTab('cache')}
+          >
+            <Database className="mr-2 h-4 w-4" />
+            Кэш
+            {cacheStats?.totalHits > 0 && (
+              <span className="ml-2 bg-emerald-500 text-white text-xs px-1.5 py-0.5 rounded-full">
+                {cacheStats.totalHits}
+              </span>
+            )}
+          </Button>
         </div>
 
         {/* Info Card */}
