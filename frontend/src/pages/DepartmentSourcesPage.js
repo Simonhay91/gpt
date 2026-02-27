@@ -559,10 +559,10 @@ const DepartmentSourcesPage = () => {
           <DialogContent className="sm:max-w-lg">
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
-                <History className="h-5 w-5" />
+                <History className="h-5 w-5 flex-shrink-0" />
                 История версий
               </DialogTitle>
-              <DialogDescription>
+              <DialogDescription className="break-all">
                 {selectedSource?.originalName}
               </DialogDescription>
             </DialogHeader>
