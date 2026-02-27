@@ -215,9 +215,9 @@ const PersonalSourcesPage = () => {
           <Card className="border-dashed">
             <CardContent className="flex flex-col items-center justify-center py-12">
               <FileText className="h-12 w-12 text-muted-foreground mb-4" />
-              <h3 className="text-lg font-semibold mb-2">Нет личных источников</h3>
+              <h3 className="text-lg font-semibold mb-2">{t('personal.noSources')}</h3>
               <p className="text-muted-foreground text-center mb-4">
-                Загрузите документы для создания личной базы знаний
+                {t('personal.uploadDesc')}
               </p>
             </CardContent>
           </Card>
