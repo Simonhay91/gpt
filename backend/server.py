@@ -2081,10 +2081,17 @@ async def send_message(chat_id: str, message_data: MessageCreate, current_user: 
         if not openai_client:
             raise Exception("OpenAI API key not configured")
         
-        # Build messages array with developer prompt, user custom prompt, document context, and chat history
-        messages = [
-            {"role": "developer", "content": config["developerPrompt"]}
-        ]
+        # If cache hit, use cached answer
+        if cache_hit:
+            response_text = cache_hit["answer"]
+            # Add cache indicator to response
+            response_text += f"\n\n---\n_📦 Ответ из кэша (схожесть: {cache_hit['similarity']:.0%})_"
+            tokens_used = 0  # No tokens used for cached response
+        else:
+            # Build messages array with developer prompt, user custom prompt, document context, and chat history
+            messages = [
+                {"role": "developer", "content": config["developerPrompt"]}
+            ]
         
         # Add user's custom prompt if exists
         if user_custom_prompt:
