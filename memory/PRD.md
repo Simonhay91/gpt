@@ -92,6 +92,14 @@ Planet GPT is a multi-user SaaS platform for AI-powered conversations with proje
 - `GET /api/admin/users` - List all users with usage stats
 - `DELETE /api/admin/users/{id}` - Delete user
 
+### Admin - Global Sources
+- `GET /api/admin/global-sources` - List all global sources (admin only)
+- `POST /api/admin/global-sources/upload` - Upload global source file
+- `POST /api/admin/global-sources/url` - Add URL as global source
+- `GET /api/admin/global-sources/{id}/preview` - Preview global source content
+- `DELETE /api/admin/global-sources/{id}` - Delete global source
+- `GET /api/global-sources` - List global sources (any authenticated user, read-only)
+
 ### Admin - Config
 - `GET /api/admin/config` - Get GPT config
 - `PUT /api/admin/config` - Update GPT config
