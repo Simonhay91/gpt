@@ -124,6 +124,9 @@ class UserResponse(BaseModel):
     isAdmin: bool
     createdAt: str
     canEditGlobalSources: Optional[bool] = False
+    # Enterprise Knowledge Architecture
+    departments: Optional[List[str]] = []
+    primaryDepartmentId: Optional[str] = None
 
 class UserWithUsageResponse(BaseModel):
     id: str
