@@ -20,7 +20,10 @@ import {
   Users,
   Sun,
   Moon,
-  Sparkles
+  Sparkles,
+  Building2,
+  ScrollText,
+  Lock
 } from 'lucide-react';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
