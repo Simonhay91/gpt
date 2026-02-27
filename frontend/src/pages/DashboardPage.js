@@ -291,7 +291,7 @@ const DashboardPage = () => {
             <div>
               <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
                 <FolderOpen className="h-5 w-5 text-indigo-400" />
-                Projects
+                {t('dashboard.projects')}
               </h2>
               
               {projects.length === 0 ? (
@@ -300,13 +300,13 @@ const DashboardPage = () => {
                     <div className="rounded-full bg-secondary p-4 mb-4">
                       <FolderOpen className="h-8 w-8 text-muted-foreground" />
                     </div>
-                    <h3 className="text-lg font-semibold mb-2">No projects yet</h3>
+                    <h3 className="text-lg font-semibold mb-2">{t('dashboard.noProjects')}</h3>
                     <p className="text-muted-foreground text-center mb-4">
-                      Create a project to organize chats with file sources
+                      {t('dashboard.createFirst')}
                     </p>
                     <Button variant="outline" data-testid="create-first-project-btn">
                       <Plus className="mr-2 h-4 w-4" />
-                      Create Project
+                      {t('dashboard.createProject')}
                     </Button>
                   </CardContent>
                 </Card>
