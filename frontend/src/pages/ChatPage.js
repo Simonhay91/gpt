@@ -908,15 +908,42 @@ const ChatPage = () => {
                           {source.chunkCount} chunks • {formatDate(source.createdAt)}
                         </p>
                       </div>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8 opacity-50 hover:opacity-100"
-                        onClick={(e) => deleteSource(source.id, e)}
-                        data-testid={`delete-source-${source.id}`}
-                      >
-                        <Trash2 className="h-4 w-4 text-destructive" />
-                      </Button>
+                      <div className="flex items-center gap-1">
+                        {/* Preview button */}
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 opacity-50 hover:opacity-100"
+                          onClick={(e) => openPreview(source, e)}
+                          title="Preview"
+                          data-testid={`preview-source-${source.id}`}
+                        >
+                          <Eye className="h-4 w-4 text-blue-400" />
+                        </Button>
+                        {/* Download button - only for files */}
+                        {source.kind === 'file' && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 opacity-50 hover:opacity-100"
+                            onClick={(e) => downloadSource(source, e)}
+                            title="Download"
+                            data-testid={`download-source-${source.id}`}
+                          >
+                            <Download className="h-4 w-4 text-green-400" />
+                          </Button>
+                        )}
+                        {/* Delete button */}
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 opacity-50 hover:opacity-100"
+                          onClick={(e) => deleteSource(source.id, e)}
+                          data-testid={`delete-source-${source.id}`}
+                        >
+                          <Trash2 className="h-4 w-4 text-destructive" />
+                        </Button>
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -931,6 +958,37 @@ const ChatPage = () => {
             </div>
           </div>
         )}
+
+        {/* Preview Dialog */}
+        <Dialog open={previewDialogOpen} onOpenChange={setPreviewDialogOpen}>
+          <DialogContent className="sm:max-w-2xl max-h-[80vh]">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <FileText className="h-5 w-5" />
+                {previewSource?.name || 'Source Preview'}
+              </DialogTitle>
+              <DialogDescription>
+                {previewSource?.chunkCount} chunks extracted • {previewSource?.kind === 'url' ? 'URL' : previewSource?.mimeType}
+              </DialogDescription>
+            </DialogHeader>
+            {previewLoading ? (
+              <div className="flex items-center justify-center py-12">
+                <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+              </div>
+            ) : (
+              <ScrollArea className="max-h-[50vh] mt-4">
+                <pre className="text-sm whitespace-pre-wrap font-mono bg-secondary/50 p-4 rounded-lg">
+                  {previewSource?.text || 'No content'}
+                </pre>
+              </ScrollArea>
+            )}
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setPreviewDialogOpen(false)}>
+                Close
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
 
         {/* Messages Area */}
         <ScrollArea className="flex-1 px-6 py-4">
