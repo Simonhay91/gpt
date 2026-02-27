@@ -198,11 +198,11 @@ const AdminDepartmentsPage = () => {
               </div>
               <DialogFooter>
                 <Button variant="outline" onClick={() => setIsCreateDialogOpen(false)}>
-                  Отмена
+                  {t('action.cancel')}
                 </Button>
                 <Button onClick={createDepartment} disabled={isCreating}>
                   {isCreating ? <div className="spinner mr-2" /> : null}
-                  Создать
+                  {t('departments.create')}
                 </Button>
               </DialogFooter>
             </DialogContent>
@@ -218,13 +218,13 @@ const AdminDepartmentsPage = () => {
           <Card className="border-dashed">
             <CardContent className="flex flex-col items-center justify-center py-12">
               <Building2 className="h-12 w-12 text-muted-foreground mb-4" />
-              <h3 className="text-lg font-semibold mb-2">Нет отделов</h3>
+              <h3 className="text-lg font-semibold mb-2">{t('departments.noDepartments')}</h3>
               <p className="text-muted-foreground text-center mb-4">
-                Создайте первый отдел для организации базы знаний
+                {t('departments.createFirst')}
               </p>
               <Button onClick={() => setIsCreateDialogOpen(true)}>
                 <Plus className="mr-2 h-4 w-4" />
-                Создать отдел
+                {t('departments.create')}
               </Button>
             </CardContent>
           </Card>
