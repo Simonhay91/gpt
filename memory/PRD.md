@@ -20,13 +20,15 @@ Planet GPT is a multi-user SaaS platform for AI-powered conversations with proje
 ### Project-based Conversations
 - Each user can create multiple projects
 - Projects contain chats with access to file/URL sources
-- Strict data isolation - users only see their own projects
+- **Project Sharing** - Owner can share projects with other users
+- **Auto-active Sources** - All sources in a project are automatically used as AI context
 
 ### Source Management (Project-only)
-- Upload files: PDF, DOCX, TXT, MD
+- Upload files: **PDF, DOCX, PPTX, XLSX, TXT, MD, PNG, JPEG**
+- **Multiple file upload** supported
+- **Download all files** as ZIP
 - Add URLs as sources
 - Auto-ingest URLs from chat messages
-- Select active sources per chat for AI context
 - AI provides citations referencing source chunks
 
 ### User Custom Prompt
@@ -56,7 +58,7 @@ Planet GPT is a multi-user SaaS platform for AI-powered conversations with proje
 
 ## Database Collections
 - `users` - User accounts
-- `projects` - User projects
+- `projects` - User projects (with sharedWith array for collaboration)
 - `chats` - Conversations (can belong to project or be "quick chat")
 - `messages` - Chat messages with citations
 - `sources` - Uploaded files and URLs
@@ -80,10 +82,14 @@ Planet GPT is a multi-user SaaS platform for AI-powered conversations with proje
 - `GET /api/admin/config` - Get GPT config
 - `PUT /api/admin/config` - Update GPT config
 
+### Users
+- `GET /api/users/list` - Get list of users (for sharing)
+
 ### Quick Chats
 - `GET /api/quick-chats` - List user's quick chats
 - `POST /api/quick-chats` - Create quick chat
 - `POST /api/chats/{id}/move` - Move chat to project
+- `PUT /api/chats/{id}/rename` - Rename chat
 
 ### User Settings
 - `GET /api/user/prompt` - Get user's custom prompt
@@ -92,16 +98,20 @@ Planet GPT is a multi-user SaaS platform for AI-powered conversations with proje
 ### Projects & Chats
 - `GET/POST /api/projects` - List/Create projects
 - `GET/DELETE /api/projects/{id}` - Get/Delete project
+- `POST /api/projects/{id}/share` - Share project with user
+- `DELETE /api/projects/{id}/share/{userId}` - Remove user from project
+- `GET /api/projects/{id}/members` - Get project members
 - `GET/POST /api/projects/{id}/chats` - List/Create chats
 - `GET/DELETE /api/chats/{id}` - Get/Delete chat
 - `GET/POST /api/chats/{id}/messages` - Get/Send messages
 
 ### Sources
-- `POST /api/projects/{id}/sources/upload` - Upload file
+- `POST /api/projects/{id}/sources/upload` - Upload single file
+- `POST /api/projects/{id}/sources/upload-multiple` - Upload multiple files
 - `POST /api/projects/{id}/sources/url` - Add URL
 - `GET /api/projects/{id}/sources` - List sources
+- `GET /api/projects/{id}/sources/download-all` - Download all as ZIP
 - `DELETE /api/projects/{id}/sources/{id}` - Delete source
-- `GET/POST /api/chats/{id}/active-sources` - Get/Set active sources
 
 ### Images
 - `POST /api/projects/{id}/generate-image` - Generate image
@@ -109,6 +119,20 @@ Planet GPT is a multi-user SaaS platform for AI-powered conversations with proje
 - `GET /api/images/{id}` - Get image file
 
 ## Changelog
+
+### 2025-12-28
+- **Project Sharing** - Share projects with other users
+  - User list selection in Share dialog
+  - `/api/users/list` endpoint for available users
+  - Members management in project
+- **Auto-active Sources** - All sources automatically active in project chats
+  - Removed manual checkbox selection
+- **New File Types** - Added support for PPTX, XLSX, PNG, JPEG
+- **Multiple File Upload** - Upload multiple files at once
+- **ZIP Download** - Download all project files as ZIP
+- **UI Improvements**
+  - 5px padding on chat list
+  - Improved source panel UI
 
 ### 2026-02-24
 - Renamed from "Shared GPT" to "Planet GPT"
@@ -138,4 +162,3 @@ Planet GPT is a multi-user SaaS platform for AI-powered conversations with proje
 - P1: Source search/filter
 - P2: Usage/cost dashboard
 - P2: Background ingestion for large files
-- P2: "Clear Active Sources" toggle
