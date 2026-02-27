@@ -200,8 +200,13 @@ const DashboardLayout = ({ children }) => {
                 data-testid={`nav-${item.name.toLowerCase().replace(' ', '-')}`}
               >
                 <Icon className="h-4 w-4" />
-                {item.name}
-                {active && <ChevronRight className="h-4 w-4 ml-auto" />}
+                <span className="flex-1">{item.name}</span>
+                {item.badge && (
+                  <span className="bg-amber-500 text-white text-xs font-bold px-2 py-0.5 rounded-full min-w-[20px] text-center">
+                    {item.badge}
+                  </span>
+                )}
+                {active && !item.badge && <ChevronRight className="h-4 w-4 ml-auto" />}
               </Link>
             );
           })}
