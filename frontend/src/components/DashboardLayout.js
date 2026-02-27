@@ -37,7 +37,6 @@ const DashboardLayout = ({ children }) => {
   
   // Pending approvals count for managers
   const [pendingCount, setPendingCount] = useState(0);
-  const [isManager, setIsManager] = useState(false);
   
   // User Prompt State
   const [isPromptDialogOpen, setIsPromptDialogOpen] = useState(false);
