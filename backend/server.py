@@ -578,13 +578,29 @@ async def get_me(current_user: dict = Depends(get_current_user)):
 
 # ==================== PROJECT ENDPOINTS ====================
 
+async def verify_project_access(project_id: str, user_id: str):
+    """Verify user has access to project (owner or shared)"""
+    project = await db.projects.find_one({"id": project_id}, {"_id": 0})
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+    
+    shared_with = project.get("sharedWith", [])
+    if project["ownerId"] != user_id and user_id not in shared_with:
+        raise HTTPException(status_code=403, detail="Not authorized to access this project")
+    
+    return project
+
 @api_router.get("/projects", response_model=List[ProjectResponse])
 async def get_projects(current_user: dict = Depends(get_current_user)):
+    # Get owned projects and shared projects
     projects = await db.projects.find(
-        {"ownerId": current_user["id"]},
+        {"$or": [
+            {"ownerId": current_user["id"]},
+            {"sharedWith": current_user["id"]}
+        ]},
         {"_id": 0}
     ).to_list(1000)
-    return [ProjectResponse(**p) for p in projects]
+    return [ProjectResponse(**{**p, "sharedWith": p.get("sharedWith", [])}) for p in projects]
 
 @api_router.post("/projects", response_model=ProjectResponse)
 async def create_project(project_data: ProjectCreate, current_user: dict = Depends(get_current_user)):
@@ -593,6 +609,7 @@ async def create_project(project_data: ProjectCreate, current_user: dict = Depen
         "id": project_id,
         "name": project_data.name,
         "ownerId": current_user["id"],
+        "sharedWith": [],
         "createdAt": datetime.now(timezone.utc).isoformat()
     }
     await db.projects.insert_one(project)
@@ -600,19 +617,77 @@ async def create_project(project_data: ProjectCreate, current_user: dict = Depen
 
 @api_router.get("/projects/{project_id}", response_model=ProjectResponse)
 async def get_project(project_id: str, current_user: dict = Depends(get_current_user)):
-    project = await db.projects.find_one(
-        {"id": project_id, "ownerId": current_user["id"]},
-        {"_id": 0}
-    )
+    project = await verify_project_access(project_id, current_user["id"])
+    return ProjectResponse(**{**project, "sharedWith": project.get("sharedWith", [])})
+
+@api_router.post("/projects/{project_id}/share")
+async def share_project(project_id: str, data: ShareProjectRequest, current_user: dict = Depends(get_current_user)):
+    """Share project with another user by email"""
+    project = await db.projects.find_one({"id": project_id, "ownerId": current_user["id"]}, {"_id": 0})
     if not project:
-        raise HTTPException(status_code=404, detail="Project not found")
-    return ProjectResponse(**project)
+        raise HTTPException(status_code=404, detail="Project not found or not owner")
+    
+    # Find user by email
+    user_to_share = await db.users.find_one({"email": data.email}, {"_id": 0})
+    if not user_to_share:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    if user_to_share["id"] == current_user["id"]:
+        raise HTTPException(status_code=400, detail="Cannot share with yourself")
+    
+    # Add to sharedWith if not already
+    shared_with = project.get("sharedWith", [])
+    if user_to_share["id"] not in shared_with:
+        shared_with.append(user_to_share["id"])
+        await db.projects.update_one(
+            {"id": project_id},
+            {"$set": {"sharedWith": shared_with}}
+        )
+    
+    return {"message": f"Project shared with {data.email}", "sharedWith": shared_with}
+
+@api_router.delete("/projects/{project_id}/share/{user_id}")
+async def unshare_project(project_id: str, user_id: str, current_user: dict = Depends(get_current_user)):
+    """Remove user from shared project"""
+    project = await db.projects.find_one({"id": project_id, "ownerId": current_user["id"]}, {"_id": 0})
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found or not owner")
+    
+    shared_with = project.get("sharedWith", [])
+    if user_id in shared_with:
+        shared_with.remove(user_id)
+        await db.projects.update_one(
+            {"id": project_id},
+            {"$set": {"sharedWith": shared_with}}
+        )
+    
+    return {"message": "User removed from project", "sharedWith": shared_with}
+
+@api_router.get("/projects/{project_id}/members")
+async def get_project_members(project_id: str, current_user: dict = Depends(get_current_user)):
+    """Get all members of a project"""
+    project = await verify_project_access(project_id, current_user["id"])
+    
+    members = []
+    
+    # Get owner
+    owner = await db.users.find_one({"id": project["ownerId"]}, {"_id": 0, "passwordHash": 0})
+    if owner:
+        members.append({"id": owner["id"], "email": owner["email"], "role": "owner"})
+    
+    # Get shared users
+    for user_id in project.get("sharedWith", []):
+        user = await db.users.find_one({"id": user_id}, {"_id": 0, "passwordHash": 0})
+        if user:
+            members.append({"id": user["id"], "email": user["email"], "role": "member"})
+    
+    return members
 
 @api_router.delete("/projects/{project_id}")
 async def delete_project(project_id: str, current_user: dict = Depends(get_current_user)):
     project = await db.projects.find_one({"id": project_id, "ownerId": current_user["id"]})
     if not project:
-        raise HTTPException(status_code=404, detail="Project not found")
+        raise HTTPException(status_code=404, detail="Project not found or not owner")
     
     # Delete all messages in all chats of this project
     chats = await db.chats.find({"projectId": project_id}).to_list(1000)
