@@ -909,7 +909,7 @@ async def upload_source(
     if file.content_type not in SUPPORTED_MIME_TYPES:
         raise HTTPException(
             status_code=400, 
-            detail="Unsupported file type. Supported: PDF, DOCX, TXT, MD"
+            detail="Unsupported file type. Supported: PDF, DOCX, PPTX, XLSX, TXT, MD, PNG, JPEG"
         )
     
     # Read file content
@@ -926,6 +926,13 @@ async def upload_source(
         extracted_text = extract_text_from_pdf(content)
     elif file_type == "docx":
         extracted_text = extract_text_from_docx(content)
+    elif file_type == "pptx":
+        extracted_text = extract_text_from_pptx(content)
+    elif file_type == "xlsx":
+        extracted_text = extract_text_from_xlsx(content)
+    elif file_type in ["png", "jpeg", "jpg"]:
+        # For images, store without text extraction (can add OCR later)
+        extracted_text = f"[Image file: {file.filename}]"
     else:  # txt or md
         extracted_text = extract_text_from_txt(content)
     
