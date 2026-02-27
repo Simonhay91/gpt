@@ -75,6 +75,8 @@ SUPPORTED_MIME_TYPES = {
     "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": "xlsx",
     "text/plain": "txt",
     "text/markdown": "md",
+    "text/csv": "csv",
+    "application/csv": "csv",
     "image/png": "png",
     "image/jpeg": "jpeg",
     "image/jpg": "jpg",
