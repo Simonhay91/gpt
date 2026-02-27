@@ -200,7 +200,7 @@ const NewsPage = () => {
             {/* Footer */}
             {fetchedAt && (
               <div className="text-center text-sm text-muted-foreground mt-6">
-                Updated: {new Date(fetchedAt).toLocaleString('ru-RU')}
+                {t('news.updated')}: {new Date(fetchedAt).toLocaleString()}
               </div>
             )}
           </>
