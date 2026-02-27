@@ -18,7 +18,11 @@ import {
   Loader2,
   HardDrive,
   File,
-  X
+  X,
+  BarChart3,
+  TrendingUp,
+  Clock,
+  Users
 } from 'lucide-react';
 import DashboardLayout from '../components/DashboardLayout';
 
@@ -27,9 +31,11 @@ const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 const AdminGlobalSourcesPage = () => {
   const navigate = useNavigate();
   const [sources, setSources] = useState([]);
+  const [usageStats, setUsageStats] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isUploading, setIsUploading] = useState(false);
   const [isAddingUrl, setIsAddingUrl] = useState(false);
+  const [activeTab, setActiveTab] = useState('sources'); // 'sources' or 'stats'
   
   // URL Dialog
   const [urlDialogOpen, setUrlDialogOpen] = useState(false);
@@ -48,6 +54,17 @@ const AdminGlobalSourcesPage = () => {
       toast.error('Не удалось загрузить глобальные источники');
     } finally {
       setIsLoading(false);
+    }
+  }, []);
+
+  const fetchUsageStats = useCallback(async () => {
+    try {
+      const response = await axios.get(`${API}/admin/global-sources/stats`);
+      setUsageStats(response.data);
+    } catch (error) {
+      console.error('Failed to fetch usage stats:', error);
+    }
+  }, []);
     }
   }, []);
 
