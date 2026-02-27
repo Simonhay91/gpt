@@ -144,6 +144,13 @@ Planet GPT is a multi-user SaaS platform for AI-powered conversations with proje
 
 ## Changelog
 
+### 2026-02-27
+- **Global Sources Feature** - Centralized knowledge base for all users
+  - Admin can upload files/URLs to global sources at `/admin/global-sources`
+  - All global sources automatically included in GPT context for every chat
+  - Regular users can view global sources (read-only) via `/api/global-sources`
+  - Fixed bug where global sources weren't being included in chat context
+
 ### 2025-12-28
 - **Project Sharing** - Share projects with other users
   - User list selection in Share dialog
