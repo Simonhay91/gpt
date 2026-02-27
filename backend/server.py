@@ -870,6 +870,12 @@ async def get_relevant_chunks(source_ids: List[str], project_id: str, query: str
     # Sort by score descending
     scored_chunks.sort(key=lambda x: x["score"], reverse=True)
     
+    # Log top scored chunks before selection
+    if scored_chunks:
+        logger.info(f"Top 3 scored chunks before selection:")
+        for i, c in enumerate(scored_chunks[:3]):
+            logger.info(f"  {i+1}. sourceId={c['sourceId'][:8]}..., score={c['score']:.2f}, len={len(c['content'])}")
+    
     # Select top chunks up to MAX_CHUNKS_PER_QUERY, respecting MAX_CONTEXT_CHARS
     selected_chunks = []
     total_chars = 0
