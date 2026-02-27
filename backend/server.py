@@ -836,15 +836,22 @@ def score_chunk_relevance(chunk_content: str, query: str) -> float:
     overlap = len(query_words & chunk_words)
     return overlap / len(query_words)
 
-async def get_relevant_chunks(source_ids: List[str], project_id: str, query: str) -> List[dict]:
+async def get_relevant_chunks(source_ids: List[str], project_id: str, query: str, department_ids: List[str] = None) -> List[dict]:
     """Get most relevant chunks from active sources using keyword ranking"""
     if not source_ids:
         return []
     
-    # Get all chunks from active sources (include both project and global sources)
+    # Build projectId filter to include project, global, and department sources
+    project_id_filter = [GLOBAL_PROJECT_ID]
+    if project_id:
+        project_id_filter.append(project_id)
+    if department_ids:
+        project_id_filter.extend(department_ids)
+    
+    # Get all chunks from active sources (include project, department, and global sources)
     all_chunks = await db.source_chunks.find({
         "sourceId": {"$in": source_ids},
-        "projectId": {"$in": [project_id, GLOBAL_PROJECT_ID]}  # Include project and global sources
+        "projectId": {"$in": project_id_filter}
     }, {"_id": 0}).to_list(10000)
     
     if not all_chunks:
