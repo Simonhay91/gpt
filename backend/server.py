@@ -121,6 +121,10 @@ class UserWithUsageResponse(BaseModel):
     createdAt: str
     totalTokensUsed: int
     totalMessagesCount: int
+    canEditGlobalSources: Optional[bool] = False
+
+class UpdateUserGlobalPermissionRequest(BaseModel):
+    canEditGlobalSources: bool
 
 class TokenResponse(BaseModel):
     token: str
