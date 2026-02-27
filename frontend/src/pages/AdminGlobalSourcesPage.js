@@ -218,7 +218,7 @@ const AdminGlobalSourcesPage = () => {
                   type="file"
                   className="hidden"
                   multiple
-                  accept=".pdf,.docx,.pptx,.xlsx,.txt,.md,.png,.jpg,.jpeg"
+                  accept=".pdf,.docx,.pptx,.xlsx,.csv,.txt,.md,.png,.jpg,.jpeg"
                   onChange={handleFileUpload}
                   disabled={isUploading}
                 />
