@@ -489,6 +489,36 @@ const ChatPage = () => {
     }
   };
 
+  const searchSources = async () => {
+    if (!searchQuery.trim() || searchQuery.trim().length < 2) {
+      toast.error('Введите минимум 2 символа');
+      return;
+    }
+    
+    setIsSearching(true);
+    setShowSearchResults(true);
+    
+    try {
+      const response = await axios.post(`${API}/projects/${chat.projectId}/sources/search`, {
+        query: searchQuery.trim(),
+        limit: 20
+      });
+      setSearchResults(response.data);
+      if (response.data.length === 0) {
+        toast.info('Ничего не найдено');
+      }
+    } catch (error) {
+      toast.error('Ошибка поиска');
+    } finally {
+      setIsSearching(false);
+    }
+  };
+
+  const highlightMatch = (text, query) => {
+    const regex = new RegExp(`(${query})`, 'gi');
+    return text.replace(regex, '<mark class="bg-yellow-300 dark:bg-yellow-600 px-0.5 rounded">$1</mark>');
+  };
+
   const sendMessage = async () => {
     const content = input.trim();
     if (!content || isSending) return;
