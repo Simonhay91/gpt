@@ -297,6 +297,93 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(s
 def is_admin(email: str) -> bool:
     return email.endswith(ADMIN_EMAIL_DOMAIN)
 
+# ==================== PERMISSION MATRIX ====================
+
+import hashlib
+
+def hash_string(s: str) -> str:
+    """Create short hash of string for cache key"""
+    return hashlib.sha256(s.encode()).hexdigest()[:16]
+
+async def get_user_project_role(user_id: str, project: dict) -> Optional[str]:
+    """Get user's role in a project. Returns None if no access."""
+    if project["ownerId"] == user_id:
+        return "owner"
+    
+    # Check sharedMembers first (new format with roles)
+    shared_members = project.get("sharedMembers", [])
+    for member in shared_members:
+        if member.get("userId") == user_id:
+            return member.get("role", "viewer")
+    
+    # Fallback to old sharedWith format (legacy, treat as viewer)
+    if user_id in project.get("sharedWith", []):
+        return "viewer"
+    
+    return None
+
+async def check_project_access(user: dict, project_id: str, required_role: str = "viewer") -> dict:
+    """
+    Check if user has access to project with required role.
+    Roles hierarchy: owner > manager > editor > viewer
+    """
+    project = await db.projects.find_one({"id": project_id}, {"_id": 0})
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+    
+    role = await get_user_project_role(user["id"], project)
+    
+    if role is None:
+        raise HTTPException(status_code=403, detail="Access denied to this project")
+    
+    # Role hierarchy check
+    role_levels = {"owner": 4, "manager": 3, "editor": 2, "viewer": 1}
+    user_level = role_levels.get(role, 0)
+    required_level = role_levels.get(required_role, 1)
+    
+    if user_level < required_level:
+        raise HTTPException(
+            status_code=403, 
+            detail=f"Insufficient permissions. Required: {required_role}, Your role: {role}"
+        )
+    
+    return {"project": project, "role": role}
+
+async def get_user_accessible_project_ids(user_id: str) -> List[str]:
+    """Get list of all project IDs user has access to"""
+    # Projects where user is owner
+    owned = await db.projects.find({"ownerId": user_id}, {"id": 1, "_id": 0}).to_list(1000)
+    
+    # Projects shared with user (old format)
+    shared_old = await db.projects.find(
+        {"sharedWith": user_id}, 
+        {"id": 1, "_id": 0}
+    ).to_list(1000)
+    
+    # Projects shared with user (new format)
+    shared_new = await db.projects.find(
+        {"sharedMembers.userId": user_id},
+        {"id": 1, "_id": 0}
+    ).to_list(1000)
+    
+    all_ids = set()
+    for p in owned + shared_old + shared_new:
+        all_ids.add(p["id"])
+    
+    return list(all_ids)
+
+def can_manage_sources(role: str) -> bool:
+    """Check if role allows source management"""
+    return role in ["owner", "manager"]
+
+def can_edit_chats(role: str) -> bool:
+    """Check if role allows chat editing"""
+    return role in ["owner", "manager", "editor"]
+
+def can_manage_members(role: str) -> bool:
+    """Check if role allows member management"""
+    return role in ["owner", "manager"]
+
 # ==================== SEMANTIC CACHE FUNCTIONS ====================
 
 import numpy as np
@@ -321,15 +408,43 @@ async def get_embedding(text: str) -> Optional[List[float]]:
         logger.error(f"Embedding error: {e}")
         return None
 
+def build_cache_key_context(
+    project_id: Optional[str],
+    model: str,
+    developer_prompt: str,
+    user_prompt: Optional[str],
+    source_ids: List[str]
+) -> str:
+    """Build deterministic cache context hash for ZERO DATA LEAKAGE"""
+    components = [
+        f"project:{project_id or 'none'}",
+        f"model:{model}",
+        f"dev_prompt:{hash_string(developer_prompt)}",
+        f"user_prompt:{hash_string(user_prompt) if user_prompt else 'none'}",
+        f"sources:{hash_string(','.join(sorted(source_ids)))}"
+    ]
+    return hash_string('|'.join(components))
+
 async def find_cached_answer(
     question: str, 
     project_id: Optional[str],
-    question_embedding: List[float]
+    question_embedding: List[float],
+    cache_context_hash: str,
+    user_accessible_source_ids: List[str]
 ) -> Optional[dict]:
-    """Find similar cached question and return its answer if above threshold"""
+    """
+    Find similar cached question with ZERO DATA LEAKAGE protection.
+    Only returns cache hit if:
+    1. Question is semantically similar
+    2. Cache context (model, prompts, sources) matches
+    3. User has access to ALL sources used in cached answer
+    """
     
-    # Build query - match project context
-    query = {"projectId": project_id} if project_id else {"projectId": None}
+    # Build query - match project AND context hash
+    query = {
+        "projectId": project_id if project_id else None,
+        "cacheContextHash": cache_context_hash
+    }
     
     # Add TTL check
     cutoff_date = (datetime.now(timezone.utc) - timedelta(days=CACHE_TTL_DAYS)).isoformat()
