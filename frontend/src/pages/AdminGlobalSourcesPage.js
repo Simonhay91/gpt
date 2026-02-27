@@ -70,7 +70,8 @@ const AdminGlobalSourcesPage = () => {
 
   useEffect(() => {
     fetchSources();
-  }, [fetchSources]);
+    fetchUsageStats();
+  }, [fetchSources, fetchUsageStats]);
 
   const handleFileUpload = async (event) => {
     const files = event.target.files;
