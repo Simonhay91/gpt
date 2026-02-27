@@ -3,10 +3,6 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { Button } from './ui/button';
-import { Label } from './ui/label';
-import { Textarea } from './ui/textarea';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from './ui/dialog';
-import { toast } from 'sonner';
 import axios from 'axios';
 import { 
   LayoutDashboard, 
@@ -39,12 +35,6 @@ const DashboardLayout = ({ children }) => {
   // Pending approvals count for managers
   const [pendingCount, setPendingCount] = useState(0);
   const [isManager, setIsManager] = useState(false);
-  
-  // User Prompt State
-  const [isPromptDialogOpen, setIsPromptDialogOpen] = useState(false);
-  const [userPrompt, setUserPrompt] = useState('');
-  const [isSavingPrompt, setIsSavingPrompt] = useState(false);
-  const [promptLoaded, setPromptLoaded] = useState(false);
 
   // Fetch pending approvals count for managers
   useEffect(() => {
