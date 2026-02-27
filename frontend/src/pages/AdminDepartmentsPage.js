@@ -155,10 +155,10 @@ const AdminDepartmentsPage = () => {
           <div>
             <h1 className="text-3xl font-bold tracking-tight flex items-center gap-3">
               <Building2 className="h-8 w-8 text-indigo-400" />
-              Отделы
+              {t('departments.title')}
             </h1>
             <p className="text-muted-foreground mt-2">
-              Управление отделами и иерархией знаний
+              {t('departments.subtitle')}
             </p>
           </div>
           
@@ -166,19 +166,19 @@ const AdminDepartmentsPage = () => {
             <DialogTrigger asChild>
               <Button data-testid="create-department-btn">
                 <Plus className="mr-2 h-4 w-4" />
-                Создать отдел
+                {t('departments.create')}
               </Button>
             </DialogTrigger>
             <DialogContent>
               <DialogHeader>
-                <DialogTitle>Новый отдел</DialogTitle>
+                <DialogTitle>{t('departments.create')}</DialogTitle>
                 <DialogDescription>
-                  Создайте отдел для организации базы знаний
+                  {t('departments.createFirst')}
                 </DialogDescription>
               </DialogHeader>
               <div className="space-y-4 py-4">
                 <div className="space-y-2">
-                  <Label>Название</Label>
+                  <Label>{t('departments.name')}</Label>
                   <Input
                     value={newDeptName}
                     onChange={(e) => setNewDeptName(e.target.value)}
@@ -187,11 +187,11 @@ const AdminDepartmentsPage = () => {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label>Описание</Label>
+                  <Label>{t('departments.description')}</Label>
                   <Input
                     value={newDeptDescription}
                     onChange={(e) => setNewDeptDescription(e.target.value)}
-                    placeholder="Инженерный отдел"
+                    placeholder=""
                     data-testid="dept-description-input"
                   />
                 </div>
