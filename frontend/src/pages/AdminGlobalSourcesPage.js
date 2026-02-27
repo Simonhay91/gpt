@@ -83,7 +83,33 @@ const AdminGlobalSourcesPage = () => {
   useEffect(() => {
     fetchSources();
     fetchUsageStats();
-  }, [fetchSources, fetchUsageStats]);
+    fetchCacheStats();
+  }, [fetchSources, fetchUsageStats, fetchCacheStats]);
+
+  const handleClearCache = async () => {
+    if (!window.confirm('Очистить весь кэш? Это действие нельзя отменить.')) return;
+    
+    setIsClearingCache(true);
+    try {
+      await axios.delete(`${API}/admin/cache/clear`);
+      toast.success('Кэш очищен');
+      fetchCacheStats();
+    } catch (error) {
+      toast.error('Ошибка очистки кэша');
+    } finally {
+      setIsClearingCache(false);
+    }
+  };
+
+  const handleDeleteCacheEntry = async (cacheId) => {
+    try {
+      await axios.delete(`${API}/admin/cache/${cacheId}`);
+      toast.success('Запись удалена');
+      fetchCacheStats();
+    } catch (error) {
+      toast.error('Ошибка удаления');
+    }
+  };
 
   const handleFileUpload = async (event) => {
     const files = event.target.files;
