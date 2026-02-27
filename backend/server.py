@@ -404,6 +404,9 @@ def extract_text_from_csv(file_content: bytes) -> str:
     import csv
     from io import StringIO
     
+    # Increase field size limit for large cells
+    csv.field_size_limit(10 * 1024 * 1024)  # 10MB per field
+    
     try:
         # Try UTF-8 first, then fallback to other encodings
         text_content = None
