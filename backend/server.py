@@ -1853,13 +1853,7 @@ If the user asks about a document/file/URL:
     }
     await db.messages.insert_one(assistant_message)
     
-    # Return the user message with sender info (not assistant message)
-    user_msg_response = {
-        **user_message,
-        "senderEmail": sender_email,
-        "senderName": sender_name
-    }
-    return MessageResponse(**user_msg_response)
+    return MessageResponse(**assistant_message)
 
 # ==================== ADMIN ENDPOINTS ====================
 
