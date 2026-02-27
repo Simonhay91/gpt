@@ -193,7 +193,9 @@ Planet GPT is a multi-user SaaS platform for AI-powered conversations with proje
 - Password: `admin123`
 
 ## Future Tasks (Backlog)
-- P1: Document preview panel
-- P1: Source search/filter
-- P2: Usage/cost dashboard
+- P1: Caching for frequently asked questions to reduce token usage
+- P1: User-level token limits (daily/monthly)
+- P2: Question templates for common tasks
+- P2: Show which sources will be used before sending to LLM
+- P2: Usage/cost dashboard for project owners and admins
 - P2: Background ingestion for large files
