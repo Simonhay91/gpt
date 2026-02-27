@@ -1081,7 +1081,7 @@ const ChatPage = () => {
                 {previewSource?.name || 'Source Preview'}
               </DialogTitle>
               <DialogDescription>
-                {previewSource?.chunkCount} chunks extracted • {previewSource?.kind === 'url' ? 'URL' : previewSource?.mimeType}
+                {previewSource?.chunkCount} chunks • {previewSource?.wordCount || 0} слов • {previewSource?.kind === 'url' ? 'URL' : previewSource?.mimeType}
               </DialogDescription>
             </DialogHeader>
             {previewLoading ? (
@@ -1089,11 +1089,29 @@ const ChatPage = () => {
                 <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
               </div>
             ) : (
-              <ScrollArea className="max-h-[50vh] mt-4">
-                <pre className="text-sm whitespace-pre-wrap font-mono bg-secondary/50 p-4 rounded-lg">
-                  {previewSource?.text || 'No content'}
-                </pre>
-              </ScrollArea>
+              <>
+                {/* Quality indicator */}
+                <div className={`p-3 rounded-lg text-sm flex items-center gap-2 ${
+                  previewSource?.quality === 'good' ? 'bg-green-500/10 text-green-600 dark:text-green-400' :
+                  previewSource?.quality === 'low' ? 'bg-yellow-500/10 text-yellow-600 dark:text-yellow-400' :
+                  previewSource?.quality === 'poor' ? 'bg-red-500/10 text-red-600 dark:text-red-400' :
+                  previewSource?.quality === 'empty' ? 'bg-red-500/10 text-red-600 dark:text-red-400' :
+                  'bg-secondary'
+                }`}>
+                  <span className={`w-2 h-2 rounded-full ${
+                    previewSource?.quality === 'good' ? 'bg-green-500' :
+                    previewSource?.quality === 'low' ? 'bg-yellow-500' :
+                    'bg-red-500'
+                  }`}></span>
+                  {previewSource?.qualityMessage || 'Текст извлечён'}
+                </div>
+                
+                <ScrollArea className="max-h-[45vh] mt-3">
+                  <pre className="text-sm whitespace-pre-wrap font-mono bg-secondary/50 p-4 rounded-lg">
+                    {previewSource?.text || 'No content'}
+                  </pre>
+                </ScrollArea>
+              </>
             )}
             <DialogFooter>
               <Button variant="outline" onClick={() => setPreviewDialogOpen(false)}>
