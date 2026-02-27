@@ -1518,22 +1518,12 @@ async def send_message(chat_id: str, message_data: MessageCreate, current_user: 
             else:
                 auto_ingest_notes.append(f"Could not fetch: {url}")
     
-    # Auto-activate newly ingested sources for this chat
-    active_source_ids = list(chat.get("activeSourceIds", []))
-    newly_activated = []
-    
-    for source in auto_ingested_sources:
-        if source["id"] not in active_source_ids:
-            active_source_ids.append(source["id"])
-            newly_activated.append(source.get("originalName") or source.get("url"))
-    
-    # Update chat with new active sources if any were added
-    if newly_activated:
-        await db.chats.update_one(
-            {"id": chat_id},
-            {"$set": {"activeSourceIds": active_source_ids}}
-        )
-        logger.info(f"Auto-activated {len(newly_activated)} source(s) for chat {chat_id}")
+    # In project chats, ALL sources are always active
+    if project_id:
+        all_project_sources = await db.sources.find({"projectId": project_id}, {"_id": 0, "id": 1}).to_list(1000)
+        active_source_ids = [s["id"] for s in all_project_sources]
+    else:
+        active_source_ids = []
     
     # Save user message
     user_msg_id = str(uuid.uuid4())
