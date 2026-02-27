@@ -28,6 +28,8 @@ const ProjectPage = () => {
   const [isSharing, setIsSharing] = useState(false);
   const [members, setMembers] = useState([]);
   const [isOwner, setIsOwner] = useState(false);
+  const [allUsers, setAllUsers] = useState([]);
+  const [isLoadingUsers, setIsLoadingUsers] = useState(false);
 
   useEffect(() => {
     fetchProjectAndChats();
