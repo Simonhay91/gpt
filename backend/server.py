@@ -848,7 +848,7 @@ async def get_relevant_chunks(source_ids: List[str], project_id: str, query: str
     if department_ids:
         project_id_filter.extend(department_ids)
     
-    logger.info(f"get_relevant_chunks: source_ids={source_ids[:5]}..., project_id_filter={project_id_filter}")
+    logger.info(f"get_relevant_chunks: source_ids count={len(source_ids)}, project_id_filter={project_id_filter}")
     
     # Get all chunks from active sources (include project, department, and global sources)
     # Use higher limit to ensure we capture all sources including smaller ones
@@ -856,12 +856,6 @@ async def get_relevant_chunks(source_ids: List[str], project_id: str, query: str
         "sourceId": {"$in": source_ids},
         "projectId": {"$in": project_id_filter}
     }, {"_id": 0}).to_list(50000)
-    
-    logger.info(f"get_relevant_chunks: found {len(all_chunks)} chunks")
-    
-    # Check if department chunk is there
-    dept_chunk_count = sum(1 for c in all_chunks if c.get("projectId") == "0d047f29-e68b-4bb8-9a5b-6aa1398ac46a")
-    logger.info(f"Department chunks in all_chunks: {dept_chunk_count}")
     
     if not all_chunks:
         return []
