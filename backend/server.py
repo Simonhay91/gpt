@@ -2079,6 +2079,33 @@ If the user asks about a document/file/URL:
     }
     await db.messages.insert_one(assistant_message)
     
+    # Track source usage statistics
+    if final_used_sources:
+        for source_info in final_used_sources:
+            await db.source_usage.update_one(
+                {"sourceId": source_info["sourceId"]},
+                {
+                    "$inc": {"usageCount": 1},
+                    "$set": {
+                        "lastUsedAt": datetime.now(timezone.utc).isoformat(),
+                        "sourceName": source_info["sourceName"]
+                    },
+                    "$push": {
+                        "usageHistory": {
+                            "$each": [{
+                                "userId": current_user["id"],
+                                "userEmail": current_user["email"],
+                                "chatId": chat_id,
+                                "messageId": assistant_msg_id,
+                                "timestamp": datetime.now(timezone.utc).isoformat()
+                            }],
+                            "$slice": -100  # Keep last 100 uses
+                        }
+                    }
+                },
+                upsert=True
+            )
+    
     return MessageResponse(**assistant_message)
 
 # ==================== ADMIN ENDPOINTS ====================
