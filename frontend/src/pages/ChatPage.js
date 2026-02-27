@@ -793,7 +793,8 @@ const ChatPage = () => {
                 <input
                   ref={fileInputRef}
                   type="file"
-                  accept=".pdf,.docx,.txt,.md,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain,text/markdown"
+                  multiple
+                  accept=".pdf,.docx,.pptx,.xlsx,.txt,.md,.png,.jpg,.jpeg,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.openxmlformats-officedocument.presentationml.presentation,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/plain,text/markdown,image/png,image/jpeg"
                   onChange={handleFileUpload}
                   className="hidden"
                   data-testid="file-input"
@@ -811,7 +812,7 @@ const ChatPage = () => {
                   ) : (
                     <Upload className="h-4 w-4" />
                   )}
-                  Upload File
+                  Upload Files
                 </Button>
                 
                 <div className="flex-1 flex items-center gap-2 min-w-[200px]">
