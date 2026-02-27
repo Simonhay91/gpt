@@ -1043,10 +1043,15 @@ async def get_project(project_id: str, current_user: dict = Depends(get_current_
 
 @api_router.post("/projects/{project_id}/share")
 async def share_project(project_id: str, data: ShareProjectRequest, current_user: dict = Depends(get_current_user)):
-    """Share project with another user by email"""
-    project = await db.projects.find_one({"id": project_id, "ownerId": current_user["id"]}, {"_id": 0})
+    """Share project with another user by email with specified role"""
+    project = await db.projects.find_one({"id": project_id}, {"_id": 0})
     if not project:
-        raise HTTPException(status_code=404, detail="Project not found or not owner")
+        raise HTTPException(status_code=404, detail="Project not found")
+    
+    # Check if user can manage members (owner or manager)
+    role = await get_user_project_role(current_user["id"], project)
+    if not can_manage_members(role) and role != "owner":
+        raise HTTPException(status_code=403, detail="Only owner or manager can share project")
     
     # Find user by email
     user_to_share = await db.users.find_one({"email": data.email}, {"_id": 0})
@@ -1056,33 +1061,118 @@ async def share_project(project_id: str, data: ShareProjectRequest, current_user
     if user_to_share["id"] == current_user["id"]:
         raise HTTPException(status_code=400, detail="Cannot share with yourself")
     
-    # Add to sharedWith if not already
+    if user_to_share["id"] == project["ownerId"]:
+        raise HTTPException(status_code=400, detail="Cannot change owner's role")
+    
+    # Validate role
+    valid_roles = ["viewer", "editor", "manager"]
+    share_role = data.role if data.role in valid_roles else "viewer"
+    
+    # Managers cannot grant manager role (only owners can)
+    if share_role == "manager" and role != "owner":
+        raise HTTPException(status_code=403, detail="Only owner can grant manager role")
+    
+    # Update sharedMembers (new format with roles)
+    shared_members = project.get("sharedMembers", [])
+    
+    # Remove existing entry if any
+    shared_members = [m for m in shared_members if m.get("userId") != user_to_share["id"]]
+    
+    # Add with new role
+    shared_members.append({
+        "userId": user_to_share["id"],
+        "email": user_to_share["email"],
+        "role": share_role
+    })
+    
+    # Also update legacy sharedWith for backward compatibility
     shared_with = project.get("sharedWith", [])
     if user_to_share["id"] not in shared_with:
         shared_with.append(user_to_share["id"])
-        await db.projects.update_one(
-            {"id": project_id},
-            {"$set": {"sharedWith": shared_with}}
-        )
     
-    return {"message": f"Project shared with {data.email}", "sharedWith": shared_with}
+    await db.projects.update_one(
+        {"id": project_id},
+        {"$set": {"sharedWith": shared_with, "sharedMembers": shared_members}}
+    )
+    
+    return {
+        "message": f"Project shared with {data.email} as {share_role}", 
+        "sharedMembers": shared_members
+    }
+
+@api_router.put("/projects/{project_id}/members/{user_id}/role")
+async def update_member_role(
+    project_id: str, 
+    user_id: str, 
+    role: str,
+    current_user: dict = Depends(get_current_user)
+):
+    """Update a member's role in the project"""
+    project = await db.projects.find_one({"id": project_id}, {"_id": 0})
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+    
+    # Only owner can change roles
+    if project["ownerId"] != current_user["id"]:
+        raise HTTPException(status_code=403, detail="Only owner can change member roles")
+    
+    if user_id == project["ownerId"]:
+        raise HTTPException(status_code=400, detail="Cannot change owner's role")
+    
+    valid_roles = ["viewer", "editor", "manager"]
+    if role not in valid_roles:
+        raise HTTPException(status_code=400, detail=f"Invalid role. Valid: {valid_roles}")
+    
+    # Update role in sharedMembers
+    shared_members = project.get("sharedMembers", [])
+    updated = False
+    for member in shared_members:
+        if member.get("userId") == user_id:
+            member["role"] = role
+            updated = True
+            break
+    
+    if not updated:
+        raise HTTPException(status_code=404, detail="Member not found in project")
+    
+    await db.projects.update_one(
+        {"id": project_id},
+        {"$set": {"sharedMembers": shared_members}}
+    )
+    
+    return {"message": f"Role updated to {role}", "sharedMembers": shared_members}
 
 @api_router.delete("/projects/{project_id}/share/{user_id}")
 async def unshare_project(project_id: str, user_id: str, current_user: dict = Depends(get_current_user)):
     """Remove user from shared project"""
-    project = await db.projects.find_one({"id": project_id, "ownerId": current_user["id"]}, {"_id": 0})
+    project = await db.projects.find_one({"id": project_id}, {"_id": 0})
     if not project:
-        raise HTTPException(status_code=404, detail="Project not found or not owner")
+        raise HTTPException(status_code=404, detail="Project not found")
     
+    # Check if user can manage members
+    role = await get_user_project_role(current_user["id"], project)
+    if not can_manage_members(role) and role != "owner":
+        raise HTTPException(status_code=403, detail="Only owner or manager can remove members")
+    
+    # Managers cannot remove other managers
+    target_role = await get_user_project_role(user_id, project)
+    if role == "manager" and target_role == "manager":
+        raise HTTPException(status_code=403, detail="Managers cannot remove other managers")
+    
+    # Remove from both old and new format
     shared_with = project.get("sharedWith", [])
     if user_id in shared_with:
         shared_with.remove(user_id)
-        await db.projects.update_one(
-            {"id": project_id},
-            {"$set": {"sharedWith": shared_with}}
-        )
     
-    return {"message": "User removed from project", "sharedWith": shared_with}
+    shared_members = project.get("sharedMembers", [])
+    shared_members = [m for m in shared_members if m.get("userId") != user_id]
+    
+    await db.projects.update_one(
+        {"id": project_id},
+        {"$set": {"sharedWith": shared_with, "sharedMembers": shared_members}}
+    )
+    
+    return {"message": "User removed from project", "sharedMembers": shared_members}
 
 @api_router.get("/projects/{project_id}/members")
 async def get_project_members(project_id: str, current_user: dict = Depends(get_current_user)):
