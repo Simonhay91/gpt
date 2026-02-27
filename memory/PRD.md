@@ -21,10 +21,13 @@ Planet GPT is a multi-user SaaS platform for AI-powered conversations with proje
 - Each user can create multiple projects
 - Projects contain chats with access to file/URL sources
 - **Project Sharing** - Owner can share projects with other users
+- **Chat Visibility Control** - Owner can choose which chats shared users can see
 - **Auto-active Sources** - All sources in a project are automatically used as AI context
+- **Sender Names in Chat** - Messages show who sent them (for shared projects)
 
 ### Source Management (Project-only)
 - Upload files: **PDF, DOCX, PPTX, XLSX, TXT, MD, PNG, JPEG**
+- **OCR for Images** - Text is automatically extracted from PNG/JPEG using pytesseract
 - **Multiple file upload** supported
 - **Preview extracted text** from any source
 - **Download individual files**
