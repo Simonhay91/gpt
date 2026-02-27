@@ -407,7 +407,7 @@ const DepartmentSourcesPage = () => {
                           <div className="flex items-center gap-3 text-sm text-muted-foreground mt-1">
                             <span>{formatBytes(source.sizeBytes)}</span>
                             <span>•</span>
-                            <span>{source.chunkCount} chunks</span>
+                            <span>{source.chunkCount} {t('common.chunks')}</span>
                             <span>•</span>
                             <span className="flex items-center gap-1">
                               <Clock className="h-3 w-3" />
@@ -421,7 +421,7 @@ const DepartmentSourcesPage = () => {
                           </div>
                           {source.createdByEmail && (
                             <p className="text-xs text-muted-foreground mt-1">
-                              Загрузил: {source.createdByEmail}
+                              {t('common.uploadedBy')}: {source.createdByEmail}
                             </p>
                           )}
                         </div>
@@ -436,7 +436,7 @@ const DepartmentSourcesPage = () => {
                           className={needsAction ? "bg-amber-500 hover:bg-amber-600" : ""}
                         >
                           <Eye className="h-4 w-4 mr-1" />
-                          Preview
+                          {t('action.preview')}
                         </Button>
                         
                         {/* Approval Actions */}
