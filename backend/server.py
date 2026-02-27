@@ -880,10 +880,25 @@ async def rename_chat(chat_id: str, data: RenameChatRequest, current_user: dict 
 
 @api_router.get("/projects/{project_id}/chats", response_model=List[ChatResponse])
 async def get_chats(project_id: str, current_user: dict = Depends(get_current_user)):
-    await verify_project_ownership(project_id, current_user["id"])
+    project = await verify_project_ownership(project_id, current_user["id"])
     
     chats = await db.chats.find({"projectId": project_id}, {"_id": 0}).to_list(1000)
-    return [ChatResponse(**{**c, "activeSourceIds": c.get("activeSourceIds", [])}) for c in chats]
+    
+    # If user is owner, return all chats
+    if project["ownerId"] == current_user["id"]:
+        return [ChatResponse(**{**c, "activeSourceIds": c.get("activeSourceIds", []), "sharedWithUsers": c.get("sharedWithUsers")}) for c in chats]
+    
+    # If user is shared, filter chats by visibility
+    visible_chats = []
+    for c in chats:
+        shared_with = c.get("sharedWithUsers")
+        # None means visible to all shared users
+        # Empty list [] means hidden from all shared users
+        # List with IDs means only those users can see it
+        if shared_with is None or current_user["id"] in shared_with:
+            visible_chats.append(ChatResponse(**{**c, "activeSourceIds": c.get("activeSourceIds", []), "sharedWithUsers": shared_with}))
+    
+    return visible_chats
 
 @api_router.post("/projects/{project_id}/chats", response_model=ChatResponse)
 async def create_chat(project_id: str, chat_data: ChatCreate, current_user: dict = Depends(get_current_user)):
