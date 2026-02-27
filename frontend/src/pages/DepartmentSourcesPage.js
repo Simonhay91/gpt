@@ -311,13 +311,13 @@ const DepartmentSourcesPage = () => {
             <div className="flex items-start gap-3">
               <AlertCircle className="h-5 w-5 text-indigo-400 mt-0.5" />
               <div>
-                <p className="text-sm font-medium">Workflow одобрения</p>
-                <p className="text-sm text-muted-foreground mt-1">
-                  Источники отдела проходят проверку: <span className="text-gray-400">Черновик</span> → 
-                  <span className="text-amber-400"> На проверке</span> → 
-                  <span className="text-blue-400"> Одобрено</span> → 
-                  <span className="text-emerald-400"> Активно</span>
-                </p>
+                <p className="text-sm font-medium mb-2">Как работает одобрение знаний отдела</p>
+                <div className="text-sm text-muted-foreground space-y-1">
+                  <p><span className="text-gray-400 font-medium">Черновик</span> — загруженный файл, ещё не проверен</p>
+                  <p><span className="text-amber-400 font-medium">На проверке</span> — ждёт одобрения менеджера</p>
+                  <p><span className="text-blue-400 font-medium">Одобрено</span> — проверен, но GPT ещё не использует</p>
+                  <p><span className="text-emerald-400 font-medium">Активно</span> — GPT использует эти знания в ответах</p>
+                </div>
               </div>
             </div>
           </CardContent>
