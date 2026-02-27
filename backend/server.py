@@ -2059,6 +2059,23 @@ async def send_message(chat_id: str, message_data: MessageCreate, current_user: 
     user_prompt_doc = await db.user_prompts.find_one({"userId": current_user["id"]}, {"_id": 0})
     user_custom_prompt = user_prompt_doc.get("customPrompt") if user_prompt_doc else None
     
+    # === SEMANTIC CACHE CHECK ===
+    cache_hit = None
+    question_embedding = None
+    
+    # Only use cache if there are active sources (context-dependent answers)
+    if active_source_ids and openai_client:
+        question_embedding = await get_embedding(message_data.content)
+        if question_embedding:
+            cache_hit = await find_cached_answer(
+                message_data.content,
+                project_id,  # Cache is project-specific
+                question_embedding
+            )
+            
+            if cache_hit:
+                logger.info(f"Cache HIT! Similarity: {cache_hit['similarity']:.3f}, Hits: {cache_hit['hitCount']}")
+    
     # Prepare messages for OpenAI
     try:
         if not openai_client:
