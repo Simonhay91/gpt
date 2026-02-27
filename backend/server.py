@@ -388,6 +388,30 @@ def extract_text_from_xlsx(file_content: bytes) -> str:
         logger.error(f"XLSX extraction error: {str(e)}")
         raise HTTPException(status_code=400, detail=f"Failed to extract text from Excel: {str(e)}")
 
+def extract_text_from_image(file_content: bytes) -> str:
+    """Extract text from image using OCR (pytesseract)"""
+    try:
+        # Open image with PIL
+        image = Image.open(io.BytesIO(file_content))
+        
+        # Convert to RGB if necessary (for PNG with transparency)
+        if image.mode in ('RGBA', 'P'):
+            image = image.convert('RGB')
+        
+        # Run OCR with Russian and English languages
+        text = pytesseract.image_to_string(image, lang='rus+eng')
+        
+        # Clean up the text
+        text = text.strip()
+        
+        if not text:
+            return "[Image: No text detected]"
+        
+        return f"[Image OCR Content]\n{text}"
+    except Exception as e:
+        logger.error(f"Image OCR error: {str(e)}")
+        return f"[Image: OCR failed - {str(e)[:50]}]"
+
 def extract_text_from_html(html_content: str) -> str:
     """Extract readable text from HTML content"""
     try:
