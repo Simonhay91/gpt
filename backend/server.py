@@ -2092,18 +2092,18 @@ async def send_message(chat_id: str, message_data: MessageCreate, current_user: 
             messages = [
                 {"role": "developer", "content": config["developerPrompt"]}
             ]
-        
-        # Add user's custom prompt if exists
-        if user_custom_prompt:
-            logger.info(f"Adding user custom prompt for user {current_user['id']}: {user_custom_prompt[:100]}...")
-            messages.append({"role": "system", "content": f"USER CUSTOM INSTRUCTIONS:\n{user_custom_prompt}"})
-        else:
-            logger.info(f"No custom prompt for user {current_user['id']}")
-        
-        # Add document context if available
-        if document_context:
-            active_sources_list = ", ".join(active_source_names) if active_source_names else "None"
-            context_message = f"""PROJECT SOURCE CONTEXT:
+            
+            # Add user's custom prompt if exists
+            if user_custom_prompt:
+                logger.info(f"Adding user custom prompt for user {current_user['id']}: {user_custom_prompt[:100]}...")
+                messages.append({"role": "system", "content": f"USER CUSTOM INSTRUCTIONS:\n{user_custom_prompt}"})
+            else:
+                logger.info(f"No custom prompt for user {current_user['id']}")
+            
+            # Add document context if available
+            if document_context:
+                active_sources_list = ", ".join(active_source_names) if active_source_names else "None"
+                context_message = f"""PROJECT SOURCE CONTEXT:
 ACTIVE SOURCES FOR THIS CHAT: {active_sources_list}
 
 The following content is from user-uploaded documents and URLs that are ACTIVE for this chat. Use this as your primary source of truth.
@@ -2113,10 +2113,10 @@ The following content is from user-uploaded documents and URLs that are ACTIVE f
 ---
 END OF SOURCE CONTEXT
 """
-            messages.append({"role": "system", "content": context_message})
-        else:
-            # No context available - inform the model
-            context_message = """PROJECT SOURCE CONTEXT:
+                messages.append({"role": "system", "content": context_message})
+            else:
+                # No context available - inform the model
+                context_message = """PROJECT SOURCE CONTEXT:
 No active sources are currently selected for this chat, OR no relevant content was found in the active sources.
 
 If the user asks about a document/file/URL:
@@ -2124,48 +2124,59 @@ If the user asks about a document/file/URL:
 2. Remind them to check/select the source in the "Active Sources" checkboxes
 3. State clearly: "No active source content is available for this query."
 """
-            messages.append({"role": "system", "content": context_message})
-        
-        # Add chat history
-        for msg in history[:-1]:  # Exclude the message we just added
+                messages.append({"role": "system", "content": context_message})
+            
+            # Add chat history
+            for msg in history[:-1]:  # Exclude the message we just added
+                messages.append({
+                    "role": msg["role"],
+                    "content": msg["content"]
+                })
+            
+            # Add current user message
             messages.append({
-                "role": msg["role"],
-                "content": msg["content"]
+                "role": "user",
+                "content": message_data.content
             })
-        
-        # Add current user message
-        messages.append({
-            "role": "user",
-            "content": message_data.content
-        })
-        
-        # Use user-specific model if set, otherwise use global config
-        user_model = current_user.get("gptModel")
-        model_to_use = user_model if user_model else config["model"]
-        
-        # Call OpenAI Responses API
-        response = openai_client.responses.create(
-            model=model_to_use,
-            input=messages
-        )
-        
-        response_text = response.output_text
-        
-        # Track token usage
-        tokens_used = 0
-        if hasattr(response, 'usage') and response.usage:
-            tokens_used = getattr(response.usage, 'total_tokens', 0)
-        
-        # Update user token usage in DB
-        if tokens_used > 0:
-            await db.token_usage.update_one(
-                {"userId": current_user["id"]},
-                {
-                    "$inc": {"totalTokens": tokens_used, "messageCount": 1},
-                    "$set": {"lastUsedAt": datetime.now(timezone.utc).isoformat()}
-                },
-                upsert=True
+            
+            # Use user-specific model if set, otherwise use global config
+            user_model = current_user.get("gptModel")
+            model_to_use = user_model if user_model else config["model"]
+            
+            # Call OpenAI Responses API
+            response = openai_client.responses.create(
+                model=model_to_use,
+                input=messages
             )
+            
+            response_text = response.output_text
+            
+            # Track token usage
+            tokens_used = 0
+            if hasattr(response, 'usage') and response.usage:
+                tokens_used = getattr(response.usage, 'total_tokens', 0)
+            
+            # Update user token usage in DB
+            if tokens_used > 0:
+                await db.token_usage.update_one(
+                    {"userId": current_user["id"]},
+                    {
+                        "$inc": {"totalTokens": tokens_used, "messageCount": 1},
+                        "$set": {"lastUsedAt": datetime.now(timezone.utc).isoformat()}
+                    },
+                    upsert=True
+                )
+            
+            # Save to cache if we have embedding and got a valid response
+            if question_embedding and not response_text.startswith("I apologize"):
+                await save_to_cache(
+                    question=message_data.content,
+                    answer=response_text,
+                    project_id=project_id,
+                    embedding=question_embedding,
+                    user_id=current_user["id"],
+                    sources_used=used_sources if citations else None
+                )
         
     except Exception as e:
         logger.error(f"OpenAI API error: {str(e)}")
