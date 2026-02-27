@@ -411,7 +411,7 @@ const ProjectPage = () => {
               
               {/* Chat Visibility Dialog */}
               <Dialog open={!!selectedMemberForChats} onOpenChange={(open) => !open && setSelectedMemberForChats(null)}>
-                <DialogContent className="sm:max-w-md">
+                <DialogContent className="sm:max-w-lg">
                   <DialogHeader>
                     <DialogTitle>Chat Access</DialogTitle>
                     <DialogDescription>
