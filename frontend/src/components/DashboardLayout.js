@@ -142,15 +142,13 @@ const DashboardLayout = ({ children }) => {
       icon: Settings
     });
   } else {
-    // Non-admin users: show Departments link if they are managers
-    if (isManager) {
-      navItems.push({
-        name: 'Departments',
-        path: '/departments',
-        icon: Building2,
-        badge: pendingCount > 0 ? pendingCount : null
-      });
-    }
+    // Non-admin users: always show Departments link for managers
+    navItems.push({
+      name: 'Departments',
+      path: '/departments',
+      icon: Building2,
+      badge: pendingCount > 0 ? pendingCount : null
+    });
     
     if (user?.canEditGlobalSources) {
       // Non-admin users with global sources permission
