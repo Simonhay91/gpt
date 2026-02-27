@@ -608,11 +608,11 @@ const DepartmentSourcesPage = () => {
           <DialogContent className="sm:max-w-2xl max-h-[80vh]">
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
-                <Eye className="h-5 w-5 text-amber-400" />
-                Preview: {previewSource?.originalName}
+                <Eye className="h-5 w-5 text-amber-400 flex-shrink-0" />
+                <span className="truncate">Preview</span>
               </DialogTitle>
-              <DialogDescription>
-                Просмотрите содержимое перед одобрением
+              <DialogDescription className="break-all">
+                {previewSource?.originalName}
               </DialogDescription>
             </DialogHeader>
             
