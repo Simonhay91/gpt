@@ -231,8 +231,7 @@ const AdminDepartmentsPage = () => {
             {departments.map((dept) => (
               <Card 
                 key={dept.id} 
-                className="card-hover cursor-pointer group"
-                onClick={() => openMembersDialog(dept)}
+                className="card-hover group"
                 data-testid={`dept-card-${dept.id}`}
               >
                 <CardHeader className="pb-3">
