@@ -381,6 +381,17 @@ const AdminUsersPage = () => {
                         )}
                       </div>
                       
+                      {/* View Details Button */}
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="opacity-0 group-hover:opacity-100 transition-opacity"
+                        onClick={() => navigate(`/admin/users/${user.id}`)}
+                        data-testid={`view-user-${user.id}`}
+                      >
+                        Details
+                      </Button>
+                      
                       {/* Delete Button */}
                       {!user.isAdmin && (
                         <Button
