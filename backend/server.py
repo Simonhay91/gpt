@@ -1250,6 +1250,55 @@ async def delete_source(project_id: str, source_id: str, current_user: dict = De
     
     return {"message": "Source deleted successfully"}
 
+@api_router.get("/projects/{project_id}/sources/{source_id}/download")
+async def download_source(project_id: str, source_id: str, current_user: dict = Depends(get_current_user)):
+    """Download a single source file"""
+    await verify_project_access(project_id, current_user["id"])
+    
+    source = await db.sources.find_one({"id": source_id, "projectId": project_id}, {"_id": 0})
+    if not source:
+        raise HTTPException(status_code=404, detail="Source not found")
+    
+    if source["kind"] != "file" or not source.get("storagePath"):
+        raise HTTPException(status_code=400, detail="This source cannot be downloaded")
+    
+    file_path = UPLOAD_DIR / source["storagePath"]
+    if not file_path.exists():
+        raise HTTPException(status_code=404, detail="File not found on disk")
+    
+    return FileResponse(
+        path=file_path,
+        filename=source.get("originalName", source["storagePath"]),
+        media_type=source.get("mimeType", "application/octet-stream")
+    )
+
+@api_router.get("/projects/{project_id}/sources/{source_id}/preview")
+async def preview_source(project_id: str, source_id: str, current_user: dict = Depends(get_current_user)):
+    """Get source preview - extracted text content"""
+    await verify_project_access(project_id, current_user["id"])
+    
+    source = await db.sources.find_one({"id": source_id, "projectId": project_id}, {"_id": 0})
+    if not source:
+        raise HTTPException(status_code=404, detail="Source not found")
+    
+    # Get chunks for this source
+    chunks = await db.source_chunks.find(
+        {"sourceId": source_id}, 
+        {"_id": 0, "content": 1, "chunkIndex": 1}
+    ).sort("chunkIndex", 1).to_list(1000)
+    
+    # Combine chunks into full text
+    full_text = "\n\n".join([c["content"] for c in chunks])
+    
+    return {
+        "id": source_id,
+        "name": source.get("originalName") or source.get("url"),
+        "kind": source["kind"],
+        "mimeType": source.get("mimeType"),
+        "text": full_text,
+        "chunkCount": len(chunks)
+    }
+
 @api_router.get("/projects/{project_id}/sources/download-all")
 async def download_all_sources(project_id: str, current_user: dict = Depends(get_current_user)):
     """Download all file sources as a ZIP archive"""
