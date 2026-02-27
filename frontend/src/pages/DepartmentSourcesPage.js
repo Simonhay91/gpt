@@ -513,13 +513,6 @@ const DepartmentSourcesPage = () => {
             
             {/* Action explanation */}
             <div className="py-4 space-y-3">
-              {approvalAction === 'submit' && (
-                <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg p-3">
-                  <p className="text-sm">
-                    <strong>{t('approval.whatHappens')}:</strong> {t('approval.submitDesc')}
-                  </p>
-                </div>
-              )}
               {approvalAction === 'approve' && (
                 <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-lg p-3">
                   <p className="text-sm">
