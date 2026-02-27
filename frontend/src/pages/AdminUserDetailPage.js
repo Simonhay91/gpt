@@ -242,6 +242,43 @@ const AdminUserDetailPage = () => {
               </CardContent>
             </Card>
 
+            {/* Global Sources Permission */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Globe2 className="h-5 w-5" />
+                  Глобальные источники
+                </CardTitle>
+                <CardDescription>
+                  Разрешение редактировать общую базу знаний
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="flex items-center justify-between p-3 bg-secondary/50 rounded-lg">
+                  <div>
+                    <p className="font-medium">Может редактировать</p>
+                    <p className="text-sm text-muted-foreground">
+                      {canEditGlobal ? 'Пользователь может загружать и удалять свои файлы' : 'Только просмотр'}
+                    </p>
+                  </div>
+                  <Button 
+                    variant={canEditGlobal ? "destructive" : "default"}
+                    size="sm"
+                    onClick={toggleGlobalPermission}
+                    disabled={isSavingGlobalPerm}
+                  >
+                    {isSavingGlobalPerm ? (
+                      <div className="spinner h-4 w-4" />
+                    ) : canEditGlobal ? (
+                      'Отозвать'
+                    ) : (
+                      'Выдать'
+                    )}
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+
             {/* User Prompt */}
             <Card>
               <CardHeader>
