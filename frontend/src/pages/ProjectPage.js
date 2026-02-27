@@ -8,11 +8,18 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Label } from '../components/ui/label';
 import { Checkbox } from '../components/ui/checkbox';
 import { toast } from 'sonner';
-import { Plus, MessageSquare, Trash2, Clock, ArrowRight, ArrowLeft, FolderOpen, Share2, Users, X } from 'lucide-react';
+import { Plus, MessageSquare, Trash2, Clock, ArrowRight, ArrowLeft, FolderOpen, Share2, Users, X, Shield, Eye, Edit, Settings } from 'lucide-react';
 import DashboardLayout from '../components/DashboardLayout';
 import { useAuth } from '../contexts/AuthContext';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
+
+// Role configuration
+const ROLES = {
+  viewer: { label: 'Viewer', icon: Eye, color: 'text-blue-500', description: 'Только чтение' },
+  editor: { label: 'Editor', icon: Edit, color: 'text-green-500', description: 'Создание чатов' },
+  manager: { label: 'Manager', icon: Settings, color: 'text-orange-500', description: 'Управление источниками' }
+};
 
 const ProjectPage = () => {
   const { projectId } = useParams();
@@ -24,18 +31,21 @@ const ProjectPage = () => {
   const [newChatName, setNewChatName] = useState('');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
+  const [userRole, setUserRole] = useState(null);  // Current user's role in this project
   
   // Share dialog
   const [shareDialogOpen, setShareDialogOpen] = useState(false);
   const [shareEmail, setShareEmail] = useState('');
+  const [shareRole, setShareRole] = useState('viewer');  // Default role for new shares
   const [isSharing, setIsSharing] = useState(false);
   const [members, setMembers] = useState([]);
   const [isOwner, setIsOwner] = useState(false);
   const [allUsers, setAllUsers] = useState([]);
   const [isLoadingUsers, setIsLoadingUsers] = useState(false);
   const [selectedMemberForChats, setSelectedMemberForChats] = useState(null);
-  const [chatVisibility, setChatVisibility] = useState({});  // {chatId: boolean}
+  const [chatVisibility, setChatVisibility] = useState({});
   const [isUpdatingVisibility, setIsUpdatingVisibility] = useState(false);
+  const [isUpdatingRole, setIsUpdatingRole] = useState(null);
 
   useEffect(() => {
     fetchProjectAndChats();
@@ -50,13 +60,17 @@ const ProjectPage = () => {
       setProject(projectRes.data);
       setChats(chatsRes.data);
       
-      // Check if current user is owner
+      // Check members and current user's role
       try {
         const membersRes = await axios.get(`${API}/projects/${projectId}/members`);
         setMembers(membersRes.data);
-        // Current user is owner if they have owner role and matching email
-        const ownerMember = membersRes.data.find(m => m.role === 'owner');
-        setIsOwner(ownerMember?.email === user?.email);
+        
+        // Find current user's role
+        const currentUserMember = membersRes.data.find(m => m.email === user?.email);
+        if (currentUserMember) {
+          setUserRole(currentUserMember.role);
+          setIsOwner(currentUserMember.role === 'owner');
+        }
       } catch (e) {
         console.error('Failed to fetch members');
       }
