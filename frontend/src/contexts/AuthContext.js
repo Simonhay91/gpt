@@ -23,6 +23,7 @@ export const AuthProvider = ({ children }) => {
     try {
       const response = await axios.get(`${API}/auth/me`);
       setUser(response.data);
+      localStorage.setItem('userEmail', response.data.email);
     } catch (error) {
       console.error('Failed to fetch user:', error);
       logout();
