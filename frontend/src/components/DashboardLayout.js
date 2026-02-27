@@ -138,13 +138,25 @@ const DashboardLayout = ({ children }) => {
       path: '/admin/config',
       icon: Settings
     });
-  } else if (user?.canEditGlobalSources) {
-    // Non-admin users with global sources permission
-    navItems.push({
-      name: 'Global Sources',
-      path: '/global-sources',
-      icon: Globe2
-    });
+  } else {
+    // Non-admin users: show Departments link only if they are managers or have pending items
+    if (pendingCount > 0) {
+      navItems.push({
+        name: 'Departments',
+        path: '/departments',
+        icon: Building2,
+        badge: pendingCount
+      });
+    }
+    
+    if (user?.canEditGlobalSources) {
+      // Non-admin users with global sources permission
+      navItems.push({
+        name: 'Global Sources',
+        path: '/global-sources',
+        icon: Globe2
+      });
+    }
   }
 
   const isActive = (path) => {
