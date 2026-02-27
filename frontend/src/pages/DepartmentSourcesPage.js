@@ -560,7 +560,6 @@ const DepartmentSourcesPage = () => {
                            approvalAction === 'approve' ? 'bg-emerald-500 hover:bg-emerald-600' : ''}
               >
                 {isProcessing ? <div className="spinner mr-2" /> : null}
-                {approvalAction === 'submit' && t('action.submit')}
                 {approvalAction === 'approve' && t('action.approve')}
                 {approvalAction === 'activate' && t('action.activate')}
                 {approvalAction === 'reject' && t('action.reject')}
