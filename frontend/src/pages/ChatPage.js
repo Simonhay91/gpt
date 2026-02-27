@@ -926,6 +926,67 @@ const ChatPage = () => {
                   </Button>
                 </div>
               </div>
+              
+              {/* Search in sources - NO GPT, NO TOKENS */}
+              <div className="flex items-center gap-2 mb-3">
+                <div className="relative flex-1">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Поиск в документах (0 токенов)..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && searchSources()}
+                    className="h-9 text-sm pl-9"
+                    data-testid="search-sources-input"
+                  />
+                </div>
+                <Button
+                  variant="default"
+                  size="sm"
+                  onClick={searchSources}
+                  disabled={isSearching || !searchQuery.trim()}
+                  className="gap-2"
+                  data-testid="search-sources-btn"
+                >
+                  {isSearching ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Search className="h-4 w-4" />
+                  )}
+                  Найти
+                </Button>
+              </div>
+              
+              {/* Search Results */}
+              {showSearchResults && (
+                <div className="mb-4 border border-border rounded-lg p-3 bg-secondary/30">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-sm font-medium">Результаты поиска ({searchResults.length})</span>
+                    <Button variant="ghost" size="sm" onClick={() => { setShowSearchResults(false); setSearchResults([]); setSearchQuery(''); }}>
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </div>
+                  {searchResults.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">Ничего не найдено</p>
+                  ) : (
+                    <div className="space-y-2 max-h-[200px] overflow-y-auto">
+                      {searchResults.map((result, idx) => (
+                        <div key={idx} className="p-2 bg-background rounded border border-border">
+                          <div className="flex items-center gap-2 mb-1">
+                            <FileText className="h-3 w-3 text-muted-foreground" />
+                            <span className="text-xs font-medium truncate">{result.sourceName}</span>
+                            <span className="text-xs text-muted-foreground">({result.matchCount} совпадений)</span>
+                          </div>
+                          <p 
+                            className="text-xs text-muted-foreground"
+                            dangerouslySetInnerHTML={{ __html: highlightMatch(result.content, searchQuery) }}
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
 
               <div className="text-xs text-muted-foreground mb-3">
                 Supported: PDF, DOCX, PPTX, XLSX, TXT, MD, PNG, JPEG files and web URLs (multiple files allowed)
