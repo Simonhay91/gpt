@@ -503,10 +503,10 @@ async def get_relevant_chunks(source_ids: List[str], project_id: str, query: str
     if not source_ids:
         return []
     
-    # Get all chunks from active sources (strict project isolation)
+    # Get all chunks from active sources (include both project and global sources)
     all_chunks = await db.source_chunks.find({
         "sourceId": {"$in": source_ids},
-        "projectId": project_id  # Double-check project isolation
+        "projectId": {"$in": [project_id, GLOBAL_PROJECT_ID]}  # Include project and global sources
     }, {"_id": 0}).to_list(10000)
     
     if not all_chunks:
