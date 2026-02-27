@@ -1002,7 +1002,9 @@ async def get_me(current_user: dict = Depends(get_current_user)):
         email=current_user["email"],
         isAdmin=is_admin(current_user["email"]),
         createdAt=current_user["createdAt"],
-        canEditGlobalSources=current_user.get("canEditGlobalSources", False)
+        canEditGlobalSources=current_user.get("canEditGlobalSources", False),
+        departments=current_user.get("departments", []),
+        primaryDepartmentId=current_user.get("primaryDepartmentId")
     )
 
 # ==================== PROJECT ENDPOINTS ====================
