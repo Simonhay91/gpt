@@ -163,10 +163,10 @@ const PersonalSourcesPage = () => {
             <div>
               <h1 className="text-3xl font-bold tracking-tight flex items-center gap-3">
                 <Lock className="h-8 w-8 text-violet-400" />
-                Личные источники
+                {t('personal.title')}
               </h1>
               <p className="text-muted-foreground mt-2">
-                Приватные черновики и документы. Только вы можете их видеть.
+                {t('personal.subtitle')}
               </p>
             </div>
             
@@ -185,7 +185,7 @@ const PersonalSourcesPage = () => {
                 ) : (
                   <Upload className="mr-2 h-4 w-4" />
                 )}
-                Загрузить
+                {t('personal.upload')}
               </Button>
             </div>
           </div>
@@ -197,10 +197,9 @@ const PersonalSourcesPage = () => {
             <div className="flex items-start gap-3">
               <Lock className="h-5 w-5 text-violet-400 mt-0.5" />
               <div>
-                <p className="text-sm font-medium">Приватный уровень знаний</p>
+                <p className="text-sm font-medium">{t('personal.infoTitle')}</p>
                 <p className="text-sm text-muted-foreground mt-1">
-                  Личные источники не используются в чатах других пользователей. 
-                  Вы можете опубликовать их в проект или отдел.
+                  {t('personal.infoDesc')}
                 </p>
               </div>
             </div>
