@@ -259,50 +259,6 @@ const DashboardLayout = ({ children }) => {
         <div className="h-16 lg:hidden" /> {/* Spacer for mobile */}
         {children}
       </main>
-
-      {/* My GPT Prompt Dialog */}
-      <Dialog open={isPromptDialogOpen} onOpenChange={setIsPromptDialogOpen}>
-        <DialogContent className="sm:max-w-lg">
-          <DialogHeader>
-            <DialogTitle>Your Custom GPT Prompt</DialogTitle>
-            <DialogDescription>
-              This prompt will be added to every conversation to customize AI responses for you.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label htmlFor="userPrompt">Custom Instructions</Label>
-              <Textarea
-                id="userPrompt"
-                placeholder="e.g., Always respond in Russian. Be concise. Use code examples when possible."
-                value={userPrompt}
-                onChange={(e) => setUserPrompt(e.target.value)}
-                className="min-h-[150px]"
-                data-testid="user-prompt-input"
-              />
-              <p className="text-xs text-muted-foreground">
-                This prompt is private and only affects your conversations.
-              </p>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => setIsPromptDialogOpen(false)}
-            >
-              Cancel
-            </Button>
-            <Button
-              onClick={saveUserPrompt}
-              disabled={isSavingPrompt}
-              data-testid="save-prompt-btn"
-            >
-              {isSavingPrompt ? <div className="spinner mr-2" /> : null}
-              Save Prompt
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 };
