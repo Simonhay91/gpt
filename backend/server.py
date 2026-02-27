@@ -2253,24 +2253,44 @@ async def send_message(chat_id: str, message_data: MessageCreate, current_user: 
             else:
                 auto_ingest_notes.append(f"Could not fetch: {url}")
     
-    # === GET SOURCE IDS WITH PRIORITY (Project > Global) ===
+    # === GET SOURCE IDS WITH HIERARCHY (Project > Department > Global) ===
     project_source_ids = []
+    department_source_ids = []
     global_source_ids = []
     
     # Project sources (if in a project)
     if project_id:
-        project_sources = await db.sources.find({"projectId": project_id}, {"_id": 0, "id": 1}).to_list(1000)
+        project_sources = await db.sources.find({
+            "projectId": project_id,
+            "level": {"$in": ["project", None]},  # Legacy sources have no level
+            "status": {"$in": ["active", None]}
+        }, {"_id": 0, "id": 1}).to_list(1000)
         project_source_ids = [s["id"] for s in project_sources]
     
+    # Department sources (from user's departments)
+    user_department_ids = current_user.get("departments", [])
+    if user_department_ids:
+        department_sources = await db.sources.find({
+            "departmentId": {"$in": user_department_ids},
+            "level": "department",
+            "status": "active"
+        }, {"_id": 0, "id": 1}).to_list(1000)
+        department_source_ids = [s["id"] for s in department_sources]
+    
     # Global sources (always included)
-    global_sources = await db.sources.find({"projectId": GLOBAL_PROJECT_ID}, {"_id": 0, "id": 1}).to_list(1000)
+    global_sources = await db.sources.find({
+        "$or": [
+            {"projectId": GLOBAL_PROJECT_ID},
+            {"level": "global", "status": "active"}
+        ]
+    }, {"_id": 0, "id": 1}).to_list(1000)
     global_source_ids = [s["id"] for s in global_sources]
     
-    # Combined list (project first for priority)
-    active_source_ids = project_source_ids + global_source_ids
+    # Combined list with priority order: Project > Department > Global
+    active_source_ids = project_source_ids + department_source_ids + global_source_ids
     
     # Get user's accessible source IDs for cache security
-    user_accessible_source_ids = project_source_ids + global_source_ids
+    user_accessible_source_ids = project_source_ids + department_source_ids + global_source_ids
     
     # Get sender display name (use part before @ in email)
     sender_email = current_user["email"]
