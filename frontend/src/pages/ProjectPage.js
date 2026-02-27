@@ -167,6 +167,71 @@ const ProjectPage = () => {
     }
   };
 
+  const openChatVisibilityForMember = (member) => {
+    setSelectedMemberForChats(member);
+    // Initialize visibility state for this member
+    const visibility = {};
+    chats.forEach(chat => {
+      // If sharedWithUsers is null, all members can see it
+      // If it's an array, check if member is in it
+      const sharedWith = chat.sharedWithUsers;
+      visibility[chat.id] = sharedWith === null || sharedWith === undefined || sharedWith.includes(member.id);
+    });
+    setChatVisibility(visibility);
+  };
+
+  const toggleChatVisibility = (chatId) => {
+    setChatVisibility(prev => ({
+      ...prev,
+      [chatId]: !prev[chatId]
+    }));
+  };
+
+  const saveChatVisibility = async () => {
+    if (!selectedMemberForChats) return;
+    
+    setIsUpdatingVisibility(true);
+    try {
+      // For each chat, update its sharedWithUsers
+      for (const chat of chats) {
+        const isVisible = chatVisibility[chat.id];
+        const currentShared = chat.sharedWithUsers || [];
+        
+        let newSharedWith;
+        if (isVisible) {
+          // Add member to sharedWithUsers (or set to null if all should see)
+          if (currentShared.length === 0 && chat.sharedWithUsers === null) {
+            // Already visible to all, no change needed
+            continue;
+          }
+          newSharedWith = [...new Set([...currentShared, selectedMemberForChats.id])];
+        } else {
+          // Remove member from sharedWithUsers
+          if (chat.sharedWithUsers === null) {
+            // Was visible to all, now need to set to all members except this one
+            const otherMembers = members.filter(m => m.role !== 'owner' && m.id !== selectedMemberForChats.id);
+            newSharedWith = otherMembers.map(m => m.id);
+          } else {
+            newSharedWith = currentShared.filter(id => id !== selectedMemberForChats.id);
+          }
+        }
+        
+        await axios.put(`${API}/chats/${chat.id}/visibility`, { sharedWithUsers: newSharedWith });
+      }
+      
+      // Refresh chats
+      const chatsRes = await axios.get(`${API}/projects/${projectId}/chats`);
+      setChats(chatsRes.data);
+      
+      toast.success('Chat visibility updated');
+      setSelectedMemberForChats(null);
+    } catch (error) {
+      toast.error('Failed to update visibility');
+    } finally {
+      setIsUpdatingVisibility(false);
+    }
+  };
+
   const formatDate = (dateString) => {
     return new Date(dateString).toLocaleDateString('en-US', {
       month: 'short',
