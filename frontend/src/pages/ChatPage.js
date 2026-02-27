@@ -302,7 +302,7 @@ const ChatPage = () => {
     const files = Array.from(e.target.files || []);
     if (files.length === 0) return;
 
-    const supportedTypes = [
+    const supportedMimeTypes = [
       'application/pdf',
       'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
       'application/vnd.openxmlformats-officedocument.presentationml.presentation',
@@ -310,13 +310,20 @@ const ChatPage = () => {
       'text/plain',
       'text/markdown',
       'image/png',
-      'image/jpeg'
+      'image/jpeg',
+      'image/jpg'
     ];
+    
+    const supportedExtensions = ['.pdf', '.docx', '.pptx', '.xlsx', '.txt', '.md', '.png', '.jpg', '.jpeg'];
 
-    // Filter valid files
+    // Filter valid files - check by extension OR mime type
     const validFiles = files.filter(file => {
-      if (!supportedTypes.includes(file.type)) {
-        toast.error(`${file.name}: Unsupported file type`);
+      const ext = '.' + file.name.split('.').pop().toLowerCase();
+      const isValidExt = supportedExtensions.includes(ext);
+      const isValidMime = supportedMimeTypes.includes(file.type);
+      
+      if (!isValidExt && !isValidMime) {
+        toast.error(`${file.name}: Unsupported file type. Use PDF, DOCX, PPTX, XLSX, TXT, MD, PNG, JPEG`);
         return false;
       }
       if (file.size > 10 * 1024 * 1024) {
