@@ -129,11 +129,28 @@ function AppRoutes() {
           <AdminGlobalSourcesPage />
         </AdminRoute>
       } />
+      <Route path="/admin/departments" element={
+        <AdminRoute>
+          <AdminDepartmentsPage />
+        </AdminRoute>
+      } />
+      <Route path="/admin/audit-logs" element={
+        <AdminRoute>
+          <AdminAuditLogsPage />
+        </AdminRoute>
+      } />
       
       {/* User Global Sources Route */}
       <Route path="/global-sources" element={
         <ProtectedRoute>
           <GlobalSourcesPage />
+        </ProtectedRoute>
+      } />
+      
+      {/* Personal Sources Route */}
+      <Route path="/personal-sources" element={
+        <ProtectedRoute>
+          <PersonalSourcesPage />
         </ProtectedRoute>
       } />
       
