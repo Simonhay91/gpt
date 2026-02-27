@@ -858,6 +858,10 @@ async def get_relevant_chunks(source_ids: List[str], project_id: str, query: str
     
     logger.info(f"get_relevant_chunks: found {len(all_chunks)} chunks")
     
+    # Check if department chunk is there
+    dept_chunk_count = sum(1 for c in all_chunks if c.get("projectId") == "0d047f29-e68b-4bb8-9a5b-6aa1398ac46a")
+    logger.info(f"Department chunks in all_chunks: {dept_chunk_count}")
+    
     if not all_chunks:
         return []
     
