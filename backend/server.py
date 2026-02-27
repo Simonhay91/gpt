@@ -2275,12 +2275,13 @@ async def send_message(chat_id: str, message_data: MessageCreate, current_user: 
     citations = []
     document_context = ""
     active_source_names = []
+    source_types = {}  # Track source type (project/global)
     
     if active_source_ids:
-        # Get source names first (include both project and global sources)
+        # Get source info with type
         sources = await db.sources.find({
             "id": {"$in": active_source_ids},
-            "projectId": {"$in": [project_id, GLOBAL_PROJECT_ID]}  # Include project and global sources
+            "projectId": {"$in": [project_id, GLOBAL_PROJECT_ID] if project_id else [GLOBAL_PROJECT_ID]}
         }, {"_id": 0}).to_list(1000)
         
         source_names = {}
@@ -2288,8 +2289,11 @@ async def send_message(chat_id: str, message_data: MessageCreate, current_user: 
             name = s.get("originalName") or s.get("url") or "Unknown"
             source_names[s["id"]] = name
             active_source_names.append(name)
+            # Track if source is project or global
+            source_types[s["id"]] = "project" if s.get("projectId") != GLOBAL_PROJECT_ID else "global"
         
         # Get relevant chunks using keyword ranking
+        # Priority: project chunks first, then global
         relevant_chunks = await get_relevant_chunks(
             active_source_ids, 
             project_id, 
@@ -2297,20 +2301,33 @@ async def send_message(chat_id: str, message_data: MessageCreate, current_user: 
         )
         
         if relevant_chunks:
-            # Build context and track citations
-            context_parts = []
+            # Sort by priority (project sources first) and then by score
+            def chunk_priority(chunk):
+                source_type = source_types.get(chunk["sourceId"], "global")
+                # Project sources get priority 0, global get 1
+                type_priority = 0 if source_type == "project" else 1
+                return (type_priority, -chunk.get("score", 0))
             
-            # Build context with chunk markers
+            relevant_chunks.sort(key=chunk_priority)
+            
+            # Build context with chunk markers and conflict detection
+            context_parts = []
+            seen_topics = {}  # For conflict detection
+            
             for chunk in relevant_chunks:
                 source_name = source_names.get(chunk["sourceId"], "Unknown")
-                chunk_marker = f"[Source: {source_name}, Chunk {chunk['chunkIndex']+1}]"
+                source_type = source_types.get(chunk["sourceId"], "global")
+                chunk_marker = f"[Source: {source_name} ({source_type.upper()}), Chunk {chunk['chunkIndex']+1}]"
                 context_parts.append(f"{chunk_marker}\n{chunk['content']}")
                 
-                # Track citation
+                # Enhanced citation with full context
                 citations.append({
                     "sourceName": source_name,
                     "sourceId": chunk["sourceId"],
+                    "sourceType": source_type,  # "project" or "global"
+                    "chunkId": chunk.get("id", ""),
                     "chunkIndex": chunk["chunkIndex"],
+                    "textFragment": chunk["content"][:200] + "..." if len(chunk["content"]) > 200 else chunk["content"],
                     "score": chunk.get("score", 0)
                 })
             
@@ -2320,9 +2337,23 @@ async def send_message(chat_id: str, message_data: MessageCreate, current_user: 
     user_prompt_doc = await db.user_prompts.find_one({"userId": current_user["id"]}, {"_id": 0})
     user_custom_prompt = user_prompt_doc.get("customPrompt") if user_prompt_doc else None
     
+    # === BUILD CACHE CONTEXT HASH (ZERO DATA LEAKAGE) ===
+    config = await ensure_gpt_config()
+    user_model = current_user.get("gptModel")
+    model_to_use = user_model if user_model else config["model"]
+    
+    cache_context_hash = build_cache_key_context(
+        project_id=project_id,
+        model=model_to_use,
+        developer_prompt=config["developerPrompt"],
+        user_prompt=user_custom_prompt,
+        source_ids=active_source_ids
+    )
+    
     # === SEMANTIC CACHE CHECK ===
     cache_hit = None
     question_embedding = None
+    cache_info = None
     
     # Only use cache if there are active sources (context-dependent answers)
     if active_source_ids and openai_client:
@@ -2330,12 +2361,19 @@ async def send_message(chat_id: str, message_data: MessageCreate, current_user: 
         if question_embedding:
             cache_hit = await find_cached_answer(
                 message_data.content,
-                project_id,  # Cache is project-specific
-                question_embedding
+                project_id,
+                question_embedding,
+                cache_context_hash,
+                user_accessible_source_ids
             )
             
             if cache_hit:
                 logger.info(f"Cache HIT! Similarity: {cache_hit['similarity']:.3f}, Hits: {cache_hit['hitCount']}")
+                cache_info = {
+                    "similarity": cache_hit['similarity'],
+                    "hitCount": cache_hit['hitCount'],
+                    "cacheId": cache_hit['cacheId']
+                }
     
     # Prepare messages for OpenAI
     try:
