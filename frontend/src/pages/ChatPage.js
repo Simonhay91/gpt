@@ -589,7 +589,15 @@ const ChatPage = () => {
             <Button
               variant="ghost"
               size="icon"
-              onClick={() => navigate('/dashboard')}
+              onClick={() => {
+                // If chat belongs to a project, go to project page
+                // Otherwise go to dashboard
+                if (chat?.projectId) {
+                  navigate(`/projects/${chat.projectId}`);
+                } else {
+                  navigate('/dashboard');
+                }
+              }}
               data-testid="back-from-chat-btn"
             >
               <ArrowLeft className="h-5 w-5" />
