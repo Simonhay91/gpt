@@ -3629,6 +3629,10 @@ app.include_router(departments_router)
 app.include_router(enterprise_sources_router)
 app.include_router(news_router, prefix="/api")
 
+# Setup analyzer routes
+setup_analyzer_routes(db, get_current_user)
+app.include_router(analyzer_router, prefix="/api")
+
 app.add_middleware(
     CORSMiddleware,
     allow_credentials=True,
