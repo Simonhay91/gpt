@@ -2538,7 +2538,7 @@ IMPORTANT - SOURCE PRIORITY:
                 full_system_prompt = full_system_prompt[:6000] + "\n[truncated]"
             
             chat = LlmChat(
-                api_key=CLAUDE_API_KEY,
+                api_key=EMERGENT_KEY,
                 session_id=f"chat_{chat_id}_{current_user['id']}",
                 system_message=full_system_prompt
             ).with_model("anthropic", "claude-sonnet-4-20250514")
