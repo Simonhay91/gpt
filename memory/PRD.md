@@ -12,6 +12,7 @@ Planet GPT - корпоративная SaaS-платформа для рабо�
 - Frontend: React, Tailwind CSS, Shadcn/UI
 - Backend: FastAPI, MongoDB, Motor
 - AI: OpenAI GPT-4.1-mini, text-embedding-3-small
+- AI (Analyzer): Google Gemini 2.5 Flash via emergentintegrations
 
 ---
 
@@ -84,6 +85,19 @@ draft → pending → approved → active
 - [x] **Department sources page** with full workflow UI
 - [x] **Retrieval integration** - department sources используются в чатах
 
+### ✅ Excel/CSV Analyzer (Gemini AI)
+- [x] File upload (CSV, XLSX) with preview table
+- [x] Session-based analysis with conversation history
+- [x] Quick questions templates
+- [x] Gemini AI integration for data analysis
+- [x] Multi-language support (RU/EN)
+
+### ✅ Multi-Language Support (i18n)
+- [x] Language context with RU/EN translations
+- [x] Language switcher in sidebar
+- [x] Translated: Dashboard, Sidebar, Login, News, Admin pages
+- [ ] ~30% pages still need translation
+
 ### ✅ Admin Features
 - [x] User management with department assignment
 - [x] Global sources management
@@ -126,6 +140,15 @@ draft → pending → approved → active
 ### Audit Logs
 - `GET /api/admin/audit-logs` - Get audit logs with filters
 
+### Excel/CSV Analyzer
+- `POST /api/analyzer/upload` - Upload file for analysis
+- `POST /api/analyzer/ask` - Ask question about uploaded data
+- `GET /api/analyzer/session/{id}` - Get session info and history
+- `DELETE /api/analyzer/session/{id}` - Delete analysis session
+
+### News
+- `GET /api/news` - Get tech news from Hacker News API
+
 ### User Departments
 - `GET /api/users/me/departments` - Get user's departments
 - `PUT /api/users/me/primary-department` - Set primary department
@@ -141,18 +164,27 @@ draft → pending → approved → active
 │   │   └── enterprise.py      # Enterprise data models
 │   ├── routes/
 │   │   ├── departments.py     # Department routes
-│   │   └── enterprise_sources.py  # Personal/version/audit routes
+│   │   ├── enterprise_sources.py  # Personal/version/audit routes
+│   │   ├── analyzer.py        # Excel/CSV Analyzer with Gemini
+│   │   └── news.py            # Tech News API
 │   ├── services/
 │   │   └── enterprise.py      # AuditService, VersionService, HierarchicalRetrieval
-│   ├── server.py              # Main FastAPI app (3500+ lines)
+│   ├── server.py              # Main FastAPI app (3600+ lines)
 │   └── requirements.txt
 └── frontend/
     ├── src/
     │   ├── pages/
+    │   │   ├── ExcelAnalyzerPage.js  # Gemini data analyzer
+    │   │   ├── NewsPage.js           # Tech news
+    │   │   ├── MyGptPromptPage.js    # User's GPT prompt
     │   │   ├── AdminDepartmentsPage.js
     │   │   ├── AdminAuditLogsPage.js
     │   │   ├── PersonalSourcesPage.js
     │   │   └── ...
+    │   ├── i18n/
+    │   │   └── translations.js    # RU/EN translations
+    │   ├── contexts/
+    │   │   └── LanguageContext.js # Language switcher
     │   └── components/
     │       └── DashboardLayout.js  # Navigation with new links
     └── package.json
@@ -167,19 +199,23 @@ draft → pending → approved → active
 - [x] ~~"Departments" navigation link disappearing on route changes~~ (fixed)
 
 ### P1 (Medium Priority)
-- [ ] User-level token limits (daily/monthly)
+- [ ] Complete i18n for all pages (~30% remaining)
+- [ ] Page for Pending Approvals (unified dashboard for managers)
 - [ ] Admin UI for cache settings (TTL, similarity threshold)
 - [ ] Question templates
 
 ### P2 (Low Priority)
 - [ ] Show sources before sending to LLM
 - [ ] Usage/cost dashboard
-- [ ] Background ingestion for large files
-- [ ] Cross-project security tests
+- [ ] Bookmarks for tech news
+- [ ] Global search across chats/projects
+- [ ] Chat export to PDF/Markdown
+- [ ] User-level token limits
 
 ### Refactoring
 - [ ] Break down server.py into modular routers
 - [ ] Fix useEffect dependency warnings
+- [ ] Split translations.js by page/feature
 
 ---
 
@@ -188,4 +224,4 @@ draft → pending → approved → active
 - **Test Users**: Create via admin panel
 
 ## Last Updated
-2026-02-27 - Fixed "Departments" navigation link bug, Enterprise Knowledge Architecture implemented
+2026-03-02 - Added Excel/CSV Analyzer with Gemini AI integration (full e2e functionality)
