@@ -31,6 +31,7 @@ def setup_analyzer_routes(db, get_current_user):
     """Setup analyzer routes with dependencies"""
     
     EMERGENT_KEY = os.environ.get("EMERGENT_LLM_KEY")
+    CLAUDE_KEY = os.environ.get("CLAUDE_API_KEY")
     
     @router.post("/upload")
     async def upload_for_analysis(
