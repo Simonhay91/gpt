@@ -212,26 +212,12 @@ Rules: List ALL matches with row numbers (R1, R5, etc). Never summarize - show e
             )
             response = gpt_response.output_text
             
-            # Build message with context from previous messages
-            context = ""
-            if session["messages"]:
-                context = "Previous conversation:\n"
-                for msg in session["messages"][-2:]:  # Last 2 messages for context
-                    context += f"Q: {msg['question']}\nA: {msg['answer'][:500]}...\n\n"
-            
-            full_question = f"{context}\nDATA:\n{file_text}\n\nQuestion: {request.question}"
-            
-            user_message = UserMessage(text=full_question)
-            
-            # Get response
-            response = await chat.send_message(user_message)
-            
             # Calculate debug info
             rows_in_context = file_text.count('\nR')
             chars_in_context = len(file_text)
             
             # Add debug info to response
-            debug_info = f"\n\n---\n_📊 Debug: {rows_in_context} строк отправлено, {chars_in_context:,} символов_"
+            debug_info = f"\n\n---\n_📊 Debug: {rows_in_context} строк, {chars_in_context:,} символов (GPT-4.1-mini)_"
             response_with_debug = response + debug_info
             
             # Store in session history (without debug)
@@ -248,7 +234,7 @@ Rules: List ALL matches with row numbers (R1, R5, etc). Never summarize - show e
                     "rows_sent": rows_in_context,
                     "chars_sent": chars_in_context,
                     "total_rows": session["total_rows"],
-                    "truncated": chars_in_context >= 300000
+                    "truncated": chars_in_context >= 100000
                 }
             }
             
