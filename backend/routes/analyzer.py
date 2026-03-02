@@ -194,18 +194,23 @@ def setup_analyzer_routes(db, get_current_user):
             chat = LlmChat(
                 api_key=EMERGENT_KEY,
                 session_id=f"analyzer_{request.session_id}",
-                system_message=f"""You are a data analyst assistant. You are analyzing a file called "{session['file_name']}".
-The file has {session['total_rows']} total rows and columns: {', '.join(session['columns'])}.
+                system_message=f"""You are a data analyst assistant analyzing "{session['file_name']}".
+File has {session['total_rows']} rows. Columns: {', '.join(session['columns'])}.
 
-When answering questions:
-1. Be specific and reference actual data from the provided rows
-2. If asked to find something, provide the exact row numbers and values
-3. For calculations, show your work
-4. Format numbers nicely (use thousands separator for large numbers)
-5. If data is not found in the provided rows, mention it might be in rows not shown
-6. Respond in the same language as the question
+CRITICAL RULES:
+1. When asked to LIST or FIND items - output ALL matching rows, not just examples
+2. If user asks "show all X" or "list X" - provide COMPLETE list with row numbers
+3. For searches: list EVERY matching row (R1, R5, R23, etc.)
+4. Never summarize search results - show all matches
+5. If too many results (100+), still list all row numbers at minimum
+6. For calculations - show your work with exact numbers
+7. Respond in the same language as the question
+8. Use row numbers (R1, R2, etc.) to reference data
 
-Always provide accurate answers based on the actual file content."""
+When listing items, format as:
+- R15: ProductName, Code, Price
+- R28: ProductName, Code, Price
+...(continue for ALL matches)"""
             ).with_model("gemini", "gemini-2.5-flash")
             
             # Build message with context from previous messages
