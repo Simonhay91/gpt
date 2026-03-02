@@ -258,7 +258,7 @@ const AdminGlobalSourcesPage = () => {
                 data-testid="add-url-btn"
               >
                 <Link className="mr-2 h-4 w-4" />
-                Добавить URL
+                URL
               </Button>
               
               <label>
@@ -269,7 +269,7 @@ const AdminGlobalSourcesPage = () => {
                     ) : (
                       <Upload className="mr-2 h-4 w-4" />
                     )}
-                    Загрузить файл
+                    {t('global.upload')}
                   </span>
                 </Button>
                 <input
@@ -294,7 +294,7 @@ const AdminGlobalSourcesPage = () => {
                   <FileText className="h-5 w-5 text-muted-foreground" />
                   <div>
                     <p className="text-2xl font-bold">{sources.length}</p>
-                    <p className="text-sm text-muted-foreground">источников</p>
+                    <p className="text-sm text-muted-foreground">{t('departments.sources')}</p>
                   </div>
                 </div>
               </CardContent>
@@ -305,7 +305,7 @@ const AdminGlobalSourcesPage = () => {
                   <HardDrive className="h-5 w-5 text-muted-foreground" />
                   <div>
                     <p className="text-2xl font-bold">{formatBytes(totalSize)}</p>
-                    <p className="text-sm text-muted-foreground">общий размер</p>
+                    <p className="text-sm text-muted-foreground">size</p>
                   </div>
                 </div>
               </CardContent>
