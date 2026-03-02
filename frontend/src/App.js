@@ -189,6 +189,13 @@ function AppRoutes() {
         </ProtectedRoute>
       } />
       
+      {/* Excel/CSV Analyzer Route */}
+      <Route path="/analyzer" element={
+        <ProtectedRoute>
+          <ExcelAnalyzerPage />
+        </ProtectedRoute>
+      } />
+      
       {/* Default redirect */}
       <Route path="/" element={<Navigate to="/dashboard" replace />} />
       <Route path="*" element={<Navigate to="/dashboard" replace />} />
