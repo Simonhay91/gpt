@@ -188,32 +188,18 @@ def setup_analyzer_routes(db, get_current_user):
             except Exception as read_error:
                 raise HTTPException(status_code=500, detail=f"Failed to read file: {str(read_error)}")
             
-            # Limit to 800K chars (~200K tokens) - Gemini can handle this
-            if len(file_text) > 800000:
-                file_text = file_text[:800000] + "\n[TRUNCATED]"
+            # Limit to 8K chars for Claude rate limit (10K tokens/min)
+            if len(file_text) > 8000:
+                file_text = file_text[:8000] + "\n[TRUNCATED - Claude rate limit]"
             
-            # Create chat with Gemini for Excel analysis
+            # Create chat with Claude for Excel analysis
             chat = LlmChat(
-                api_key=EMERGENT_KEY,
+                api_key=CLAUDE_KEY,
                 session_id=f"analyzer_{request.session_id}",
-                system_message=f"""You are a data analyst assistant analyzing "{session['file_name']}".
-File has {session['total_rows']} rows. Columns: {', '.join(session['columns'])}.
-
-CRITICAL RULES:
-1. When asked to LIST or FIND items - output ALL matching rows, not just examples
-2. If user asks "show all X" or "list X" - provide COMPLETE list with row numbers
-3. For searches: list EVERY matching row (R1, R5, R23, etc.)
-4. Never summarize search results - show all matches
-5. If too many results (100+), still list all row numbers at minimum
-6. For calculations - show your work with exact numbers
-7. Respond in the same language as the question
-8. Use row numbers (R1, R2, etc.) to reference data
-
-When listing items, format as:
-- R15: ProductName, Code, Price
-- R28: ProductName, Code, Price
-...(continue for ALL matches)"""
-            ).with_model("gemini", "gemini-2.5-flash")
+                system_message=f"""Data analyst for "{session['file_name']}" ({session['total_rows']} rows).
+Cols: {', '.join(session['columns'][:10])}.
+Rules: List ALL matches with row numbers. Be concise."""
+            ).with_model("anthropic", "claude-sonnet-4-20250514")
             
             # Build message with context from previous messages
             context = ""
