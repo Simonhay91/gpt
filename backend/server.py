@@ -59,6 +59,7 @@ IMAGES_DIR = ROOT_DIR / "generated_images"
 IMAGES_DIR.mkdir(exist_ok=True)
 MAX_FILE_SIZE = 50 * 1024 * 1024  # 50MB
 CHUNK_SIZE = 1500  # characters per chunk
+CHUNK_SIZE_TABULAR = 800  # smaller chunks for tabular data (Excel, CSV)
 MAX_CONTEXT_CHARS = 15000  # Max characters to include in context
 MAX_CHUNKS_PER_QUERY = 10  # Max chunks to include per query
 MAX_AUTO_INGEST_URLS = 3  # Max URLs to auto-ingest per message
