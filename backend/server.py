@@ -2522,33 +2522,18 @@ IMPORTANT - SOURCE PRIORITY:
 - If you detect conflicting information, explicitly mention the conflict and ask user which source to trust
 """
                 
-                context_message = f"""PROJECT SOURCE CONTEXT:
-ACTIVE SOURCES FOR THIS CHAT: {active_sources_list}
-{priority_note}
-The following content is from user-uploaded documents and URLs that are ACTIVE for this chat. Use this as your primary source of truth.
-
-{document_context}
-
----
-END OF SOURCE CONTEXT
-"""
-                system_parts.append(context_message)
-            else:
-                # No context available - inform the model
-                context_message = """PROJECT SOURCE CONTEXT:
-No active sources are currently selected for this chat, OR no relevant content was found in the active sources.
-
-If the user asks about a document/file/URL:
-1. Ask them to upload the file or add the URL in the Sources panel
-2. Remind them to check/select the source in the "Active Sources" checkboxes
-3. State clearly: "No active source content is available for this query."
-"""
+                context_message = f"""SOURCES: {active_sources_list}
+{document_context[:8000]}"""
                 system_parts.append(context_message)
             
             # Build conversation history for Claude
             from emergentintegrations.llm.chat import LlmChat, UserMessage
             
-            full_system_prompt = "\n\n".join(system_parts)
+            full_system_prompt = "\n".join(system_parts)
+            
+            # Limit system prompt to avoid rate limits
+            if len(full_system_prompt) > 6000:
+                full_system_prompt = full_system_prompt[:6000] + "\n[truncated]"
             
             chat = LlmChat(
                 api_key=CLAUDE_API_KEY,
@@ -2556,11 +2541,14 @@ If the user asks about a document/file/URL:
                 system_message=full_system_prompt
             ).with_model("anthropic", "claude-sonnet-4-20250514")
             
-            # Build conversation context from history
+            # Build conversation context from history (last 3 messages only)
             conversation_context = ""
-            for msg in history[:-1]:  # Exclude the message we just added
-                role_label = "User" if msg["role"] == "user" else "Assistant"
-                conversation_context += f"{role_label}: {msg['content']}\n\n"
+            recent_history = history[-4:-1] if len(history) > 1 else []
+            for msg in recent_history:
+                role_label = "U" if msg["role"] == "user" else "A"
+                # Limit each message
+                content = msg['content'][:500] if len(msg['content']) > 500 else msg['content']
+                conversation_context += f"{role_label}: {content}\n"
             
             # Create message with history context
             full_message = conversation_context + message_data.content if conversation_context else message_data.content
