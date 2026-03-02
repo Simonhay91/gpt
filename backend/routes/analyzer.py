@@ -141,7 +141,7 @@ def setup_analyzer_routes(db, get_current_user):
             
             # Read file content as text (limited to avoid token overflow)
             file_text = ""
-            max_rows_for_context = 3000  # Increased limit for larger files
+            max_rows_for_context = 5000  # Increased to handle larger files
             
             try:
                 if session["mime_type"] == "text/csv":
@@ -156,14 +156,13 @@ def setup_analyzer_routes(db, get_current_user):
                         headers = rows[0]
                         total_data_rows = len(rows) - 1
                         shown_rows = min(total_data_rows, max_rows_for_context)
-                        file_text = f"CSV Data ({shown_rows} of {total_data_rows} rows):\n"
-                        file_text += f"Columns: {', '.join(headers)}\n\n"
+                        file_text = f"Data ({shown_rows}/{total_data_rows} rows). Cols: {','.join(headers)}\n"
                         
-                        # Compact format: Row N: col1=val1 | col2=val2
+                        # Ultra-compact format: R1:val1|val2|val3
                         for i, row in enumerate(rows[1:max_rows_for_context+1], 1):
-                            parts = [f"{h}={v}" for h, v in zip(headers, row) if v and v.strip()]
-                            if parts:
-                                file_text += f"R{i}: {' | '.join(parts)}\n"
+                            vals = [v.strip() for v in row if v and v.strip()]
+                            if vals:
+                                file_text += f"R{i}:{' | '.join(vals)}\n"
                 else:
                     # Excel file
                     from openpyxl import load_workbook
@@ -172,17 +171,15 @@ def setup_analyzer_routes(db, get_current_user):
                     rows = list(sheet.iter_rows(values_only=True))
                     
                     if rows:
-                        headers = [str(c) if c else f"Col_{i}" for i, c in enumerate(rows[0])]
+                        headers = [str(c) if c else f"C{i}" for i, c in enumerate(rows[0])]
                         total_data_rows = len(rows) - 1
                         shown_rows = min(total_data_rows, max_rows_for_context)
-                        file_text = f"Excel Data ({shown_rows} of {total_data_rows} rows):\n"
-                        file_text += f"Columns: {', '.join(headers)}\n\n"
+                        file_text = f"Data ({shown_rows}/{total_data_rows} rows). Cols: {','.join(headers)}\n"
                         
                         for i, row in enumerate(rows[1:max_rows_for_context+1], 1):
-                            values = [str(c) if c is not None else "" for c in row]
-                            parts = [f"{h}={v}" for h, v in zip(headers, values) if v and v.strip()]
-                            if parts:
-                                file_text += f"R{i}: {' | '.join(parts)}\n"
+                            vals = [str(c).strip() for c in row if c is not None and str(c).strip()]
+                            if vals:
+                                file_text += f"R{i}:{' | '.join(vals)}\n"
             except Exception as read_error:
                 raise HTTPException(status_code=500, detail=f"Failed to read file: {str(read_error)}")
             
