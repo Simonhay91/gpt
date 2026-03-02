@@ -100,6 +100,54 @@ const ExcelAnalyzerPage = () => {
     setMessages([]);
   };
 
+  const exportToExcel = async () => {
+    if (!session) return;
+    
+    try {
+      const response = await axios.get(
+        `${API}/analyzer/session/${session.session_id}/export/excel`,
+        { responseType: 'blob' }
+      );
+      
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `analysis_${session.file_name.split('.')[0]}.xlsx`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+      
+      toast.success(language === 'ru' ? 'Excel файл скачан!' : 'Excel file downloaded!');
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Export failed');
+    }
+  };
+
+  const exportToPdf = async () => {
+    if (!session) return;
+    
+    try {
+      const response = await axios.get(
+        `${API}/analyzer/session/${session.session_id}/export/pdf`,
+        { responseType: 'blob' }
+      );
+      
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `analysis_${session.file_name.split('.')[0]}.pdf`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+      
+      toast.success(language === 'ru' ? 'PDF файл скачан!' : 'PDF file downloaded!');
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Export failed');
+    }
+  };
+
   const quickQuestions = language === 'ru' ? [
     "Покажи общую статистику по данным",
     "Найди дубликаты",
