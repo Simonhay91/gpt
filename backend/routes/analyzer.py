@@ -188,18 +188,18 @@ def setup_analyzer_routes(db, get_current_user):
             except Exception as read_error:
                 raise HTTPException(status_code=500, detail=f"Failed to read file: {str(read_error)}")
             
-            # Limit to 8K chars for Claude rate limit (10K tokens/min)
-            if len(file_text) > 8000:
-                file_text = file_text[:8000] + "\n[TRUNCATED - Claude rate limit]"
+            # Limit to 800K chars - Gemini can handle large context
+            if len(file_text) > 800000:
+                file_text = file_text[:800000] + "\n[TRUNCATED]"
             
-            # Create chat with Claude for Excel analysis
+            # Create chat with Gemini for Excel analysis (using Emergent Key)
             chat = LlmChat(
-                api_key=CLAUDE_KEY,
+                api_key=EMERGENT_KEY,
                 session_id=f"analyzer_{request.session_id}",
                 system_message=f"""Data analyst for "{session['file_name']}" ({session['total_rows']} rows).
-Cols: {', '.join(session['columns'][:10])}.
-Rules: List ALL matches with row numbers. Be concise."""
-            ).with_model("anthropic", "claude-sonnet-4-20250514")
+Cols: {', '.join(session['columns'])}.
+Rules: List ALL matches with row numbers (R1, R5, etc). Never summarize - show every match."""
+            ).with_model("gemini", "gemini-2.5-flash")
             
             # Build message with context from previous messages
             context = ""
