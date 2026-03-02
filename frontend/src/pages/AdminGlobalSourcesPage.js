@@ -235,7 +235,7 @@ const AdminGlobalSourcesPage = () => {
             data-testid="back-to-dashboard-btn"
           >
             <ArrowLeft className="mr-2 h-4 w-4" />
-            Назад
+            {t('dept.backToDepts')}
           </Button>
           
           <div className="flex items-center justify-between flex-wrap gap-4">
@@ -244,9 +244,9 @@ const AdminGlobalSourcesPage = () => {
                 <Globe2 className="h-6 w-6 text-emerald-400" />
               </div>
               <div>
-                <h1 className="text-3xl font-bold tracking-tight">Глобальные источники</h1>
+                <h1 className="text-3xl font-bold tracking-tight">{t('global.title')}</h1>
                 <p className="text-muted-foreground mt-1">
-                  Центральная база знаний для всех пользователей
+                  {t('global.subtitle')}
                 </p>
               </div>
             </div>
