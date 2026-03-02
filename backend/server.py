@@ -2484,8 +2484,10 @@ async def send_message(chat_id: str, message_data: MessageCreate, current_user: 
     
     # Prepare messages for Claude
     try:
-        if not CLAUDE_API_KEY:
-            raise Exception("Claude API key not configured")
+        # Use Emergent LLM Key for Claude
+        EMERGENT_KEY = os.environ.get('EMERGENT_LLM_KEY')
+        if not EMERGENT_KEY:
+            raise Exception("Emergent LLM key not configured")
         
         from_cache = False
         
