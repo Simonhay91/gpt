@@ -327,7 +327,7 @@ const AdminGlobalSourcesPage = () => {
                   <BarChart3 className="h-5 w-5 text-blue-500" />
                   <div>
                     <p className="text-2xl font-bold">{usageStats?.sourcesUsedCount || 0}/{sources.length}</p>
-                    <p className="text-sm text-muted-foreground">используются</p>
+                    <p className="text-sm text-muted-foreground">used</p>
                   </div>
                 </div>
               </CardContent>
@@ -342,21 +342,21 @@ const AdminGlobalSourcesPage = () => {
             onClick={() => setActiveTab('sources')}
           >
             <FileText className="mr-2 h-4 w-4" />
-            Источники
+            {t('departments.sources')}
           </Button>
           <Button
             variant={activeTab === 'stats' ? 'default' : 'outline'}
             onClick={() => setActiveTab('stats')}
           >
             <BarChart3 className="mr-2 h-4 w-4" />
-            Статистика
+            Stats
           </Button>
           <Button
             variant={activeTab === 'cache' ? 'default' : 'outline'}
             onClick={() => setActiveTab('cache')}
           >
             <Database className="mr-2 h-4 w-4" />
-            Кэш
+            Cache
             {cacheStats?.totalHits > 0 && (
               <span className="ml-2 bg-emerald-500 text-white text-xs px-1.5 py-0.5 rounded-full">
                 {cacheStats.totalHits}
@@ -371,11 +371,9 @@ const AdminGlobalSourcesPage = () => {
             <div className="flex items-start gap-3">
               <Globe2 className="h-5 w-5 text-emerald-500 mt-0.5" />
               <div>
-                <h4 className="font-medium text-emerald-500">Как это работает</h4>
+                <h4 className="font-medium text-emerald-500">{t('global.infoTitle')}</h4>
                 <p className="text-sm text-muted-foreground mt-1">
-                  Глобальные источники автоматически доступны всем пользователям во всех проектах. 
-                  Когда пользователь задаёт вопрос, GPT будет использовать как источники проекта, 
-                  так и глобальные источники для формирования ответа.
+                  {t('global.infoDesc')}
                 </p>
               </div>
             </div>
