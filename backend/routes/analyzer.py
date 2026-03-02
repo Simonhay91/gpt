@@ -137,45 +137,80 @@ def setup_analyzer_routes(db, get_current_user):
             raise HTTPException(status_code=500, detail="Gemini API key not configured")
         
         try:
-            from emergentintegrations.llm.chat import LlmChat, UserMessage, FileContentWithMimeType
+            from emergentintegrations.llm.chat import LlmChat, UserMessage
+            
+            # Read file content as text (limited to avoid token overflow)
+            file_text = ""
+            max_rows_for_context = 500  # Limit rows to avoid token overflow
+            
+            try:
+                if session["mime_type"] == "text/csv":
+                    import csv
+                    from io import StringIO
+                    with open(session["file_path"], 'r', encoding='utf-8', errors='ignore') as f:
+                        content = f.read()
+                    reader = csv.reader(StringIO(content))
+                    rows = list(reader)
+                    
+                    if rows:
+                        headers = rows[0]
+                        file_text = f"CSV Data ({min(len(rows)-1, max_rows_for_context)} of {len(rows)-1} rows shown):\n"
+                        file_text += f"Columns: {', '.join(headers)}\n\n"
+                        
+                        for i, row in enumerate(rows[1:max_rows_for_context+1], 1):
+                            record = ", ".join([f"{h}: {v}" for h, v in zip(headers, row) if v])
+                            file_text += f"Row {i}: {record}\n"
+                else:
+                    # Excel file
+                    from openpyxl import load_workbook
+                    wb = load_workbook(session["file_path"], data_only=True)
+                    sheet = wb.active
+                    rows = list(sheet.iter_rows(values_only=True))
+                    
+                    if rows:
+                        headers = [str(c) if c else f"Col_{i}" for i, c in enumerate(rows[0])]
+                        file_text = f"Excel Data ({min(len(rows)-1, max_rows_for_context)} of {len(rows)-1} rows shown):\n"
+                        file_text += f"Columns: {', '.join(headers)}\n\n"
+                        
+                        for i, row in enumerate(rows[1:max_rows_for_context+1], 1):
+                            values = [str(c) if c is not None else "" for c in row]
+                            record = ", ".join([f"{h}: {v}" for h, v in zip(headers, values) if v])
+                            file_text += f"Row {i}: {record}\n"
+            except Exception as read_error:
+                raise HTTPException(status_code=500, detail=f"Failed to read file: {str(read_error)}")
+            
+            # Limit text size to ~100K chars (~25K tokens)
+            if len(file_text) > 100000:
+                file_text = file_text[:100000] + "\n\n[Data truncated due to size limits...]"
             
             # Create chat with Gemini
             chat = LlmChat(
                 api_key=EMERGENT_KEY,
                 session_id=f"analyzer_{request.session_id}",
                 system_message=f"""You are a data analyst assistant. You are analyzing a file called "{session['file_name']}".
-The file has {session['total_rows']} rows and columns: {', '.join(session['columns'])}.
+The file has {session['total_rows']} total rows and columns: {', '.join(session['columns'])}.
 
 When answering questions:
-1. Be specific and reference actual data from the file
+1. Be specific and reference actual data from the provided rows
 2. If asked to find something, provide the exact row numbers and values
 3. For calculations, show your work
 4. Format numbers nicely (use thousands separator for large numbers)
-5. If data is not found, say so clearly
+5. If data is not found in the provided rows, mention it might be in rows not shown
 6. Respond in the same language as the question
 
 Always provide accurate answers based on the actual file content."""
             ).with_model("gemini", "gemini-2.5-flash")
             
-            # Attach file
-            file_attachment = FileContentWithMimeType(
-                file_path=session["file_path"],
-                mime_type=session["mime_type"]
-            )
-            
             # Build message with context from previous messages
             context = ""
             if session["messages"]:
                 context = "Previous conversation:\n"
-                for msg in session["messages"][-4:]:  # Last 4 messages for context
-                    context += f"Q: {msg['question']}\nA: {msg['answer']}\n\n"
+                for msg in session["messages"][-2:]:  # Last 2 messages for context
+                    context += f"Q: {msg['question']}\nA: {msg['answer'][:500]}...\n\n"
             
-            full_question = context + f"Question: {request.question}"
+            full_question = f"{context}\nDATA:\n{file_text}\n\nQuestion: {request.question}"
             
-            user_message = UserMessage(
-                text=full_question,
-                file_contents=[file_attachment]
-            )
+            user_message = UserMessage(text=full_question)
             
             # Get response
             response = await chat.send_message(user_message)
@@ -192,8 +227,13 @@ Always provide accurate answers based on the actual file content."""
                 "session_id": request.session_id
             }
             
+        except HTTPException:
+            raise
         except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Analysis failed: {str(e)}")
+            error_msg = str(e)
+            if "token" in error_msg.lower() or "context" in error_msg.lower():
+                raise HTTPException(status_code=400, detail="Файл слишком большой. Попробуйте с файлом меньшего размера (до 500 строк).")
+            raise HTTPException(status_code=500, detail=f"Analysis failed: {error_msg}")
     
     @router.get("/session/{session_id}")
     async def get_session(
