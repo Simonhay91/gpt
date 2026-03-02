@@ -134,8 +134,12 @@ def setup_analyzer_routes(db, get_current_user):
         if session["user_id"] != current_user["id"]:
             raise HTTPException(status_code=403, detail="Access denied")
         
-        if not EMERGENT_KEY:
-            raise HTTPException(status_code=500, detail="Gemini API key not configured")
+        # Use Claude API key if available, otherwise fall back to Emergent key
+        api_key = CLAUDE_KEY or EMERGENT_KEY
+        use_claude = bool(CLAUDE_KEY)
+        
+        if not api_key:
+            raise HTTPException(status_code=500, detail="API key not configured")
         
         try:
             from emergentintegrations.llm.chat import LlmChat, UserMessage
