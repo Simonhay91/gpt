@@ -600,8 +600,7 @@ const AdminGlobalSourcesPage = () => {
                 ) : (
                   <div className="text-center py-8 text-muted-foreground">
                     <Database className="h-12 w-12 mx-auto mb-3 opacity-50" />
-                    <p>Кэш пуст</p>
-                    <p className="text-sm">Записи появятся после того, как пользователи начнут задавать вопросы</p>
+                    <p>Cache empty</p>
                   </div>
                 )}
               </CardContent>
@@ -621,9 +620,9 @@ const AdminGlobalSourcesPage = () => {
                   <div className="rounded-full bg-secondary p-4 mb-4">
                     <Globe2 className="h-8 w-8 text-muted-foreground" />
                   </div>
-                  <h3 className="text-lg font-semibold mb-2">Нет глобальных источников</h3>
+                  <h3 className="text-lg font-semibold mb-2">{t('global.noSources')}</h3>
                   <p className="text-muted-foreground text-center mb-4 max-w-md">
-                    Загрузите файлы или добавьте URL, чтобы создать общую базу знаний для всех пользователей
+                    {t('global.noSourcesDesc')}
                   </p>
                 </CardContent>
               </Card>
@@ -646,16 +645,16 @@ const AdminGlobalSourcesPage = () => {
                             </div>
                             <div className="min-w-0 flex-1">
                               <h3 className="font-semibold truncate">
-                                {source.originalName || source.url || 'Без названия'}
+                                {source.originalName || source.url || 'Untitled'}
                               </h3>
                               <div className="flex items-center gap-3 text-sm text-muted-foreground mt-1">
-                                <span>{source.kind === 'url' ? 'URL' : 'Файл'}</span>
+                                <span>{source.kind === 'url' ? 'URL' : 'File'}</span>
                                 {source.sizeBytes && (
                                   <span>• {formatBytes(source.sizeBytes)}</span>
                                 )}
-                                <span>• {source.chunkCount || 0} фрагментов</span>
+                                <span>• {source.chunkCount || 0} {t('common.chunks')}</span>
                                 {usage?.usageCount > 0 && (
-                                  <span className="text-emerald-500">• {usage.usageCount} использований</span>
+                                  <span className="text-emerald-500">• {usage.usageCount} uses</span>
                                 )}
                               </div>
                             </div>
