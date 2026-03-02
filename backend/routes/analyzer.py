@@ -141,7 +141,7 @@ def setup_analyzer_routes(db, get_current_user):
             
             # Read file content as text (limited to avoid token overflow)
             file_text = ""
-            max_rows_for_context = 500  # Limit rows to avoid token overflow
+            max_rows_for_context = 3000  # Increased limit for larger files
             
             try:
                 if session["mime_type"] == "text/csv":
@@ -154,12 +154,16 @@ def setup_analyzer_routes(db, get_current_user):
                     
                     if rows:
                         headers = rows[0]
-                        file_text = f"CSV Data ({min(len(rows)-1, max_rows_for_context)} of {len(rows)-1} rows shown):\n"
+                        total_data_rows = len(rows) - 1
+                        shown_rows = min(total_data_rows, max_rows_for_context)
+                        file_text = f"CSV Data ({shown_rows} of {total_data_rows} rows):\n"
                         file_text += f"Columns: {', '.join(headers)}\n\n"
                         
+                        # Compact format: Row N: col1=val1 | col2=val2
                         for i, row in enumerate(rows[1:max_rows_for_context+1], 1):
-                            record = ", ".join([f"{h}: {v}" for h, v in zip(headers, row) if v])
-                            file_text += f"Row {i}: {record}\n"
+                            parts = [f"{h}={v}" for h, v in zip(headers, row) if v and v.strip()]
+                            if parts:
+                                file_text += f"R{i}: {' | '.join(parts)}\n"
                 else:
                     # Excel file
                     from openpyxl import load_workbook
@@ -169,19 +173,22 @@ def setup_analyzer_routes(db, get_current_user):
                     
                     if rows:
                         headers = [str(c) if c else f"Col_{i}" for i, c in enumerate(rows[0])]
-                        file_text = f"Excel Data ({min(len(rows)-1, max_rows_for_context)} of {len(rows)-1} rows shown):\n"
+                        total_data_rows = len(rows) - 1
+                        shown_rows = min(total_data_rows, max_rows_for_context)
+                        file_text = f"Excel Data ({shown_rows} of {total_data_rows} rows):\n"
                         file_text += f"Columns: {', '.join(headers)}\n\n"
                         
                         for i, row in enumerate(rows[1:max_rows_for_context+1], 1):
                             values = [str(c) if c is not None else "" for c in row]
-                            record = ", ".join([f"{h}: {v}" for h, v in zip(headers, values) if v])
-                            file_text += f"Row {i}: {record}\n"
+                            parts = [f"{h}={v}" for h, v in zip(headers, values) if v and v.strip()]
+                            if parts:
+                                file_text += f"R{i}: {' | '.join(parts)}\n"
             except Exception as read_error:
                 raise HTTPException(status_code=500, detail=f"Failed to read file: {str(read_error)}")
             
-            # Limit text size to ~100K chars (~25K tokens)
-            if len(file_text) > 100000:
-                file_text = file_text[:100000] + "\n\n[Data truncated due to size limits...]"
+            # Limit text size to ~200K chars (~50K tokens)
+            if len(file_text) > 200000:
+                file_text = file_text[:200000] + "\n\n[Data truncated due to size limits...]"
             
             # Create chat with Gemini
             chat = LlmChat(
