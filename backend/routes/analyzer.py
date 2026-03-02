@@ -242,4 +242,234 @@ Always provide accurate answers based on the actual file content."""
         
         return {"message": "Session deleted"}
     
+    @router.get("/session/{session_id}/export/excel")
+    async def export_to_excel(
+        session_id: str,
+        current_user: dict = Depends(get_current_user)
+    ):
+        """Export analysis session to Excel file"""
+        from openpyxl import Workbook
+        from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
+        from io import BytesIO
+        from fastapi.responses import StreamingResponse
+        
+        session = analysis_sessions.get(session_id)
+        if not session:
+            raise HTTPException(status_code=404, detail="Session not found")
+        
+        if session["user_id"] != current_user["id"]:
+            raise HTTPException(status_code=403, detail="Access denied")
+        
+        # Create workbook
+        wb = Workbook()
+        ws = wb.active
+        ws.title = "Analysis Report"
+        
+        # Styles
+        header_font = Font(bold=True, size=14, color="FFFFFF")
+        header_fill = PatternFill(start_color="22C55E", end_color="22C55E", fill_type="solid")
+        question_fill = PatternFill(start_color="E5E7EB", end_color="E5E7EB", fill_type="solid")
+        answer_fill = PatternFill(start_color="F0FDF4", end_color="F0FDF4", fill_type="solid")
+        thin_border = Border(
+            left=Side(style='thin'),
+            right=Side(style='thin'),
+            top=Side(style='thin'),
+            bottom=Side(style='thin')
+        )
+        
+        # Header
+        ws.merge_cells('A1:B1')
+        ws['A1'] = f"Analysis Report: {session['file_name']}"
+        ws['A1'].font = header_font
+        ws['A1'].fill = header_fill
+        ws['A1'].alignment = Alignment(horizontal='center')
+        
+        # File info
+        ws['A3'] = "File:"
+        ws['B3'] = session['file_name']
+        ws['A4'] = "Rows:"
+        ws['B4'] = session['total_rows']
+        ws['A5'] = "Columns:"
+        ws['B5'] = ", ".join(session['columns'][:10])
+        ws['A6'] = "Created:"
+        ws['B6'] = session['created_at'][:19].replace('T', ' ')
+        
+        for row in range(3, 7):
+            ws[f'A{row}'].font = Font(bold=True)
+        
+        # Q&A Section
+        ws['A8'] = "Questions & Answers"
+        ws['A8'].font = Font(bold=True, size=12)
+        
+        current_row = 10
+        for i, msg in enumerate(session.get("messages", []), 1):
+            # Question
+            ws[f'A{current_row}'] = f"Q{i}:"
+            ws[f'A{current_row}'].font = Font(bold=True)
+            ws[f'A{current_row}'].fill = question_fill
+            
+            ws.merge_cells(f'B{current_row}:D{current_row}')
+            ws[f'B{current_row}'] = msg['question']
+            ws[f'B{current_row}'].fill = question_fill
+            ws[f'B{current_row}'].alignment = Alignment(wrap_text=True)
+            
+            current_row += 1
+            
+            # Answer
+            ws[f'A{current_row}'] = f"A{i}:"
+            ws[f'A{current_row}'].font = Font(bold=True, color="22C55E")
+            ws[f'A{current_row}'].fill = answer_fill
+            
+            ws.merge_cells(f'B{current_row}:D{current_row}')
+            ws[f'B{current_row}'] = msg['answer']
+            ws[f'B{current_row}'].fill = answer_fill
+            ws[f'B{current_row}'].alignment = Alignment(wrap_text=True)
+            
+            current_row += 2
+        
+        # Adjust column widths
+        ws.column_dimensions['A'].width = 10
+        ws.column_dimensions['B'].width = 60
+        ws.column_dimensions['C'].width = 20
+        ws.column_dimensions['D'].width = 20
+        
+        # Save to buffer
+        buffer = BytesIO()
+        wb.save(buffer)
+        buffer.seek(0)
+        
+        filename = f"analysis_{session['file_name'].rsplit('.', 1)[0]}_{session_id[:8]}.xlsx"
+        
+        return StreamingResponse(
+            buffer,
+            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            headers={"Content-Disposition": f"attachment; filename={filename}"}
+        )
+    
+    @router.get("/session/{session_id}/export/pdf")
+    async def export_to_pdf(
+        session_id: str,
+        current_user: dict = Depends(get_current_user)
+    ):
+        """Export analysis session to PDF file"""
+        from reportlab.lib.pagesizes import A4
+        from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+        from reportlab.lib.units import inch
+        from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table as PDFTable, TableStyle
+        from reportlab.lib import colors
+        from reportlab.pdfbase import pdfmetrics
+        from reportlab.pdfbase.ttfonts import TTFont
+        from io import BytesIO
+        from fastapi.responses import StreamingResponse
+        
+        session = analysis_sessions.get(session_id)
+        if not session:
+            raise HTTPException(status_code=404, detail="Session not found")
+        
+        if session["user_id"] != current_user["id"]:
+            raise HTTPException(status_code=403, detail="Access denied")
+        
+        # Create PDF buffer
+        buffer = BytesIO()
+        doc = SimpleDocTemplate(buffer, pagesize=A4, rightMargin=72, leftMargin=72, topMargin=72, bottomMargin=72)
+        
+        # Styles
+        styles = getSampleStyleSheet()
+        title_style = ParagraphStyle(
+            'CustomTitle',
+            parent=styles['Heading1'],
+            fontSize=18,
+            spaceAfter=20,
+            textColor=colors.HexColor('#22C55E')
+        )
+        heading_style = ParagraphStyle(
+            'CustomHeading',
+            parent=styles['Heading2'],
+            fontSize=14,
+            spaceAfter=10,
+            textColor=colors.HexColor('#1F2937')
+        )
+        question_style = ParagraphStyle(
+            'Question',
+            parent=styles['Normal'],
+            fontSize=11,
+            spaceAfter=5,
+            textColor=colors.HexColor('#374151'),
+            backColor=colors.HexColor('#F3F4F6'),
+            borderPadding=5
+        )
+        answer_style = ParagraphStyle(
+            'Answer',
+            parent=styles['Normal'],
+            fontSize=11,
+            spaceAfter=15,
+            textColor=colors.HexColor('#1F2937'),
+            leftIndent=20
+        )
+        
+        elements = []
+        
+        # Title
+        elements.append(Paragraph(f"Analysis Report", title_style))
+        elements.append(Spacer(1, 12))
+        
+        # File info table
+        file_info = [
+            ["File:", session['file_name']],
+            ["Rows:", str(session['total_rows'])],
+            ["Columns:", ", ".join(session['columns'][:8]) + ("..." if len(session['columns']) > 8 else "")],
+            ["Date:", session['created_at'][:19].replace('T', ' ')]
+        ]
+        
+        info_table = PDFTable(file_info, colWidths=[1.2*inch, 4.5*inch])
+        info_table.setStyle(TableStyle([
+            ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, -1), 10),
+            ('TEXTCOLOR', (0, 0), (0, -1), colors.HexColor('#6B7280')),
+            ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
+        ]))
+        elements.append(info_table)
+        elements.append(Spacer(1, 20))
+        
+        # Q&A Section
+        if session.get("messages"):
+            elements.append(Paragraph("Questions & Answers", heading_style))
+            elements.append(Spacer(1, 10))
+            
+            for i, msg in enumerate(session["messages"], 1):
+                # Question
+                q_text = f"<b>Q{i}:</b> {msg['question']}"
+                elements.append(Paragraph(q_text, question_style))
+                
+                # Answer - handle line breaks
+                answer_text = msg['answer'].replace('\n', '<br/>')
+                a_text = f"<font color='#22C55E'><b>A{i}:</b></font> {answer_text}"
+                elements.append(Paragraph(a_text, answer_style))
+                elements.append(Spacer(1, 10))
+        else:
+            elements.append(Paragraph("No questions asked yet.", styles['Normal']))
+        
+        # Footer
+        elements.append(Spacer(1, 30))
+        footer_style = ParagraphStyle(
+            'Footer',
+            parent=styles['Normal'],
+            fontSize=9,
+            textColor=colors.HexColor('#9CA3AF')
+        )
+        elements.append(Paragraph("Generated by Planet Knowledge - Excel/CSV Analyzer with Gemini AI", footer_style))
+        
+        # Build PDF
+        doc.build(elements)
+        buffer.seek(0)
+        
+        filename = f"analysis_{session['file_name'].rsplit('.', 1)[0]}_{session_id[:8]}.pdf"
+        
+        return StreamingResponse(
+            buffer,
+            media_type="application/pdf",
+            headers={"Content-Disposition": f"attachment; filename={filename}"}
+        )
+    
     return router
