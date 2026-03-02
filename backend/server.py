@@ -1667,8 +1667,11 @@ async def upload_multiple_sources(
             async with aiofiles.open(storage_path, 'wb') as f:
                 await f.write(content)
             
-            # Create chunks
-            chunks = chunk_text(extracted_text)
+            # Create chunks - use tabular chunking for Excel/CSV
+            if file_type in ["xlsx", "csv"]:
+                chunks = chunk_tabular_text(extracted_text)
+            else:
+                chunks = chunk_text(extracted_text)
             
             # Save source metadata
             source_doc = {
