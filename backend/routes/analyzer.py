@@ -229,7 +229,15 @@ When listing items, format as:
             # Get response
             response = await chat.send_message(user_message)
             
-            # Store in session history
+            # Calculate debug info
+            rows_in_context = file_text.count('\nR')
+            chars_in_context = len(file_text)
+            
+            # Add debug info to response
+            debug_info = f"\n\n---\n_📊 Debug: {rows_in_context} строк отправлено, {chars_in_context:,} символов_"
+            response_with_debug = response + debug_info
+            
+            # Store in session history (without debug)
             session["messages"].append({
                 "question": request.question,
                 "answer": response,
@@ -237,8 +245,14 @@ When listing items, format as:
             })
             
             return {
-                "answer": response,
-                "session_id": request.session_id
+                "answer": response_with_debug,
+                "session_id": request.session_id,
+                "debug": {
+                    "rows_sent": rows_in_context,
+                    "chars_sent": chars_in_context,
+                    "total_rows": session["total_rows"],
+                    "truncated": chars_in_context >= 300000
+                }
             }
             
         except HTTPException:
