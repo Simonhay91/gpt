@@ -646,7 +646,7 @@ def extract_text_from_pptx(file_content: bytes) -> str:
         raise HTTPException(status_code=400, detail=f"Failed to extract text from PowerPoint: {str(e)}")
 
 def extract_text_from_xlsx(file_content: bytes) -> str:
-    """Extract text from Excel file content"""
+    """Extract text from Excel file content - optimized for AI search"""
     try:
         from openpyxl import load_workbook
         from io import BytesIO
@@ -658,12 +658,36 @@ def extract_text_from_xlsx(file_content: bytes) -> str:
             sheet = wb[sheet_name]
             sheet_text = [f"[Sheet: {sheet_name}]"]
             
-            for row in sheet.iter_rows(values_only=True):
-                row_values = [str(cell) if cell is not None else "" for cell in row]
-                if any(row_values):
-                    sheet_text.append(" | ".join(row_values))
+            # Get all rows
+            rows = list(sheet.iter_rows(values_only=True))
+            if not rows:
+                continue
+            
+            # First row is usually headers
+            headers = [str(cell).strip() if cell is not None else f"Column_{i}" for i, cell in enumerate(rows[0])]
+            
+            # Process data rows - create structured records
+            for row_idx, row in enumerate(rows[1:], start=2):
+                row_values = [str(cell).strip() if cell is not None else "" for cell in row]
+                
+                # Skip empty rows
+                if not any(row_values):
+                    continue
+                
+                # Create structured record: "Header1: Value1, Header2: Value2, ..."
+                record_parts = []
+                for header, value in zip(headers, row_values):
+                    if value:  # Only include non-empty values
+                        record_parts.append(f"{header}: {value}")
+                
+                if record_parts:
+                    # Add row number for reference
+                    record = f"Row {row_idx}: " + ", ".join(record_parts)
+                    sheet_text.append(record)
             
             if len(sheet_text) > 1:
+                # Add header info at the top
+                sheet_text.insert(1, f"Columns: {', '.join(headers)}")
                 text_parts.append("\n".join(sheet_text))
         
         return "\n\n".join(text_parts)
