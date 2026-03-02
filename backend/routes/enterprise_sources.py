@@ -399,7 +399,7 @@ def setup_enterprise_source_routes(
         
         source_id = str(uuid.uuid4())
         content_hash = compute_hash(extracted_text)
-        chunks = chunk_text_func(extracted_text)
+        chunks = do_chunking(extracted_text, file_type)
         
         # Save file
         import aiofiles
