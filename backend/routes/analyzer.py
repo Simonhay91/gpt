@@ -183,9 +183,9 @@ def setup_analyzer_routes(db, get_current_user):
             except Exception as read_error:
                 raise HTTPException(status_code=500, detail=f"Failed to read file: {str(read_error)}")
             
-            # Limit text size to ~200K chars (~50K tokens)
-            if len(file_text) > 200000:
-                file_text = file_text[:200000] + "\n\n[Data truncated due to size limits...]"
+            # Limit text size to ~300K chars (~75K tokens) for larger files
+            if len(file_text) > 300000:
+                file_text = file_text[:300000] + "\n[TRUNCATED - some rows not shown]"
             
             # Create chat with Gemini
             chat = LlmChat(
