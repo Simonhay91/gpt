@@ -6,7 +6,7 @@ import { Input } from '../components/ui/input';
 import { toast } from 'sonner';
 import { 
   FileSpreadsheet, Upload, Send, Loader2, Trash2, 
-  Table, MessageSquare, Sparkles, Download, X
+  Table, MessageSquare, Sparkles, Download, X, FileText
 } from 'lucide-react';
 import DashboardLayout from '../components/DashboardLayout';
 import { useLanguage } from '../contexts/LanguageContext';
