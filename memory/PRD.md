@@ -91,6 +91,8 @@ draft → pending → approved → active
 - [x] Quick questions templates
 - [x] Gemini AI integration for data analysis
 - [x] Multi-language support (RU/EN)
+- [x] Export to Excel (.xlsx) with styled report
+- [x] Export to PDF with formatted Q&A
 
 ### ✅ Multi-Language Support (i18n)
 - [x] Language context with RU/EN translations
@@ -145,6 +147,8 @@ draft → pending → approved → active
 - `POST /api/analyzer/ask` - Ask question about uploaded data
 - `GET /api/analyzer/session/{id}` - Get session info and history
 - `DELETE /api/analyzer/session/{id}` - Delete analysis session
+- `GET /api/analyzer/session/{id}/export/excel` - Export to Excel
+- `GET /api/analyzer/session/{id}/export/pdf` - Export to PDF
 
 ### News
 - `GET /api/news` - Get tech news from Hacker News API
