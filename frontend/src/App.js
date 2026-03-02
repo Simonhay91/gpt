@@ -24,6 +24,7 @@ import DepartmentSourcesPage from './pages/DepartmentSourcesPage';
 import MyDepartmentsPage from './pages/MyDepartmentsPage';
 import NewsPage from './pages/NewsPage';
 import MyGptPromptPage from './pages/MyGptPromptPage';
+import ExcelAnalyzerPage from './pages/ExcelAnalyzerPage';
 
 // Protected Route Component
 const ProtectedRoute = ({ children }) => {
