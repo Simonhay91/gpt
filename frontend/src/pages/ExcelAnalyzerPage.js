@@ -238,10 +238,36 @@ const ExcelAnalyzerPage = () => {
                       </p>
                     </div>
                   </div>
-                  <Button variant="ghost" size="sm" onClick={closeSession}>
-                    <X className="h-4 w-4 mr-1" />
-                    {language === 'ru' ? 'Закрыть' : 'Close'}
-                  </Button>
+                  <div className="flex items-center gap-2">
+                    {messages.length > 0 && (
+                      <>
+                        <Button 
+                          variant="outline" 
+                          size="sm" 
+                          onClick={exportToExcel}
+                          className="text-green-600 border-green-600/30 hover:bg-green-500/10"
+                          data-testid="export-excel-btn"
+                        >
+                          <Download className="h-4 w-4 mr-1" />
+                          Excel
+                        </Button>
+                        <Button 
+                          variant="outline" 
+                          size="sm" 
+                          onClick={exportToPdf}
+                          className="text-red-500 border-red-500/30 hover:bg-red-500/10"
+                          data-testid="export-pdf-btn"
+                        >
+                          <FileText className="h-4 w-4 mr-1" />
+                          PDF
+                        </Button>
+                      </>
+                    )}
+                    <Button variant="ghost" size="sm" onClick={closeSession}>
+                      <X className="h-4 w-4 mr-1" />
+                      {language === 'ru' ? 'Закрыть' : 'Close'}
+                    </Button>
+                  </div>
                 </div>
                 
                 {/* Column names */}
