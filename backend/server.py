@@ -2482,30 +2482,27 @@ async def send_message(chat_id: str, message_data: MessageCreate, current_user: 
                     "cacheId": cache_hit['cacheId']
                 }
     
-    # Prepare messages for Claude
+    # Prepare messages for GPT
     try:
-        # Use Emergent LLM Key for Claude
-        EMERGENT_KEY = os.environ.get('EMERGENT_LLM_KEY')
-        if not EMERGENT_KEY:
-            raise Exception("Emergent LLM key not configured")
+        if not openai_client:
+            raise Exception("OpenAI API key not configured")
         
         from_cache = False
         
         # If cache hit, use cached answer
         if cache_hit:
             response_text = cache_hit["answer"]
-            # Add cache indicator to response
             response_text += f"\n\n---\n_📦 Ответ из кэша (схожесть: {cache_hit['similarity']:.0%})_"
-            tokens_used = 0  # No tokens used for cached response
+            tokens_used = 0
             from_cache = True
         else:
-            # Build system prompt with developer prompt, user custom prompt, and document context
-            system_parts = [config["developerPrompt"]]
+            # Build messages for GPT
+            messages = [{"role": "developer", "content": config["developerPrompt"]}]
             
             # Add user's custom prompt if exists
             if user_custom_prompt:
-                logger.info(f"Adding user custom prompt for user {current_user['id']}: {user_custom_prompt[:100]}...")
-                system_parts.append(f"USER CUSTOM INSTRUCTIONS:\n{user_custom_prompt}")
+                logger.info(f"Adding user custom prompt for user {current_user['id']}")
+                messages.append({"role": "system", "content": f"USER INSTRUCTIONS:\n{user_custom_prompt}"})
             else:
                 logger.info(f"No custom prompt for user {current_user['id']}")
             
