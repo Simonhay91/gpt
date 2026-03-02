@@ -188,18 +188,29 @@ def setup_analyzer_routes(db, get_current_user):
             except Exception as read_error:
                 raise HTTPException(status_code=500, detail=f"Failed to read file: {str(read_error)}")
             
-            # Limit to 800K chars - Gemini can handle large context
-            if len(file_text) > 800000:
-                file_text = file_text[:800000] + "\n[TRUNCATED]"
+            # Limit to 100K chars for GPT context
+            if len(file_text) > 100000:
+                file_text = file_text[:100000] + "\n[TRUNCATED]"
             
-            # Create chat with Gemini for Excel analysis (using Emergent Key)
-            chat = LlmChat(
-                api_key=EMERGENT_KEY,
-                session_id=f"analyzer_{request.session_id}",
-                system_message=f"""Data analyst for "{session['file_name']}" ({session['total_rows']} rows).
+            # Create chat with GPT for Excel analysis
+            system_prompt = f"""Data analyst for "{session['file_name']}" ({session['total_rows']} rows).
 Cols: {', '.join(session['columns'])}.
 Rules: List ALL matches with row numbers (R1, R5, etc). Never summarize - show every match."""
-            ).with_model("gemini", "gemini-2.5-flash")
+
+            messages = [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": f"DATA:\n{file_text}\n\nQuestion: {request.question}"}
+            ]
+            
+            # Use OpenAI client directly
+            from openai import OpenAI
+            client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
+            
+            gpt_response = client.responses.create(
+                model="gpt-4.1-mini",
+                input=messages
+            )
+            response = gpt_response.output_text
             
             # Build message with context from previous messages
             context = ""
