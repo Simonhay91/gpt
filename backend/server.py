@@ -2555,7 +2555,7 @@ The following content is from user-uploaded documents and URLs that are ACTIVE f
 ---
 END OF SOURCE CONTEXT
 """
-                messages.append({"role": "system", "content": context_message})
+                system_parts.append(context_message)
             else:
                 # No context available - inform the model
                 context_message = """PROJECT SOURCE CONTEXT:
@@ -2566,37 +2566,33 @@ If the user asks about a document/file/URL:
 2. Remind them to check/select the source in the "Active Sources" checkboxes
 3. State clearly: "No active source content is available for this query."
 """
-                messages.append({"role": "system", "content": context_message})
+                system_parts.append(context_message)
             
-            # Add chat history
+            # Build conversation history for Claude
+            from emergentintegrations.llm.chat import LlmChat, UserMessage
+            
+            full_system_prompt = "\n\n".join(system_parts)
+            
+            chat = LlmChat(
+                api_key=CLAUDE_API_KEY,
+                session_id=f"chat_{chat_id}_{current_user['id']}",
+                system_message=full_system_prompt
+            ).with_model("anthropic", "claude-sonnet-4-20250514")
+            
+            # Build conversation context from history
+            conversation_context = ""
             for msg in history[:-1]:  # Exclude the message we just added
-                messages.append({
-                    "role": msg["role"],
-                    "content": msg["content"]
-                })
+                role_label = "User" if msg["role"] == "user" else "Assistant"
+                conversation_context += f"{role_label}: {msg['content']}\n\n"
             
-            # Add current user message
-            messages.append({
-                "role": "user",
-                "content": message_data.content
-            })
+            # Create message with history context
+            full_message = conversation_context + message_data.content if conversation_context else message_data.content
             
-            # Use user-specific model if set, otherwise use global config
-            user_model = current_user.get("gptModel")
-            model_to_use = user_model if user_model else config["model"]
+            user_message = UserMessage(text=full_message)
+            response_text = await chat.send_message(user_message)
             
-            # Call OpenAI Responses API
-            response = openai_client.responses.create(
-                model=model_to_use,
-                input=messages
-            )
-            
-            response_text = response.output_text
-            
-            # Track token usage
-            tokens_used = 0
-            if hasattr(response, 'usage') and response.usage:
-                tokens_used = getattr(response.usage, 'total_tokens', 0)
+            # Track token usage (approximate for Claude)
+            tokens_used = len(full_message.split()) + len(response_text.split())  # Rough estimate
             
             # Update user token usage in DB
             if tokens_used > 0:
