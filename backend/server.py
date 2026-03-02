@@ -3616,6 +3616,7 @@ setup_enterprise_source_routes(
     version_service,
     extract_text_wrapper,
     chunk_text,
+    chunk_tabular_text,
     UPLOAD_DIR,
     MAX_FILE_SIZE,
     SUPPORTED_MIME_TYPES
