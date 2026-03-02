@@ -192,9 +192,9 @@ def setup_analyzer_routes(db, get_current_user):
             if len(file_text) > 300000:
                 file_text = file_text[:300000] + "\n[TRUNCATED - some rows not shown]"
             
-            # Create chat with Claude or Gemini
+            # Create chat with Gemini for Excel analysis
             chat = LlmChat(
-                api_key=api_key,
+                api_key=EMERGENT_KEY,
                 session_id=f"analyzer_{request.session_id}",
                 system_message=f"""You are a data analyst assistant analyzing "{session['file_name']}".
 File has {session['total_rows']} rows. Columns: {', '.join(session['columns'])}.
@@ -213,13 +213,7 @@ When listing items, format as:
 - R15: ProductName, Code, Price
 - R28: ProductName, Code, Price
 ...(continue for ALL matches)"""
-            )
-            
-            # Use Claude if key available, otherwise Gemini
-            if use_claude:
-                chat = chat.with_model("anthropic", "claude-sonnet-4-20250514")
-            else:
-                chat = chat.with_model("gemini", "gemini-2.5-flash")
+            ).with_model("gemini", "gemini-2.5-flash")
             
             # Build message with context from previous messages
             context = ""
