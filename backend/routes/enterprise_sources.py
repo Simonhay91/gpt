@@ -19,6 +19,7 @@ def setup_enterprise_source_routes(
     version_service,
     extract_text_func,
     chunk_text_func,
+    chunk_tabular_func,
     UPLOAD_DIR,
     MAX_FILE_SIZE,
     SUPPORTED_MIME_TYPES
@@ -30,6 +31,15 @@ def setup_enterprise_source_routes(
     
     def now_iso() -> str:
         return datetime.now(timezone.utc).isoformat()
+    
+    def get_file_type(mime_type: str) -> str:
+        return SUPPORTED_MIME_TYPES.get(mime_type, "txt")
+    
+    def do_chunking(text: str, file_type: str):
+        """Use appropriate chunking based on file type"""
+        if file_type in ["xlsx", "csv"]:
+            return chunk_tabular_func(text)
+        return chunk_text_func(text)
     
     # ==================== PERSONAL SOURCES ====================
     
