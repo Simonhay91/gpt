@@ -87,6 +87,11 @@ const DashboardLayout = ({ children }) => {
       name: t('nav.myGptPrompt'),
       path: '/my-prompt',
       icon: Sparkles
+    },
+    {
+      name: t('nav.excelAnalyzer'),
+      path: '/analyzer',
+      icon: FileSpreadsheet
     }
   ];
 
