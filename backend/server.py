@@ -2505,10 +2505,10 @@ async def send_message(chat_id: str, message_data: MessageCreate, current_user: 
                     "cacheId": cache_hit['cacheId']
                 }
     
-    # Prepare messages for OpenAI
+    # Prepare messages for Claude
     try:
-        if not openai_client:
-            raise Exception("OpenAI API key not configured")
+        if not CLAUDE_API_KEY:
+            raise Exception("Claude API key not configured")
         
         from_cache = False
         
@@ -2520,15 +2520,13 @@ async def send_message(chat_id: str, message_data: MessageCreate, current_user: 
             tokens_used = 0  # No tokens used for cached response
             from_cache = True
         else:
-            # Build messages array with developer prompt, user custom prompt, document context, and chat history
-            messages = [
-                {"role": "developer", "content": config["developerPrompt"]}
-            ]
+            # Build system prompt with developer prompt, user custom prompt, and document context
+            system_parts = [config["developerPrompt"]]
             
             # Add user's custom prompt if exists
             if user_custom_prompt:
                 logger.info(f"Adding user custom prompt for user {current_user['id']}: {user_custom_prompt[:100]}...")
-                messages.append({"role": "system", "content": f"USER CUSTOM INSTRUCTIONS:\n{user_custom_prompt}"})
+                system_parts.append(f"USER CUSTOM INSTRUCTIONS:\n{user_custom_prompt}")
             else:
                 logger.info(f"No custom prompt for user {current_user['id']}")
             
