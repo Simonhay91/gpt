@@ -849,6 +849,38 @@ def chunk_text(text: str, chunk_size: int = CHUNK_SIZE) -> List[str]:
     
     return chunks
 
+def chunk_tabular_text(text: str, chunk_size: int = CHUNK_SIZE_TABULAR) -> List[str]:
+    """Split tabular text (Excel, CSV) into chunks - preserves row integrity"""
+    if not text:
+        return []
+    
+    chunks = []
+    current_chunk = ""
+    
+    # Split by lines (each line is a record)
+    lines = text.split('\n')
+    
+    for line in lines:
+        # Sheet headers and column info should start new chunks
+        if line.startswith('[Sheet:') or line.startswith('Columns:'):
+            if current_chunk:
+                chunks.append(current_chunk.strip())
+            current_chunk = line
+        elif len(current_chunk) + len(line) + 1 <= chunk_size:
+            if current_chunk:
+                current_chunk += "\n" + line
+            else:
+                current_chunk = line
+        else:
+            if current_chunk:
+                chunks.append(current_chunk.strip())
+            current_chunk = line
+    
+    if current_chunk:
+        chunks.append(current_chunk.strip())
+    
+    return chunks
+
 def score_chunk_relevance(chunk_content: str, query: str) -> float:
     """Score chunk relevance using simple keyword overlap"""
     # Tokenize query and chunk
