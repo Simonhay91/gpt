@@ -2523,40 +2523,22 @@ IMPORTANT - SOURCE PRIORITY:
                 
                 context_message = f"""SOURCES: {active_sources_list}
 {document_context[:8000]}"""
-                system_parts.append(context_message)
+                messages.append({"role": "system", "content": context_message})
             
-            # Build conversation history for Claude
-            from emergentintegrations.llm.chat import LlmChat, UserMessage
+            # Add chat history
+            for msg in history[:-1]:
+                messages.append({"role": msg["role"], "content": msg["content"]})
             
-            full_system_prompt = "\n".join(system_parts)
+            # Add current message
+            messages.append({"role": "user", "content": message_data.content})
             
-            # Limit system prompt to avoid rate limits
-            if len(full_system_prompt) > 6000:
-                full_system_prompt = full_system_prompt[:6000] + "\n[truncated]"
+            # Call GPT
+            model_to_use = config.get("model", "gpt-4.1-mini")
+            response = openai_client.responses.create(model=model_to_use, input=messages)
+            response_text = response.output_text
             
-            chat = LlmChat(
-                api_key=EMERGENT_KEY,
-                session_id=f"chat_{chat_id}_{current_user['id']}",
-                system_message=full_system_prompt
-            ).with_model("anthropic", "claude-sonnet-4-20250514")
-            
-            # Build conversation context from history (last 3 messages only)
-            conversation_context = ""
-            recent_history = history[-4:-1] if len(history) > 1 else []
-            for msg in recent_history:
-                role_label = "U" if msg["role"] == "user" else "A"
-                # Limit each message
-                content = msg['content'][:500] if len(msg['content']) > 500 else msg['content']
-                conversation_context += f"{role_label}: {content}\n"
-            
-            # Create message with history context
-            full_message = conversation_context + message_data.content if conversation_context else message_data.content
-            
-            user_message = UserMessage(text=full_message)
-            response_text = await chat.send_message(user_message)
-            
-            # Track token usage (approximate for Claude)
-            tokens_used = len(full_message.split()) + len(response_text.split())  # Rough estimate
+            # Track tokens
+            tokens_used = getattr(response.usage, 'total_tokens', 0) if hasattr(response, 'usage') else 0
             
             # Update user token usage in DB
             if tokens_used > 0:
@@ -2571,7 +2553,7 @@ IMPORTANT - SOURCE PRIORITY:
         
     except Exception as e:
         logger.error(f"OpenAI API error: {str(e)}")
-        response_text = f"I apologize, but I encountered an error processing your request. Please try again later. (Error: {str(e)[:100]})"
+        response_text = f"Error: {str(e)[:100]}"
         citations = []
     
     # Deduplicate citations by source
