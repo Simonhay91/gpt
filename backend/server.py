@@ -50,7 +50,10 @@ ADMIN_EMAIL_DOMAIN = "@admin.com"
 # OpenAI API Key
 OPENAI_API_KEY = os.environ.get('OPENAI_API_KEY', '')
 
-# Initialize OpenAI client
+# Claude API Key
+CLAUDE_API_KEY = os.environ.get('CLAUDE_API_KEY', '')
+
+# Initialize OpenAI client (for embeddings only)
 openai_client = OpenAI(api_key=OPENAI_API_KEY) if OPENAI_API_KEY else None
 
 # File storage settings
