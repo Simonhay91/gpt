@@ -1,0 +1,59 @@
+services:
+  mongodb:
+    image: mongo:7
+    restart: unless-stopped
+    volumes:
+      - mongo_data:/data/db
+    environment:
+      MONGO_INITDB_DATABASE: gpt
+    networks:
+      - app-network
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - "8001:8001"
+    environment:
+      MONGO_URL: mongodb://mongodb:27017/gpt
+      # Copy your API keys into a .env file at project root — see .env.example
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      CLAUDE_API_KEY: ${CLAUDE_API_KEY}
+      EMERGENT_LLM_KEY: ${EMERGENT_LLM_KEY}
+      JWT_SECRET: ${JWT_SECRET}
+      CORS_ORIGINS: ${CORS_ORIGINS:-*}
+    volumes:
+      - backend_uploads:/app/uploads
+      - backend_generated_images:/app/generated_images
+    depends_on:
+      - mongodb
+    networks:
+      - app-network
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        # At build time the frontend needs to know the backend URL.
+        # For a local network deployment set this to the host's LAN IP, e.g.:
+        #   REACT_APP_BACKEND_URL=http://192.168.1.100:8001
+        REACT_APP_BACKEND_URL: ${REACT_APP_BACKEND_URL:-http://localhost:8001}
+    restart: unless-stopped
+    ports:
+      - "3000:80"
+    depends_on:
+      - backend
+    networks:
+      - app-network
+
+volumes:
+  mongo_data:
+  backend_uploads:
+  backend_generated_images:
+
+networks:
+  app-network:
+    driver: bridge
