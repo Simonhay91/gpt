@@ -446,6 +446,48 @@ const PersonalSourcesPage = () => {
             </DialogFooter>
           </DialogContent>
         </Dialog>
+
+        {/* Preview Dialog */}
+        <Dialog open={!!previewSource} onOpenChange={(open) => !open && setPreviewSource(null)}>
+          <DialogContent className="sm:max-w-2xl max-h-[80vh]">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Eye className="h-5 w-5 text-violet-400" />
+                Просмотр содержимого
+              </DialogTitle>
+              <DialogDescription>
+                {previewSource?.originalName}
+              </DialogDescription>
+            </DialogHeader>
+            
+            {isLoadingPreview ? (
+              <div className="flex justify-center py-8">
+                <div className="spinner" />
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <div className="flex items-center gap-4 text-sm text-muted-foreground border-b pb-3">
+                  <span>{formatBytes(previewSource?.sizeBytes || 0)}</span>
+                  <span>•</span>
+                  <span>{previewSource?.chunkCount || 0} chunks</span>
+                  <span>•</span>
+                  <span>v{previewSource?.version || 1}</span>
+                </div>
+                <div className="bg-muted/50 rounded-lg p-4 max-h-[400px] overflow-y-auto">
+                  <pre className="whitespace-pre-wrap text-sm font-mono">
+                    {previewContent}
+                  </pre>
+                </div>
+              </div>
+            )}
+            
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setPreviewSource(null)}>
+                Закрыть
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     </DashboardLayout>
   );
