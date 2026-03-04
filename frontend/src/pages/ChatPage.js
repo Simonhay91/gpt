@@ -35,7 +35,8 @@ import {
   Copy,
   Search,
   Plus,
-  Eye
+  Eye,
+  Save
 } from 'lucide-react';
 import { Label } from '../components/ui/label';
 import DashboardLayout from '../components/DashboardLayout';
