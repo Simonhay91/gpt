@@ -2672,7 +2672,7 @@ async def save_to_knowledge(
         await db.sources.insert_one(source_doc)
         
         # Create chunks and embeddings for the saved content
-        chunks = chunk_text(request.content, chunk_size=1000, overlap=200)
+        chunks = chunk_text(request.content, chunk_size=1000)
         
         for i, chunk_text_content in enumerate(chunks):
             try:
