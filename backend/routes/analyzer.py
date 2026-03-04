@@ -145,7 +145,7 @@ def setup_analyzer_routes(db, get_current_user):
     ):
         """Ask a question about the uploaded data"""
         
-        session = analysis_sessions.get(request.session_id)
+        session = await get_session(request.session_id)
         if not session:
             raise HTTPException(status_code=404, detail="Session not found. Please upload a file first.")
         
@@ -240,6 +240,7 @@ Rules: List ALL matches with row numbers (R1, R5, etc). Never summarize - show e
                 "answer": response,
                 "timestamp": datetime.now(timezone.utc).isoformat()
             })
+            await save_session(session)
             
             return {
                 "answer": response_with_debug,
@@ -261,12 +262,12 @@ Rules: List ALL matches with row numbers (R1, R5, etc). Never summarize - show e
             raise HTTPException(status_code=500, detail=f"Analysis failed: {error_msg}")
     
     @router.get("/session/{session_id}")
-    async def get_session(
+    async def get_session_info(
         session_id: str,
         current_user: dict = Depends(get_current_user)
     ):
         """Get session info and history"""
-        session = analysis_sessions.get(session_id)
+        session = await get_session(session_id)
         if not session:
             raise HTTPException(status_code=404, detail="Session not found")
         
@@ -283,12 +284,12 @@ Rules: List ALL matches with row numbers (R1, R5, etc). Never summarize - show e
         }
     
     @router.delete("/session/{session_id}")
-    async def delete_session(
+    async def delete_session_endpoint(
         session_id: str,
         current_user: dict = Depends(get_current_user)
     ):
         """Delete analysis session"""
-        session = analysis_sessions.get(session_id)
+        session = await get_session(session_id)
         if not session:
             raise HTTPException(status_code=404, detail="Session not found")
         
@@ -303,7 +304,7 @@ Rules: List ALL matches with row numbers (R1, R5, etc). Never summarize - show e
         except:
             pass
         
-        del analysis_sessions[session_id]
+        await delete_session(session_id)
         
         return {"message": "Session deleted"}
     
@@ -318,7 +319,7 @@ Rules: List ALL matches with row numbers (R1, R5, etc). Never summarize - show e
         from io import BytesIO
         from fastapi.responses import StreamingResponse
         
-        session = analysis_sessions.get(session_id)
+        session = await get_session(session_id)
         if not session:
             raise HTTPException(status_code=404, detail="Session not found")
         
@@ -427,7 +428,7 @@ Rules: List ALL matches with row numbers (R1, R5, etc). Never summarize - show e
         from io import BytesIO
         from fastapi.responses import StreamingResponse
         
-        session = analysis_sessions.get(session_id)
+        session = await get_session(session_id)
         if not session:
             raise HTTPException(status_code=404, detail="Session not found")
         
