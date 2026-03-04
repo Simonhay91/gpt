@@ -8,7 +8,7 @@ import { Input } from '../components/ui/input';
 import { toast } from 'sonner';
 import { 
   FileText, Upload, Trash2, Share, Clock, Database,
-  Lock, History, ChevronRight, Building2, FolderOpen
+  Lock, History, ChevronRight, Building2, FolderOpen, Eye
 } from 'lucide-react';
 import DashboardLayout from '../components/DashboardLayout';
 import { useAuth } from '../contexts/AuthContext';
