@@ -280,6 +280,15 @@ const PersonalSourcesPage = () => {
                       <Button
                         variant="outline"
                         size="sm"
+                        onClick={() => openPreview(source)}
+                        data-testid={`preview-btn-${source.id}`}
+                      >
+                        <Eye className="h-4 w-4 mr-1" />
+                        Просмотр
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
                         onClick={() => openVersionsDialog(source)}
                         data-testid={`versions-btn-${source.id}`}
                       >
