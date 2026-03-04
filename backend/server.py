@@ -2349,6 +2349,7 @@ async def send_message(chat_id: str, message_data: MessageCreate, current_user: 
     department_source_ids = []
     global_source_ids = []
     personal_source_ids = []
+    user_department_ids = current_user.get("departments", [])  # Always get this for chunk lookup
     
     # Get source mode from chat (default to 'all')
     source_mode = chat.get("sourceMode", "all")
@@ -2373,7 +2374,6 @@ async def send_message(chat_id: str, message_data: MessageCreate, current_user: 
     # Only include department and global sources if source_mode is 'all'
     if source_mode == 'all':
         # Department sources (from user's departments)
-        user_department_ids = current_user.get("departments", [])
         if user_department_ids:
             department_sources = await db.sources.find({
                 "departmentId": {"$in": user_department_ids},
