@@ -143,7 +143,7 @@ class MessageResponse(BaseModel):
 class SourceResponse(BaseModel):
     id: str
     projectId: str
-    kind: Literal["file", "url"]
+    kind: Literal["file", "url", "knowledge"]
     originalName: Optional[str] = None
     url: Optional[str] = None
     mimeType: Optional[str] = None
