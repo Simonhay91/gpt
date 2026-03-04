@@ -839,7 +839,9 @@ PUT    /api/user/prompt
 - **Frontend Componentization Started:**
   - Created `/app/frontend/src/components/chat/` directory
   - Created reusable components: `ChatHeader.js`, `Message.js`, `MessageList.js`, `ChatInput.js`
-- **Bug Fix:** Fixed analyzer.py session management (was using undefined dictionary, now uses MongoDB)
+- **Bug Fixes:**
+  - Fixed `analyzer.py` session management (was using undefined dictionary, now uses MongoDB)
+  - **Fixed "Publish failed" bug** - chunks for "Save to Knowledge" sources use `text` field instead of `content`. Updated all chunk processing code to handle both field names.
 - **Tests:** All 32 core API tests passed (100% success rate)
 
 ---
