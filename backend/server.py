@@ -186,6 +186,7 @@ class ChatResponse(BaseModel):
     createdAt: str
     activeSourceIds: Optional[List[str]] = []
     sharedWithUsers: Optional[List[str]] = None  # None = visible to all shared users, [] or [ids] = only those users
+    sourceMode: Optional[str] = "all"  # 'all' or 'my'
 
 class QuickChatCreate(BaseModel):
     name: Optional[str] = "Quick Chat"
