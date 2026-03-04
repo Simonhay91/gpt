@@ -4,6 +4,7 @@ import { Toaster } from './components/ui/sonner';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { ThemeProvider } from './contexts/ThemeContext';
 import { LanguageProvider } from './contexts/LanguageContext';
+import ErrorBoundary from './components/ErrorBoundary';
 import './App.css';
 
 // Pages
