@@ -907,11 +907,12 @@ async def get_relevant_chunks(source_ids: List[str], project_id: str, query: str
     if not all_chunks:
         return []
     
-    # Score each chunk
+    # Score each chunk (handle both 'content' and 'text' field names)
     scored_chunks = []
     for chunk in all_chunks:
-        score = score_chunk_relevance(chunk["content"], query)
-        scored_chunks.append({**chunk, "score": score})
+        chunk_content = chunk.get("content") or chunk.get("text", "")
+        score = score_chunk_relevance(chunk_content, query)
+        scored_chunks.append({**chunk, "score": score, "_content": chunk_content})
     
     # Sort by score descending
     scored_chunks.sort(key=lambda x: x["score"], reverse=True)
@@ -921,10 +922,11 @@ async def get_relevant_chunks(source_ids: List[str], project_id: str, query: str
     total_chars = 0
     
     for chunk in scored_chunks[:MAX_CHUNKS_PER_QUERY]:  # Only consider top N chunks
-        if total_chars + len(chunk["content"]) > MAX_CONTEXT_CHARS:
+        chunk_content = chunk.get("_content", "")
+        if total_chars + len(chunk_content) > MAX_CONTEXT_CHARS:
             break  # Stop if we exceed character limit
         selected_chunks.append(chunk)
-        total_chars += len(chunk["content"])
+        total_chars += len(chunk_content)
     
     logger.info(f"RAG optimization: Selected {len(selected_chunks)}/{len(scored_chunks)} chunks, {total_chars} chars")
     
