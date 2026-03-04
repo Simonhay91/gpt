@@ -1430,6 +1430,21 @@ const ChatPage = () => {
           )}
         </ScrollArea>
 
+        {/* Smart Question Suggestions */}
+        <SmartQuestions
+          chatId={chatId}
+          token={token}
+          hasActiveSources={true}
+          onQuestionClick={(question) => {
+            setInput(question);
+            // Auto-send the question
+            setTimeout(() => {
+              const btn = document.querySelector('[data-testid="send-message-btn"]');
+              if (btn && !btn.disabled) btn.click();
+            }, 100);
+          }}
+        />
+
         {/* Input Area */}
         <div className="border-t border-border px-6 py-4 bg-card/50 backdrop-blur">
           <div className="max-w-3xl mx-auto flex gap-4">
