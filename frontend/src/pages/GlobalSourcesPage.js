@@ -288,6 +288,16 @@ const GlobalSourcesPage = () => {
                         <Button
                           variant="ghost"
                           size="icon"
+                          className="h-8 w-8"
+                          onClick={() => setInsightsSource(source)}
+                          data-testid={`analyze-source-${source.id}`}
+                          title="Анализировать"
+                        >
+                          <Search className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
                           className="h-8 w-8 "
                           onClick={() => handlePreview(source.id)}
                           data-testid={`preview-source-${source.id}`}
@@ -313,6 +323,15 @@ const GlobalSourcesPage = () => {
             })}
           </div>
         )}
+
+        {/* Source Insights Modal */}
+        <SourceInsightsModal
+          isOpen={!!insightsSource}
+          onClose={() => setInsightsSource(null)}
+          sourceId={insightsSource?.id}
+          sourceName={insightsSource?.originalName || insightsSource?.url}
+          token={axios.defaults.headers.common['Authorization']?.replace('Bearer ', '')}
+        />
 
         {/* Preview Dialog */}
         <Dialog open={previewDialogOpen} onOpenChange={setPreviewDialogOpen}>
