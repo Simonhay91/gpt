@@ -38,12 +38,14 @@ import {
   Eye,
   Save,
   Target,
-  Globe2
+  Globe2,
+  Lightbulb
 } from 'lucide-react';
 import { Label } from '../components/ui/label';
 import DashboardLayout from '../components/DashboardLayout';
 import ImageGenerator from '../components/ImageGenerator';
 import AuthImage from '../components/AuthImage';
+import SmartQuestions from '../components/SmartQuestions';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
