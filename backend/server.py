@@ -1873,7 +1873,7 @@ async def search_sources(project_id: str, search_data: SearchRequest, current_us
     sources = await db.sources.find({"projectId": project_id}, {"_id": 0}).to_list(1000)
     source_map = {s["id"]: s for s in sources}
     
-    # Search through chunks
+    # Search through chunks (handle both 'content' and 'text' field names)
     results = []
     chunks = await db.source_chunks.find(
         {"projectId": project_id},
@@ -1881,7 +1881,8 @@ async def search_sources(project_id: str, search_data: SearchRequest, current_us
     ).to_list(10000)
     
     for chunk in chunks:
-        content_lower = chunk["content"].lower()
+        chunk_content = chunk.get("content") or chunk.get("text", "")
+        content_lower = chunk_content.lower()
         if query in content_lower:
             source = source_map.get(chunk["sourceId"], {})
             
@@ -1891,11 +1892,11 @@ async def search_sources(project_id: str, search_data: SearchRequest, current_us
             # Get snippet around first match (150 chars before and after)
             idx = content_lower.find(query)
             start = max(0, idx - 150)
-            end = min(len(chunk["content"]), idx + len(query) + 150)
-            snippet = chunk["content"][start:end]
+            end = min(len(chunk_content), idx + len(query) + 150)
+            snippet = chunk_content[start:end]
             if start > 0:
                 snippet = "..." + snippet
-            if end < len(chunk["content"]):
+            if end < len(chunk_content):
                 snippet = snippet + "..."
             
             results.append({
