@@ -2557,7 +2557,8 @@ async def send_message(chat_id: str, message_data: MessageCreate, current_user: 
             # Add document context if available
             if document_context:
                 active_sources_list = ", ".join(active_source_names) if active_source_names else "None"
-                context_message = f"SOURCES: {active_sources_list}\n{document_context[:15000]}"
+                chunks_count = len(citations) if citations else 0
+                context_message = f"SOURCES: {active_sources_list}\nCHUNKS: {chunks_count} (top {MAX_CHUNKS_PER_QUERY} most relevant)\n\n{document_context[:10000]}"
                 system_parts.append(context_message)
             
             system_prompt = "\n\n".join(system_parts)
