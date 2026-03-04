@@ -115,9 +115,10 @@ def setup_analyzer_routes(db, get_current_user):
         except Exception as e:
             raise HTTPException(status_code=400, detail=f"Failed to parse file: {str(e)}")
         
-        # Store session info
+        # Store session info in MongoDB
         mime_type = "text/csv" if ext == ".csv" else "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-        analysis_sessions[session_id] = {
+        session_data = {
+            "session_id": session_id,
             "file_path": temp_path,
             "file_name": file.filename,
             "mime_type": mime_type,
@@ -127,6 +128,7 @@ def setup_analyzer_routes(db, get_current_user):
             "created_at": datetime.now(timezone.utc).isoformat(),
             "messages": []
         }
+        await save_session(session_data)
         
         return {
             "session_id": session_id,
