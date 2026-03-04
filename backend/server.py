@@ -920,13 +920,13 @@ async def get_relevant_chunks(source_ids: List[str], project_id: str, query: str
     selected_chunks = []
     total_chars = 0
     
-    for chunk in scored_chunks[:MAX_CHUNKS_PER_QUERY * 2]:  # Consider more for character limit
-        if len(selected_chunks) >= MAX_CHUNKS_PER_QUERY:
-            break
+    for chunk in scored_chunks[:MAX_CHUNKS_PER_QUERY]:  # Only consider top N chunks
         if total_chars + len(chunk["content"]) > MAX_CONTEXT_CHARS:
-            continue
+            break  # Stop if we exceed character limit
         selected_chunks.append(chunk)
         total_chars += len(chunk["content"])
+    
+    logger.info(f"RAG optimization: Selected {len(selected_chunks)}/{len(scored_chunks)} chunks, {total_chars} chars")
     
     return selected_chunks
 
