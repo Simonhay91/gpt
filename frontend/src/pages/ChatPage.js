@@ -734,6 +734,30 @@ const ChatPage = () => {
           
           {/* Actions */}
           <div className="flex items-center gap-2">
+            {/* Source Mode Toggle */}
+            <div className="flex items-center gap-1 bg-muted/50 rounded-lg p-1">
+              <Button
+                variant={sourceMode === 'my' ? 'default' : 'ghost'}
+                size="sm"
+                onClick={() => updateSourceMode('my')}
+                className={`gap-1.5 h-8 ${sourceMode === 'my' ? 'bg-violet-600 hover:bg-violet-700' : ''}`}
+                data-testid="source-mode-my"
+              >
+                <Target className="h-3.5 w-3.5" />
+                <span className="hidden sm:inline">My Sources</span>
+              </Button>
+              <Button
+                variant={sourceMode === 'all' ? 'default' : 'ghost'}
+                size="sm"
+                onClick={() => updateSourceMode('all')}
+                className={`gap-1.5 h-8 ${sourceMode === 'all' ? 'bg-emerald-600 hover:bg-emerald-700' : ''}`}
+                data-testid="source-mode-all"
+              >
+                <Globe2 className="h-3.5 w-3.5" />
+                <span className="hidden sm:inline">All Sources</span>
+              </Button>
+            </div>
+
             {/* Move Chat Button */}
             <Button
               variant="outline"
