@@ -153,7 +153,7 @@ const NewsPage = () => {
                           >
                             {story.title}
                           </a>
-                          <ExternalLink className="h-4 w-4 flex-shrink-0 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+                          <ExternalLink className="h-4 w-4 flex-shrink-0 text-muted-foreground " />
                         </div>
                         
                         <div className="flex items-center flex-wrap gap-x-4 gap-y-1 text-sm text-muted-foreground mt-2">

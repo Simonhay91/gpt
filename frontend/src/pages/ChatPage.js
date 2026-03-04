@@ -1258,7 +1258,7 @@ const ChatPage = () => {
                         
                         {/* Copy button for assistant messages */}
                         {message.role === 'assistant' && (
-                          <div className="absolute -bottom-1 -right-1 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <div className="absolute -bottom-1 -right-1 flex gap-1 ">
                             <Button
                               variant="ghost"
                               size="icon"

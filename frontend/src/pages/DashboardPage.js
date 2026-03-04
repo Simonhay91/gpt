@@ -261,7 +261,7 @@ const DashboardPage = () => {
                             <Button
                               variant="ghost"
                               size="icon"
-                              className="opacity-0 group-hover:opacity-100 transition-opacity h-8 w-8"
+                              className=" h-8 w-8"
                               onClick={(e) => openMoveDialog(chat, e)}
                               title="Move to project"
                               data-testid={`move-chat-${chat.id}`}
@@ -271,13 +271,13 @@ const DashboardPage = () => {
                             <Button
                               variant="ghost"
                               size="icon"
-                              className="opacity-0 group-hover:opacity-100 transition-opacity h-8 w-8"
+                              className=" h-8 w-8"
                               onClick={(e) => deleteQuickChat(chat.id, e)}
                               data-testid={`delete-quick-chat-${chat.id}`}
                             >
                               <Trash2 className="h-4 w-4 text-destructive" />
                             </Button>
-                            <ArrowRight className="h-4 w-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+                            <ArrowRight className="h-4 w-4 text-muted-foreground " />
                           </div>
                         </div>
                       </CardContent>
@@ -331,7 +331,7 @@ const DashboardPage = () => {
                           <Button
                             variant="ghost"
                             size="icon"
-                            className="opacity-0 group-hover:opacity-100 transition-opacity h-8 w-8"
+                            className=" h-8 w-8"
                             onClick={(e) => deleteProject(project.id, e)}
                             data-testid={`delete-project-${project.id}`}
                           >
@@ -345,7 +345,7 @@ const DashboardPage = () => {
                             <Clock className="h-4 w-4" />
                             <span>{formatDate(project.createdAt)}</span>
                           </div>
-                          <ArrowRight className="h-4 w-4 opacity-0 group-hover:opacity-100 transition-opacity" />
+                          <ArrowRight className="h-4 w-4 " />
                         </div>
                       </CardContent>
                     </Card>

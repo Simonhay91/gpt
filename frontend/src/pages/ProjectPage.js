@@ -630,13 +630,13 @@ const ProjectPage = () => {
                         <Button
                           variant="ghost"
                           size="icon"
-                          className="opacity-0 group-hover:opacity-100 transition-opacity h-8 w-8"
+                          className=" h-8 w-8"
                           onClick={(e) => deleteChat(chat.id, e)}
                           data-testid={`delete-chat-${chat.id}`}
                         >
                           <Trash2 className="h-4 w-4 text-destructive" />
                         </Button>
-                        <ArrowRight className="h-4 w-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+                        <ArrowRight className="h-4 w-4 text-muted-foreground " />
                       </div>
                     </div>
                   </CardContent>

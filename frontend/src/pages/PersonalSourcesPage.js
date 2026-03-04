@@ -291,7 +291,7 @@ const PersonalSourcesPage = () => {
                         size="sm"
                         onClick={() => openVersionsDialog(source)}
                         data-testid={`versions-btn-${source.id}`}
-                        className="opacity-0 group-hover:opacity-100 transition-opacity"
+                        className=""
                       >
                         <History className="h-4 w-4 mr-1" />
                         История
@@ -301,7 +301,7 @@ const PersonalSourcesPage = () => {
                         size="sm"
                         onClick={() => openPublishDialog(source)}
                         data-testid={`publish-btn-${source.id}`}
-                        className="opacity-0 group-hover:opacity-100 transition-opacity"
+                        className=""
                       >
                         <Share className="h-4 w-4 mr-1" />
                         Опубликовать
@@ -309,7 +309,7 @@ const PersonalSourcesPage = () => {
                       <Button
                         variant="ghost"
                         size="icon"
-                        className="text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
+                        className="text-destructive "
                         onClick={() => deleteSource(source.id)}
                       >
                         <Trash2 className="h-4 w-4" />
