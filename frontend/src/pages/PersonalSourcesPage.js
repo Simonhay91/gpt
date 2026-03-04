@@ -101,6 +101,22 @@ const PersonalSourcesPage = () => {
     }
   };
 
+  const openPreview = async (source) => {
+    setPreviewSource(source);
+    setIsLoadingPreview(true);
+    setPreviewContent('');
+    
+    try {
+      const response = await axios.get(`${API}/personal-sources/${source.id}/preview`);
+      setPreviewContent(response.data.content || response.data.extractedText || 'No content available');
+    } catch (error) {
+      setPreviewContent('Failed to load preview');
+      toast.error('Failed to load preview');
+    } finally {
+      setIsLoadingPreview(false);
+    }
+  };
+
   const openVersionsDialog = async (source) => {
     setSelectedSource(source);
     setIsLoadingVersions(true);
