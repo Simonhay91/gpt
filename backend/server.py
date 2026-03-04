@@ -2220,6 +2220,32 @@ async def set_active_sources(chat_id: str, data: ActiveSourcesUpdate, current_us
     
     return {"message": "Active sources updated", "activeSourceIds": data.sourceIds}
 
+class SourceModeUpdate(BaseModel):
+    sourceMode: str  # 'all' or 'my'
+
+@api_router.put("/chats/{chat_id}/source-mode")
+async def update_source_mode(chat_id: str, data: SourceModeUpdate, current_user: dict = Depends(get_current_user)):
+    """Update source mode for a chat"""
+    if data.sourceMode not in ['all', 'my']:
+        raise HTTPException(status_code=400, detail="Invalid source mode. Use 'all' or 'my'")
+    
+    chat = await db.chats.find_one({"id": chat_id}, {"_id": 0})
+    if not chat:
+        raise HTTPException(status_code=404, detail="Chat not found")
+    
+    # Verify ownership
+    if chat.get("projectId"):
+        await verify_project_ownership(chat["projectId"], current_user["id"])
+    elif chat.get("ownerId") != current_user["id"]:
+        raise HTTPException(status_code=403, detail="Not authorized")
+    
+    await db.chats.update_one(
+        {"id": chat_id},
+        {"$set": {"sourceMode": data.sourceMode}}
+    )
+    
+    return {"message": "Source mode updated", "sourceMode": data.sourceMode}
+
 @api_router.get("/chats/{chat_id}/active-sources")
 async def get_active_sources(chat_id: str, current_user: dict = Depends(get_current_user)):
     """Get the active sources for a chat"""
