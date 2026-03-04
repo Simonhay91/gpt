@@ -2338,6 +2338,18 @@ async def send_message(chat_id: str, message_data: MessageCreate, current_user: 
     project_source_ids = []
     department_source_ids = []
     global_source_ids = []
+    personal_source_ids = []
+    
+    # Get source mode from chat (default to 'all')
+    source_mode = chat.get("sourceMode", "all")
+    
+    # Personal sources (always available)
+    personal_sources = await db.sources.find({
+        "level": "personal",
+        "ownerId": current_user["id"],
+        "status": {"$in": ["active", None]}
+    }, {"_id": 0, "id": 1}).to_list(1000)
+    personal_source_ids = [s["id"] for s in personal_sources]
     
     # Project sources (if in a project)
     if project_id:
@@ -2348,30 +2360,32 @@ async def send_message(chat_id: str, message_data: MessageCreate, current_user: 
         }, {"_id": 0, "id": 1}).to_list(1000)
         project_source_ids = [s["id"] for s in project_sources]
     
-    # Department sources (from user's departments)
-    user_department_ids = current_user.get("departments", [])
-    if user_department_ids:
-        department_sources = await db.sources.find({
-            "departmentId": {"$in": user_department_ids},
-            "level": "department",
-            "status": "active"
+    # Only include department and global sources if source_mode is 'all'
+    if source_mode == 'all':
+        # Department sources (from user's departments)
+        user_department_ids = current_user.get("departments", [])
+        if user_department_ids:
+            department_sources = await db.sources.find({
+                "departmentId": {"$in": user_department_ids},
+                "level": "department",
+                "status": "active"
+            }, {"_id": 0, "id": 1}).to_list(1000)
+            department_source_ids = [s["id"] for s in department_sources]
+        
+        # Global sources (always included in 'all' mode)
+        global_sources = await db.sources.find({
+            "$or": [
+                {"projectId": GLOBAL_PROJECT_ID},
+                {"level": "global", "status": "active"}
+            ]
         }, {"_id": 0, "id": 1}).to_list(1000)
-        department_source_ids = [s["id"] for s in department_sources]
+        global_source_ids = [s["id"] for s in global_sources]
     
-    # Global sources (always included)
-    global_sources = await db.sources.find({
-        "$or": [
-            {"projectId": GLOBAL_PROJECT_ID},
-            {"level": "global", "status": "active"}
-        ]
-    }, {"_id": 0, "id": 1}).to_list(1000)
-    global_source_ids = [s["id"] for s in global_sources]
-    
-    # Combined list with priority order: Project > Department > Global
-    active_source_ids = project_source_ids + department_source_ids + global_source_ids
+    # Combined list with priority order: Personal > Project > Department > Global
+    active_source_ids = personal_source_ids + project_source_ids + department_source_ids + global_source_ids
     
     # Get user's accessible source IDs for cache security
-    user_accessible_source_ids = project_source_ids + department_source_ids + global_source_ids
+    user_accessible_source_ids = personal_source_ids + project_source_ids + department_source_ids + global_source_ids
     
     # Get sender display name (use part before @ in email)
     sender_email = current_user["email"]
