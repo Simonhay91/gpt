@@ -2633,6 +2633,91 @@ async def send_message(chat_id: str, message_data: MessageCreate, current_user: 
     
     return MessageResponse(**assistant_message)
 
+# ==================== SAVE TO KNOWLEDGE ====================
+
+class SaveToKnowledgeRequest(BaseModel):
+    content: str
+    chatId: Optional[str] = None
+
+@api_router.post("/save-to-knowledge")
+async def save_to_knowledge(
+    request: SaveToKnowledgeRequest,
+    current_user: dict = Depends(get_current_user)
+):
+    """Save AI message content as a Personal Source"""
+    try:
+        # Generate source name from content (first 50 chars + timestamp)
+        content_preview = request.content[:50].replace('\n', ' ').strip()
+        if len(request.content) > 50:
+            content_preview += "..."
+        timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+        source_name = f"{content_preview} ({timestamp})"
+        
+        # Create source ID
+        source_id = str(uuid.uuid4())
+        
+        # Create the source document
+        source_doc = {
+            "id": source_id,
+            "name": source_name,
+            "type": "text",
+            "scope": "personal",
+            "userId": current_user["id"],
+            "content": request.content,
+            "status": "active",
+            "createdAt": datetime.now(timezone.utc).isoformat(),
+            "updatedAt": datetime.now(timezone.utc).isoformat()
+        }
+        
+        await db.sources.insert_one(source_doc)
+        
+        # Create chunks and embeddings for the saved content
+        chunks = chunk_text(request.content, chunk_size=1000, overlap=200)
+        
+        for i, chunk_text_content in enumerate(chunks):
+            try:
+                # Generate embedding using OpenAI (keeping existing embedding model)
+                embedding_response = openai_client.embeddings.create(
+                    model="text-embedding-3-small",
+                    input=chunk_text_content
+                )
+                embedding = embedding_response.data[0].embedding
+                
+                chunk_doc = {
+                    "id": str(uuid.uuid4()),
+                    "sourceId": source_id,
+                    "sourceName": source_name,
+                    "chunkIndex": i,
+                    "text": chunk_text_content,
+                    "embedding": embedding,
+                    "createdAt": datetime.now(timezone.utc).isoformat()
+                }
+                await db.source_chunks.insert_one(chunk_doc)
+            except Exception as e:
+                logger.error(f"Error creating embedding for chunk {i}: {str(e)}")
+        
+        # Log the action
+        await log_audit_action(
+            db=db,
+            user_id=current_user["id"],
+            user_email=current_user["email"],
+            action="save_to_knowledge",
+            resource_type="source",
+            resource_id=source_id,
+            details={"sourceName": source_name, "contentLength": len(request.content)}
+        )
+        
+        return {
+            "success": True,
+            "sourceId": source_id,
+            "sourceName": source_name,
+            "message": "Saved to Knowledge ✅"
+        }
+        
+    except Exception as e:
+        logger.error(f"Error saving to knowledge: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to save: {str(e)}")
+
 # ==================== ADMIN ENDPOINTS ====================
 
 @api_router.get("/admin/source-stats")
