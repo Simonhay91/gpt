@@ -183,6 +183,16 @@ const ChatPage = () => {
   // Check if this is a quick chat (no project)
   const isQuickChat = chat && !chat.projectId;
 
+  const updateSourceMode = async (newMode) => {
+    try {
+      await axios.put(`${API}/chats/${chatId}/source-mode`, { sourceMode: newMode });
+      setSourceMode(newMode);
+      toast.success(newMode === 'my' ? 'Using your sources only' : 'Using all sources');
+    } catch (error) {
+      toast.error('Failed to update source mode');
+    }
+  };
+
   const fetchUserProjects = async () => {
     try {
       const response = await axios.get(`${API}/projects`);
