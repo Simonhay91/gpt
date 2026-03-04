@@ -154,6 +154,7 @@ const ChatPage = () => {
       const chatRes = await axios.get(`${API}/chats/${chatId}`);
       setChat(chatRes.data);
       setActiveSourceIds(chatRes.data.activeSourceIds || []);
+      setSourceMode(chatRes.data.sourceMode || 'all');
       
       // Get messages
       const messagesRes = await axios.get(`${API}/chats/${chatId}/messages`);
