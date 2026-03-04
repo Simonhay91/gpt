@@ -827,8 +827,58 @@ PUT    /api/user/prompt
 - Добавлены права менеджера (удаление, одобрение)
 - Исправлен баг с навигацией "Departments"
 
+### 2024-03-04 (Refactoring Sprint)
+- **Backend Modularization Started:**
+  - Created `/app/backend/db/connection.py` - Database connection module
+  - Created `/app/backend/models/schemas.py` - Pydantic models for requests/responses
+  - Created `/app/backend/middleware/auth.py` - Authentication middleware
+  - Created `/app/backend/services/cache.py` - Semantic cache service
+  - Created `/app/backend/services/rag.py` - RAG pipeline service
+  - Created `/app/backend/services/file_processor.py` - File extraction utilities
+  - Created new route modules: `auth.py`, `projects.py`, `chats.py`, `messages.py`, `sources.py`, `admin.py`, `images.py`, `global_sources.py`, `user_settings.py`
+- **Frontend Componentization Started:**
+  - Created `/app/frontend/src/components/chat/` directory
+  - Created reusable components: `ChatHeader.js`, `Message.js`, `MessageList.js`, `ChatInput.js`
+- **Bug Fix:** Fixed analyzer.py session management (was using undefined dictionary, now uses MongoDB)
+- **Tests:** All 32 core API tests passed (100% success rate)
+
 ---
 
-**Document Version:** 1.0
-**Last Updated:** 2024-03-02
+## 12. Technical Debt & Refactoring Status
+
+### Server.py Refactoring (P0 - In Progress)
+| Module | Status | Lines | Description |
+|--------|--------|-------|-------------|
+| auth.py | Created | ~60 | Auth routes (login, me) |
+| projects.py | Created | ~250 | Project CRUD + sharing |
+| chats.py | Created | ~200 | Chat CRUD + visibility |
+| messages.py | Created | ~400 | Messages + RAG pipeline |
+| sources.py | Created | ~350 | Source upload + management |
+| admin.py | Created | ~300 | Admin functions |
+| images.py | Created | ~150 | Image generation |
+| global_sources.py | Created | ~200 | Global sources |
+| user_settings.py | Created | ~80 | User prompts |
+| **server.py** | **NOT YET REPLACED** | 3700+ | Monolith still in use |
+
+### ChatPage.js Refactoring (P0 - In Progress)
+| Component | Status | Lines | Description |
+|-----------|--------|-------|-------------|
+| ChatHeader.js | Created | ~140 | Header with controls |
+| Message.js | Created | ~250 | Single message display |
+| MessageList.js | Created | ~90 | Messages container |
+| ChatInput.js | Created | ~70 | Input area |
+| SourcePanel.js | **TODO** | - | Sources panel |
+| **ChatPage.js** | **NOT YET UPDATED** | 1468 | Monolith still in use |
+
+### Next Steps for Refactoring
+1. Replace server.py with modular imports (careful migration)
+2. Update ChatPage.js to use new components
+3. Create SourcePanel.js component
+4. Remove duplicate code
+5. Update tests
+
+---
+
+**Document Version:** 1.1
+**Last Updated:** 2024-03-04
 **Author:** Planet Knowledge Team
