@@ -1411,6 +1411,7 @@ async def create_chat(project_id: str, chat_data: ChatCreate, current_user: dict
         "projectId": project_id,
         "name": chat_data.name or "New Chat",
         "activeSourceIds": [],
+        "sourceMode": "all",
         "createdAt": datetime.now(timezone.utc).isoformat()
     }
     await db.chats.insert_one(chat)
