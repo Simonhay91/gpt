@@ -842,6 +842,12 @@ PUT    /api/user/prompt
 - **Bug Fixes:**
   - Fixed `analyzer.py` session management (was using undefined dictionary, now uses MongoDB)
   - **Fixed "Publish failed" bug** - chunks for "Save to Knowledge" sources use `text` field instead of `content`. Updated all chunk processing code to handle both field names.
+  - **Fixed "Failed to load chat"** - SourceResponse model now supports `kind: "knowledge"` type
+- **UI Improvements:**
+  - Made all action buttons always visible (removed hover requirement)
+- **New Features:**
+  - **Source Insights**: AI analyzes sources, generates summary + 5 suggested questions. Available on all source pages.
+  - **Smart Question Suggestions**: "💡 Get question ideas" button in chat generates relevant questions based on active sources.
 - **Tests:** All 32 core API tests passed (100% success rate)
 
 ---
