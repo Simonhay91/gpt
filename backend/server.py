@@ -1323,6 +1323,7 @@ async def create_quick_chat(chat_data: QuickChatCreate, current_user: dict = Dep
         "ownerId": current_user["id"],
         "name": chat_data.name or "Quick Chat",
         "activeSourceIds": [],
+        "sourceMode": "all",
         "createdAt": datetime.now(timezone.utc).isoformat()
     }
     await db.chats.insert_one(chat)
