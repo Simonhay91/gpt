@@ -36,6 +36,9 @@ const GlobalSourcesPage = () => {
   const [previewDialogOpen, setPreviewDialogOpen] = useState(false);
   const [previewData, setPreviewData] = useState(null);
   const [isLoadingPreview, setIsLoadingPreview] = useState(false);
+  
+  // Insights modal
+  const [insightsSource, setInsightsSource] = useState(null);
 
   const fetchSources = useCallback(async () => {
     try {
