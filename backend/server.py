@@ -2656,15 +2656,23 @@ async def save_to_knowledge(
         # Create source ID
         source_id = str(uuid.uuid4())
         
-        # Create the source document
+        # Create the source document (matching enterprise_sources format)
         source_doc = {
             "id": source_id,
-            "name": source_name,
-            "type": "text",
-            "scope": "personal",
-            "userId": current_user["id"],
-            "content": request.content,
+            "level": "personal",
+            "ownerId": current_user["id"],
+            "ownerEmail": current_user["email"],
+            "projectId": None,
+            "departmentId": None,
+            "kind": "knowledge",
+            "originalName": source_name,
+            "mimeType": "text/plain",
+            "sizeBytes": len(request.content.encode('utf-8')),
+            "storagePath": None,
+            "extractedText": request.content,
+            "contentHash": hashlib.sha256(request.content.encode('utf-8')).hexdigest(),
             "status": "active",
+            "currentVersion": 1,
             "createdAt": datetime.now(timezone.utc).isoformat(),
             "updatedAt": datetime.now(timezone.utc).isoformat()
         }
