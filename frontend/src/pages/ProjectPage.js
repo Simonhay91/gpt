@@ -47,6 +47,9 @@ const ProjectPage = () => {
   const [chatVisibility, setChatVisibility] = useState({});
   const [isUpdatingVisibility, setIsUpdatingVisibility] = useState(false);
   const [isUpdatingRole, setIsUpdatingRole] = useState(null);
+  
+  // Source insights
+  const [insightsSource, setInsightsSource] = useState(null);
 
   useEffect(() => {
     fetchProjectAndChats();
