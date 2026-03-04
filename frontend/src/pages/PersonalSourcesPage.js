@@ -32,6 +32,11 @@ const PersonalSourcesPage = () => {
   const [projects, setProjects] = useState([]);
   const [departments, setDepartments] = useState([]);
   const [isPublishing, setIsPublishing] = useState(false);
+  
+  // Preview dialog
+  const [previewSource, setPreviewSource] = useState(null);
+  const [previewContent, setPreviewContent] = useState('');
+  const [isLoadingPreview, setIsLoadingPreview] = useState(false);
 
   useEffect(() => {
     fetchSources();
