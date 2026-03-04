@@ -1,6 +1,7 @@
 """
-Excel/CSV Analyzer with Gemini AI
-Analyzes tabular data using Gemini 2.5 Flash
+Excel/CSV Analyzer with Claude AI
+Analyzes tabular data using Claude Sonnet 4
+Sessions stored in MongoDB with 24h TTL
 """
 from fastapi import APIRouter, HTTPException, UploadFile, File, Depends, Form
 from pydantic import BaseModel
@@ -16,9 +17,6 @@ load_dotenv()
 
 router = APIRouter(prefix="/analyzer", tags=["analyzer"])
 
-# Store active analysis sessions
-analysis_sessions = {}
-
 class AnalyzeRequest(BaseModel):
     session_id: str
     question: str
@@ -32,6 +30,24 @@ def setup_analyzer_routes(db, get_current_user):
     
     EMERGENT_KEY = os.environ.get("EMERGENT_LLM_KEY")
     CLAUDE_KEY = os.environ.get("CLAUDE_API_KEY")
+    
+    # Helper functions for MongoDB sessions
+    async def get_session(session_id: str):
+        """Get session from MongoDB"""
+        session = await db.analyzer_sessions.find_one({"session_id": session_id}, {"_id": 0})
+        return session
+    
+    async def save_session(session: dict):
+        """Save or update session in MongoDB"""
+        await db.analyzer_sessions.update_one(
+            {"session_id": session["session_id"]},
+            {"$set": session},
+            upsert=True
+        )
+    
+    async def delete_session(session_id: str):
+        """Delete session from MongoDB"""
+        await db.analyzer_sessions.delete_one({"session_id": session_id})
     
     @router.post("/upload")
     async def upload_for_analysis(
