@@ -36,7 +36,9 @@ import {
   Search,
   Plus,
   Eye,
-  Save
+  Save,
+  Target,
+  Globe2
 } from 'lucide-react';
 import { Label } from '../components/ui/label';
 import DashboardLayout from '../components/DashboardLayout';
