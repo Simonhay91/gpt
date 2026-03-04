@@ -8,11 +8,12 @@ import { Input } from '../components/ui/input';
 import { toast } from 'sonner';
 import { 
   FileText, Upload, Trash2, Share, Clock, Database,
-  Lock, History, ChevronRight, Building2, FolderOpen, Eye
+  Lock, History, ChevronRight, Building2, FolderOpen, Eye, Search
 } from 'lucide-react';
 import DashboardLayout from '../components/DashboardLayout';
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
+import SourceInsightsModal from '../components/SourceInsightsModal';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
@@ -37,6 +38,9 @@ const PersonalSourcesPage = () => {
   const [previewSource, setPreviewSource] = useState(null);
   const [previewContent, setPreviewContent] = useState('');
   const [isLoadingPreview, setIsLoadingPreview] = useState(false);
+  
+  // Insights modal
+  const [insightsSource, setInsightsSource] = useState(null);
 
   useEffect(() => {
     fetchSources();
