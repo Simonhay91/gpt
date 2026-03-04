@@ -188,36 +188,32 @@ def setup_analyzer_routes(db, get_current_user):
             except Exception as read_error:
                 raise HTTPException(status_code=500, detail=f"Failed to read file: {str(read_error)}")
             
-            # Limit to 100K chars for GPT context
-            if len(file_text) > 100000:
-                file_text = file_text[:100000] + "\n[TRUNCATED]"
+            # Limit to 150K chars for Claude context
+            if len(file_text) > 150000:
+                file_text = file_text[:150000] + "\n[TRUNCATED]"
             
-            # Create chat with GPT for Excel analysis
+            # Create chat with Claude for Excel analysis
             system_prompt = f"""Data analyst for "{session['file_name']}" ({session['total_rows']} rows).
 Cols: {', '.join(session['columns'])}.
 Rules: List ALL matches with row numbers (R1, R5, etc). Never summarize - show every match."""
 
-            messages = [
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": f"DATA:\n{file_text}\n\nQuestion: {request.question}"}
-            ]
+            import anthropic
+            claude_client = anthropic.Anthropic(api_key=os.environ.get("CLAUDE_API_KEY"))
             
-            # Use OpenAI client directly
-            from openai import OpenAI
-            client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
-            
-            gpt_response = client.responses.create(
-                model="gpt-4.1-mini",
-                input=messages
+            claude_response = claude_client.messages.create(
+                model="claude-sonnet-4-20250514",
+                max_tokens=4096,
+                system=system_prompt,
+                messages=[{"role": "user", "content": f"DATA:\n{file_text}\n\nQuestion: {request.question}"}]
             )
-            response = gpt_response.output_text
+            response = claude_response.content[0].text
             
             # Calculate debug info
             rows_in_context = file_text.count('\nR')
             chars_in_context = len(file_text)
             
             # Add debug info to response
-            debug_info = f"\n\n---\n_📊 Debug: {rows_in_context} строк, {chars_in_context:,} символов (GPT-4.1-mini)_"
+            debug_info = f"\n\n---\n_📊 Debug: {rows_in_context} строк, {chars_in_context:,} символов (Claude Sonnet 4)_"
             response_with_debug = response + debug_info
             
             # Store in session history (without debug)
