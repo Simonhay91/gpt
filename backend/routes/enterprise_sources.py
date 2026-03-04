@@ -196,11 +196,12 @@ def setup_enterprise_source_routes(
         if not content:
             chunks = await db.source_chunks.find(
                 {"sourceId": source_id},
-                {"_id": 0, "text": 1, "chunkIndex": 1}
+                {"_id": 0, "text": 1, "content": 1, "chunkIndex": 1}
             ).sort("chunkIndex", 1).to_list(100)
             
             if chunks:
-                content = "\n\n".join([c.get("text", "") for c in chunks])
+                # Handle both 'content' and 'text' field names
+                content = "\n\n".join([c.get("content") or c.get("text", "") for c in chunks])
         
         # Limit preview size
         max_preview = 10000
