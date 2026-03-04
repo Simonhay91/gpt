@@ -2697,15 +2697,16 @@ async def save_to_knowledge(
                 logger.error(f"Error creating embedding for chunk {i}: {str(e)}")
         
         # Log the action
-        await log_audit_action(
-            db=db,
-            user_id=current_user["id"],
-            user_email=current_user["email"],
-            action="save_to_knowledge",
-            resource_type="source",
-            resource_id=source_id,
-            details={"sourceName": source_name, "contentLength": len(request.content)}
-        )
+        await db.audit_logs.insert_one({
+            "id": str(uuid.uuid4()),
+            "userId": current_user["id"],
+            "userEmail": current_user["email"],
+            "action": "save_to_knowledge",
+            "resourceType": "source",
+            "resourceId": source_id,
+            "details": {"sourceName": source_name, "contentLength": len(request.content)},
+            "timestamp": datetime.now(timezone.utc).isoformat()
+        })
         
         return {
             "success": True,
