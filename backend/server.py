@@ -2482,10 +2482,10 @@ async def send_message(chat_id: str, message_data: MessageCreate, current_user: 
                     "cacheId": cache_hit['cacheId']
                 }
     
-    # Prepare messages for GPT
+    # Prepare messages for Claude
     try:
-        if not openai_client:
-            raise Exception("OpenAI API key not configured")
+        import anthropic
+        claude_client = anthropic.Anthropic(api_key=CLAUDE_API_KEY)
         
         from_cache = False
         
@@ -2496,49 +2496,40 @@ async def send_message(chat_id: str, message_data: MessageCreate, current_user: 
             tokens_used = 0
             from_cache = True
         else:
-            # Build messages for GPT
-            messages = [{"role": "developer", "content": config["developerPrompt"]}]
+            # Build system prompt for Claude
+            system_parts = [config["developerPrompt"]]
             
             # Add user's custom prompt if exists
             if user_custom_prompt:
                 logger.info(f"Adding user custom prompt for user {current_user['id']}")
-                messages.append({"role": "system", "content": f"USER INSTRUCTIONS:\n{user_custom_prompt}"})
-            else:
-                logger.info(f"No custom prompt for user {current_user['id']}")
+                system_parts.append(f"USER INSTRUCTIONS:\n{user_custom_prompt}")
             
-            # Add document context if available WITH PRIORITY INFO
+            # Add document context if available
             if document_context:
                 active_sources_list = ", ".join(active_source_names) if active_source_names else "None"
-                
-                # Add source priority explanation
-                priority_note = ""
-                if project_source_ids and global_source_ids:
-                    priority_note = """
-IMPORTANT - SOURCE PRIORITY:
-- PROJECT sources have HIGHER priority than GLOBAL sources
-- If there's a conflict between PROJECT and GLOBAL data, prefer PROJECT data
-- Always indicate which source type (PROJECT/GLOBAL) provided the information
-- If you detect conflicting information, explicitly mention the conflict and ask user which source to trust
-"""
-                
-                context_message = f"""SOURCES: {active_sources_list}
-{document_context[:8000]}"""
-                messages.append({"role": "system", "content": context_message})
+                context_message = f"SOURCES: {active_sources_list}\n{document_context[:15000]}"
+                system_parts.append(context_message)
             
-            # Add chat history
+            system_prompt = "\n\n".join(system_parts)
+            
+            # Build messages for Claude (no system role in messages)
+            messages = []
             for msg in history[:-1]:
                 messages.append({"role": msg["role"], "content": msg["content"]})
-            
-            # Add current message
             messages.append({"role": "user", "content": message_data.content})
             
-            # Call GPT
-            model_to_use = config.get("model", "gpt-4.1-mini")
-            response = openai_client.responses.create(model=model_to_use, input=messages)
-            response_text = response.output_text
+            # Call Claude API
+            claude_response = claude_client.messages.create(
+                model="claude-sonnet-4-20250514",
+                max_tokens=4096,
+                system=system_prompt,
+                messages=messages
+            )
+            
+            response_text = claude_response.content[0].text
             
             # Track tokens
-            tokens_used = getattr(response.usage, 'total_tokens', 0) if hasattr(response, 'usage') else 0
+            tokens_used = claude_response.usage.input_tokens + claude_response.usage.output_tokens
             
             # Update user token usage in DB
             if tokens_used > 0:
@@ -2552,7 +2543,7 @@ IMPORTANT - SOURCE PRIORITY:
                 )
         
     except Exception as e:
-        logger.error(f"OpenAI API error: {str(e)}")
+        logger.error(f"Claude API error: {str(e)}")
         response_text = f"Error: {str(e)[:100]}"
         citations = []
     
