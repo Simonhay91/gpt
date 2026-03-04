@@ -118,6 +118,9 @@ const ChatPage = () => {
   const [isSavingName, setIsSavingName] = useState(false);
   const nameInputRef = useRef(null);
   
+  // Source mode state
+  const [sourceMode, setSourceMode] = useState('all'); // 'all' or 'my'
+  
   // Preview dialog state
   const [previewDialogOpen, setPreviewDialogOpen] = useState(false);
   const [previewSource, setPreviewSource] = useState(null);
