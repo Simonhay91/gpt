@@ -542,8 +542,8 @@ async def save_to_cache(
 async def ensure_gpt_config():
     """Ensure GPT config singleton exists with strict active sources rules"""
     config = await db.gpt_config.find_one({"id": "1"}, {"_id": 0})
-    default_prompt = """You are a helpful assistant. Use ONLY the active sources provided in context.
-If no sources - ask user to upload/activate files. Cite sources as [Source: name]. Be concise."""
+    default_prompt = """You are Claude, a helpful AI assistant by Anthropic. Use ONLY the active sources provided in context.
+If no sources available - ask user to upload/activate files. Cite sources as [Source: name]. Be concise. Respond in the same language as the user's question."""
     
     if not config:
         config = {
