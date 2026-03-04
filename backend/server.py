@@ -2477,8 +2477,9 @@ async def send_message(chat_id: str, message_data: MessageCreate, current_user: 
             for chunk in relevant_chunks:
                 source_name = source_names.get(chunk["sourceId"], "Unknown")
                 source_type = source_types.get(chunk["sourceId"], "global")
+                chunk_content = chunk.get("content") or chunk.get("text") or chunk.get("_content", "")
                 chunk_marker = f"[Source: {source_name} ({source_type.upper()}), Chunk {chunk['chunkIndex']+1}]"
-                context_parts.append(f"{chunk_marker}\n{chunk['content']}")
+                context_parts.append(f"{chunk_marker}\n{chunk_content}")
                 
                 # Enhanced citation with full context
                 citations.append({
@@ -2487,7 +2488,7 @@ async def send_message(chat_id: str, message_data: MessageCreate, current_user: 
                     "sourceType": source_type,  # "project" or "global"
                     "chunkId": chunk.get("id", ""),
                     "chunkIndex": chunk["chunkIndex"],
-                    "textFragment": chunk["content"][:200] + "..." if len(chunk["content"]) > 200 else chunk["content"],
+                    "textFragment": chunk_content[:200] + "..." if len(chunk_content) > 200 else chunk_content,
                     "score": chunk.get("score", 0)
                 })
             
