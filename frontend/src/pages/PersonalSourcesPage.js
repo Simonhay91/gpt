@@ -284,6 +284,16 @@ const PersonalSourcesPage = () => {
                       <Button
                         variant="outline"
                         size="sm"
+                        onClick={() => setInsightsSource(source)}
+                        data-testid={`analyze-btn-${source.id}`}
+                        title="Анализировать источник"
+                      >
+                        <Search className="h-4 w-4 mr-1" />
+                        Анализ
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
                         onClick={() => openPreview(source)}
                         data-testid={`preview-btn-${source.id}`}
                       >
@@ -325,6 +335,15 @@ const PersonalSourcesPage = () => {
             ))}
           </div>
         )}
+
+        {/* Source Insights Modal */}
+        <SourceInsightsModal
+          isOpen={!!insightsSource}
+          onClose={() => setInsightsSource(null)}
+          sourceId={insightsSource?.id}
+          sourceName={insightsSource?.originalName}
+          token={axios.defaults.headers.common['Authorization']?.replace('Bearer ', '')}
+        />
 
         {/* Versions Dialog */}
         <Dialog open={!!selectedSource && !publishDialogOpen} onOpenChange={(open) => !open && setSelectedSource(null)}>
