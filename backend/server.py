@@ -1946,8 +1946,8 @@ async def preview_source(project_id: str, source_id: str, current_user: dict = D
         {"_id": 0, "content": 1, "chunkIndex": 1}
     ).sort("chunkIndex", 1).to_list(1000)
     
-    # Combine chunks into full text
-    full_text = "\n\n".join([c["content"] for c in chunks])
+    # Combine chunks into full text (handle both 'content' and 'text' field names)
+    full_text = "\n\n".join([c.get("content") or c.get("text", "") for c in chunks])
     
     # Calculate quality metrics
     char_count = len(full_text)
@@ -3093,10 +3093,10 @@ async def user_preview_global_source(source_id: str, current_user: dict = Depend
     
     chunks = await db.source_chunks.find(
         {"sourceId": source_id},
-        {"_id": 0, "content": 1, "chunkIndex": 1}
+        {"_id": 0, "content": 1, "text": 1, "chunkIndex": 1}
     ).sort("chunkIndex", 1).to_list(1000)
     
-    full_text = "\n\n".join([c["content"] for c in chunks])
+    full_text = "\n\n".join([c.get("content") or c.get("text", "") for c in chunks])
     
     return {
         "id": source_id,
@@ -3307,10 +3307,10 @@ async def preview_global_source(source_id: str, current_user: dict = Depends(get
     
     chunks = await db.source_chunks.find(
         {"sourceId": source_id},
-        {"_id": 0, "content": 1, "chunkIndex": 1}
+        {"_id": 0, "content": 1, "text": 1, "chunkIndex": 1}
     ).sort("chunkIndex", 1).to_list(1000)
     
-    full_text = "\n\n".join([c["content"] for c in chunks])
+    full_text = "\n\n".join([c.get("content") or c.get("text", "") for c in chunks])
     
     return {
         "id": source_id,
