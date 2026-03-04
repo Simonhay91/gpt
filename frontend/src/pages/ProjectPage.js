@@ -8,9 +8,10 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Label } from '../components/ui/label';
 import { Checkbox } from '../components/ui/checkbox';
 import { toast } from 'sonner';
-import { Plus, MessageSquare, Trash2, Clock, ArrowRight, ArrowLeft, FolderOpen, Share2, Users, X, Shield, Eye, Edit, Settings } from 'lucide-react';
+import { Plus, MessageSquare, Trash2, Clock, ArrowRight, ArrowLeft, FolderOpen, Share2, Users, X, Shield, Eye, Edit, Settings, Search } from 'lucide-react';
 import DashboardLayout from '../components/DashboardLayout';
 import { useAuth } from '../contexts/AuthContext';
+import SourceInsightsModal from '../components/SourceInsightsModal';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
