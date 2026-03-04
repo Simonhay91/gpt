@@ -318,7 +318,8 @@ def setup_enterprise_source_routes(
             {"_id": 0}
         ).sort("chunkIndex", 1).to_list(10000)
         
-        chunk_contents = [c["content"] for c in original_chunks]
+        # Handle both 'content' and 'text' field names (different source types use different names)
+        chunk_contents = [c.get("content") or c.get("text", "") for c in original_chunks]
         
         # Create new source (COPY)
         new_source_id = str(uuid.uuid4())
