@@ -1218,35 +1218,56 @@ const ChatPage = () => {
                         
                         {/* Copy button for assistant messages */}
                         {message.role === 'assistant' && (
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="absolute -bottom-1 -right-1 h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity bg-background border border-border shadow-sm"
-                            onClick={async () => {
-                              try {
-                                await navigator.clipboard.writeText(message.content);
-                                toast.success('Copied to clipboard');
-                              } catch (err) {
-                                // Fallback for environments where clipboard API is restricted
-                                const textArea = document.createElement('textarea');
-                                textArea.value = message.content;
-                                textArea.style.position = 'fixed';
-                                textArea.style.left = '-9999px';
-                                document.body.appendChild(textArea);
-                                textArea.select();
+                          <div className="absolute -bottom-1 -right-1 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7 bg-background border border-border shadow-sm"
+                              onClick={async () => {
                                 try {
-                                  document.execCommand('copy');
-                                  toast.success('Copied to clipboard');
-                                } catch (e) {
-                                  toast.error('Failed to copy');
+                                  await axios.post(`${API}/save-to-knowledge`, {
+                                    content: message.content,
+                                    chatId: chatId
+                                  });
+                                  toast.success('Saved to Knowledge ✅');
+                                } catch (err) {
+                                  toast.error('Failed to save');
                                 }
-                                document.body.removeChild(textArea);
-                              }
-                            }}
-                            data-testid={`copy-message-${index}`}
-                          >
-                            <Copy className="h-3.5 w-3.5" />
-                          </Button>
+                              }}
+                              title="Save to Knowledge"
+                              data-testid={`save-message-${index}`}
+                            >
+                              <Save className="h-3.5 w-3.5 text-green-500" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7 bg-background border border-border shadow-sm"
+                              onClick={async () => {
+                                try {
+                                  await navigator.clipboard.writeText(message.content);
+                                  toast.success('Copied to clipboard');
+                                } catch (err) {
+                                  const textArea = document.createElement('textarea');
+                                  textArea.value = message.content;
+                                  textArea.style.position = 'fixed';
+                                  textArea.style.left = '-9999px';
+                                  document.body.appendChild(textArea);
+                                  textArea.select();
+                                  try {
+                                    document.execCommand('copy');
+                                    toast.success('Copied to clipboard');
+                                  } catch (e) {
+                                    toast.error('Failed to copy');
+                                  }
+                                  document.body.removeChild(textArea);
+                                }
+                              }}
+                              data-testid={`copy-message-${index}`}
+                            >
+                              <Copy className="h-3.5 w-3.5" />
+                            </Button>
+                          </div>
                         )}
                       </div>
                     )}
