@@ -16,9 +16,11 @@ import {
   Loader2,
   HardDrive,
   File,
-  User
+  User,
+  Search
 } from 'lucide-react';
 import DashboardLayout from '../components/DashboardLayout';
+import SourceInsightsModal from '../components/SourceInsightsModal';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
