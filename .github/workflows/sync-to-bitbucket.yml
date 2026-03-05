@@ -4,27 +4,35 @@ on:
   push:
     branches:
       - main
-  workflow_dispatch:
 
 jobs:
   sync:
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Setup SSH
+      - name: Set up SSH key
         run: |
           mkdir -p ~/.ssh
-          echo "${{ secrets.BITBUCKET_SSH_KEY }}" > ~/.ssh/bitbucket_key
+          echo "${{ secrets.BITBUCKET_SSH_KEY }}" | base64 --decode > ~/.ssh/bitbucket_key
           chmod 600 ~/.ssh/bitbucket_key
-          ssh-keyscan bitbucket.org >> ~/.ssh/known_hosts
+          ssh-keyscan -t rsa bitbucket.org >> ~/.ssh/known_hosts
+
+      - name: Configure SSH
+        run: |
+          cat >> ~/.ssh/config << 'SSHEOF'
+          Host bitbucket.org
+            HostName bitbucket.org
+            User git
+            IdentityFile ~/.ssh/bitbucket_key
+            StrictHostKeyChecking no
+          SSHEOF
 
       - name: Push to Bitbucket
         run: |
-          git config --global user.email "github-actions@github.com"
-          git config --global user.name "GitHub Actions"
           git remote add bitbucket git@bitbucket.org:planet-fiber/planet-knowledge.git
-          GIT_SSH_COMMAND="ssh -i ~/.ssh/bitbucket_key" git push bitbucket main:master --force
+          git push bitbucket HEAD:master --force
