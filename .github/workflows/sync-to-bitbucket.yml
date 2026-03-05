@@ -19,5 +19,5 @@ jobs:
         run: |
           git config --global user.email "github-actions@github.com"
           git config --global user.name "GitHub Actions"
-          git remote add bitbucket https://simon.hayrapetyan@planetfibers.com:${{ secrets.BITBUCKET_TOKEN }}@bitbucket.org/planet-fiber/planet-knowledge.git
+          git remote add bitbucket https://simon.hayrapetyan%40planetfibers.com:${{ secrets.BITBUCKET_TOKEN }}@bitbucket.org/planet-fiber/planet-knowledge.git
           git push bitbucket main:master --force
