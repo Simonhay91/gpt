@@ -15,11 +15,16 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Setup SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.BITBUCKET_SSH_KEY }}" > ~/.ssh/bitbucket_key
+          chmod 600 ~/.ssh/bitbucket_key
+          ssh-keyscan bitbucket.org >> ~/.ssh/known_hosts
+
       - name: Push to Bitbucket
-        env:
-          BITBUCKET_TOKEN: ${{ secrets.BITBUCKET_TOKEN }}
         run: |
           git config --global user.email "github-actions@github.com"
           git config --global user.name "GitHub Actions"
-          git remote add bitbucket https://simon.hayrapetyan%40planetfibers.com:${BITBUCKET_TOKEN}@bitbucket.org/planet-fiber/planet-knowledge.git
-          git push bitbucket main:master --force
+          git remote add bitbucket git@bitbucket.org:planet-fiber/planet-knowledge.git
+          GIT_SSH_COMMAND="ssh -i ~/.ssh/bitbucket_key" git push bitbucket main:master --force
