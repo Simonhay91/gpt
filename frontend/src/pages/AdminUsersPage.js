@@ -385,7 +385,7 @@ const AdminUsersPage = () => {
                       <Button
                         variant="outline"
                         size="sm"
-                        className="opacity-0 group-hover:opacity-100 transition-opacity"
+                        className=""
                         onClick={() => navigate(`/admin/users/${user.id}`)}
                         data-testid={`view-user-${user.id}`}
                       >
@@ -397,7 +397,7 @@ const AdminUsersPage = () => {
                         <Button
                           variant="ghost"
                           size="icon"
-                          className="opacity-0 group-hover:opacity-100 transition-opacity h-8 w-8"
+                          className=" h-8 w-8"
                           onClick={() => deleteUser(user.id, user.email)}
                           data-testid={`delete-user-${user.id}`}
                         >

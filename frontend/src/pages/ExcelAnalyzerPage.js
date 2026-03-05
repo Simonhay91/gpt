@@ -173,7 +173,7 @@ const ExcelAnalyzerPage = () => {
             </div>
             Excel/CSV Analyzer
             <span className="text-sm font-normal text-emerald-500 bg-emerald-500/10 px-2 py-1 rounded-full">
-              GPT-4.1
+              Claude Sonnet 4
             </span>
           </h1>
           <p className="text-muted-foreground mt-2">
@@ -359,7 +359,7 @@ const ExcelAnalyzerPage = () => {
                     {msg.role === 'assistant' && (
                       <div className="flex items-center gap-2 mb-2 text-green-500">
                         <Sparkles className="h-4 w-4" />
-                        <span className="text-xs font-medium">GPT-4.1</span>
+                        <span className="text-xs font-medium">Claude Sonnet 4</span>
                       </div>
                     )}
                     <p className="whitespace-pre-wrap text-sm">{msg.content}</p>

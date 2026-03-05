@@ -173,6 +173,48 @@ def setup_enterprise_source_routes(
         
         return {"message": "Personal source deleted"}
     
+    @router.get("/api/personal-sources/{source_id}/preview")
+    async def preview_personal_source(
+        source_id: str,
+        current_user: dict = Depends(get_current_user)
+    ):
+        """Get preview of personal source content"""
+        source = await db.sources.find_one({"id": source_id}, {"_id": 0})
+        if not source:
+            raise HTTPException(status_code=404, detail="Source not found")
+        
+        if source.get("level") != "personal":
+            raise HTTPException(status_code=400, detail="Not a personal source")
+        
+        if source.get("ownerId") != current_user["id"]:
+            raise HTTPException(status_code=403, detail="Not your source")
+        
+        # Get extracted text or content
+        content = source.get("extractedText", "")
+        
+        # If no extracted text, try to get from chunks
+        if not content:
+            chunks = await db.source_chunks.find(
+                {"sourceId": source_id},
+                {"_id": 0, "text": 1, "content": 1, "chunkIndex": 1}
+            ).sort("chunkIndex", 1).to_list(100)
+            
+            if chunks:
+                # Handle both 'content' and 'text' field names
+                content = "\n\n".join([c.get("content") or c.get("text", "") for c in chunks])
+        
+        # Limit preview size
+        max_preview = 10000
+        if len(content) > max_preview:
+            content = content[:max_preview] + f"\n\n... [Показано {max_preview} из {len(content)} символов]"
+        
+        return {
+            "content": content,
+            "sourceId": source_id,
+            "sourceName": source.get("originalName", "Unknown"),
+            "totalChars": len(source.get("extractedText", ""))
+        }
+    
     # ==================== DELETE DEPARTMENT/GENERAL SOURCE ====================
     
     @router.delete("/api/sources/{source_id}")
@@ -277,7 +319,8 @@ def setup_enterprise_source_routes(
             {"_id": 0}
         ).sort("chunkIndex", 1).to_list(10000)
         
-        chunk_contents = [c["content"] for c in original_chunks]
+        # Handle both 'content' and 'text' field names (different source types use different names)
+        chunk_contents = [c.get("content") or c.get("text", "") for c in original_chunks]
         
         # Create new source (COPY)
         new_source_id = str(uuid.uuid4())

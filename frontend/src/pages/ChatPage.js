@@ -35,12 +35,17 @@ import {
   Copy,
   Search,
   Plus,
-  Eye
+  Eye,
+  Save,
+  Target,
+  Globe2,
+  Lightbulb
 } from 'lucide-react';
 import { Label } from '../components/ui/label';
 import DashboardLayout from '../components/DashboardLayout';
 import ImageGenerator from '../components/ImageGenerator';
 import AuthImage from '../components/AuthImage';
+import SmartQuestions from '../components/SmartQuestions';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
@@ -115,6 +120,9 @@ const ChatPage = () => {
   const [isSavingName, setIsSavingName] = useState(false);
   const nameInputRef = useRef(null);
   
+  // Source mode state
+  const [sourceMode, setSourceMode] = useState('all'); // 'all' or 'my'
+  
   // Preview dialog state
   const [previewDialogOpen, setPreviewDialogOpen] = useState(false);
   const [previewSource, setPreviewSource] = useState(null);
@@ -148,6 +156,7 @@ const ChatPage = () => {
       const chatRes = await axios.get(`${API}/chats/${chatId}`);
       setChat(chatRes.data);
       setActiveSourceIds(chatRes.data.activeSourceIds || []);
+      setSourceMode(chatRes.data.sourceMode || 'all');
       
       // Get messages
       const messagesRes = await axios.get(`${API}/chats/${chatId}/messages`);
@@ -175,6 +184,16 @@ const ChatPage = () => {
 
   // Check if this is a quick chat (no project)
   const isQuickChat = chat && !chat.projectId;
+
+  const updateSourceMode = async (newMode) => {
+    try {
+      await axios.put(`${API}/chats/${chatId}/source-mode`, { sourceMode: newMode });
+      setSourceMode(newMode);
+      toast.success(newMode === 'my' ? 'Using your sources only' : 'Using all sources');
+    } catch (error) {
+      toast.error('Failed to update source mode');
+    }
+  };
 
   const fetchUserProjects = async () => {
     try {
@@ -717,6 +736,30 @@ const ChatPage = () => {
           
           {/* Actions */}
           <div className="flex items-center gap-2">
+            {/* Source Mode Toggle */}
+            <div className="flex items-center gap-1 bg-muted/50 rounded-lg p-1">
+              <Button
+                variant={sourceMode === 'my' ? 'default' : 'ghost'}
+                size="sm"
+                onClick={() => updateSourceMode('my')}
+                className={`gap-1.5 h-8 ${sourceMode === 'my' ? 'bg-violet-600 hover:bg-violet-700' : ''}`}
+                data-testid="source-mode-my"
+              >
+                <Target className="h-3.5 w-3.5" />
+                <span className="hidden sm:inline">My Sources</span>
+              </Button>
+              <Button
+                variant={sourceMode === 'all' ? 'default' : 'ghost'}
+                size="sm"
+                onClick={() => updateSourceMode('all')}
+                className={`gap-1.5 h-8 ${sourceMode === 'all' ? 'bg-emerald-600 hover:bg-emerald-700' : ''}`}
+                data-testid="source-mode-all"
+              >
+                <Globe2 className="h-3.5 w-3.5" />
+                <span className="hidden sm:inline">All Sources</span>
+              </Button>
+            </div>
+
             {/* Move Chat Button */}
             <Button
               variant="outline"
@@ -1217,35 +1260,56 @@ const ChatPage = () => {
                         
                         {/* Copy button for assistant messages */}
                         {message.role === 'assistant' && (
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="absolute -bottom-1 -right-1 h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity bg-background border border-border shadow-sm"
-                            onClick={async () => {
-                              try {
-                                await navigator.clipboard.writeText(message.content);
-                                toast.success('Copied to clipboard');
-                              } catch (err) {
-                                // Fallback for environments where clipboard API is restricted
-                                const textArea = document.createElement('textarea');
-                                textArea.value = message.content;
-                                textArea.style.position = 'fixed';
-                                textArea.style.left = '-9999px';
-                                document.body.appendChild(textArea);
-                                textArea.select();
+                          <div className="absolute -bottom-1 -right-1 flex gap-1 ">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7 bg-background border border-border shadow-sm"
+                              onClick={async () => {
                                 try {
-                                  document.execCommand('copy');
-                                  toast.success('Copied to clipboard');
-                                } catch (e) {
-                                  toast.error('Failed to copy');
+                                  await axios.post(`${API}/save-to-knowledge`, {
+                                    content: message.content,
+                                    chatId: chatId
+                                  });
+                                  toast.success('Saved to Knowledge ✅');
+                                } catch (err) {
+                                  toast.error('Failed to save');
                                 }
-                                document.body.removeChild(textArea);
-                              }
-                            }}
-                            data-testid={`copy-message-${index}`}
-                          >
-                            <Copy className="h-3.5 w-3.5" />
-                          </Button>
+                              }}
+                              title="Save to Knowledge"
+                              data-testid={`save-message-${index}`}
+                            >
+                              <Save className="h-3.5 w-3.5 text-green-500" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7 bg-background border border-border shadow-sm"
+                              onClick={async () => {
+                                try {
+                                  await navigator.clipboard.writeText(message.content);
+                                  toast.success('Copied to clipboard');
+                                } catch (err) {
+                                  const textArea = document.createElement('textarea');
+                                  textArea.value = message.content;
+                                  textArea.style.position = 'fixed';
+                                  textArea.style.left = '-9999px';
+                                  document.body.appendChild(textArea);
+                                  textArea.select();
+                                  try {
+                                    document.execCommand('copy');
+                                    toast.success('Copied to clipboard');
+                                  } catch (e) {
+                                    toast.error('Failed to copy');
+                                  }
+                                  document.body.removeChild(textArea);
+                                }
+                              }}
+                              data-testid={`copy-message-${index}`}
+                            >
+                              <Copy className="h-3.5 w-3.5" />
+                            </Button>
+                          </div>
                         )}
                       </div>
                     )}
@@ -1365,6 +1429,21 @@ const ChatPage = () => {
             </div>
           )}
         </ScrollArea>
+
+        {/* Smart Question Suggestions */}
+        <SmartQuestions
+          chatId={chatId}
+          token={token}
+          hasActiveSources={true}
+          onQuestionClick={(question) => {
+            setInput(question);
+            // Auto-send the question
+            setTimeout(() => {
+              const btn = document.querySelector('[data-testid="send-message-btn"]');
+              if (btn && !btn.disabled) btn.click();
+            }, 100);
+          }}
+        />
 
         {/* Input Area */}
         <div className="border-t border-border px-6 py-4 bg-card/50 backdrop-blur">

@@ -64,8 +64,8 @@ IMAGES_DIR.mkdir(exist_ok=True)
 MAX_FILE_SIZE = 50 * 1024 * 1024  # 50MB
 CHUNK_SIZE = 1500  # characters per chunk
 CHUNK_SIZE_TABULAR = 800  # smaller chunks for tabular data (Excel, CSV)
-MAX_CONTEXT_CHARS = 15000  # Max characters to include in context
-MAX_CHUNKS_PER_QUERY = 10  # Max chunks to include per query
+MAX_CONTEXT_CHARS = 10000  # Max characters to include in context (reduced for token optimization)
+MAX_CHUNKS_PER_QUERY = 5  # Max chunks to include per query (top 5 most relevant)
 MAX_AUTO_INGEST_URLS = 3  # Max URLs to auto-ingest per message
 
 # Global sources project ID marker
@@ -186,6 +186,7 @@ class ChatResponse(BaseModel):
     createdAt: str
     activeSourceIds: Optional[List[str]] = []
     sharedWithUsers: Optional[List[str]] = None  # None = visible to all shared users, [] or [ids] = only those users
+    sourceMode: Optional[str] = "all"  # 'all' or 'my'
 
 class QuickChatCreate(BaseModel):
     name: Optional[str] = "Quick Chat"
@@ -239,7 +240,7 @@ class GPTConfigResponse(BaseModel):
 class SourceResponse(BaseModel):
     id: str
     projectId: str
-    kind: Literal["file", "url"]
+    kind: Literal["file", "url", "knowledge"]
     originalName: Optional[str] = None
     url: Optional[str] = None
     mimeType: Optional[str] = None
@@ -542,8 +543,15 @@ async def save_to_cache(
 async def ensure_gpt_config():
     """Ensure GPT config singleton exists with strict active sources rules"""
     config = await db.gpt_config.find_one({"id": "1"}, {"_id": 0})
-    default_prompt = """You are a helpful assistant. Use ONLY the active sources provided in context.
-If no sources - ask user to upload/activate files. Cite sources as [Source: name]. Be concise."""
+    default_prompt = """You are Claude, a helpful AI assistant by Anthropic. Use ONLY the active sources provided in context.
+
+IMPORTANT RULES:
+1. If no sources available - ask user to upload/activate files
+2. Cite sources as [Source: name]
+3. Be concise and accurate
+4. Respond in the same language as the user's question
+5. If the context seems incomplete or you can only find limited information, say: "I found limited information on this topic. Try activating more sources or ask a more specific question."
+6. Never make up information not present in the sources"""
     
     if not config:
         config = {
@@ -899,11 +907,12 @@ async def get_relevant_chunks(source_ids: List[str], project_id: str, query: str
     if not all_chunks:
         return []
     
-    # Score each chunk
+    # Score each chunk (handle both 'content' and 'text' field names)
     scored_chunks = []
     for chunk in all_chunks:
-        score = score_chunk_relevance(chunk["content"], query)
-        scored_chunks.append({**chunk, "score": score})
+        chunk_content = chunk.get("content") or chunk.get("text", "")
+        score = score_chunk_relevance(chunk_content, query)
+        scored_chunks.append({**chunk, "score": score, "_content": chunk_content})
     
     # Sort by score descending
     scored_chunks.sort(key=lambda x: x["score"], reverse=True)
@@ -912,13 +921,14 @@ async def get_relevant_chunks(source_ids: List[str], project_id: str, query: str
     selected_chunks = []
     total_chars = 0
     
-    for chunk in scored_chunks[:MAX_CHUNKS_PER_QUERY * 2]:  # Consider more for character limit
-        if len(selected_chunks) >= MAX_CHUNKS_PER_QUERY:
-            break
-        if total_chars + len(chunk["content"]) > MAX_CONTEXT_CHARS:
-            continue
+    for chunk in scored_chunks[:MAX_CHUNKS_PER_QUERY]:  # Only consider top N chunks
+        chunk_content = chunk.get("_content", "")
+        if total_chars + len(chunk_content) > MAX_CONTEXT_CHARS:
+            break  # Stop if we exceed character limit
         selected_chunks.append(chunk)
-        total_chars += len(chunk["content"])
+        total_chars += len(chunk_content)
+    
+    logger.info(f"RAG optimization: Selected {len(selected_chunks)}/{len(scored_chunks)} chunks, {total_chars} chars")
     
     return selected_chunks
 
@@ -1322,6 +1332,7 @@ async def create_quick_chat(chat_data: QuickChatCreate, current_user: dict = Dep
         "ownerId": current_user["id"],
         "name": chat_data.name or "Quick Chat",
         "activeSourceIds": [],
+        "sourceMode": "all",
         "createdAt": datetime.now(timezone.utc).isoformat()
     }
     await db.chats.insert_one(chat)
@@ -1409,6 +1420,7 @@ async def create_chat(project_id: str, chat_data: ChatCreate, current_user: dict
         "projectId": project_id,
         "name": chat_data.name or "New Chat",
         "activeSourceIds": [],
+        "sourceMode": "all",
         "createdAt": datetime.now(timezone.utc).isoformat()
     }
     await db.chats.insert_one(chat)
@@ -1861,7 +1873,7 @@ async def search_sources(project_id: str, search_data: SearchRequest, current_us
     sources = await db.sources.find({"projectId": project_id}, {"_id": 0}).to_list(1000)
     source_map = {s["id"]: s for s in sources}
     
-    # Search through chunks
+    # Search through chunks (handle both 'content' and 'text' field names)
     results = []
     chunks = await db.source_chunks.find(
         {"projectId": project_id},
@@ -1869,7 +1881,8 @@ async def search_sources(project_id: str, search_data: SearchRequest, current_us
     ).to_list(10000)
     
     for chunk in chunks:
-        content_lower = chunk["content"].lower()
+        chunk_content = chunk.get("content") or chunk.get("text", "")
+        content_lower = chunk_content.lower()
         if query in content_lower:
             source = source_map.get(chunk["sourceId"], {})
             
@@ -1879,11 +1892,11 @@ async def search_sources(project_id: str, search_data: SearchRequest, current_us
             # Get snippet around first match (150 chars before and after)
             idx = content_lower.find(query)
             start = max(0, idx - 150)
-            end = min(len(chunk["content"]), idx + len(query) + 150)
-            snippet = chunk["content"][start:end]
+            end = min(len(chunk_content), idx + len(query) + 150)
+            snippet = chunk_content[start:end]
             if start > 0:
                 snippet = "..." + snippet
-            if end < len(chunk["content"]):
+            if end < len(chunk_content):
                 snippet = snippet + "..."
             
             results.append({
@@ -1936,8 +1949,8 @@ async def preview_source(project_id: str, source_id: str, current_user: dict = D
         {"_id": 0, "content": 1, "chunkIndex": 1}
     ).sort("chunkIndex", 1).to_list(1000)
     
-    # Combine chunks into full text
-    full_text = "\n\n".join([c["content"] for c in chunks])
+    # Combine chunks into full text (handle both 'content' and 'text' field names)
+    full_text = "\n\n".join([c.get("content") or c.get("text", "") for c in chunks])
     
     # Calculate quality metrics
     char_count = len(full_text)
@@ -2220,6 +2233,32 @@ async def set_active_sources(chat_id: str, data: ActiveSourcesUpdate, current_us
     
     return {"message": "Active sources updated", "activeSourceIds": data.sourceIds}
 
+class SourceModeUpdate(BaseModel):
+    sourceMode: str  # 'all' or 'my'
+
+@api_router.put("/chats/{chat_id}/source-mode")
+async def update_source_mode(chat_id: str, data: SourceModeUpdate, current_user: dict = Depends(get_current_user)):
+    """Update source mode for a chat"""
+    if data.sourceMode not in ['all', 'my']:
+        raise HTTPException(status_code=400, detail="Invalid source mode. Use 'all' or 'my'")
+    
+    chat = await db.chats.find_one({"id": chat_id}, {"_id": 0})
+    if not chat:
+        raise HTTPException(status_code=404, detail="Chat not found")
+    
+    # Verify ownership
+    if chat.get("projectId"):
+        await verify_project_ownership(chat["projectId"], current_user["id"])
+    elif chat.get("ownerId") != current_user["id"]:
+        raise HTTPException(status_code=403, detail="Not authorized")
+    
+    await db.chats.update_one(
+        {"id": chat_id},
+        {"$set": {"sourceMode": data.sourceMode}}
+    )
+    
+    return {"message": "Source mode updated", "sourceMode": data.sourceMode}
+
 @api_router.get("/chats/{chat_id}/active-sources")
 async def get_active_sources(chat_id: str, current_user: dict = Depends(get_current_user)):
     """Get the active sources for a chat"""
@@ -2312,6 +2351,19 @@ async def send_message(chat_id: str, message_data: MessageCreate, current_user: 
     project_source_ids = []
     department_source_ids = []
     global_source_ids = []
+    personal_source_ids = []
+    user_department_ids = current_user.get("departments", [])  # Always get this for chunk lookup
+    
+    # Get source mode from chat (default to 'all')
+    source_mode = chat.get("sourceMode", "all")
+    
+    # Personal sources (always available)
+    personal_sources = await db.sources.find({
+        "level": "personal",
+        "ownerId": current_user["id"],
+        "status": {"$in": ["active", None]}
+    }, {"_id": 0, "id": 1}).to_list(1000)
+    personal_source_ids = [s["id"] for s in personal_sources]
     
     # Project sources (if in a project)
     if project_id:
@@ -2322,30 +2374,31 @@ async def send_message(chat_id: str, message_data: MessageCreate, current_user: 
         }, {"_id": 0, "id": 1}).to_list(1000)
         project_source_ids = [s["id"] for s in project_sources]
     
-    # Department sources (from user's departments)
-    user_department_ids = current_user.get("departments", [])
-    if user_department_ids:
-        department_sources = await db.sources.find({
-            "departmentId": {"$in": user_department_ids},
-            "level": "department",
-            "status": "active"
+    # Only include department and global sources if source_mode is 'all'
+    if source_mode == 'all':
+        # Department sources (from user's departments)
+        if user_department_ids:
+            department_sources = await db.sources.find({
+                "departmentId": {"$in": user_department_ids},
+                "level": "department",
+                "status": "active"
+            }, {"_id": 0, "id": 1}).to_list(1000)
+            department_source_ids = [s["id"] for s in department_sources]
+        
+        # Global sources (always included in 'all' mode)
+        global_sources = await db.sources.find({
+            "$or": [
+                {"projectId": GLOBAL_PROJECT_ID},
+                {"level": "global", "status": "active"}
+            ]
         }, {"_id": 0, "id": 1}).to_list(1000)
-        department_source_ids = [s["id"] for s in department_sources]
+        global_source_ids = [s["id"] for s in global_sources]
     
-    # Global sources (always included)
-    global_sources = await db.sources.find({
-        "$or": [
-            {"projectId": GLOBAL_PROJECT_ID},
-            {"level": "global", "status": "active"}
-        ]
-    }, {"_id": 0, "id": 1}).to_list(1000)
-    global_source_ids = [s["id"] for s in global_sources]
-    
-    # Combined list with priority order: Project > Department > Global
-    active_source_ids = project_source_ids + department_source_ids + global_source_ids
+    # Combined list with priority order: Personal > Project > Department > Global
+    active_source_ids = personal_source_ids + project_source_ids + department_source_ids + global_source_ids
     
     # Get user's accessible source IDs for cache security
-    user_accessible_source_ids = project_source_ids + department_source_ids + global_source_ids
+    user_accessible_source_ids = personal_source_ids + project_source_ids + department_source_ids + global_source_ids
     
     # Get sender display name (use part before @ in email)
     sender_email = current_user["email"]
@@ -2424,8 +2477,9 @@ async def send_message(chat_id: str, message_data: MessageCreate, current_user: 
             for chunk in relevant_chunks:
                 source_name = source_names.get(chunk["sourceId"], "Unknown")
                 source_type = source_types.get(chunk["sourceId"], "global")
+                chunk_content = chunk.get("content") or chunk.get("text") or chunk.get("_content", "")
                 chunk_marker = f"[Source: {source_name} ({source_type.upper()}), Chunk {chunk['chunkIndex']+1}]"
-                context_parts.append(f"{chunk_marker}\n{chunk['content']}")
+                context_parts.append(f"{chunk_marker}\n{chunk_content}")
                 
                 # Enhanced citation with full context
                 citations.append({
@@ -2434,7 +2488,7 @@ async def send_message(chat_id: str, message_data: MessageCreate, current_user: 
                     "sourceType": source_type,  # "project" or "global"
                     "chunkId": chunk.get("id", ""),
                     "chunkIndex": chunk["chunkIndex"],
-                    "textFragment": chunk["content"][:200] + "..." if len(chunk["content"]) > 200 else chunk["content"],
+                    "textFragment": chunk_content[:200] + "..." if len(chunk_content) > 200 else chunk_content,
                     "score": chunk.get("score", 0)
                 })
             
@@ -2482,10 +2536,10 @@ async def send_message(chat_id: str, message_data: MessageCreate, current_user: 
                     "cacheId": cache_hit['cacheId']
                 }
     
-    # Prepare messages for GPT
+    # Prepare messages for Claude
     try:
-        if not openai_client:
-            raise Exception("OpenAI API key not configured")
+        import anthropic
+        claude_client = anthropic.Anthropic(api_key=CLAUDE_API_KEY)
         
         from_cache = False
         
@@ -2496,49 +2550,41 @@ async def send_message(chat_id: str, message_data: MessageCreate, current_user: 
             tokens_used = 0
             from_cache = True
         else:
-            # Build messages for GPT
-            messages = [{"role": "developer", "content": config["developerPrompt"]}]
+            # Build system prompt for Claude
+            system_parts = [config["developerPrompt"]]
             
             # Add user's custom prompt if exists
             if user_custom_prompt:
                 logger.info(f"Adding user custom prompt for user {current_user['id']}")
-                messages.append({"role": "system", "content": f"USER INSTRUCTIONS:\n{user_custom_prompt}"})
-            else:
-                logger.info(f"No custom prompt for user {current_user['id']}")
+                system_parts.append(f"USER INSTRUCTIONS:\n{user_custom_prompt}")
             
-            # Add document context if available WITH PRIORITY INFO
+            # Add document context if available
             if document_context:
                 active_sources_list = ", ".join(active_source_names) if active_source_names else "None"
-                
-                # Add source priority explanation
-                priority_note = ""
-                if project_source_ids and global_source_ids:
-                    priority_note = """
-IMPORTANT - SOURCE PRIORITY:
-- PROJECT sources have HIGHER priority than GLOBAL sources
-- If there's a conflict between PROJECT and GLOBAL data, prefer PROJECT data
-- Always indicate which source type (PROJECT/GLOBAL) provided the information
-- If you detect conflicting information, explicitly mention the conflict and ask user which source to trust
-"""
-                
-                context_message = f"""SOURCES: {active_sources_list}
-{document_context[:8000]}"""
-                messages.append({"role": "system", "content": context_message})
+                chunks_count = len(citations) if citations else 0
+                context_message = f"SOURCES: {active_sources_list}\nCHUNKS: {chunks_count} (top {MAX_CHUNKS_PER_QUERY} most relevant)\n\n{document_context[:10000]}"
+                system_parts.append(context_message)
             
-            # Add chat history
+            system_prompt = "\n\n".join(system_parts)
+            
+            # Build messages for Claude (no system role in messages)
+            messages = []
             for msg in history[:-1]:
                 messages.append({"role": msg["role"], "content": msg["content"]})
-            
-            # Add current message
             messages.append({"role": "user", "content": message_data.content})
             
-            # Call GPT
-            model_to_use = config.get("model", "gpt-4.1-mini")
-            response = openai_client.responses.create(model=model_to_use, input=messages)
-            response_text = response.output_text
+            # Call Claude API
+            claude_response = claude_client.messages.create(
+                model="claude-sonnet-4-20250514",
+                max_tokens=4096,
+                system=system_prompt,
+                messages=messages
+            )
+            
+            response_text = claude_response.content[0].text
             
             # Track tokens
-            tokens_used = getattr(response.usage, 'total_tokens', 0) if hasattr(response, 'usage') else 0
+            tokens_used = claude_response.usage.input_tokens + claude_response.usage.output_tokens
             
             # Update user token usage in DB
             if tokens_used > 0:
@@ -2552,7 +2598,7 @@ IMPORTANT - SOURCE PRIORITY:
                 )
         
     except Exception as e:
-        logger.error(f"OpenAI API error: {str(e)}")
+        logger.error(f"Claude API error: {str(e)}")
         response_text = f"Error: {str(e)[:100]}"
         citations = []
     
@@ -2641,6 +2687,100 @@ IMPORTANT - SOURCE PRIORITY:
             )
     
     return MessageResponse(**assistant_message)
+
+# ==================== SAVE TO KNOWLEDGE ====================
+
+class SaveToKnowledgeRequest(BaseModel):
+    content: str
+    chatId: Optional[str] = None
+
+@api_router.post("/save-to-knowledge")
+async def save_to_knowledge(
+    request: SaveToKnowledgeRequest,
+    current_user: dict = Depends(get_current_user)
+):
+    """Save AI message content as a Personal Source"""
+    try:
+        # Generate source name from content (first 50 chars + timestamp)
+        content_preview = request.content[:50].replace('\n', ' ').strip()
+        if len(request.content) > 50:
+            content_preview += "..."
+        timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+        source_name = f"{content_preview} ({timestamp})"
+        
+        # Create source ID
+        source_id = str(uuid.uuid4())
+        
+        # Create the source document (matching enterprise_sources format)
+        source_doc = {
+            "id": source_id,
+            "level": "personal",
+            "ownerId": current_user["id"],
+            "ownerEmail": current_user["email"],
+            "projectId": None,
+            "departmentId": None,
+            "kind": "knowledge",
+            "originalName": source_name,
+            "mimeType": "text/plain",
+            "sizeBytes": len(request.content.encode('utf-8')),
+            "storagePath": None,
+            "extractedText": request.content,
+            "contentHash": hashlib.sha256(request.content.encode('utf-8')).hexdigest(),
+            "status": "active",
+            "currentVersion": 1,
+            "createdAt": datetime.now(timezone.utc).isoformat(),
+            "updatedAt": datetime.now(timezone.utc).isoformat()
+        }
+        
+        await db.sources.insert_one(source_doc)
+        
+        # Create chunks and embeddings for the saved content
+        chunks = chunk_text(request.content, chunk_size=1000)
+        
+        for i, chunk_text_content in enumerate(chunks):
+            try:
+                # Generate embedding using OpenAI (keeping existing embedding model)
+                embedding_response = openai_client.embeddings.create(
+                    model="text-embedding-3-small",
+                    input=chunk_text_content
+                )
+                embedding = embedding_response.data[0].embedding
+                
+                chunk_doc = {
+                    "id": str(uuid.uuid4()),
+                    "sourceId": source_id,
+                    "sourceName": source_name,
+                    "chunkIndex": i,
+                    "text": chunk_text_content,
+                    "embedding": embedding,
+                    "createdAt": datetime.now(timezone.utc).isoformat()
+                }
+                await db.source_chunks.insert_one(chunk_doc)
+            except Exception as e:
+                logger.error(f"Error creating embedding for chunk {i}: {str(e)}")
+        
+        # Log the action
+        await db.audit_logs.insert_one({
+            "id": str(uuid.uuid4()),
+            "userId": current_user["id"],
+            "userEmail": current_user["email"],
+            "action": "save_to_knowledge",
+            "resourceType": "source",
+            "resourceId": source_id,
+            "details": {"sourceName": source_name, "contentLength": len(request.content)},
+            "timestamp": datetime.now(timezone.utc).isoformat()
+        })
+        
+        return {
+            "success": True,
+            "sourceId": source_id,
+            "sourceName": source_name,
+            "message": "Saved to Knowledge ✅"
+        }
+        
+    except Exception as e:
+        logger.error(f"Error saving to knowledge: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to save: {str(e)}")
 
 # ==================== ADMIN ENDPOINTS ====================
 
@@ -2957,10 +3097,10 @@ async def user_preview_global_source(source_id: str, current_user: dict = Depend
     
     chunks = await db.source_chunks.find(
         {"sourceId": source_id},
-        {"_id": 0, "content": 1, "chunkIndex": 1}
+        {"_id": 0, "content": 1, "text": 1, "chunkIndex": 1}
     ).sort("chunkIndex", 1).to_list(1000)
     
-    full_text = "\n\n".join([c["content"] for c in chunks])
+    full_text = "\n\n".join([c.get("content") or c.get("text", "") for c in chunks])
     
     return {
         "id": source_id,
@@ -3171,10 +3311,10 @@ async def preview_global_source(source_id: str, current_user: dict = Depends(get
     
     chunks = await db.source_chunks.find(
         {"sourceId": source_id},
-        {"_id": 0, "content": 1, "chunkIndex": 1}
+        {"_id": 0, "content": 1, "text": 1, "chunkIndex": 1}
     ).sort("chunkIndex", 1).to_list(1000)
     
-    full_text = "\n\n".join([c["content"] for c in chunks])
+    full_text = "\n\n".join([c.get("content") or c.get("text", "") for c in chunks])
     
     return {
         "id": source_id,
@@ -3549,6 +3689,270 @@ async def extract_text_wrapper(content: bytes, file_type: str) -> str:
         return extract_text_from_image(content)
     else:
         return extract_text_from_txt(content)
+
+# ==================== SOURCE INSIGHTS & SMART QUESTIONS ====================
+
+class SourceInsightsResponse(BaseModel):
+    summary: str
+    suggestedQuestions: List[str]
+    generatedAt: str
+
+class SaveInsightsRequest(BaseModel):
+    summary: str
+    suggestedQuestions: List[str]
+
+class SmartQuestionsResponse(BaseModel):
+    questions: List[str]
+    sourceNames: List[str]
+    generatedAt: str
+
+@api_router.post("/sources/{source_id}/analyze", response_model=SourceInsightsResponse)
+async def analyze_source(source_id: str, current_user: dict = Depends(get_current_user)):
+    """
+    Analyze a source and generate insights (summary + suggested questions).
+    Available to ALL users who can see the source.
+    """
+    # Find source in any collection
+    source = await db.sources.find_one({"id": source_id}, {"_id": 0})
+    if not source:
+        raise HTTPException(status_code=404, detail="Source not found")
+    
+    # Get source chunks
+    chunks = await db.source_chunks.find(
+        {"sourceId": source_id},
+        {"_id": 0}
+    ).sort("chunkIndex", 1).to_list(50)
+    
+    if not chunks:
+        raise HTTPException(status_code=400, detail="Source has no content to analyze")
+    
+    # Combine chunks (handle both 'content' and 'text' fields)
+    full_text = "\n\n".join([c.get("content") or c.get("text", "") for c in chunks])
+    
+    # Limit text for analysis
+    text_for_analysis = full_text[:8000]
+    source_name = source.get("originalName") or source.get("url") or "Unknown"
+    
+    # Use Claude for analysis
+    try:
+        import anthropic
+        CLAUDE_API_KEY = os.environ.get('CLAUDE_API_KEY', '')
+        claude_client = anthropic.Anthropic(api_key=CLAUDE_API_KEY)
+        
+        analysis_prompt = f"""Analyze the following document and provide:
+1. A brief summary (2-3 sentences) describing what this document contains
+2. Exactly 5 specific questions that a user could ask about this document's content
+
+Document name: {source_name}
+Document content:
+{text_for_analysis}
+
+Respond in JSON format:
+{{
+  "summary": "Your 2-3 sentence summary here",
+  "questions": ["Question 1?", "Question 2?", "Question 3?", "Question 4?", "Question 5?"]
+}}
+
+Important: Respond ONLY with valid JSON, no additional text. Questions should be specific to this document's actual content."""
+
+        response = claude_client.messages.create(
+            model="claude-sonnet-4-20250514",
+            max_tokens=1024,
+            messages=[{"role": "user", "content": analysis_prompt}]
+        )
+        
+        import json
+        result_text = response.content[0].text.strip()
+        # Clean up potential markdown code blocks
+        if result_text.startswith("```"):
+            result_text = result_text.split("```")[1]
+            if result_text.startswith("json"):
+                result_text = result_text[4:]
+        result_text = result_text.strip()
+        
+        result = json.loads(result_text)
+        
+        return SourceInsightsResponse(
+            summary=result.get("summary", "Unable to generate summary"),
+            suggestedQuestions=result.get("questions", [])[:5],
+            generatedAt=datetime.now(timezone.utc).isoformat()
+        )
+        
+    except Exception as e:
+        logger.error(f"Source analysis error: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Analysis failed: {str(e)[:100]}")
+
+
+@api_router.post("/sources/{source_id}/save-insights")
+async def save_source_insights(
+    source_id: str, 
+    data: SaveInsightsRequest,
+    current_user: dict = Depends(get_current_user)
+):
+    """Save generated insights to a source"""
+    source = await db.sources.find_one({"id": source_id}, {"_id": 0})
+    if not source:
+        raise HTTPException(status_code=404, detail="Source not found")
+    
+    await db.sources.update_one(
+        {"id": source_id},
+        {"$set": {
+            "insights": {
+                "summary": data.summary,
+                "suggestedQuestions": data.suggestedQuestions,
+                "savedAt": datetime.now(timezone.utc).isoformat(),
+                "savedBy": current_user["id"]
+            }
+        }}
+    )
+    
+    return {"message": "Insights saved successfully"}
+
+
+@api_router.get("/sources/{source_id}/insights")
+async def get_source_insights(source_id: str, current_user: dict = Depends(get_current_user)):
+    """Get saved insights for a source"""
+    source = await db.sources.find_one({"id": source_id}, {"_id": 0, "insights": 1})
+    if not source:
+        raise HTTPException(status_code=404, detail="Source not found")
+    
+    insights = source.get("insights")
+    if not insights:
+        return {"hasInsights": False}
+    
+    return {
+        "hasInsights": True,
+        "summary": insights.get("summary"),
+        "suggestedQuestions": insights.get("suggestedQuestions", []),
+        "savedAt": insights.get("savedAt")
+    }
+
+
+@api_router.post("/chats/{chat_id}/smart-questions", response_model=SmartQuestionsResponse)
+async def generate_smart_questions(chat_id: str, current_user: dict = Depends(get_current_user)):
+    """
+    Generate smart question suggestions based on active sources in the chat.
+    """
+    chat = await db.chats.find_one({"id": chat_id}, {"_id": 0})
+    if not chat:
+        raise HTTPException(status_code=404, detail="Chat not found")
+    
+    project_id = chat.get("projectId")
+    source_mode = chat.get("sourceMode", "all")
+    
+    # Gather active source IDs based on source mode
+    active_source_ids = []
+    user_department_ids = current_user.get("departments", [])
+    
+    # Personal sources
+    personal_sources = await db.sources.find({
+        "level": "personal",
+        "ownerId": current_user["id"],
+        "status": {"$in": ["active", None]}
+    }, {"_id": 0, "id": 1}).to_list(100)
+    active_source_ids.extend([s["id"] for s in personal_sources])
+    
+    # Project sources
+    if project_id:
+        project_sources = await db.sources.find({
+            "projectId": project_id,
+            "level": {"$in": ["project", None]},
+            "status": {"$in": ["active", None]}
+        }, {"_id": 0, "id": 1}).to_list(100)
+        active_source_ids.extend([s["id"] for s in project_sources])
+    
+    # Department and global sources only if mode is 'all'
+    if source_mode == 'all':
+        if user_department_ids:
+            dept_sources = await db.sources.find({
+                "departmentId": {"$in": user_department_ids},
+                "level": "department",
+                "status": "active"
+            }, {"_id": 0, "id": 1}).to_list(100)
+            active_source_ids.extend([s["id"] for s in dept_sources])
+        
+        global_sources = await db.sources.find({
+            "$or": [
+                {"projectId": "__global__"},
+                {"level": "global", "status": "active"}
+            ]
+        }, {"_id": 0, "id": 1}).to_list(100)
+        active_source_ids.extend([s["id"] for s in global_sources])
+    
+    if not active_source_ids:
+        raise HTTPException(status_code=400, detail="No active sources available")
+    
+    # Get source names and sample content
+    sources = await db.sources.find(
+        {"id": {"$in": active_source_ids}},
+        {"_id": 0, "id": 1, "originalName": 1, "url": 1}
+    ).to_list(100)
+    
+    source_names = [s.get("originalName") or s.get("url") or "Unknown" for s in sources]
+    
+    # Get sample chunks from each source (limit to prevent token overflow)
+    sample_content = []
+    for source in sources[:5]:  # Limit to 5 sources
+        chunks = await db.source_chunks.find(
+            {"sourceId": source["id"]},
+            {"_id": 0}
+        ).sort("chunkIndex", 1).to_list(3)  # 3 chunks per source
+        
+        source_name = source.get("originalName") or source.get("url") or "Unknown"
+        for chunk in chunks:
+            text = chunk.get("content") or chunk.get("text", "")
+            sample_content.append(f"[{source_name}]: {text[:500]}")
+    
+    combined_content = "\n\n".join(sample_content)[:6000]
+    
+    # Generate questions using Claude
+    try:
+        import anthropic
+        CLAUDE_API_KEY = os.environ.get('CLAUDE_API_KEY', '')
+        claude_client = anthropic.Anthropic(api_key=CLAUDE_API_KEY)
+        
+        prompt = f"""Based on the following document excerpts, generate exactly 5 specific, useful questions that a user might want to ask about this content.
+
+Available sources: {', '.join(source_names[:10])}
+
+Content excerpts:
+{combined_content}
+
+Generate 5 practical questions that:
+- Are specific to the actual content shown
+- Would be useful for someone working with these documents
+- Cover different aspects of the content
+
+Respond with ONLY a JSON array of 5 questions:
+["Question 1?", "Question 2?", "Question 3?", "Question 4?", "Question 5?"]"""
+
+        response = claude_client.messages.create(
+            model="claude-sonnet-4-20250514",
+            max_tokens=512,
+            messages=[{"role": "user", "content": prompt}]
+        )
+        
+        import json
+        result_text = response.content[0].text.strip()
+        # Clean up potential markdown
+        if result_text.startswith("```"):
+            result_text = result_text.split("```")[1]
+            if result_text.startswith("json"):
+                result_text = result_text[4:]
+        result_text = result_text.strip()
+        
+        questions = json.loads(result_text)
+        
+        return SmartQuestionsResponse(
+            questions=questions[:5],
+            sourceNames=source_names[:5],
+            generatedAt=datetime.now(timezone.utc).isoformat()
+        )
+        
+    except Exception as e:
+        logger.error(f"Smart questions error: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to generate questions: {str(e)[:100]}")
+
 
 # Setup enterprise routes with dependencies
 setup_department_routes(db, get_current_user, is_admin, audit_service)

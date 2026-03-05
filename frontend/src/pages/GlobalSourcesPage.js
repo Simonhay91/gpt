@@ -16,9 +16,11 @@ import {
   Loader2,
   HardDrive,
   File,
-  User
+  User,
+  Search
 } from 'lucide-react';
 import DashboardLayout from '../components/DashboardLayout';
+import SourceInsightsModal from '../components/SourceInsightsModal';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
@@ -34,6 +36,9 @@ const GlobalSourcesPage = () => {
   const [previewDialogOpen, setPreviewDialogOpen] = useState(false);
   const [previewData, setPreviewData] = useState(null);
   const [isLoadingPreview, setIsLoadingPreview] = useState(false);
+  
+  // Insights modal
+  const [insightsSource, setInsightsSource] = useState(null);
 
   const fetchSources = useCallback(async () => {
     try {
@@ -283,7 +288,17 @@ const GlobalSourcesPage = () => {
                         <Button
                           variant="ghost"
                           size="icon"
-                          className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity"
+                          className="h-8 w-8"
+                          onClick={() => setInsightsSource(source)}
+                          data-testid={`analyze-source-${source.id}`}
+                          title="Анализировать"
+                        >
+                          <Search className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 "
                           onClick={() => handlePreview(source.id)}
                           data-testid={`preview-source-${source.id}`}
                         >
@@ -293,7 +308,7 @@ const GlobalSourcesPage = () => {
                           <Button
                             variant="ghost"
                             size="icon"
-                            className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity"
+                            className="h-8 w-8 "
                             onClick={() => handleDelete(source.id, source.originalName || source.url, source.uploadedBy)}
                             data-testid={`delete-source-${source.id}`}
                           >
@@ -308,6 +323,15 @@ const GlobalSourcesPage = () => {
             })}
           </div>
         )}
+
+        {/* Source Insights Modal */}
+        <SourceInsightsModal
+          isOpen={!!insightsSource}
+          onClose={() => setInsightsSource(null)}
+          sourceId={insightsSource?.id}
+          sourceName={insightsSource?.originalName || insightsSource?.url}
+          token={axios.defaults.headers.common['Authorization']?.replace('Bearer ', '')}
+        />
 
         {/* Preview Dialog */}
         <Dialog open={previewDialogOpen} onOpenChange={setPreviewDialogOpen}>

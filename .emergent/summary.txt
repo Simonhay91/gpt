@@ -4,103 +4,104 @@ The user wants to build a production-ready, full-stack SaaS web app, Planet Know
 **PRODUCT REQUIREMENTS:**
 *   **Core App:** Multi-user application with project-based data isolation using React, FastAPI, and MongoDB.
 *   **User Management:** Admin-centric model where an admin creates users and manages their settings.
-*   **Project & Chat Functionality:** Project-based chats, sharing with roles (Viewer, Editor, Manager), and fine-grained chat visibility.
-*   **Source Management:** Users can attach various file types, with OCR for images. Sources are project-specific.
+*   **Project & Chat Functionality:** Project-based chats, sharing with roles (Viewer, Editor, Manager), and fine-grained chat visibility. A new Save to Knowledge feature allows saving AI responses as personal sources. A Source Mode selector allows users to toggle between using all knowledge sources or only personal/project-specific ones.
+*   **Source Management:** Users can attach various file types, with OCR for images. Sources are project-specific. A preview function has been added for personal sources.
 *   **Enterprise Knowledge Architecture:** Implement a hierarchical knowledge base with four levels: Personal, Project, Department, Global. This includes role-based access, an approval workflow (draft → approved → active), auditing, and versioning.
-*   **Efficiency & Cost:** Implement semantic caching to reduce token usage.
-*   **UX/UI:** The app should have light and dark modes and intuitive navigation.
+*   **Efficiency & Cost:** Implement semantic caching to reduce token usage. The RAG pipeline has been optimized to query only the top 5 most relevant chunks.
+*   **UX/UI:** The app should have light and dark modes and intuitive navigation. An  has been added to prevent the entire app from crashing on UI errors.
+*   **Excel/CSV Analyzer:** A dedicated tool powered by an LLM for in-depth analysis of tabular data, with the ability to export results to PDF and Excel. Sessions are persisted in the database.
 
 **User's preferred language**: Russian
 
 **what currently exists?**
-Planet Knowledge is a full-stack SaaS application with a modular FastAPI backend and a React frontend.
-
-Key achievements in the last session:
-*   **Multi-language Support:** A robust internationalization (i18n) system was implemented, providing both Russian and English translations across most of the application, including the login page, dashboard, sidebar navigation, and several admin pages. A language switcher has been added.
-*   **Tech News Feature:** A new Tech News page was created, fetching and displaying the latest stories from Hacker News via a new backend API endpoint.
-*   **RAG Improvement for Tabular Data:** The backend's text extraction and chunking logic for Excel () and CSV files was significantly improved. It now preserves the table structure by prepending column headers to cell data, leading to much better contextual understanding for the LLM.
-*   **UX/UI Enhancements & Bug Fixes:**
-    *   The My GPT Prompt feature was converted from a modal popup into a dedicated page.
-    *   A critical navigation bug causing the Departments link to disappear was fixed.
-    *   Manager permissions were refined: the Submit for review action was removed (as they can approve directly), and a Delete action was added for sources.
-    *   The backend endpoint for deleting department/global sources was implemented and fixed.
-    *   Multiple UI text improvements and bug fixes were made, such as making info sections collapsible and handling long filenames gracefully.
+Planet Knowledge is a functional full-stack application. In this session, the agent implemented several key features and improvements:
+*   **Excel/CSV Analyzer:** A complete feature for uploading, analyzing (with GPT-4.1-mini), and asking questions about Excel/CSV files was built. It includes a debug view showing how many rows/characters are sent to the AI.
+*   **Export Functionality:** The analyzer results can be exported to both PDF and Excel formats.
+*   **Dynamic LLM Configuration:** The application's main chat and analyzer were repeatedly reconfigured to use different LLMs (Gemini, Claude, GPT-4.1-mini) based on user feedback regarding performance, rate limits, and budget issues. The final configuration uses GPT-4.1-mini for both features.
+*   **Save to Knowledge Feature:** A save icon was added to each AI message in the chat, allowing users to save the response directly as a new personal knowledge source.
+*   **Personal Source Preview:** A preview button was added to the My Personal Sources page, enabling users to view the content of a source in a modal dialog.
+*   **Chat Source Mode Selector:** A toggle was implemented in the chat UI allowing users to switch between querying All Sources (global, department, project, personal) and My Sources Only (project, personal).
+*   **RAG Token Optimization:** The backend was optimized to fetch only the top 5 most relevant document chunks for a query, significantly reducing token consumption.
+*   **Risk Analysis & Quick Wins:** A comprehensive risk analysis was performed, and based on its findings, the agent implemented several high-impact improvements:
+    *   Created MongoDB indexes for all major collections to improve query performance.
+    *   Added a global React  to prevent UI crashes.
+    *   Migrated the Excel Analyzer sessions from volatile in-memory storage to a persistent MongoDB collection ().
 
 **Last working item**:
-- Last item agent was working: The agent started implementing a new feature requested by the user: an **Excel/CSV Analyzer** powered by Google Gemini. The goal is to provide a dedicated tool for in-depth analysis of tabular data. The agent has set up the initial files but has not implemented the core logic.
-- Status: IN PROGRESS
+- Last item agent was working: The agent was implementing a series of Quick Wins identified from a project risk analysis. The final action was migrating the Excel Analyzer sessions from an in-memory dictionary to a dedicated MongoDB collection to ensure they persist across server restarts.
+- Status: USER VERIFICATION PENDING
 - Agent Testing Done: N
-- Which testing method agent to use? both. The backend agent needs to verify the file upload, communication with the Gemini API via , and the response format. The frontend agent needs to test the UI for file upload, prompt submission, and rendering the analysis results.
+- Which testing method agent to use? backend testing agent. The agent should perform a multi-step test: 1. Upload a file to the analyzer to create a session. 2. Restart the backend service. 3. Send a follow-up question to the same session to verify the data was persisted in MongoDB and retrieved correctly.
 - User Testing Done: N
 
 **All Pending/In progress Issue list**:
-  - Issue 1: (P0) Finish the implementation of the Excel/CSV Analyzer feature.
-  - Issue 2: (P1) Complete the internationalization (i18n) of the entire application.
-  - Issue 3: (P2) Investigate and fix the old frontend navigation test failure from a previous session ().
-  - Issue 4: (P3) Address the recurring frontend compilation warning: .
+  - Issue 1: (P0) Emergent LLM Key Budget Exceeded. The key's budget is depleted, making Gemini unusable for the Excel Analyzer. The user has been advised to add balance but has not confirmed. This is a blocker for using any -based LLM.
+  - Issue 2: (P0) User's Claude API Key has very low rate limits (free tier), causing  exceptions. This makes it unsuitable for production use with the app's large context prompts.
+  - Issue 3: (P1) GPT-4.1-mini fails to process large Excel files. The user reported that GPT provides incomplete answers on large datasets (e.g., finding only 4 of 200+ products). This was the original reason for switching to other models. The current configuration using GPT for everything re-introduces this problem.
+  - Issue 4: (P2) Incomplete Internationalization (i18n). The initial handoff noted this, and it was not addressed. Many parts of the UI remain hardcoded in English.
 
-  **Issues Detail:**
-  - **Issue 1:** Finish Excel/CSV Analyzer
-     - **Attempted fixes:** The agent created placeholder files:  and . It also added the  to the backend environment and installed the  library. No logic has been written yet.
-     - **Next debug checklist:**
-        1.  In , create a new API endpoint that accepts a file upload and a user prompt.
-        2.  Implement the logic to read the file content (CSV/Excel).
-        3.  Use the  library to call the Gemini Pro model, sending the file content and the user's prompt.
-        4.  In , build the UI with a file dropzone, a text input for the prompt, and a display area for the analysis results from Gemini.
-        5.  Add a link to the new page in  and the route in .
-     - **Why fix this issue and what will be achieved with the fix?** This is a direct user request to provide a powerful, specialized tool for data analysis, leveraging Gemini's capabilities with tabular data.
-     - **Status:** IN PROGRESS
+**Issues Detail:**
+  - **Issue 1: Emergent LLM Key Budget Exceeded**
+     - **Attempted fixes:** The agent identified the error and informed the user how to add balance (**Profile → Universal Key → Add Balance**). The agent then switched to other LLM providers as a workaround.
+     - **Next debug checklist:** The next agent must confirm with the user if they have added balance. If so, re-enable Gemini for the Excel Analyzer, as the user believed it was better for that task.
+     - **Why fix this issue and what will be achieved with the fix?** Resolving this unblocks the use of Gemini, which the user preferred for Excel analysis, and provides a robust alternative to the rate-limited Claude key and underperforming GPT.
+     - **Status:** BLOCKED (on user action)
      - **Is recurring issue?** N
-     - **Should Test frontend/backend/both after fix?** Both
+     - **Should Test frontend/backend/both after fix?** Backend
      - **Blocked on other issue:** None
 
-  - **Issue 2:** Complete i18n
-     - **Attempted fixes:** A significant portion of the app has been translated.
-     - **Next debug checklist:**
-        1.  Go through every page and component in the  directory.
-        2.  Identify any remaining hardcoded English strings (especially in modals, toasts, error messages, and less-visited pages like ).
-        3.  Add corresponding keys to .
-        4.  Replace the hardcoded strings with the  function from the .
-     - **Why fix this issue and what will be achieved with the fix?** Provides a complete, professional user experience by ensuring the entire UI respects the user's language selection.
-     - **Status:** IN PROGRESS
-     - **Is recurring issue?** N
-     - **Should Test frontend/backend/both after fix?** Frontend
+  - **Issue 2: User's Claude API Key Rate Limit**
+     - **Attempted fixes:** The agent successfully integrated the key but immediately hit rate limits. The system prompt was shortened as a mitigation attempt, but it was insufficient. The agent switched away from this key.
+     - **Next debug checklist:** None. The issue lies with the user's Anthropic account tier. The agent should remind the user of this limitation if they request to use this key again.
+     - **Why fix this issue and what will be achieved with the fix?** Cannot be fixed by the agent. Understanding this limitation prevents wasted effort trying to use an inadequate key.
+     - **Status:** BLOCKED (on user's external account)
+     - **Is recurring issue?** Y
+     - **Should Test frontend/backend/both after fix?** N/A
+     - **Blocked on other issue:** None
+
+  - **Issue 3: GPT-4.1-mini Poor Performance on Large Datasets**
+     - **Attempted fixes:** The agent tried increasing character/row limits and making the data format more compact. However, the fundamental context window limitation of the model remains.
+     - **Next debug checklist:** Re-implement the two-stage analysis proposed in  (which the user initially rejected but is the correct technical solution): 1. Use Python (e.g., Pandas) to perform initial filtering/aggregation on the full dataset based on the user's prompt. 2. Send only the much smaller, relevant subset of data to the LLM for natural language interpretation.
+     - **Why fix this issue and what will be achieved with the fix?** This will solve the core user complaint about the Excel Analyzer and allow for accurate analysis of entire large files, not just the first few hundred rows that fit in the context window.
+     - **Status:** NOT STARTED
+     - **Is recurring issue?** Y
+     - **Should Test frontend/backend/both after fix?** Backend
      - **Blocked on other issue:** None
 
 **In progress Task List**:
-- **Task 1:** Implement Excel/CSV Analyzer with Gemini.
-  - **Where to resume:** Start by writing the backend logic in .
-  - **What will be achieved with this?** A new, dedicated feature for users to upload and analyze tabular data files using Gemini AI.
-  - **Status:** IN PROGRESS
-  - **Should Test frontend/backend/both after fix?** Both
-  - **Blocked on something:** None.
+- None.
 
 **Upcoming and Future Tasks**
 - **Upcoming Tasks:**
-  - (P1) **Page for Pending Approvals:** A unified dashboard for managers to see all sources awaiting their approval.
-  - (P1) **UI for Semantic Cache Config:** Allow admins to configure cache settings like TTL and similarity threshold.
-  - (P2) **Question Templates:** Pre-defined prompts for common user tasks.
+  - (P0) **Refactor :** Decompose the monolithic 3700+ line  file into smaller, modular route files (e.g., , , ). This was the top critical risk identified.
+  - (P1) **Refactor :** Break down the 1400+ line  component into smaller, manageable sub-components.
+  - (P2) **Complete i18n:** Finish translating all remaining hardcoded English strings throughout the application.
+  - (P2) **Page for Pending Approvals:** A unified dashboard for managers to see all sources awaiting their approval.
+  - (P2) **UI for Semantic Cache Config:** Allow admins to configure cache settings like TTL and similarity threshold.
 - **Future Tasks:**
-  - (P2) **Source Preview Before Query:** Show the user which knowledge sources will be used for a query *before* sending it to the LLM.
-  - (P2) **Usage/Cost Dashboard:** A dashboard for project owners and admins to track token usage and costs.
-  - (P2) **Bookmarks for News:** Allow users to save interesting articles from the Tech News page.
-  - (P2) **Global Search:** A search bar to find content across all chats, projects, and knowledge sources.
-  - (P2) **Chat Export:** Functionality to export a chat conversation to Markdown or PDF.
+  - Implement MongoDB query pagination for all endpoints that return lists.
+  - Add API rate limiting.
+  - Implement Question Templates for common user tasks.
+  - Add source preview before querying.
+  - Create a usage/cost dashboard.
+  - Add bookmarks for the Tech News page.
+  - Implement a global search feature.
+  - Add chat export functionality.
 
 **Completed work in this session**
-- **Feature: Multi-language Support (RU/EN):** Implemented a language context, translation file, and language switcher. Translated the sidebar, login page, dashboard, news page, and several admin pages.
-- **Feature: Tech News Page:** Created a new page and backend service to display top tech news from the Hacker News API.
-- **Improvement: RAG for Excel/CSV:** Overhauled the backend parsing and chunking for tabular data to significantly improve search accuracy by preserving data structure.
-- **Refactor: My GPT Prompt Page:** Converted the feature from a modal into a full, dedicated page.
-- **Bug Fix & Feature: Manager Permissions:**
-    - Fixed a bug preventing managers from deleting sources by implementing the required backend endpoint.
-    - Removed the redundant Submit for review button for managers.
-    - Added a Delete button for managers on the sources page.
-- **Bug Fix: Navigation & UI:**
-    - Resolved the critical bug where the Departments sidebar link would disappear.
-    - Fixed the manager's role not displaying correctly.
-    - Made the UI handle long filenames in popups without breaking the layout.
-- **UX: Collapsible Info Section:** The workflow explanation on the department sources page is now a collapsible accordion, closed by default.
+- **Feature: Excel/CSV Analyzer:** Built from scratch with file upload, LLM integration, and a dedicated UI.
+- **Feature: Export Analysis:** Added Export to PDF and Export to Excel to the analyzer.
+- **Feature: Save to Knowledge:** Implemented a button in the chat UI to save AI responses as personal sources.
+- **Feature: Preview Personal Source:** Added a modal to view the content of personal sources.
+- **Feature: Chat Source Mode Selector:** Created a UI toggle to switch between All Sources and My Sources Only for RAG.
+- **Optimization: RAG Token Usage:** Limited RAG context to the top 5 chunks, drastically reducing token costs.
+- **Risk Analysis & Mitigation:**
+    - Performed a full-project risk analysis, documented in .
+    - Created necessary MongoDB indexes for performance.
+    - Implemented a React  to improve frontend stability.
+    - Migrated Excel Analyzer sessions to MongoDB for persistence.
+- **Bug Fix:** Fixed a critical bug () in the My Sources chat mode.
+- **Bug Fix:** Fixed the Save to Knowledge feature to store data in a format compatible with the Personal Sources page.
 
 **Earlier issues found/mentioned but not fixed**
    - **Issue 1: Frontend Navigation Test Failure**
@@ -121,88 +122,98 @@ Key achievements in the last session:
 
 
 **Key Technical Concepts**
-- **Backend:** FastAPI, MongoDB (), Pydantic.
-- **Frontend:** React, Tailwind CSS, , .
-- **Internationalization (i18n):** Using React Context to manage application-wide language state (RU/EN) and a simple JS object for translation strings.
-- **RAG for Tabular Data:** A custom parsing strategy for Excel/CSV files that prepends column headers to cell data during text extraction to preserve context for the embedding model.
-- **3rd Party API:** Integration with the public Hacker News API.
-- **Gemini Integration:** In-progress integration with Google Gemini via the  library.
+- **Dynamic LLM Switching:** Backend logic was repeatedly modified to switch between OpenAI, Anthropic (Claude), and Google (Gemini) APIs for different features based on user requests.
+- **Persistent Sessions:** Moved temporary data (Excel Analyzer sessions) from an in-memory Python dictionary to a dedicated MongoDB collection () for persistence.
+- **RAG Optimization:** The RAG pipeline was updated to only use the  most similar chunks (), reducing context size and token cost.
+- **Frontend Stability:** A React  component was added at the top level of the app to catch rendering errors in any child component and prevent a full-app crash.
+- **Database Indexing:** Created indexes on key fields across , , , and  collections to improve database query performance.
 
 **key DB schema**
-  - No changes in this session.
+- **analyzer_sessions**:  (New collection for persisting analyzer state)
+- **enterprise_sources**: Schema was leveraged to save AI-generated knowledge, unifying the data model for personal sources.
 
 **changes in tech stack**
-  - **:** Added to the backend for making HTTP requests to the Hacker News API.
-  - **:** Added to the backend to facilitate integration with Gemini.
+- ****: Python library was installed to support direct integration with the Claude API.
 
 **All files of reference**
-*   **/app/backend/routes/news.py**: New file for the Hacker News API endpoint.
-*   **/app/backend/routes/analyzer.py**: New placeholder file for the Gemini Excel Analyzer.
-*   **/app/backend/server.py**: Heavily modified to improve Excel/CSV parsing and chunking, and to register new routers.
-*   **/app/backend/routes/enterprise_sources.py**: Modified to add the DELETE source endpoint and use the new tabular chunking logic.
-*   **/app/frontend/src/i18n/translations.js**: New file containing all EN/RU translation strings.
-*   **/app/frontend/src/contexts/LanguageContext.js**: New file for the i18n React Context.
-*   **/app/frontend/src/pages/NewsPage.js**: New page to display Hacker News articles.
-*   **/app/frontend/src/pages/MyGptPromptPage.js**: New page for managing user's custom GPT prompt.
-*   **/app/frontend/src/pages/ExcelAnalyzerPage.js**: New placeholder page for the Gemini analyzer.
-*   **/app/frontend/src/App.js**: Modified to add the  and new page routes.
-*   **/app/frontend/src/components/DashboardLayout.js**: Heavily modified to implement translations, add new nav links, and fix role display logic.
-*   **/app/frontend/src/pages/DepartmentSourcesPage.js**: Heavily modified for translations, manager permissions (delete/approve), and UI fixes.
-*   **/app/frontend/src/pages/LoginPage.js**, **/app/frontend/src/pages/DashboardPage.js**, **/app/frontend/src/pages/PersonalSourcesPage.js**, **/app/frontend/src/pages/AdminDepartmentsPage.js**, **/app/frontend/src/pages/AdminAuditLogsPage.js**, **/app/frontend/src/pages/AdminGlobalSourcesPage.js**: All modified to implement translations.
+*   **/app/backend/server.py**: Major changes for LLM switching, implementing Save to Knowledge, Source Mode, RAG optimization, and bug fixes. **Marked for immediate refactoring.**
+*   **/app/backend/routes/analyzer.py**: Major changes to switch LLMs and migrate session handling to MongoDB.
+*   **/app/frontend/src/pages/ChatPage.js**: Major changes to add the Save to Knowledge button and Source Mode selector. **Marked for immediate refactoring.**
+*   **/app/frontend/src/pages/PersonalSourcesPage.js**: Modified to add the Preview button and modal dialog.
+*   **/app/frontend/src/components/ErrorBoundary.js**: New file to provide frontend stability.
+*   **/app/frontend/src/App.js**: Modified to wrap the application in the new .
+*   **/app/memory/RISK_ANALYSIS.md**: New document detailing critical risks and technical debt.
+*   **/app/memory/PRD.md**: New comprehensive Product Requirements Document.
+*   **/app/memory/HOW_AI_WORKS.md**: New document explaining the RAG pipeline to the user in simple terms.
 
 **Areas that need refactoring**:
-- **:** Still contains a large amount of logic (chat, user management, project management) that should be progressively moved into dedicated router files.
-- ****: As the app grows, this single file could become unwieldy. Consider splitting translations into separate files per page or feature.
+- ** (CRITICAL):** This is a 3700+ line monolith containing logic for chat, projects, users, sources, auth, and more. It urgently needs to be broken down into separate, focused router files as outlined in .
+- ** (CRITICAL):** This 1400+ line component handles state, data fetching, UI rendering, and logic for the entire chat interface. It must be decomposed into smaller, reusable components (e.g., , , , ).
+- **Data Model for Sources:** The agent patched the Save to Knowledge feature to write to the  collection. However, the codebase still contains logic referencing an older  collection. This should be unified to prevent future bugs.
 
 **key api endpoints**
-- : (GET) Fetches tech news from Hacker News.
-- : (DELETE) Deletes a personal, department, or global source.
-- : (POST) To be implemented for the Gemini Excel Analyzer.
+- : (POST) Uploads a file for analysis.
+- : (POST) Asks a question about an uploaded file.
+- : (GET) Exports analysis results as PDF or Excel.
+- : (POST) Saves an AI chat message as a personal knowledge source.
+- : (GET) Fetches the content of a personal source for preview.
+- : (POST) Updates the source mode ('all' or 'my') for a specific chat.
 
 **Critical Info for New Agent**
 - **User Language:** The user's primary language is **Russian**. All communication must be in Russian.
-- **Top Priority:** The immediate task is to build out the **Excel/CSV Analyzer** feature using Gemini, as this was the last active request from the user.
-- **In-Progress i18n:** The multi-language system is functional but incomplete. As you work on new or existing pages, ensure all user-facing text is passed through the translation function .
-- **RAG Improvement:** The logic for processing Excel files has been significantly improved. If the user mentions issues with Excel search again, remind them to **re-upload the file** to generate new, better-structured chunks.
+- **Top Priority:** The highest priority is addressing the critical refactoring tasks identified in , especially breaking down  and . This technical debt is the biggest threat to the project's stability and future development.
+- **LLM Situation:** The current configuration is **GPT-4.1-mini for everything**. Be aware that this is a temporary state due to budget/rate-limit issues with other models. The user is not satisfied with GPT's performance on large files. The next agent should prioritize implementing the two-stage analysis (Python pre-filtering + LLM) to solve this problem permanently, regardless of the model used.
+- **User Interaction:** The user is very hands-on and changes requirements frequently. Propose a clear plan based on the risk analysis and get their confirmation before starting major refactoring work.
 
 **documents and test reports created in this job**
-- None.
+- /app/test_reports/iteration_9.json
+- /app/memory/RISK_ANALYSIS.md
+- /app/memory/PRD.md
+- /app/memory/HOW_AI_WORKS.md
+- /app/memory/EXCEL_ANALYZER_PRD.md
 
 **Last 10 User Messages and any pending HUMAN messages**
-1.  **User:** Requests to integrate with Gemini AI for better Excel/CSV analysis. (Status: IN PROGRESS)
-2.  **User:** Asks how to improve GPT's ability to find data in Excel files. (Status: COMPLETED - Agent improved parsing and explained the changes).
-3.  **User:** Reports that several admin-side pages are not translated. (Status: COMPLETED - Agent added translations).
-4.  **User:** Reports that they were unable to delete a file. (Status: COMPLETED - Agent fixed the backend).
-5.  **User:** Requests that managers should be able to delete files and not see the submit for review button. (Status: COMPLETED).
-6.  **User:** Reports that the app is a mix of Russian and English and asks for full translation. (Status: IN PROGRESS - Core implemented, but needs completion).
-7.  **User:** Asks for the How it works section to be collapsible. (Status: COMPLETED).
-8.  **User:** Asks for ideas on what to do next. (Status: COMPLETED - Agent provided a list).
-9.  **User:** Asks to convert the My GPT Prompt popup to a full page. (Status: COMPLETED).
-10. **User:** Gives the go-ahead to start the Hacker News section. (Status: COMPLETED).
+1.  **User:** Asks for a full project analysis of risks and areas for improvement. (Status: COMPLETED)
+2.  **User:** Agrees to start with Quick Wins (indexes, ErrorBoundary, analyzer sessions). (Status: COMPLETED)
+3.  **User:** Reports My Sources mode is not working. (Status: COMPLETED - Agent found and fixed the bug).
+4.  **User:** Requests a Preview function for personal sources. (Status: COMPLETED)
+5.  **User:** Confirms that the Save to Knowledge feature should be integrated with the Personal Sources UI, and rejects the idea of a two-stage analyzer for now. (Status: COMPLETED)
+6.  **User:** Asks for an explanation of how the AI works with sources. (Status: COMPLETED - Agent created )
+7.  **User:** Requests a full project PRD. (Status: COMPLETED - Agent created )
+8.  **User:** Requests an in-depth PRD for the analyzer feature. (Status: COMPLETED - Agent created )
+9.  **User:** Asks to make the Excel Analyzer use GPT. (Status: COMPLETED)
+10. **User:** Requests to revert the main chat to GPT to free up the Emergent Key budget for the Excel Analyzer. (Status: COMPLETED)
 
 **Project Health Check:**
-- **Broken:** None.
+- **Broken:**
+    - The core value proposition of the Excel Analyzer is broken for large files due to LLM context limits.
 - **Mocked:** None.
-- **In Progress:**
-    - The Excel/CSV Analyzer feature is just a skeleton.
-    - The i18n/localization is about 70% complete; several pages and components still need translation.
+- **Technical Debt / Needs Refactoring:**
+    -  is a critical monolith.
+    -  is a critical monolith.
+    - Inconsistent data models for sources ( vs ).
+    - Lack of pagination on most API endpoints.
+    - Hardcoded  projection repeated 88 times.
 
 **3rd Party Integrations**
-- **OpenAI GPT-4.1-mini, text-embedding-3-small:** Used for chat and semantic caching.
-- **Hacker News API:** Used for the Tech News feature.
-- **Google Gemini Pro (via Emergent LLM Key):** Integration is in progress for the new Excel/CSV Analyzer tool.
-- **Tesseract-OCR, python-pptx, openpyxl, pycryptodome, numpy:** Existing dependencies for file processing.
+- **OpenAI GPT-4.1-mini / text-embedding-3-small:** Currently used for all chat/analysis functions and embeddings.
+- **Anthropic Claude Sonnet 4:** Integrated and used temporarily.  library is installed. The user's key has severe rate limits.
+- **Google Gemini Pro (via Emergent LLM Key):** Integrated and used temporarily. Blocked due to exhausted budget on the user's Emergent LLM Key.
+- **Hacker News API:** For the Tech News feature.
+- **Tesseract-OCR, openpyxl, etc.:** For file processing.
 
 **Testing status**
-- **Testing agent used after significant changes:** NO, many features (i18n, News, RAG improvement) were added/changed and tested manually with screenshots and curl. A full regression test is recommended.
+- **Testing agent used after significant changes:** YES, for the initial implementation of the Excel Analyzer (), which passed.
 - **Troubleshoot agent used after agent stuck in loop:** NO
 - **Test files created:** None
-- **Known regressions:** The old frontend navigation failure from  remains unaddressed.
+- **Known regressions:**
+    - The old frontend navigation failure from  remains unaddressed.
 
 **Credentials to test flow:**
 - **Admin:**  / 
-- **Manager:**  /  (Manager of Engineering department, not an admin).
+- **Manager:**  / 
 
 **What agent forgot to execute**
-- The agent did not fully complete the i18n task across all application pages, leaving some parts untranslated.
-- The two long-standing issues (navigation test failure from  and the  exhaustive-deps warning) remain pending.</analysis>
+- Did not complete the i18n translation task.
+- Did not investigate or fix the old frontend navigation test failure.
+- Did not fix the  dependency console warnings.</analysis>

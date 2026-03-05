@@ -1,0 +1,429 @@
+"""Admin routes"""
+from fastapi import APIRouter, HTTPException, Depends
+from typing import List
+from datetime import datetime, timezone, timedelta
+import uuid
+
+from models.schemas import (
+    UserCreate, 
+    UserResponse, 
+    UserWithUsageResponse,
+    UpdateUserGlobalPermissionRequest,
+    GPTConfigUpdate,
+    GPTConfigResponse,
+    UserPromptUpdate,
+    UpdateUserModelRequest
+)
+from middleware.auth import get_current_user, is_admin, hash_password
+from db.connection import get_db
+from services.cache import CACHE_SIMILARITY_THRESHOLD, CACHE_TTL_DAYS
+
+router = APIRouter(prefix="/api", tags=["admin"])
+
+GLOBAL_PROJECT_ID = "__global__"
+
+
+@router.get("/admin/source-stats")
+async def get_source_stats(current_user: dict = Depends(get_current_user)):
+    """Get source statistics per user - for admin dashboard"""
+    db = get_db()
+    if not is_admin(current_user["email"]):
+        raise HTTPException(status_code=403, detail="Admin access required")
+    
+    users = await db.users.find({}, {"_id": 0, "id": 1, "email": 1}).to_list(1000)
+    user_map = {u["id"]: u["email"] for u in users}
+    
+    projects = await db.projects.find({}, {"_id": 0, "id": 1, "ownerId": 1, "name": 1}).to_list(1000)
+    project_owner_map = {p["id"]: p["ownerId"] for p in projects}
+    
+    sources = await db.sources.find({}, {"_id": 0, "projectId": 1, "sizeBytes": 1, "originalName": 1, "createdAt": 1, "kind": 1}).to_list(10000)
+    
+    user_stats = {}
+    for source in sources:
+        project_id = source.get("projectId")
+        owner_id = project_owner_map.get(project_id)
+        
+        if not owner_id:
+            continue
+            
+        if owner_id not in user_stats:
+            user_stats[owner_id] = {
+                "userId": owner_id,
+                "email": user_map.get(owner_id, "Unknown"),
+                "sourceCount": 0,
+                "totalSizeBytes": 0,
+                "fileCount": 0,
+                "urlCount": 0
+            }
+        
+        user_stats[owner_id]["sourceCount"] += 1
+        user_stats[owner_id]["totalSizeBytes"] += source.get("sizeBytes", 0) or 0
+        
+        if source.get("kind") == "url":
+            user_stats[owner_id]["urlCount"] += 1
+        else:
+            user_stats[owner_id]["fileCount"] += 1
+    
+    result = list(user_stats.values())
+    result.sort(key=lambda x: x["totalSizeBytes"], reverse=True)
+    
+    total_sources = sum(u["sourceCount"] for u in result)
+    total_size = sum(u["totalSizeBytes"] for u in result)
+    
+    return {
+        "users": result,
+        "totalSources": total_sources,
+        "totalSizeBytes": total_size
+    }
+
+
+@router.get("/admin/global-sources/stats")
+async def get_global_sources_usage_stats(current_user: dict = Depends(get_current_user)):
+    """Get usage statistics for all global sources"""
+    db = get_db()
+    if not is_admin(current_user["email"]):
+        raise HTTPException(status_code=403, detail="Admin access required")
+    
+    sources = await db.sources.find(
+        {"projectId": GLOBAL_PROJECT_ID}, 
+        {"_id": 0, "id": 1, "originalName": 1, "url": 1, "chunkCount": 1, "sizeBytes": 1, "createdAt": 1}
+    ).to_list(1000)
+    
+    result = []
+    for source in sources:
+        usage = await db.source_usage.find_one({"sourceId": source["id"]}, {"_id": 0})
+        
+        source_name = source.get("originalName") or source.get("url") or "Unknown"
+        
+        result.append({
+            "sourceId": source["id"],
+            "sourceName": source_name,
+            "chunkCount": source.get("chunkCount", 0),
+            "sizeBytes": source.get("sizeBytes", 0),
+            "createdAt": source.get("createdAt"),
+            "usageCount": usage.get("usageCount", 0) if usage else 0,
+            "lastUsedAt": usage.get("lastUsedAt") if usage else None,
+            "recentUsers": [
+                {"email": u["userEmail"], "timestamp": u["timestamp"]} 
+                for u in (usage.get("usageHistory", []) if usage else [])[-5:]
+            ]
+        })
+    
+    result.sort(key=lambda x: x["usageCount"], reverse=True)
+    
+    total_usage = sum(s["usageCount"] for s in result)
+    sources_used = sum(1 for s in result if s["usageCount"] > 0)
+    
+    return {
+        "sources": result,
+        "totalUsageCount": total_usage,
+        "sourcesUsedCount": sources_used,
+        "totalSourcesCount": len(result)
+    }
+
+
+@router.get("/admin/cache/stats")
+async def get_cache_stats(current_user: dict = Depends(get_current_user)):
+    """Get semantic cache statistics"""
+    db = get_db()
+    if not is_admin(current_user["email"]):
+        raise HTTPException(status_code=403, detail="Admin access required")
+    
+    cache_entries = await db.semantic_cache.find({}, {"_id": 0, "embedding": 0}).to_list(1000)
+    
+    total_entries = len(cache_entries)
+    total_hits = sum(e.get("hitCount", 0) for e in cache_entries)
+    
+    by_project = {}
+    for entry in cache_entries:
+        pid = entry.get("projectId") or "global"
+        if pid not in by_project:
+            by_project[pid] = {"count": 0, "hits": 0}
+        by_project[pid]["count"] += 1
+        by_project[pid]["hits"] += entry.get("hitCount", 0)
+    
+    top_entries = sorted(cache_entries, key=lambda x: x.get("hitCount", 0), reverse=True)[:10]
+    
+    return {
+        "totalEntries": total_entries,
+        "totalHits": total_hits,
+        "byProject": by_project,
+        "topEntries": [{
+            "id": e["id"],
+            "question": e["question"][:100] + "..." if len(e.get("question", "")) > 100 else e.get("question", ""),
+            "hitCount": e.get("hitCount", 0),
+            "lastHitAt": e.get("lastHitAt"),
+            "createdAt": e.get("createdAt")
+        } for e in top_entries],
+        "settings": {
+            "similarityThreshold": CACHE_SIMILARITY_THRESHOLD,
+            "ttlDays": CACHE_TTL_DAYS
+        }
+    }
+
+
+@router.delete("/admin/cache/clear")
+async def clear_cache(current_user: dict = Depends(get_current_user)):
+    """Clear all semantic cache entries"""
+    db = get_db()
+    if not is_admin(current_user["email"]):
+        raise HTTPException(status_code=403, detail="Admin access required")
+    
+    result = await db.semantic_cache.delete_many({})
+    return {"message": f"Cleared {result.deleted_count} cache entries"}
+
+
+@router.delete("/admin/cache/{cache_id}")
+async def delete_cache_entry(cache_id: str, current_user: dict = Depends(get_current_user)):
+    """Delete specific cache entry"""
+    db = get_db()
+    if not is_admin(current_user["email"]):
+        raise HTTPException(status_code=403, detail="Admin access required")
+    
+    result = await db.semantic_cache.delete_one({"id": cache_id})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Cache entry not found")
+    return {"message": "Cache entry deleted"}
+
+
+@router.get("/admin/config", response_model=GPTConfigResponse)
+async def get_gpt_config(current_user: dict = Depends(get_current_user)):
+    db = get_db()
+    if not is_admin(current_user["email"]):
+        raise HTTPException(status_code=403, detail="Admin access required")
+    
+    config = await db.gpt_config.find_one({"id": "1"}, {"_id": 0})
+    if not config:
+        config = {
+            "id": "1",
+            "model": "claude-sonnet-4-20250514",
+            "developerPrompt": "You are a helpful assistant.",
+            "updatedAt": datetime.now(timezone.utc).isoformat()
+        }
+        await db.gpt_config.insert_one(config)
+    return GPTConfigResponse(**config)
+
+
+@router.put("/admin/config", response_model=GPTConfigResponse)
+async def update_gpt_config(config_data: GPTConfigUpdate, current_user: dict = Depends(get_current_user)):
+    db = get_db()
+    if not is_admin(current_user["email"]):
+        raise HTTPException(status_code=403, detail="Admin access required")
+    
+    update_data = {"updatedAt": datetime.now(timezone.utc).isoformat()}
+    if config_data.model is not None:
+        update_data["model"] = config_data.model
+    if config_data.developerPrompt is not None:
+        update_data["developerPrompt"] = config_data.developerPrompt
+    
+    await db.gpt_config.update_one({"id": "1"}, {"$set": update_data}, upsert=True)
+    
+    updated_config = await db.gpt_config.find_one({"id": "1"}, {"_id": 0})
+    return GPTConfigResponse(**updated_config)
+
+
+# ==================== USER MANAGEMENT ====================
+
+@router.post("/admin/users", response_model=UserResponse)
+async def admin_create_user(user_data: UserCreate, current_user: dict = Depends(get_current_user)):
+    """Admin creates a new user"""
+    db = get_db()
+    if not is_admin(current_user["email"]):
+        raise HTTPException(status_code=403, detail="Admin access required")
+    
+    existing = await db.users.find_one({"email": user_data.email})
+    if existing:
+        raise HTTPException(status_code=400, detail="Email already registered")
+    
+    user_id = str(uuid.uuid4())
+    user = {
+        "id": user_id,
+        "email": user_data.email,
+        "passwordHash": hash_password(user_data.password),
+        "createdAt": datetime.now(timezone.utc).isoformat(),
+        "departments": [],
+        "primaryDepartmentId": None,
+        "canEditGlobalSources": False
+    }
+    await db.users.insert_one(user)
+    
+    return UserResponse(
+        id=user_id,
+        email=user_data.email,
+        isAdmin=is_admin(user_data.email),
+        createdAt=user["createdAt"]
+    )
+
+
+@router.get("/users/list")
+async def list_users_for_sharing(current_user: dict = Depends(get_current_user)):
+    """Get list of all users (for sharing projects)"""
+    db = get_db()
+    users = await db.users.find({}, {"_id": 0, "passwordHash": 0}).to_list(1000)
+    return [{"id": u["id"], "email": u["email"]} for u in users if u["id"] != current_user["id"]]
+
+
+@router.get("/admin/users", response_model=List[UserWithUsageResponse])
+async def admin_list_users(current_user: dict = Depends(get_current_user)):
+    """Admin gets list of all users with token usage"""
+    db = get_db()
+    if not is_admin(current_user["email"]):
+        raise HTTPException(status_code=403, detail="Admin access required")
+    
+    users = await db.users.find({}, {"_id": 0, "passwordHash": 0}).to_list(1000)
+    
+    result = []
+    for user in users:
+        usage = await db.token_usage.find_one({"userId": user["id"]}, {"_id": 0})
+        total_tokens = usage.get("totalTokens", 0) if usage else 0
+        message_count = usage.get("messageCount", 0) if usage else 0
+        
+        result.append(UserWithUsageResponse(
+            id=user["id"],
+            email=user["email"],
+            isAdmin=is_admin(user["email"]),
+            createdAt=user["createdAt"],
+            totalTokensUsed=total_tokens,
+            totalMessagesCount=message_count,
+            canEditGlobalSources=user.get("canEditGlobalSources", False)
+        ))
+    
+    return result
+
+
+@router.delete("/admin/users/{user_id}")
+async def admin_delete_user(user_id: str, current_user: dict = Depends(get_current_user)):
+    """Admin deletes a user"""
+    db = get_db()
+    if not is_admin(current_user["email"]):
+        raise HTTPException(status_code=403, detail="Admin access required")
+    
+    user = await db.users.find_one({"id": user_id})
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    if user_id == current_user["id"]:
+        raise HTTPException(status_code=400, detail="Cannot delete yourself")
+    
+    await db.users.delete_one({"id": user_id})
+    await db.token_usage.delete_one({"userId": user_id})
+    await db.user_prompts.delete_one({"userId": user_id})
+    await db.chats.delete_many({"ownerId": user_id})
+    
+    projects = await db.projects.find({"ownerId": user_id}).to_list(1000)
+    for project in projects:
+        project_id = project["id"]
+        chats = await db.chats.find({"projectId": project_id}).to_list(1000)
+        for chat in chats:
+            await db.messages.delete_many({"chatId": chat["id"]})
+        await db.chats.delete_many({"projectId": project_id})
+        await db.sources.delete_many({"projectId": project_id})
+        await db.source_chunks.delete_many({"projectId": project_id})
+        await db.generated_images.delete_many({"projectId": project_id})
+    await db.projects.delete_many({"ownerId": user_id})
+    
+    return {"message": "User deleted successfully"}
+
+
+@router.get("/admin/users/{user_id}/details")
+async def get_user_details(user_id: str, current_user: dict = Depends(get_current_user)):
+    """Get detailed user info for admin"""
+    db = get_db()
+    if not is_admin(current_user["email"]):
+        raise HTTPException(status_code=403, detail="Admin access required")
+    
+    user = await db.users.find_one({"id": user_id}, {"_id": 0, "passwordHash": 0})
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    user_prompt = await db.user_prompts.find_one({"userId": user_id}, {"_id": 0})
+    projects = await db.projects.find({"ownerId": user_id}, {"_id": 0}).to_list(100)
+    
+    projects_with_stats = []
+    for p in projects:
+        chat_count = await db.chats.count_documents({"projectId": p["id"]})
+        source_count = await db.sources.count_documents({"projectId": p["id"]})
+        projects_with_stats.append({**p, "chatCount": chat_count, "sourceCount": source_count})
+    
+    usage = await db.token_usage.find_one({"userId": user_id}, {"_id": 0})
+    
+    user_messages = await db.messages.find(
+        {"senderEmail": user["email"], "role": "user"},
+        {"_id": 0, "id": 1, "chatId": 1, "content": 1, "createdAt": 1}
+    ).sort("createdAt", -1).to_list(20)
+    
+    user_model = user.get("gptModel")
+    prompt_text = ""
+    if user_prompt:
+        prompt_text = user_prompt.get("customPrompt") or user_prompt.get("prompt", "")
+    
+    return {
+        "user": user,
+        "prompt": prompt_text,
+        "gptModel": user_model,
+        "projects": projects_with_stats,
+        "tokenUsage": {
+            "totalTokens": usage.get("totalTokensUsed", 0) if usage else 0,
+            "totalMessages": usage.get("totalMessagesCount", 0) if usage else 0
+        },
+        "recentActivity": user_messages
+    }
+
+
+@router.put("/admin/users/{user_id}/prompt")
+async def update_user_prompt_admin(user_id: str, data: UserPromptUpdate, current_user: dict = Depends(get_current_user)):
+    """Admin updates user's custom prompt"""
+    db = get_db()
+    if not is_admin(current_user["email"]):
+        raise HTTPException(status_code=403, detail="Admin access required")
+    
+    user = await db.users.find_one({"id": user_id}, {"_id": 0})
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    await db.user_prompts.update_one(
+        {"userId": user_id},
+        {"$set": {"userId": user_id, "customPrompt": data.customPrompt, "updatedAt": datetime.now(timezone.utc).isoformat()}},
+        upsert=True
+    )
+    
+    return {"message": "Prompt updated"}
+
+
+@router.put("/admin/users/{user_id}/gpt-model")
+async def update_user_gpt_model(user_id: str, data: UpdateUserModelRequest, current_user: dict = Depends(get_current_user)):
+    """Admin sets user-specific GPT model"""
+    db = get_db()
+    if not is_admin(current_user["email"]):
+        raise HTTPException(status_code=403, detail="Admin access required")
+    
+    user = await db.users.find_one({"id": user_id}, {"_id": 0})
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    await db.users.update_one({"id": user_id}, {"$set": {"gptModel": data.model}})
+    
+    return {"message": "Model updated", "model": data.model}
+
+
+@router.put("/admin/users/{user_id}/global-permission")
+async def update_user_global_permission(
+    user_id: str, 
+    data: UpdateUserGlobalPermissionRequest,
+    current_user: dict = Depends(get_current_user)
+):
+    """Admin grants/revokes global source editing permission"""
+    db = get_db()
+    if not is_admin(current_user["email"]):
+        raise HTTPException(status_code=403, detail="Admin access required")
+    
+    user = await db.users.find_one({"id": user_id}, {"_id": 0})
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    await db.users.update_one(
+        {"id": user_id},
+        {"$set": {"canEditGlobalSources": data.canEditGlobalSources}}
+    )
+    
+    return {"message": f"Global sources permission {'granted' if data.canEditGlobalSources else 'revoked'}"}

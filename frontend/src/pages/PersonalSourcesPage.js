@@ -8,11 +8,12 @@ import { Input } from '../components/ui/input';
 import { toast } from 'sonner';
 import { 
   FileText, Upload, Trash2, Share, Clock, Database,
-  Lock, History, ChevronRight, Building2, FolderOpen
+  Lock, History, ChevronRight, Building2, FolderOpen, Eye, Search
 } from 'lucide-react';
 import DashboardLayout from '../components/DashboardLayout';
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
+import SourceInsightsModal from '../components/SourceInsightsModal';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
@@ -32,6 +33,14 @@ const PersonalSourcesPage = () => {
   const [projects, setProjects] = useState([]);
   const [departments, setDepartments] = useState([]);
   const [isPublishing, setIsPublishing] = useState(false);
+  
+  // Preview dialog
+  const [previewSource, setPreviewSource] = useState(null);
+  const [previewContent, setPreviewContent] = useState('');
+  const [isLoadingPreview, setIsLoadingPreview] = useState(false);
+  
+  // Insights modal
+  const [insightsSource, setInsightsSource] = useState(null);
 
   useEffect(() => {
     fetchSources();
@@ -93,6 +102,22 @@ const PersonalSourcesPage = () => {
       toast.success('Source deleted');
     } catch (error) {
       toast.error('Failed to delete');
+    }
+  };
+
+  const openPreview = async (source) => {
+    setPreviewSource(source);
+    setIsLoadingPreview(true);
+    setPreviewContent('');
+    
+    try {
+      const response = await axios.get(`${API}/personal-sources/${source.id}/preview`);
+      setPreviewContent(response.data.content || response.data.extractedText || 'No content available');
+    } catch (error) {
+      setPreviewContent('Failed to load preview');
+      toast.error('Failed to load preview');
+    } finally {
+      setIsLoadingPreview(false);
     }
   };
 
@@ -255,12 +280,32 @@ const PersonalSourcesPage = () => {
                       </div>
                     </div>
                     
-                    <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setInsightsSource(source)}
+                        data-testid={`analyze-btn-${source.id}`}
+                        title="Анализировать источник"
+                      >
+                        <Search className="h-4 w-4 mr-1" />
+                        Анализ
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => openPreview(source)}
+                        data-testid={`preview-btn-${source.id}`}
+                      >
+                        <Eye className="h-4 w-4 mr-1" />
+                        Просмотр
+                      </Button>
                       <Button
                         variant="outline"
                         size="sm"
                         onClick={() => openVersionsDialog(source)}
                         data-testid={`versions-btn-${source.id}`}
+                        className=""
                       >
                         <History className="h-4 w-4 mr-1" />
                         История
@@ -270,6 +315,7 @@ const PersonalSourcesPage = () => {
                         size="sm"
                         onClick={() => openPublishDialog(source)}
                         data-testid={`publish-btn-${source.id}`}
+                        className=""
                       >
                         <Share className="h-4 w-4 mr-1" />
                         Опубликовать
@@ -277,7 +323,7 @@ const PersonalSourcesPage = () => {
                       <Button
                         variant="ghost"
                         size="icon"
-                        className="text-destructive"
+                        className="text-destructive "
                         onClick={() => deleteSource(source.id)}
                       >
                         <Trash2 className="h-4 w-4" />
@@ -289,6 +335,15 @@ const PersonalSourcesPage = () => {
             ))}
           </div>
         )}
+
+        {/* Source Insights Modal */}
+        <SourceInsightsModal
+          isOpen={!!insightsSource}
+          onClose={() => setInsightsSource(null)}
+          sourceId={insightsSource?.id}
+          sourceName={insightsSource?.originalName}
+          token={axios.defaults.headers.common['Authorization']?.replace('Bearer ', '')}
+        />
 
         {/* Versions Dialog */}
         <Dialog open={!!selectedSource && !publishDialogOpen} onOpenChange={(open) => !open && setSelectedSource(null)}>
@@ -412,6 +467,48 @@ const PersonalSourcesPage = () => {
               <Button onClick={publishSource} disabled={isPublishing || !publishTarget.id}>
                 {isPublishing ? <div className="spinner mr-2" /> : null}
                 Опубликовать
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Preview Dialog */}
+        <Dialog open={!!previewSource} onOpenChange={(open) => !open && setPreviewSource(null)}>
+          <DialogContent className="sm:max-w-2xl max-h-[80vh]">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Eye className="h-5 w-5 text-violet-400" />
+                Просмотр содержимого
+              </DialogTitle>
+              <DialogDescription>
+                {previewSource?.originalName}
+              </DialogDescription>
+            </DialogHeader>
+            
+            {isLoadingPreview ? (
+              <div className="flex justify-center py-8">
+                <div className="spinner" />
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <div className="flex items-center gap-4 text-sm text-muted-foreground border-b pb-3">
+                  <span>{formatBytes(previewSource?.sizeBytes || 0)}</span>
+                  <span>•</span>
+                  <span>{previewSource?.chunkCount || 0} chunks</span>
+                  <span>•</span>
+                  <span>v{previewSource?.version || 1}</span>
+                </div>
+                <div className="bg-muted/50 rounded-lg p-4 max-h-[400px] overflow-y-auto">
+                  <pre className="whitespace-pre-wrap text-sm font-mono">
+                    {previewContent}
+                  </pre>
+                </div>
+              </div>
+            )}
+            
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setPreviewSource(null)}>
+                Закрыть
               </Button>
             </DialogFooter>
           </DialogContent>

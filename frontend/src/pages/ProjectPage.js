@@ -8,9 +8,10 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Label } from '../components/ui/label';
 import { Checkbox } from '../components/ui/checkbox';
 import { toast } from 'sonner';
-import { Plus, MessageSquare, Trash2, Clock, ArrowRight, ArrowLeft, FolderOpen, Share2, Users, X, Shield, Eye, Edit, Settings } from 'lucide-react';
+import { Plus, MessageSquare, Trash2, Clock, ArrowRight, ArrowLeft, FolderOpen, Share2, Users, X, Shield, Eye, Edit, Settings, Search } from 'lucide-react';
 import DashboardLayout from '../components/DashboardLayout';
 import { useAuth } from '../contexts/AuthContext';
+import SourceInsightsModal from '../components/SourceInsightsModal';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
@@ -46,6 +47,9 @@ const ProjectPage = () => {
   const [chatVisibility, setChatVisibility] = useState({});
   const [isUpdatingVisibility, setIsUpdatingVisibility] = useState(false);
   const [isUpdatingRole, setIsUpdatingRole] = useState(null);
+  
+  // Source insights
+  const [insightsSource, setInsightsSource] = useState(null);
 
   useEffect(() => {
     fetchProjectAndChats();
@@ -630,13 +634,13 @@ const ProjectPage = () => {
                         <Button
                           variant="ghost"
                           size="icon"
-                          className="opacity-0 group-hover:opacity-100 transition-opacity h-8 w-8"
+                          className=" h-8 w-8"
                           onClick={(e) => deleteChat(chat.id, e)}
                           data-testid={`delete-chat-${chat.id}`}
                         >
                           <Trash2 className="h-4 w-4 text-destructive" />
                         </Button>
-                        <ArrowRight className="h-4 w-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+                        <ArrowRight className="h-4 w-4 text-muted-foreground " />
                       </div>
                     </div>
                   </CardContent>
