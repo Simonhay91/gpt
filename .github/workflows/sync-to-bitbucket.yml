@@ -19,7 +19,7 @@ jobs:
       - name: Set up SSH key
         run: |
           mkdir -p ~/.ssh
-          echo "${{ secrets.BITBUCKET_SSH_KEY_RAW }}" > ~/.ssh/bitbucket_key
+          echo "${{ secrets.BITBUCKET_SSH_KEY_WORKSPACE }}" > ~/.ssh/bitbucket_key
           chmod 600 ~/.ssh/bitbucket_key
           ssh-keyscan -t rsa bitbucket.org >> ~/.ssh/known_hosts
 
