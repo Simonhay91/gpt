@@ -3743,17 +3743,23 @@ async def analyze_source(source_id: str, current_user: dict = Depends(get_curren
 1. A brief summary (2-3 sentences) describing what this document contains
 2. Exactly 5 specific questions that a user could ask about this document's content
 
+IMPORTANT: Detect the language of the document and respond in THE SAME LANGUAGE as the document content. 
+- If the document is in Armenian, respond in Armenian
+- If the document is in Russian, respond in Russian  
+- If the document is in English, respond in English
+- etc.
+
 Document name: {source_name}
 Document content:
 {text_for_analysis}
 
 Respond in JSON format:
 {{
-  "summary": "Your 2-3 sentence summary here",
+  "summary": "Your 2-3 sentence summary here (in document's language)",
   "questions": ["Question 1?", "Question 2?", "Question 3?", "Question 4?", "Question 5?"]
 }}
 
-Important: Respond ONLY with valid JSON, no additional text. Questions should be specific to this document's actual content."""
+Important: Respond ONLY with valid JSON, no additional text. Questions and summary must be in the SAME LANGUAGE as the document."""
 
         response = claude_client.messages.create(
             model="claude-sonnet-4-20250514",
