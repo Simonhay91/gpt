@@ -3743,17 +3743,23 @@ async def analyze_source(source_id: str, current_user: dict = Depends(get_curren
 1. A brief summary (2-3 sentences) describing what this document contains
 2. Exactly 5 specific questions that a user could ask about this document's content
 
+IMPORTANT: Detect the language of the document and respond in THE SAME LANGUAGE as the document content. 
+- If the document is in Armenian, respond in Armenian
+- If the document is in Russian, respond in Russian  
+- If the document is in English, respond in English
+- etc.
+
 Document name: {source_name}
 Document content:
 {text_for_analysis}
 
 Respond in JSON format:
 {{
-  "summary": "Your 2-3 sentence summary here",
+  "summary": "Your 2-3 sentence summary here (in document's language)",
   "questions": ["Question 1?", "Question 2?", "Question 3?", "Question 4?", "Question 5?"]
 }}
 
-Important: Respond ONLY with valid JSON, no additional text. Questions should be specific to this document's actual content."""
+Important: Respond ONLY with valid JSON, no additional text. Questions and summary must be in the SAME LANGUAGE as the document."""
 
         response = claude_client.messages.create(
             model="claude-sonnet-4-20250514",
@@ -3913,6 +3919,11 @@ async def generate_smart_questions(chat_id: str, current_user: dict = Depends(ge
         
         prompt = f"""Based on the following document excerpts, generate exactly 5 specific, useful questions that a user might want to ask about this content.
 
+IMPORTANT: Detect the language of the content and generate questions in THE SAME LANGUAGE.
+- If content is in Armenian, questions must be in Armenian
+- If content is in Russian, questions must be in Russian
+- If content is in English, questions must be in English
+
 Available sources: {', '.join(source_names[:10])}
 
 Content excerpts:
@@ -3922,6 +3933,7 @@ Generate 5 practical questions that:
 - Are specific to the actual content shown
 - Would be useful for someone working with these documents
 - Cover different aspects of the content
+- Are in the SAME LANGUAGE as the content
 
 Respond with ONLY a JSON array of 5 questions:
 ["Question 1?", "Question 2?", "Question 3?", "Question 4?", "Question 5?"]"""

@@ -160,8 +160,6 @@ def setup_analyzer_routes(db, get_current_user):
             raise HTTPException(status_code=500, detail="API key not configured")
         
         try:
-            from emergentintegrations.llm.chat import LlmChat, UserMessage
-            
             # Read file content as text
             file_text = ""
             max_rows_for_context = 10000  # Increased limit
