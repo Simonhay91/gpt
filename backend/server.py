@@ -3919,6 +3919,11 @@ async def generate_smart_questions(chat_id: str, current_user: dict = Depends(ge
         
         prompt = f"""Based on the following document excerpts, generate exactly 5 specific, useful questions that a user might want to ask about this content.
 
+IMPORTANT: Detect the language of the content and generate questions in THE SAME LANGUAGE.
+- If content is in Armenian, questions must be in Armenian
+- If content is in Russian, questions must be in Russian
+- If content is in English, questions must be in English
+
 Available sources: {', '.join(source_names[:10])}
 
 Content excerpts:
@@ -3928,6 +3933,7 @@ Generate 5 practical questions that:
 - Are specific to the actual content shown
 - Would be useful for someone working with these documents
 - Cover different aspects of the content
+- Are in the SAME LANGUAGE as the content
 
 Respond with ONLY a JSON array of 5 questions:
 ["Question 1?", "Question 2?", "Question 3?", "Question 4?", "Question 5?"]"""
