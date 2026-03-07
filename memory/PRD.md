@@ -724,7 +724,7 @@ db.audit_logs.createIndex({ "userId": 1, "action": 1 })
 
 ### Base URL
 ```
-Production: https://team-knowledge-hub.preview.emergentagent.com/api
+Production: https://collab-saas-hub.preview.emergentagent.com/api
 ```
 
 ### Authentication Header
