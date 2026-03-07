@@ -1,4 +1,4 @@
-from fastapi import FastAPI, APIRouter, HTTPException, Depends, status, UploadFile, File, Query
+from fastapi import FastAPI, APIRouter, HTTPException, Depends, status, UploadFile, File
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from fastapi.responses import FileResponse, StreamingResponse
 from dotenv import load_dotenv
@@ -113,33 +113,6 @@ logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
-
-# ==================== PAGINATION HELPER ====================
-
-class PaginatedResponse(BaseModel):
-    items: List[dict]
-    total: int
-    page: int
-    pageSize: int
-    totalPages: int
-
-async def paginate_query(collection, query: dict, page: int = 1, page_size: int = 50, 
-                         sort_field: str = "createdAt", sort_order: int = -1, 
-                         projection: dict = None):
-    """Generic pagination helper for MongoDB queries"""
-    if projection is None:
-        projection = {"_id": 0}
-    skip = (page - 1) * page_size
-    total = await collection.count_documents(query)
-    items = await collection.find(query, projection).sort(sort_field, sort_order).skip(skip).limit(page_size).to_list(page_size)
-    total_pages = (total + page_size - 1) // page_size if total > 0 else 1
-    return {
-        "items": items,
-        "total": total,
-        "page": page,
-        "pageSize": page_size,
-        "totalPages": total_pages
-    }
 
 # ==================== MODELS ====================
 
@@ -1107,18 +1080,17 @@ async def verify_project_access(project_id: str, user_id: str):
     
     return project
 
-@api_router.get("/projects")
-async def get_projects(
-    page: int = Query(1, ge=1, description="Page number"),
-    page_size: int = Query(50, ge=1, le=100, description="Items per page"),
-    current_user: dict = Depends(get_current_user)
-):
-    """Get projects with pagination"""
-    query = {"$or": [{"ownerId": current_user["id"]}, {"sharedWith": current_user["id"]}]}
-    result = await paginate_query(db.projects, query, page, page_size)
-    # Transform items to ProjectResponse format
-    result["items"] = [{**p, "sharedWith": p.get("sharedWith", [])} for p in result["items"]]
-    return result
+@api_router.get("/projects", response_model=List[ProjectResponse])
+async def get_projects(current_user: dict = Depends(get_current_user)):
+    # Get owned projects and shared projects
+    projects = await db.projects.find(
+        {"$or": [
+            {"ownerId": current_user["id"]},
+            {"sharedWith": current_user["id"]}
+        ]},
+        {"_id": 0}
+    ).to_list(1000)
+    return [ProjectResponse(**{**p, "sharedWith": p.get("sharedWith", [])}) for p in projects]
 
 @api_router.post("/projects", response_model=ProjectResponse)
 async def create_project(project_data: ProjectCreate, current_user: dict = Depends(get_current_user)):
@@ -1341,17 +1313,14 @@ async def delete_project(project_id: str, current_user: dict = Depends(get_curre
 
 # --- Quick Chats (no project) ---
 
-@api_router.get("/quick-chats")
-async def get_quick_chats(
-    page: int = Query(1, ge=1),
-    page_size: int = Query(50, ge=1, le=100),
-    current_user: dict = Depends(get_current_user)
-):
-    """Get all quick chats with pagination"""
-    query = {"ownerId": current_user["id"], "projectId": None}
-    result = await paginate_query(db.chats, query, page, page_size)
-    result["items"] = [{**c, "activeSourceIds": c.get("activeSourceIds", [])} for c in result["items"]]
-    return result
+@api_router.get("/quick-chats", response_model=List[ChatResponse])
+async def get_quick_chats(current_user: dict = Depends(get_current_user)):
+    """Get all quick chats (chats without a project) for the current user"""
+    chats = await db.chats.find({
+        "ownerId": current_user["id"],
+        "projectId": None
+    }, {"_id": 0}).to_list(1000)
+    return [ChatResponse(**{**c, "activeSourceIds": c.get("activeSourceIds", [])}) for c in chats]
 
 @api_router.post("/quick-chats", response_model=ChatResponse)
 async def create_quick_chat(chat_data: QuickChatCreate, current_user: dict = Depends(get_current_user)):
@@ -1419,33 +1388,27 @@ async def rename_chat(chat_id: str, data: RenameChatRequest, current_user: dict 
 
 # --- Project Chats ---
 
-@api_router.get("/projects/{project_id}/chats")
-async def get_chats(
-    project_id: str, 
-    page: int = Query(1, ge=1),
-    page_size: int = Query(50, ge=1, le=100),
-    current_user: dict = Depends(get_current_user)
-):
-    """Get project chats with pagination"""
+@api_router.get("/projects/{project_id}/chats", response_model=List[ChatResponse])
+async def get_chats(project_id: str, current_user: dict = Depends(get_current_user)):
     project = await verify_project_ownership(project_id, current_user["id"])
     
-    query = {"projectId": project_id}
-    result = await paginate_query(db.chats, query, page, page_size)
+    chats = await db.chats.find({"projectId": project_id}, {"_id": 0}).to_list(1000)
     
     # If user is owner, return all chats
     if project["ownerId"] == current_user["id"]:
-        result["items"] = [{**c, "activeSourceIds": c.get("activeSourceIds", []), "sharedWithUsers": c.get("sharedWithUsers")} for c in result["items"]]
-    else:
-        # If user is shared, filter chats by visibility
-        visible = []
-        for c in result["items"]:
-            shared_with = c.get("sharedWithUsers")
-            if shared_with is None or current_user["id"] in shared_with:
-                visible.append({**c, "activeSourceIds": c.get("activeSourceIds", []), "sharedWithUsers": shared_with})
-        result["items"] = visible
-        result["total"] = len(visible)
+        return [ChatResponse(**{**c, "activeSourceIds": c.get("activeSourceIds", []), "sharedWithUsers": c.get("sharedWithUsers")}) for c in chats]
     
-    return result
+    # If user is shared, filter chats by visibility
+    visible_chats = []
+    for c in chats:
+        shared_with = c.get("sharedWithUsers")
+        # None means visible to all shared users
+        # Empty list [] means hidden from all shared users
+        # List with IDs means only those users can see it
+        if shared_with is None or current_user["id"] in shared_with:
+            visible_chats.append(ChatResponse(**{**c, "activeSourceIds": c.get("activeSourceIds", []), "sharedWithUsers": shared_with}))
+    
+    return visible_chats
 
 @api_router.post("/projects/{project_id}/chats", response_model=ChatResponse)
 async def create_chat(project_id: str, chat_data: ChatCreate, current_user: dict = Depends(get_current_user)):
@@ -1832,21 +1795,27 @@ async def add_url_source(
         chunkCount=len(chunks)
     )
 
-@api_router.get("/projects/{project_id}/sources")
-async def list_sources(
-    project_id: str, 
-    page: int = Query(1, ge=1),
-    page_size: int = Query(50, ge=1, le=100),
-    current_user: dict = Depends(get_current_user)
-):
-    """List all sources in a project with pagination"""
+@api_router.get("/projects/{project_id}/sources", response_model=List[SourceResponse])
+async def list_sources(project_id: str, current_user: dict = Depends(get_current_user)):
+    """List all sources in a project"""
     await verify_project_ownership(project_id, current_user["id"])
     
-    result = await paginate_query(db.sources, {"projectId": project_id}, page, page_size)
+    sources = await db.sources.find({"projectId": project_id}, {"_id": 0}).to_list(1000)
     
-    # Add chunk counts
-    for s in result["items"]:
-        s["chunkCount"] = await db.source_chunks.count_documents({"sourceId": s["id"]})
+    result = []
+    for s in sources:
+        chunk_count = await db.source_chunks.count_documents({"sourceId": s["id"]})
+        result.append(SourceResponse(
+            id=s["id"],
+            projectId=s["projectId"],
+            kind=s["kind"],
+            originalName=s.get("originalName"),
+            url=s.get("url"),
+            mimeType=s.get("mimeType"),
+            sizeBytes=s.get("sizeBytes"),
+            createdAt=s["createdAt"],
+            chunkCount=chunk_count
+        ))
     
     return result
 
@@ -2313,34 +2282,32 @@ async def get_active_sources(chat_id: str, current_user: dict = Depends(get_curr
 
 # ==================== MESSAGE ENDPOINTS ====================
 
-@api_router.get("/chats/{chat_id}/messages")
-async def get_messages(
-    chat_id: str, 
-    page: int = Query(1, ge=1),
-    page_size: int = Query(100, ge=1, le=500),
-    current_user: dict = Depends(get_current_user)
-):
-    """Get chat messages with pagination"""
+@api_router.get("/chats/{chat_id}/messages", response_model=List[MessageResponse])
+async def get_messages(chat_id: str, current_user: dict = Depends(get_current_user)):
     chat = await db.chats.find_one({"id": chat_id}, {"_id": 0})
     if not chat:
         raise HTTPException(status_code=404, detail="Chat not found")
     
+    # Verify ownership - for quick chats check ownerId, for project chats check project ownership
     if chat.get("projectId"):
         await verify_project_ownership(chat["projectId"], current_user["id"])
     elif chat.get("ownerId") != current_user["id"]:
         raise HTTPException(status_code=403, detail="Not authorized")
     
-    result = await paginate_query(db.messages, {"chatId": chat_id}, page, page_size, "createdAt", 1)
+    messages = await db.messages.find({"chatId": chat_id}, {"_id": 0}).sort("createdAt", 1).to_list(1000)
     
-    # Enrich message data
-    result["items"] = [{
-        **m, 
-        "citations": m.get("citations"), 
-        "usedSources": m.get("usedSources"),
-        "autoIngestedUrls": m.get("autoIngestedUrls"),
-        "senderEmail": m.get("senderEmail"),
-        "senderName": m.get("senderName")
-    } for m in result["items"]]
+    # Get sender info for user messages
+    result = []
+    for m in messages:
+        msg_data = {
+            **m, 
+            "citations": m.get("citations"), 
+            "usedSources": m.get("usedSources"),
+            "autoIngestedUrls": m.get("autoIngestedUrls"),
+            "senderEmail": m.get("senderEmail"),
+            "senderName": m.get("senderName")
+        }
+        result.append(MessageResponse(**msg_data))
     
     return result
 
@@ -3467,24 +3434,30 @@ async def get_my_departments(current_user: dict = Depends(get_current_user)):
     
     return departments
 
-@api_router.get("/admin/users")
-async def admin_list_users(
-    page: int = Query(1, ge=1),
-    page_size: int = Query(50, ge=1, le=100),
-    current_user: dict = Depends(get_current_user)
-):
-    """Admin gets list of all users with token usage - paginated"""
+@api_router.get("/admin/users", response_model=List[UserWithUsageResponse])
+async def admin_list_users(current_user: dict = Depends(get_current_user)):
+    """Admin gets list of all users with token usage"""
     if not is_admin(current_user["email"]):
         raise HTTPException(status_code=403, detail="Admin access required")
     
-    result = await paginate_query(db.users, {}, page, page_size, "createdAt", -1, {"_id": 0, "passwordHash": 0})
+    users = await db.users.find({}, {"_id": 0, "passwordHash": 0}).to_list(1000)
     
-    # Enrich with usage data
-    for user in result["items"]:
+    result = []
+    for user in users:
+        # Get token usage for this user
         usage = await db.token_usage.find_one({"userId": user["id"]}, {"_id": 0})
-        user["totalTokensUsed"] = usage.get("totalTokens", 0) if usage else 0
-        user["totalMessagesCount"] = usage.get("messageCount", 0) if usage else 0
-        user["isAdmin"] = is_admin(user["email"])
+        total_tokens = usage.get("totalTokens", 0) if usage else 0
+        message_count = usage.get("messageCount", 0) if usage else 0
+        
+        result.append(UserWithUsageResponse(
+            id=user["id"],
+            email=user["email"],
+            isAdmin=is_admin(user["email"]),
+            createdAt=user["createdAt"],
+            totalTokensUsed=total_tokens,
+            totalMessagesCount=message_count,
+            canEditGlobalSources=user.get("canEditGlobalSources", False)
+        ))
     
     return result
 

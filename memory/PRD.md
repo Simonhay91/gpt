@@ -835,19 +835,28 @@ PUT    /api/user/prompt
   - Created `/app/backend/services/cache.py` - Semantic cache service
   - Created `/app/backend/services/rag.py` - RAG pipeline service
   - Created `/app/backend/services/file_processor.py` - File extraction utilities
+  - Created `/app/backend/routes/insights.py` - Source Insights & Smart Questions
   - Created new route modules: `auth.py`, `projects.py`, `chats.py`, `messages.py`, `sources.py`, `admin.py`, `images.py`, `global_sources.py`, `user_settings.py`
+  - Created `/app/backend/server_modular.py` - Compact modular server (424 lines) as reference
 - **Frontend Componentization Started:**
   - Created `/app/frontend/src/components/chat/` directory
   - Created reusable components: `ChatHeader.js`, `Message.js`, `MessageList.js`, `ChatInput.js`
+- **API Pagination Added:**
+  - Added `paginate_query()` helper function
+  - Paginated endpoints: `/projects`, `/quick-chats`, `/chats`, `/messages`, `/sources`, `/admin/users`
+  - Response format: `{ items: [], total: N, page: N, pageSize: N, totalPages: N }`
+  - Frontend updated to handle new paginated response format
 - **Bug Fixes:**
   - Fixed `analyzer.py` session management (was using undefined dictionary, now uses MongoDB)
   - **Fixed "Publish failed" bug** - chunks for "Save to Knowledge" sources use `text` field instead of `content`. Updated all chunk processing code to handle both field names.
   - **Fixed "Failed to load chat"** - SourceResponse model now supports `kind: "knowledge"` type
+  - Removed `emergentintegrations` from requirements.txt (was causing deployment failures)
 - **UI Improvements:**
   - Made all action buttons always visible (removed hover requirement)
 - **New Features:**
   - **Source Insights**: AI analyzes sources, generates summary + 5 suggested questions. Available on all source pages.
   - **Smart Question Suggestions**: "💡 Get question ideas" button in chat generates relevant questions based on active sources.
+  - AI responses now match the language of the source document (Armenian, Russian, English, etc.)
 - **Tests:** All 32 core API tests passed (100% success rate)
 
 ---

@@ -40,8 +40,9 @@ const DashboardPage = () => {
         axios.get(`${API}/projects`),
         axios.get(`${API}/quick-chats`)
       ]);
-      setProjects(projectsRes.data);
-      setQuickChats(quickChatsRes.data);
+      // Handle paginated response
+      setProjects(projectsRes.data.items || projectsRes.data);
+      setQuickChats(quickChatsRes.data.items || quickChatsRes.data);
     } catch (error) {
       toast.error('Failed to load data');
     } finally {

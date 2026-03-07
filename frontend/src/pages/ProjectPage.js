@@ -62,7 +62,7 @@ const ProjectPage = () => {
         axios.get(`${API}/projects/${projectId}/chats`)
       ]);
       setProject(projectRes.data);
-      setChats(chatsRes.data);
+      setChats(chatsRes.data.items || chatsRes.data);
       
       // Check members and current user's role
       try {
