@@ -3467,30 +3467,24 @@ async def get_my_departments(current_user: dict = Depends(get_current_user)):
     
     return departments
 
-@api_router.get("/admin/users", response_model=List[UserWithUsageResponse])
-async def admin_list_users(current_user: dict = Depends(get_current_user)):
-    """Admin gets list of all users with token usage"""
+@api_router.get("/admin/users")
+async def admin_list_users(
+    page: int = Query(1, ge=1),
+    page_size: int = Query(50, ge=1, le=100),
+    current_user: dict = Depends(get_current_user)
+):
+    """Admin gets list of all users with token usage - paginated"""
     if not is_admin(current_user["email"]):
         raise HTTPException(status_code=403, detail="Admin access required")
     
-    users = await db.users.find({}, {"_id": 0, "passwordHash": 0}).to_list(1000)
+    result = await paginate_query(db.users, {}, page, page_size, "createdAt", -1, {"_id": 0, "passwordHash": 0})
     
-    result = []
-    for user in users:
-        # Get token usage for this user
+    # Enrich with usage data
+    for user in result["items"]:
         usage = await db.token_usage.find_one({"userId": user["id"]}, {"_id": 0})
-        total_tokens = usage.get("totalTokens", 0) if usage else 0
-        message_count = usage.get("messageCount", 0) if usage else 0
-        
-        result.append(UserWithUsageResponse(
-            id=user["id"],
-            email=user["email"],
-            isAdmin=is_admin(user["email"]),
-            createdAt=user["createdAt"],
-            totalTokensUsed=total_tokens,
-            totalMessagesCount=message_count,
-            canEditGlobalSources=user.get("canEditGlobalSources", False)
-        ))
+        user["totalTokensUsed"] = usage.get("totalTokens", 0) if usage else 0
+        user["totalMessagesCount"] = usage.get("messageCount", 0) if usage else 0
+        user["isAdmin"] = is_admin(user["email"])
     
     return result
 
