@@ -1419,27 +1419,33 @@ async def rename_chat(chat_id: str, data: RenameChatRequest, current_user: dict 
 
 # --- Project Chats ---
 
-@api_router.get("/projects/{project_id}/chats", response_model=List[ChatResponse])
-async def get_chats(project_id: str, current_user: dict = Depends(get_current_user)):
+@api_router.get("/projects/{project_id}/chats")
+async def get_chats(
+    project_id: str, 
+    page: int = Query(1, ge=1),
+    page_size: int = Query(50, ge=1, le=100),
+    current_user: dict = Depends(get_current_user)
+):
+    """Get project chats with pagination"""
     project = await verify_project_ownership(project_id, current_user["id"])
     
-    chats = await db.chats.find({"projectId": project_id}, {"_id": 0}).to_list(1000)
+    query = {"projectId": project_id}
+    result = await paginate_query(db.chats, query, page, page_size)
     
     # If user is owner, return all chats
     if project["ownerId"] == current_user["id"]:
-        return [ChatResponse(**{**c, "activeSourceIds": c.get("activeSourceIds", []), "sharedWithUsers": c.get("sharedWithUsers")}) for c in chats]
+        result["items"] = [{**c, "activeSourceIds": c.get("activeSourceIds", []), "sharedWithUsers": c.get("sharedWithUsers")} for c in result["items"]]
+    else:
+        # If user is shared, filter chats by visibility
+        visible = []
+        for c in result["items"]:
+            shared_with = c.get("sharedWithUsers")
+            if shared_with is None or current_user["id"] in shared_with:
+                visible.append({**c, "activeSourceIds": c.get("activeSourceIds", []), "sharedWithUsers": shared_with})
+        result["items"] = visible
+        result["total"] = len(visible)
     
-    # If user is shared, filter chats by visibility
-    visible_chats = []
-    for c in chats:
-        shared_with = c.get("sharedWithUsers")
-        # None means visible to all shared users
-        # Empty list [] means hidden from all shared users
-        # List with IDs means only those users can see it
-        if shared_with is None or current_user["id"] in shared_with:
-            visible_chats.append(ChatResponse(**{**c, "activeSourceIds": c.get("activeSourceIds", []), "sharedWithUsers": shared_with}))
-    
-    return visible_chats
+    return result
 
 @api_router.post("/projects/{project_id}/chats", response_model=ChatResponse)
 async def create_chat(project_id: str, chat_data: ChatCreate, current_user: dict = Depends(get_current_user)):
