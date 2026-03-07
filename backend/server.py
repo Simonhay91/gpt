@@ -114,6 +114,33 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+# ==================== PAGINATION HELPER ====================
+
+class PaginatedResponse(BaseModel):
+    items: List[dict]
+    total: int
+    page: int
+    pageSize: int
+    totalPages: int
+
+async def paginate_query(collection, query: dict, page: int = 1, page_size: int = 50, 
+                         sort_field: str = "createdAt", sort_order: int = -1, 
+                         projection: dict = None):
+    """Generic pagination helper for MongoDB queries"""
+    if projection is None:
+        projection = {"_id": 0}
+    skip = (page - 1) * page_size
+    total = await collection.count_documents(query)
+    items = await collection.find(query, projection).sort(sort_field, sort_order).skip(skip).limit(page_size).to_list(page_size)
+    total_pages = (total + page_size - 1) // page_size if total > 0 else 1
+    return {
+        "items": items,
+        "total": total,
+        "page": page,
+        "pageSize": page_size,
+        "totalPages": total_pages
+    }
+
 # ==================== MODELS ====================
 
 class UserCreate(BaseModel):
