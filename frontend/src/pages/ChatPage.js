@@ -158,17 +158,17 @@ const ChatPage = () => {
       setActiveSourceIds(chatRes.data.activeSourceIds || []);
       setSourceMode(chatRes.data.sourceMode || 'all');
       
-      // Get messages
+      // Get messages (handle paginated response)
       const messagesRes = await axios.get(`${API}/chats/${chatId}/messages`);
-      setMessages(messagesRes.data);
+      setMessages(messagesRes.data.items || messagesRes.data);
       
       // Only fetch sources and images if chat belongs to a project
       if (chatRes.data.projectId) {
         const sourcesRes = await axios.get(`${API}/projects/${chatRes.data.projectId}/sources`);
-        setProjectSources(sourcesRes.data);
+        setProjectSources(sourcesRes.data.items || sourcesRes.data);
         
         const imagesRes = await axios.get(`${API}/projects/${chatRes.data.projectId}/images`);
-        setGeneratedImages(imagesRes.data);
+        setGeneratedImages(imagesRes.data.items || imagesRes.data);
       } else {
         // Quick chat - no sources
         setProjectSources([]);
