@@ -1107,17 +1107,18 @@ async def verify_project_access(project_id: str, user_id: str):
     
     return project
 
-@api_router.get("/projects", response_model=List[ProjectResponse])
-async def get_projects(current_user: dict = Depends(get_current_user)):
-    # Get owned projects and shared projects
-    projects = await db.projects.find(
-        {"$or": [
-            {"ownerId": current_user["id"]},
-            {"sharedWith": current_user["id"]}
-        ]},
-        {"_id": 0}
-    ).to_list(1000)
-    return [ProjectResponse(**{**p, "sharedWith": p.get("sharedWith", [])}) for p in projects]
+@api_router.get("/projects")
+async def get_projects(
+    page: int = Query(1, ge=1, description="Page number"),
+    page_size: int = Query(50, ge=1, le=100, description="Items per page"),
+    current_user: dict = Depends(get_current_user)
+):
+    """Get projects with pagination"""
+    query = {"$or": [{"ownerId": current_user["id"]}, {"sharedWith": current_user["id"]}]}
+    result = await paginate_query(db.projects, query, page, page_size)
+    # Transform items to ProjectResponse format
+    result["items"] = [{**p, "sharedWith": p.get("sharedWith", [])} for p in result["items"]]
+    return result
 
 @api_router.post("/projects", response_model=ProjectResponse)
 async def create_project(project_data: ProjectCreate, current_user: dict = Depends(get_current_user)):
