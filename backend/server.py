@@ -1832,27 +1832,21 @@ async def add_url_source(
         chunkCount=len(chunks)
     )
 
-@api_router.get("/projects/{project_id}/sources", response_model=List[SourceResponse])
-async def list_sources(project_id: str, current_user: dict = Depends(get_current_user)):
-    """List all sources in a project"""
+@api_router.get("/projects/{project_id}/sources")
+async def list_sources(
+    project_id: str, 
+    page: int = Query(1, ge=1),
+    page_size: int = Query(50, ge=1, le=100),
+    current_user: dict = Depends(get_current_user)
+):
+    """List all sources in a project with pagination"""
     await verify_project_ownership(project_id, current_user["id"])
     
-    sources = await db.sources.find({"projectId": project_id}, {"_id": 0}).to_list(1000)
+    result = await paginate_query(db.sources, {"projectId": project_id}, page, page_size)
     
-    result = []
-    for s in sources:
-        chunk_count = await db.source_chunks.count_documents({"sourceId": s["id"]})
-        result.append(SourceResponse(
-            id=s["id"],
-            projectId=s["projectId"],
-            kind=s["kind"],
-            originalName=s.get("originalName"),
-            url=s.get("url"),
-            mimeType=s.get("mimeType"),
-            sizeBytes=s.get("sizeBytes"),
-            createdAt=s["createdAt"],
-            chunkCount=chunk_count
-        ))
+    # Add chunk counts
+    for s in result["items"]:
+        s["chunkCount"] = await db.source_chunks.count_documents({"sourceId": s["id"]})
     
     return result
 
