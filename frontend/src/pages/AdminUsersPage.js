@@ -32,7 +32,7 @@ const AdminUsersPage = () => {
   const fetchUsers = async () => {
     try {
       const response = await axios.get(`${API}/admin/users`);
-      setUsers(response.data);
+      setUsers(response.data.items || response.data);
     } catch (error) {
       toast.error('Failed to load users');
     } finally {
