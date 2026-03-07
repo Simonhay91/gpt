@@ -109,6 +109,9 @@ const ChatPage = () => {
   const [userProjects, setUserProjects] = useState([]);
   const [isMovingChat, setIsMovingChat] = useState(false);
   
+  // Get token from localStorage or axios headers
+  const token = localStorage.getItem('token') || axios.defaults.headers.common['Authorization']?.replace('Bearer ', '');
+  
   // Create project in move dialog
   const [isCreatingProject, setIsCreatingProject] = useState(false);
   const [newProjectName, setNewProjectName] = useState('');
