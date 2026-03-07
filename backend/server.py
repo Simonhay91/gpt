@@ -2319,32 +2319,34 @@ async def get_active_sources(chat_id: str, current_user: dict = Depends(get_curr
 
 # ==================== MESSAGE ENDPOINTS ====================
 
-@api_router.get("/chats/{chat_id}/messages", response_model=List[MessageResponse])
-async def get_messages(chat_id: str, current_user: dict = Depends(get_current_user)):
+@api_router.get("/chats/{chat_id}/messages")
+async def get_messages(
+    chat_id: str, 
+    page: int = Query(1, ge=1),
+    page_size: int = Query(100, ge=1, le=500),
+    current_user: dict = Depends(get_current_user)
+):
+    """Get chat messages with pagination"""
     chat = await db.chats.find_one({"id": chat_id}, {"_id": 0})
     if not chat:
         raise HTTPException(status_code=404, detail="Chat not found")
     
-    # Verify ownership - for quick chats check ownerId, for project chats check project ownership
     if chat.get("projectId"):
         await verify_project_ownership(chat["projectId"], current_user["id"])
     elif chat.get("ownerId") != current_user["id"]:
         raise HTTPException(status_code=403, detail="Not authorized")
     
-    messages = await db.messages.find({"chatId": chat_id}, {"_id": 0}).sort("createdAt", 1).to_list(1000)
+    result = await paginate_query(db.messages, {"chatId": chat_id}, page, page_size, "createdAt", 1)
     
-    # Get sender info for user messages
-    result = []
-    for m in messages:
-        msg_data = {
-            **m, 
-            "citations": m.get("citations"), 
-            "usedSources": m.get("usedSources"),
-            "autoIngestedUrls": m.get("autoIngestedUrls"),
-            "senderEmail": m.get("senderEmail"),
-            "senderName": m.get("senderName")
-        }
-        result.append(MessageResponse(**msg_data))
+    # Enrich message data
+    result["items"] = [{
+        **m, 
+        "citations": m.get("citations"), 
+        "usedSources": m.get("usedSources"),
+        "autoIngestedUrls": m.get("autoIngestedUrls"),
+        "senderEmail": m.get("senderEmail"),
+        "senderName": m.get("senderName")
+    } for m in result["items"]]
     
     return result
 
