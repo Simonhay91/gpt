@@ -1341,14 +1341,17 @@ async def delete_project(project_id: str, current_user: dict = Depends(get_curre
 
 # --- Quick Chats (no project) ---
 
-@api_router.get("/quick-chats", response_model=List[ChatResponse])
-async def get_quick_chats(current_user: dict = Depends(get_current_user)):
-    """Get all quick chats (chats without a project) for the current user"""
-    chats = await db.chats.find({
-        "ownerId": current_user["id"],
-        "projectId": None
-    }, {"_id": 0}).to_list(1000)
-    return [ChatResponse(**{**c, "activeSourceIds": c.get("activeSourceIds", [])}) for c in chats]
+@api_router.get("/quick-chats")
+async def get_quick_chats(
+    page: int = Query(1, ge=1),
+    page_size: int = Query(50, ge=1, le=100),
+    current_user: dict = Depends(get_current_user)
+):
+    """Get all quick chats with pagination"""
+    query = {"ownerId": current_user["id"], "projectId": None}
+    result = await paginate_query(db.chats, query, page, page_size)
+    result["items"] = [{**c, "activeSourceIds": c.get("activeSourceIds", [])} for c in result["items"]]
+    return result
 
 @api_router.post("/quick-chats", response_model=ChatResponse)
 async def create_quick_chat(chat_data: QuickChatCreate, current_user: dict = Depends(get_current_user)):
