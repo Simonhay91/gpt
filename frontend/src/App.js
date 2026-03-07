@@ -25,7 +25,6 @@ import DepartmentSourcesPage from './pages/DepartmentSourcesPage';
 import MyDepartmentsPage from './pages/MyDepartmentsPage';
 import NewsPage from './pages/NewsPage';
 import MyGptPromptPage from './pages/MyGptPromptPage';
-import ExcelAnalyzerPage from './pages/ExcelAnalyzerPage';
 
 // Protected Route Component
 const ProtectedRoute = ({ children }) => {
@@ -187,13 +186,6 @@ function AppRoutes() {
       <Route path="/my-prompt" element={
         <ProtectedRoute>
           <MyGptPromptPage />
-        </ProtectedRoute>
-      } />
-      
-      {/* Excel/CSV Analyzer Route */}
-      <Route path="/analyzer" element={
-        <ProtectedRoute>
-          <ExcelAnalyzerPage />
         </ProtectedRoute>
       } />
       
