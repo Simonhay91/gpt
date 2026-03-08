@@ -170,6 +170,9 @@ frontend:
         - working: false
           agent: "testing"
           comment: "❌ Source viewer modal functionality has issues. While Sources button is found and clickable, individual source file buttons are not appearing after expansion in Quick Chat. The modal opening functionality could not be fully tested due to source buttons not being visible after expansion. This may be related to Quick Chat vs Project Chat differences, or source loading issues. Need investigation into why source file buttons don't appear after Sources expansion."
+        - working: false
+          agent: "testing"
+          comment: "❌ Source viewer modal has backend API issue. Frontend functionality is implemented correctly - source file buttons are visible and clickable after expansion (found 'engineering_knowledge.txt' button). However, modal doesn't open due to 404 error from backend API endpoint '/api/sources/{sourceId}/chunks'. Console shows: 'Failed to load resource: the server responded with a status of 404'. The viewSourceContent function in ChatPage.js tries to fetch from this endpoint but gets 404 response. Backend API endpoint needs to be implemented or fixed."
 
 metadata:
   created_by: "testing_agent"
