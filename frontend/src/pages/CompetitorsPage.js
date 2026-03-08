@@ -127,6 +127,40 @@ const CompetitorsPage = () => {
     }
   };
 
+  const addMatch = async () => {
+    try {
+      const competitor = competitors.find(c => c.id === selectedCompetitor.id);
+      const existingMatches = competitor?.matched_our_products || [];
+      
+      await axios.put(`${API}/competitors/${selectedCompetitor.id}/match`, {
+        matched_our_products: [...existingMatches, newMatch]
+      });
+      
+      toast.success(language === 'ru' ? 'Match добавлен' : 'Match added');
+      setIsMatchDialogOpen(false);
+      setNewMatch({ competitor_product_url: '', our_product_ref: '', match_type: 'manual' });
+      loadCompetitors();
+    } catch (error) {
+      toast.error(language === 'ru' ? 'Ошибка добавления' : 'Failed to add');
+    }
+  };
+
+  const removeMatch = async (competitorId, matchUrl) => {
+    try {
+      const competitor = competitors.find(c => c.id === competitorId);
+      const updatedMatches = competitor.matched_our_products.filter(m => m.competitor_product_url !== matchUrl);
+      
+      await axios.put(`${API}/competitors/${competitorId}/match`, {
+        matched_our_products: updatedMatches
+      });
+      
+      toast.success(language === 'ru' ? 'Match удалён' : 'Match removed');
+      loadCompetitors();
+    } catch (error) {
+      toast.error(language === 'ru' ? 'Ошибка удаления' : 'Failed to remove');
+    }
+  };
+
   const formatDate = (dateString) => {
     if (!dateString) return language === 'ru' ? 'Никогда' : 'Never';
     const date = new Date(dateString);
