@@ -19,6 +19,7 @@ import {
   Trash2, 
   ChevronDown, 
   ChevronUp,
+  ChevronRight,
   Paperclip,
   Link,
   Globe,
