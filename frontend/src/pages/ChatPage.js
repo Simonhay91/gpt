@@ -19,6 +19,7 @@ import {
   Trash2, 
   ChevronDown, 
   ChevronUp,
+  ChevronRight,
   Paperclip,
   Link,
   Globe,
@@ -42,6 +43,7 @@ import {
   Lightbulb
 } from 'lucide-react';
 import { Label } from '../components/ui/label';
+import { Checkbox } from '../components/ui/checkbox';
 import DashboardLayout from '../components/DashboardLayout';
 import ImageGenerator from '../components/ImageGenerator';
 import AuthImage from '../components/AuthImage';
@@ -109,6 +111,9 @@ const ChatPage = () => {
   const [userProjects, setUserProjects] = useState([]);
   const [isMovingChat, setIsMovingChat] = useState(false);
   
+  // Get token from localStorage or axios headers
+  const token = localStorage.getItem('token') || axios.defaults.headers.common['Authorization']?.replace('Bearer ', '');
+  
   // Create project in move dialog
   const [isCreatingProject, setIsCreatingProject] = useState(false);
   const [newProjectName, setNewProjectName] = useState('');
@@ -137,6 +142,9 @@ const ChatPage = () => {
   const [searchResults, setSearchResults] = useState([]);
   const [isSearching, setIsSearching] = useState(false);
   const [showSearchResults, setShowSearchResults] = useState(false);
+  
+  // Expanded source groups state
+  const [expandedGroups, setExpandedGroups] = useState({});
 
   useEffect(() => {
     fetchChatData();
@@ -198,7 +206,8 @@ const ChatPage = () => {
   const fetchUserProjects = async () => {
     try {
       const response = await axios.get(`${API}/projects`);
-      setUserProjects(response.data);
+      // Handle paginated response
+      setUserProjects(response.data.items || response.data || []);
     } catch (error) {
       console.error('Failed to load projects');
     }
@@ -626,6 +635,102 @@ const ChatPage = () => {
     return 'File';
   };
 
+  // Group sources by type for expandable UI
+  const groupedSources = React.useMemo(() => {
+    const groups = {
+      pdf: { label: 'PDF документы', icon: FileText, color: 'text-red-400', sources: [] },
+      doc: { label: 'Документы Word', icon: File, color: 'text-blue-500', sources: [] },
+      excel: { label: 'Таблицы Excel', icon: File, color: 'text-green-500', sources: [] },
+      ppt: { label: 'Презентации', icon: File, color: 'text-orange-500', sources: [] },
+      url: { label: 'Web URLs', icon: Globe, color: 'text-blue-400', sources: [] },
+      image: { label: 'Изображения', icon: ImageIcon, color: 'text-purple-400', sources: [] },
+      other: { label: 'Другие файлы', icon: FileText, color: 'text-gray-400', sources: [] }
+    };
+
+    projectSources.forEach(source => {
+      if (source.kind === 'url') {
+        groups.url.sources.push(source);
+      } else if (source.mimeType?.includes('pdf')) {
+        groups.pdf.sources.push(source);
+      } else if (source.mimeType?.includes('wordprocessingml')) {
+        groups.doc.sources.push(source);
+      } else if (source.mimeType?.includes('spreadsheetml')) {
+        groups.excel.sources.push(source);
+      } else if (source.mimeType?.includes('presentationml')) {
+        groups.ppt.sources.push(source);
+      } else if (source.mimeType?.includes('image')) {
+        groups.image.sources.push(source);
+      } else {
+        groups.other.sources.push(source);
+      }
+    });
+
+    // Return only groups with sources
+    return Object.entries(groups).filter(([_, group]) => group.sources.length > 0);
+  }, [projectSources]);
+
+  // Toggle group expansion
+  const toggleGroup = (groupKey) => {
+    setExpandedGroups(prev => ({
+      ...prev,
+      [groupKey]: !prev[groupKey]
+    }));
+  };
+
+  // Toggle individual source selection
+  const toggleSourceSelection = (sourceId) => {
+    setActiveSourceIds(prev => {
+      if (prev.includes(sourceId)) {
+        return prev.filter(id => id !== sourceId);
+      } else {
+        return [...prev, sourceId];
+      }
+    });
+  };
+
+  // Toggle all sources in a group
+  const toggleGroupSelection = (sources) => {
+    const sourceIds = sources.map(s => s.id);
+    const allSelected = sourceIds.every(id => activeSourceIds.includes(id));
+    
+    if (allSelected) {
+      // Deselect all in group
+      setActiveSourceIds(prev => prev.filter(id => !sourceIds.includes(id)));
+    } else {
+      // Select all in group
+      setActiveSourceIds(prev => [...new Set([...prev, ...sourceIds])]);
+    }
+  };
+
+  // Select all sources
+  const selectAllSources = () => {
+    setActiveSourceIds(projectSources.map(s => s.id));
+  };
+
+  // Deselect all sources
+  const deselectAllSources = () => {
+    setActiveSourceIds([]);
+  };
+
+  // Sync activeSourceIds with backend when changed
+  useEffect(() => {
+    if (!chatId || isLoading) return;
+    
+    const syncActiveSources = async () => {
+      try {
+        await axios.put(`${API}/chats/${chatId}/active-sources`, {
+          sourceIds: activeSourceIds
+        });
+      } catch (error) {
+        console.error('Failed to sync active sources:', error);
+      }
+    };
+    
+    // Debounce the sync to avoid too many requests
+    const timeoutId = setTimeout(syncActiveSources, 500);
+    return () => clearTimeout(timeoutId);
+  }, [activeSourceIds, chatId, isLoading]);
+
   if (isLoading) {
     return (
       <DashboardLayout>
@@ -1035,80 +1140,157 @@ const ChatPage = () => {
                 Supported: PDF, DOCX, PPTX, XLSX, TXT, MD, PNG, JPEG files and web URLs (multiple files allowed)
               </div>
 
-              {/* Sources List */}
+              {/* Sources List with Grouping */}
               {projectSources.length === 0 ? (
                 <div className="text-center py-6 text-muted-foreground">
                   <FileText className="h-8 w-8 mx-auto mb-2 opacity-50" />
-                  <p className="text-sm">No sources uploaded yet</p>
-                  <p className="text-xs mt-1">Upload files or add URLs to use as context</p>
+                  <p className="text-sm">Источники не загружены</p>
+                  <p className="text-xs mt-1">Загрузите файлы или добавьте URL для контекста</p>
                 </div>
               ) : (
-                <div className="space-y-2 max-h-[200px] overflow-y-auto">
-                  {projectSources.map((source) => (
-                    <div
-                      key={source.id}
-                      className="flex items-center gap-3 p-3 rounded-lg border border-indigo-500/50 bg-indigo-500/10 transition-colors"
-                      data-testid={`source-item-${source.id}`}
-                    >
-                      <span className="inline-block w-2 h-2 rounded-full bg-indigo-500 flex-shrink-0"></span>
-                      {getFileIcon(source.mimeType, source.kind)}
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium truncate">
-                          {source.originalName || source.url}
-                        </p>
-                        <p className="text-xs text-muted-foreground">
-                          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-secondary text-secondary-foreground mr-2">
-                            {getFileTypeLabel(source.mimeType, source.kind)}
-                          </span>
-                          {source.sizeBytes ? `${formatFileSize(source.sizeBytes)} • ` : ''}
-                          {source.chunkCount} chunks • {formatDate(source.createdAt)}
-                        </p>
-                      </div>
-                      <div className="flex items-center gap-1">
-                        {/* Preview button */}
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8 opacity-50 hover:opacity-100"
-                          onClick={(e) => openPreview(source, e)}
-                          title="Preview"
-                          data-testid={`preview-source-${source.id}`}
-                        >
-                          <Eye className="h-4 w-4 text-blue-400" />
-                        </Button>
-                        {/* Download button - only for files */}
-                        {source.kind === 'file' && (
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8 opacity-50 hover:opacity-100"
-                            onClick={(e) => downloadSource(source, e)}
-                            title="Download"
-                            data-testid={`download-source-${source.id}`}
-                          >
-                            <Download className="h-4 w-4 text-green-400" />
-                          </Button>
-                        )}
-                        {/* Delete button */}
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8 opacity-50 hover:opacity-100"
-                          onClick={(e) => deleteSource(source.id, e)}
-                          data-testid={`delete-source-${source.id}`}
-                        >
-                          <Trash2 className="h-4 w-4 text-destructive" />
-                        </Button>
-                      </div>
+                <div className="space-y-1">
+                  {/* Select All / Deselect All buttons */}
+                  <div className="flex items-center justify-between mb-2 pb-2 border-b border-border">
+                    <span className="text-xs text-muted-foreground">
+                      Выбрано: {activeSourceIds.length} из {projectSources.length}
+                    </span>
+                    <div className="flex gap-1">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-6 text-xs px-2"
+                        onClick={selectAllSources}
+                        data-testid="select-all-sources"
+                      >
+                        Все
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-6 text-xs px-2"
+                        onClick={deselectAllSources}
+                        data-testid="deselect-all-sources"
+                      >
+                        Сбросить
+                      </Button>
                     </div>
-                  ))}
+                  </div>
+                  
+                  {/* Grouped sources */}
+                  <div className="max-h-[280px] overflow-y-auto space-y-1">
+                    {groupedSources.map(([groupKey, group]) => {
+                      const GroupIcon = group.icon;
+                      const isExpanded = expandedGroups[groupKey];
+                      const groupSourceIds = group.sources.map(s => s.id);
+                      const selectedInGroup = groupSourceIds.filter(id => activeSourceIds.includes(id)).length;
+                      const allSelected = selectedInGroup === group.sources.length;
+                      const someSelected = selectedInGroup > 0 && selectedInGroup < group.sources.length;
+                      
+                      return (
+                        <div key={groupKey} className="rounded-lg border border-border overflow-hidden">
+                          {/* Group Header */}
+                          <div 
+                            className="flex items-center gap-2 p-2 bg-secondary/30 cursor-pointer hover:bg-secondary/50 transition-colors"
+                            onClick={() => toggleGroup(groupKey)}
+                          >
+                            <Checkbox
+                              checked={allSelected}
+                              ref={someSelected ? (el) => { if (el) el.indeterminate = true; } : undefined}
+                              onCheckedChange={() => toggleGroupSelection(group.sources)}
+                              onClick={(e) => e.stopPropagation()}
+                              className="data-[state=checked]:bg-indigo-500"
+                              data-testid={`group-checkbox-${groupKey}`}
+                            />
+                            {isExpanded ? (
+                              <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                            ) : (
+                              <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                            )}
+                            <GroupIcon className={`h-4 w-4 ${group.color}`} />
+                            <span className="text-sm font-medium flex-1">{group.label}</span>
+                            <span className="text-xs text-muted-foreground">
+                              {selectedInGroup}/{group.sources.length}
+                            </span>
+                          </div>
+                          
+                          {/* Expanded Files List */}
+                          {isExpanded && (
+                            <div className="border-t border-border">
+                              {group.sources.map((source) => {
+                                const isSelected = activeSourceIds.includes(source.id);
+                                return (
+                                  <div
+                                    key={source.id}
+                                    className={`flex items-center gap-2 p-2 pl-8 transition-colors ${
+                                      isSelected ? 'bg-indigo-500/10' : 'hover:bg-secondary/20'
+                                    }`}
+                                    data-testid={`source-item-${source.id}`}
+                                  >
+                                    <Checkbox
+                                      checked={isSelected}
+                                      onCheckedChange={() => toggleSourceSelection(source.id)}
+                                      className="data-[state=checked]:bg-indigo-500"
+                                      data-testid={`source-checkbox-${source.id}`}
+                                    />
+                                    {getFileIcon(source.mimeType, source.kind)}
+                                    <div className="flex-1 min-w-0">
+                                      <p className="text-sm truncate">
+                                        {source.originalName || source.url}
+                                      </p>
+                                      <p className="text-xs text-muted-foreground">
+                                        {source.sizeBytes ? `${formatFileSize(source.sizeBytes)} • ` : ''}
+                                        {source.chunkCount} chunks
+                                      </p>
+                                    </div>
+                                    <div className="flex items-center gap-1">
+                                      <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        className="h-7 w-7"
+                                        onClick={(e) => { e.stopPropagation(); openPreview(source, e); }}
+                                        title="Просмотр"
+                                        data-testid={`preview-source-${source.id}`}
+                                      >
+                                        <Eye className="h-3.5 w-3.5 text-blue-400" />
+                                      </Button>
+                                      {source.kind === 'file' && (
+                                        <Button
+                                          variant="ghost"
+                                          size="icon"
+                                          className="h-7 w-7"
+                                          onClick={(e) => { e.stopPropagation(); downloadSource(source, e); }}
+                                          title="Скачать"
+                                          data-testid={`download-source-${source.id}`}
+                                        >
+                                          <Download className="h-3.5 w-3.5 text-green-400" />
+                                        </Button>
+                                      )}
+                                      <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        className="h-7 w-7"
+                                        onClick={(e) => { e.stopPropagation(); deleteSource(source.id, e); }}
+                                        data-testid={`delete-source-${source.id}`}
+                                      >
+                                        <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                                      </Button>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
               )}
               
               {projectSources.length > 0 && (
                 <p className="text-xs text-muted-foreground mt-3 flex items-center gap-1">
                   <span className="inline-block w-2 h-2 rounded-full bg-indigo-500"></span>
-                  All project sources are automatically used as context for AI responses
+                  Выбранные источники используются как контекст для AI ответов
                 </p>
               )}
             </div>

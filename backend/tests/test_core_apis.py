@@ -564,65 +564,6 @@ class TestSaveToKnowledge:
         print(f"✓ Save to knowledge endpoint works")
 
 
-class TestExcelAnalyzer:
-    """Test /api/analyzer/* endpoints"""
-    
-    @pytest.fixture(scope="class")
-    def auth_headers(self):
-        """Get auth headers"""
-        response = requests.post(f"{BASE_URL}/api/auth/login", json={
-            "email": ADMIN_EMAIL,
-            "password": ADMIN_PASSWORD
-        })
-        token = response.json()["token"]
-        return {"Authorization": f"Bearer {token}"}
-    
-    def test_analyzer_upload_csv(self, auth_headers):
-        """POST /api/analyzer/upload should upload CSV for analysis"""
-        csv_content = b"Name,Age,City\nJohn,30,New York\nJane,25,Los Angeles\nBob,35,Chicago"
-        files = {'file': ('test_data.csv', io.BytesIO(csv_content), 'text/csv')}
-        
-        response = requests.post(
-            f"{BASE_URL}/api/analyzer/upload",
-            files=files,
-            headers=auth_headers
-        )
-        assert response.status_code == 200, f"Analyzer upload failed: {response.text}"
-        data = response.json()
-        assert "sessionId" in data or "session_id" in data or "id" in data
-        print(f"✓ Analyzer upload works")
-        
-        # Return session ID for cleanup
-        return data.get("sessionId") or data.get("session_id") or data.get("id")
-    
-    def test_analyzer_upload_invalid_file(self, auth_headers):
-        """POST /api/analyzer/upload should reject invalid file types"""
-        invalid_content = b"This is not a valid CSV or Excel file"
-        files = {'file': ('test.xyz', io.BytesIO(invalid_content), 'application/octet-stream')}
-        
-        response = requests.post(
-            f"{BASE_URL}/api/analyzer/upload",
-            files=files,
-            headers=auth_headers
-        )
-        assert response.status_code == 400, f"Expected 400 for invalid file, got {response.status_code}"
-        print(f"✓ Analyzer correctly rejects invalid files")
-    
-    def test_analyzer_ask_nonexistent_session(self, auth_headers):
-        """POST /api/analyzer/ask should return error for non-existent session"""
-        response = requests.post(
-            f"{BASE_URL}/api/analyzer/ask",
-            json={
-                "sessionId": "nonexistent-session-id",
-                "question": "What is the average age?"
-            },
-            headers=auth_headers
-        )
-        # Can return 404 (not found) or 422 (validation error) - both are valid error responses
-        assert response.status_code in [404, 422], f"Expected 404/422, got {response.status_code}"
-        print(f"✓ Analyzer ask returns error for invalid session (status: {response.status_code})")
-
-
 class TestGlobalSources:
     """Test /api/global-sources/* endpoints"""
     

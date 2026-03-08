@@ -22,8 +22,7 @@ import {
   ScrollText,
   Lock,
   Newspaper,
-  Languages,
-  FileSpreadsheet
+  Languages
 } from 'lucide-react';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
@@ -87,11 +86,6 @@ const DashboardLayout = ({ children }) => {
       name: t('nav.myGptPrompt'),
       path: '/my-prompt',
       icon: Sparkles
-    },
-    {
-      name: t('nav.excelAnalyzer'),
-      path: '/analyzer',
-      icon: FileSpreadsheet
     }
   ];
 

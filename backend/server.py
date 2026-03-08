@@ -29,7 +29,6 @@ from services.enterprise import AuditService, VersionService, HierarchicalRetrie
 from routes.departments import setup_department_routes, router as departments_router
 from routes.enterprise_sources import setup_enterprise_source_routes, router as enterprise_sources_router
 from routes.news import router as news_router
-from routes.analyzer import setup_analyzer_routes, router as analyzer_router
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
@@ -4014,10 +4013,6 @@ app.include_router(api_router)
 app.include_router(departments_router)
 app.include_router(enterprise_sources_router)
 app.include_router(news_router, prefix="/api")
-
-# Setup analyzer routes
-setup_analyzer_routes(db, get_current_user)
-app.include_router(analyzer_router, prefix="/api")
 
 app.add_middleware(
     CORSMiddleware,

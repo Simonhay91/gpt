@@ -19,10 +19,6 @@ export const translations = {
     en: 'My GPT Prompt',
     ru: 'Мой GPT промпт'
   },
-  'nav.excelAnalyzer': {
-    en: 'Excel Analyzer',
-    ru: 'Анализ Excel'
-  },
   'nav.users': {
     en: 'Users',
     ru: 'Пользователи'

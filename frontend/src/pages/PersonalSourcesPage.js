@@ -64,8 +64,9 @@ const PersonalSourcesPage = () => {
         axios.get(`${API}/projects`),
         axios.get(`${API}/users/me/departments`)
       ]);
-      setProjects(projectsRes.data);
-      setDepartments(deptsRes.data.filter(d => d.isManager));
+      // Handle paginated response
+      setProjects(projectsRes.data.items || projectsRes.data || []);
+      setDepartments((deptsRes.data || []).filter(d => d.isManager));
     } catch (error) {
       console.error('Failed to load targets');
     }
