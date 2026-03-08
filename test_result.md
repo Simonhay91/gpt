@@ -158,9 +158,9 @@ frontend:
 
   - task: "Source Viewer Modal Implementation"
     implemented: true
-    working: false
+    working: true
     file: "/app/frontend/src/pages/ChatPage.js"
-    stuck_count: 1
+    stuck_count: 0
     priority: "high"
     needs_retesting: false
     status_history:
@@ -173,6 +173,9 @@ frontend:
         - working: false
           agent: "testing"
           comment: "❌ Source viewer modal has backend API issue. Frontend functionality is implemented correctly - source file buttons are visible and clickable after expansion (found 'engineering_knowledge.txt' button). However, modal doesn't open due to 404 error from backend API endpoint '/api/sources/{sourceId}/chunks'. Console shows: 'Failed to load resource: the server responded with a status of 404'. The viewSourceContent function in ChatPage.js tries to fetch from this endpoint but gets 404 response. Backend API endpoint needs to be implemented or fixed."
+        - working: true
+          agent: "testing"
+          comment: "✅ Source viewer modal functionality tested successfully and working perfectly! Complete test flow verified: 1) Modal opens correctly when clicking source file button ('📁 engineering_knowledge.txt(chunks 1)'), 2) Modal displays correct title 'engineering_knowledge.txt', 3) ScrollArea component found and working, 4) Content loads successfully (689 characters of engineering knowledge content), 5) 'Закрыть' close button functions correctly, 6) Modal closes properly returning to chat. Backend API endpoint '/api/sources/{sourceId}/chunks' is now implemented and working correctly. Full end-to-end source content viewing functionality is operational."
 
 metadata:
   created_by: "testing_agent"
