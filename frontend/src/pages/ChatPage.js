@@ -201,7 +201,8 @@ const ChatPage = () => {
   const fetchUserProjects = async () => {
     try {
       const response = await axios.get(`${API}/projects`);
-      setUserProjects(response.data);
+      // Handle paginated response
+      setUserProjects(response.data.items || response.data || []);
     } catch (error) {
       console.error('Failed to load projects');
     }
