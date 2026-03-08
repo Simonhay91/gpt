@@ -485,6 +485,65 @@ async def check_competitor_tracker_access(current_user: dict) -> bool:
     logger.info(f"Access result: {result}")
     return result
 
+
+# ==================== BACKGROUND TASKS ====================
+
+async def auto_refresh_competitor_products():
+    """Background task to auto-refresh competitor products based on their schedule"""
+    logger.info("🔄 Starting auto-refresh of competitor products...")
+    
+    try:
+        # Get all competitors
+        competitors = await db.competitors.find({}, {"_id": 0}).to_list(10000)
+        
+        total_refreshed = 0
+        total_failed = 0
+        
+        for competitor in competitors:
+            for product in competitor.get("products", []):
+                # Check if auto_refresh is enabled
+                if not product.get("auto_refresh", False):
+                    continue
+                
+                # Check if it needs refresh
+                last_fetched = product.get("last_fetched")
+                refresh_interval_days = product.get("refresh_interval_days", 7)
+                
+                if last_fetched:
+                    last_fetched_dt = datetime.fromisoformat(last_fetched.replace('Z', '+00:00'))
+                    days_since_fetch = (datetime.now(timezone.utc) - last_fetched_dt).days
+                    
+                    if days_since_fetch < refresh_interval_days:
+                        # Not yet time to refresh
+                        continue
+                
+                # Fetch URL
+                logger.info(f"Auto-refreshing: {competitor['name']} - {product['url']}")
+                result = await fetch_and_parse_url(product["url"])
+                
+                if not result["error"]:
+                    # Update product
+                    now = datetime.now(timezone.utc).isoformat()
+                    await db.competitors.update_one(
+                        {"id": competitor["id"], "products.id": product["id"]},
+                        {"$set": {
+                            "products.$.title": result["title"],
+                            "products.$.cached_content": result["content"],
+                            "products.$.last_fetched": now
+                        }}
+                    )
+                    total_refreshed += 1
+                    logger.info(f"✓ Refreshed: {product['url']}")
+                else:
+                    total_failed += 1
+                    logger.error(f"✗ Failed to refresh {product['url']}: {result['error']}")
+        
+        logger.info(f"🔄 Auto-refresh completed: {total_refreshed} refreshed, {total_failed} failed")
+        
+    except Exception as e:
+        logger.error(f"Error in auto_refresh_competitor_products: {str(e)}")
+
+
 # ==================== PERMISSION MATRIX ====================
 
 import hashlib
