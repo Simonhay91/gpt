@@ -3812,6 +3812,8 @@ async def get_department_ai_context(department_id: str, current_user: dict = Dep
     
     # Check if user is admin or manager of this department
     is_admin = current_user.get("isAdmin", False)
+    logger.info(f"User {current_user.get('email')} accessing AI context. isAdmin: {is_admin}, user data: {current_user.keys()}")
+    
     if not is_admin:
         # Check if user is manager of this department
         user_dept = await db.department_members.find_one({
