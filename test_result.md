@@ -197,8 +197,7 @@ metadata:
 
 test_plan:
   current_focus:
-    - "Collapsible Sources Implementation"
-    - "Source Viewer Modal Implementation"
+    - "Department Selection Access Control for Regular Users"
   stuck_tasks: []
   test_all: false
   test_priority: "high_first"
