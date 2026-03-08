@@ -1,56 +1,41 @@
 <analysis>**original_problem_statement:**
-The user wants to build a production-ready, full-stack SaaS web app, Planet Knowledge, for multi-user collaboration.
+The user wants to build a production-ready, full-stack SaaS web app, Planet Knowledge, for multi-user collaboration using React, FastAPI, and MongoDB.
 
-**PRODUCT REQUIREMENTS:**
-*   **Core App:** Multi-user application with project-based data isolation using React, FastAPI, and MongoDB.
-*   **User Management:** Admin-centric model where an admin creates users and manages their settings.
-*   **Project & Chat Functionality:** Project-based chats, sharing with roles, and fine-grained chat visibility. A Save to Knowledge feature allows saving AI responses. A Source Mode selector toggles between knowledge sources.
-*   **Source Management:** Users can attach various file types. Sources are project-specific.
-*   **Enterprise Knowledge Architecture:** A hierarchical knowledge base (Personal, Project, Department, Global) with an approval workflow.
-*   **Efficiency & Cost:** Semantic caching and RAG pipeline optimization.
-*   **UX/UI:** Light/dark modes and intuitive navigation. An  is in place.
-*   **Source Insights & Smart Questions:** AI-powered features to generate summaries/questions for sources and suggest relevant questions in chat.
-*   **Excel/CSV Analyzer:** This feature was built but is now slated for **removal** at the user's request.
+**PRODUCT REQUIREMENTS (current session):**
+*   **Feature Removal:** The user requested the complete removal of the Excel/CSV Analyzer feature.
+*   **New Feature:** In the chat interface, the user wants to be able to select specific files within a source, not just the entire source. The UI should show sources grouped and allow individual files to be checked/unchecked for use by the AI.
+*   **Bug Fixes:** The user reported two critical frontend errors ( and ) that needed immediate attention.
+*   **Refactoring:** The user inquired about the effort required to complete the backend refactor of the monolithic  file.
 
 **User's preferred language**: Russian
 
 **what currently exists?**
-The application is a functional full-stack SaaS platform. This session focused on bug fixing, implementing new features, and preparing for a major refactor.
-*   **Bug Fixes:**
-    *   : Fixed a critical bug where publishing personal sources (saved from chat) failed because their data structure ( field) differed from uploaded sources ( field). The fix was applied across the backend.
-    *   : Resolved an issue where chats failed to load because the Pydantic model didn't recognize sources with .
-    *   **Empty Preview:** Fixed a regression where the source preview was empty after an earlier fix.
-*   **New Features & Enhancements:**
-    *   **Source Insights & Smart Questions:** Implemented two new AI features. Analyze Source generates a summary and questions for a source. Smart Question Suggestions provides clickable question ideas in the chat UI based on active sources. The AI was prompted to respond in the same language as the source material.
-    *   **Always-Visible Buttons:** Updated the entire frontend to make action buttons (e.g., delete, preview) permanently visible instead of only on hover.
-    *   **Backend API Pagination:** Added pagination (, ) to key API endpoints that return lists (projects, chats, messages, sources, users) to improve performance. The corresponding frontend pages were updated to handle the new paginated data structure.
-*   **Refactoring Preparation:**
-    *   **Backend:** Created a complete modular file structure under  (e.g., , , ) to break down the  monolith. The new files are currently empty shells or contain small pieces of logic. The core application logic **still runs from the monolithic **.
-    *   **Frontend:** Created a new component structure under  to break down the  monolith. These components are not yet integrated.
-*   **Dependency Cleanup:** Removed the  package dependency, which was causing build failures and was no longer in use.
+The Excel/CSV Analyzer feature has been successfully and completely removed from both the frontend and backend. Two critical JavaScript errors ( and ) that were breaking the application have been fixed. A significant new feature has been implemented on the Chat page: the source panel now displays sources grouped by file type (e.g., PDF документы), with expandable sections showing individual files. Users can now select/deselect specific files to be included in the chat context, and the UI correctly reflects the number of active sources. The backend refactoring of  was attempted but rolled back due to dependency complexities, leaving it as a high-priority pending task.
 
 **Last working item**:
-- Last item agent was working: The agent was beginning to execute the user's request to remove the Excel/CSV Analyzer feature entirely. It had started by using  to identify all files that referenced Analyzer or ExcelAnalyzer to plan the removal.
-- Status: IN PROGRESS
+- Last item agent was working: The agent finished implementing a new, enhanced source selection panel on the . This feature allows users to view sources grouped by type, expand these groups, and select individual files for the AI to use as context. The agent completed the UI and state logic and verified it manually with a series of screenshots, confirming that selection works and the UI updates correctly.
+- Status: USER VERIFICATION PENDING
 - Agent Testing Done: N
-- Which testing method agent to use? both.
-    - **Backend:** The testing agent should verify that all  endpoints are removed and return 404.
-    - **Frontend:** The testing agent should confirm the Excel Analyzer link is gone from the navigation and that navigating to the old URL redirects or shows a 404 page, without crashing the app.
+- Which testing method agent to use? frontend testing agent. The test should focus on the  and verify:
+    1.  Source groups render correctly.
+    2.  Groups can be expanded/collapsed.
+    3.  Selecting/deselecting individual files updates the  state and the UI counters.
+    4.  The Select All checkbox for a group works as expected.
+    5.  The API call to update the chat's active sources is made correctly when selections change.
 - User Testing Done: N
 
 **All Pending/In progress Issue list**:
   - Issue 1: (P1) Incomplete Internationalization (i18n). The user has requested this be completed. Many parts of the UI remain hardcoded in English.
-  - Issue 2: (P2)  has a missing dependency warning. This was noted in the previous handoff and remains unfixed. It can cause stale state issues.
+  - Issue 2: (P2)  has a missing dependency warning. This was noted in a previous handoff and remains unfixed.
   - Issue 3: (P2) Frontend Navigation Test Failure from a previous session () remains unaddressed.
 
 **Issues Detail:**
   - **Issue 1: Incomplete Internationalization (i18n)**
      - **Attempted fixes:** None in this session.
      - **Next debug checklist:**
-        1. Identify a library for i18n if one isn't already present (e.g., ).
-        2. Create JSON translation files for Russian and any other requested languages (e.g., Armenian).
-        3. Systematically replace hardcoded English strings in all  components with keys that pull from the translation files.
-     - **Why fix this issue and what will be achieved with the fix?** Fulfills a user requirement and makes the application fully usable for its target Russian-speaking audience.
+        1. Identify the existing i18n library ( with ).
+        2. Systematically replace hardcoded English strings in all  components with keys that pull from the translation files (e.g., ).
+     - **Why fix this issue and what will be achieved with the fix?** Fulfills a core user requirement and makes the application fully usable for its target Russian-speaking audience.
      - **Status:** NOT STARTED
      - **Is recurring issue?** Y
      - **Should Test frontend/backend/both after fix?** Frontend
@@ -67,58 +52,44 @@ The application is a functional full-stack SaaS platform. This session focused o
 
   - **Issue 3: Frontend Navigation Test Failure**
      - **Attempted fixes:** None.
-     - **Next debug checklist:** Review the old test report at . Attempt to reproduce the failure with the testing agent. Check the routing logic in  and related components.
-     - **Why fix this issue and what will be achieved with the fix?** Ensures the application's core navigation is stable and reliable.
+     - **Next debug checklist:** Review the old test report at . Attempt to reproduce the failure with the testing agent. Check the routing logic in .
+     - **Why fix this issue and what will be achieved with the fix?** Ensures the application's core navigation is stable.
      - **Status:** NOT STARTED
      - **Is recurring issue?** Y
      - **Should Test frontend/backend/both after fix?** Frontend
      - **Blocked on other issue:** None
 
 **In progress Task List**:
-  - Task 1: (P0) Remove Excel/CSV Analyzer
-     - **Where to resume:** The agent has already used  to find references. The next step is to use  or  with  and  to:
-        1. Delete .
-        2. Delete .
-        3. Remove the route import and link from  and .
-        4. Remove the setup call for the analyzer router from .
-        5. Delete the  collection from MongoDB if it's no longer needed.
-     - **What will be achieved with this?** Fulfills a direct user request and removes a feature that was causing problems and was deemed unnecessary.
-     - **Status:** IN PROGRESS
-     - **Should Test frontend/backend/both after fix?** Both
-     - **Blocked on something:** No
+- None.
 
 **Upcoming and Future Tasks**
 - **Upcoming Tasks:**
-  - (P0) **Integrate Backend Modules:** This is the top priority after the analyzer removal. Move all endpoint logic from the monolithic  into the newly created modular files in . Replace the current  with a minimal version that imports and includes all the route modules. **This will drastically reduce  from ~4000 lines to a few hundred.**
-  - (P1) **Integrate Frontend Chat Components:** After the backend refactor, break down the monolithic  by moving UI logic into the components already created in  and importing them back into a simplified .
+    - (P0) **Complete Backend Refactor:** This is the highest priority technical task. The previous attempt was blocked by complex dependencies in  functions within route modules (, ). The plan is to rewrite these modules to use FastAPI's standard dependency injection () and then switch to the minimal, modular .
+    - (P1) **Enhance AI Source Attribution:** Implement the second part of the user's feature request: make the AI's response specify which file (and ideally, which part of the file) was used to generate the answer (e.g., ).
+    - (P1) **Complete Frontend Refactor:** Break down the monolithic  by integrating the pre-built components from .
 - **Future Tasks:**
-  - Implement full pagination on the frontend (UI for changing pages).
-  - Add API rate limiting.
-  - Implement Question Templates for common user tasks.
-  - Create a usage/cost dashboard.
-  - Add bookmarks for the Tech News page.
-  - Implement a global search feature.
-  - Add chat export functionality.
+    - Implement frontend UI for pagination (page selectors, next/prev buttons).
+    - Add API rate limiting.
+    - Implement Question Templates for common user tasks.
+    - Create a usage/cost dashboard.
+    - Add a global search feature.
+    - Add chat export functionality.
 
 **Completed work in this session**
-- **Feature: Source Insights & Smart Questions:** Added new AI-powered features for source analysis and question generation.
-- **Feature: Backend API Pagination:** Implemented pagination for major list-based endpoints.
-- **Enhancement: Always-Visible Buttons:** Removed hover effects for action buttons across the UI.
-- **Bug Fix: Publish failed**: Fixed inconsistent data structures between saved-from-chat sources and uploaded sources.
-- **Bug Fix: Failed to load chat**: Fixed a Pydantic validation error for sources of .
-- **Bug Fix: Empty Preview**: Fixed a regression causing source previews to be empty.
-- **Refactoring:** Created a full modular structure for the backend and frontend chat page (files created, but not yet integrated).
-- **Dependency Cleanup**: Removed the unused and build-breaking  package.
+- **Task: Removed Excel/CSV Analyzer:** The feature was fully removed from the backend (API routes, services) and frontend (navigation links, pages). All related tests were also deleted. The removal was verified by the testing agent.
+- **Bug Fix: :** Fixed a critical JavaScript error in  by correctly defining the  variable before it was used.
+- **Bug Fix: :** Fixed multiple crashes on pages (, ) that were not correctly handling the paginated API response structure ( instead of ).
+- **Feature: Selectable File Sources in Chat:** Implemented a new UI in  that groups sources by type and allows users to expand groups to select/deselect individual files as context for the AI.
 
 **Earlier issues found/mentioned but not fixed**
    - **Issue 1:  has a missing dependency warning**
-     - **Debug checklist:** Check frontend logs during compilation, identify the component, and add the missing dependency.
-     - **Why to solve this issue and what will be achieved with this?** Fixes potential stale state issues.
+     - **Debug checklist:** Check frontend compilation logs.
+     - **Why to solve this issue and what will be achieved with this?** Prevents stale state bugs.
      - **Should Test frontend/backend/both after fix:** Frontend
      - **Is recurring issue?** Y
    - **Issue 2: Frontend Navigation Test Failure**
-     - **Debug checklist:** Review , try to reproduce the failure, check routing logic in .
-     - **Why to solve this issue and what will be achieved with this?** Ensures application stability.
+     - **Debug checklist:** Review , reproduce with testing agent.
+     - **Why to solve this issue and what will be achieved with this?** Ensures navigation is stable.
      - **Should Test frontend/backend/both after fix:** Frontend
      - **Is recurring issue?** Y
 
@@ -129,94 +100,78 @@ The application is a functional full-stack SaaS platform. This session focused o
 
 
 **Key Technical Concepts**
-- **Incremental Refactoring:** The agent prepared for a large refactor by creating a modular file structure but pivoted to smaller, safer tasks (like pagination) when faced with the risk of a big-bang migration.
-- **Defensive Coding:** Multiple bugs were fixed by using  to handle inconsistent data models gracefully.
-- **Backend API Pagination:** Implemented server-side pagination using  and  on MongoDB queries and updated the API response format to include total counts.
-- **Dynamic Language Prompts for LLM:** The AI prompts for Source Insights and Smart Questions were updated to instruct the LLM to respond in the language of the source text.
+- **Safe Feature Removal:** Demonstrated a systematic process of using  to find all references, removing code across frontend/backend/tests, and verifying with automated testing.
+- **Pragmatic Rollback:** When the  refactor failed due to complex dependency injection issues, the agent correctly diagnosed the problem and rolled back to a stable version of the code to avoid breaking the application.
+- **Reactive Frontend Debugging:** Successfully diagnosed and fixed two different critical runtime JavaScript errors reported by the user, demonstrating an ability to trace errors from symptoms to root causes in the React code.
+- **Complex UI State Management:** Implemented the new grouped/selectable source list in  using multiple React state hooks () and derived state to create an interactive and functional UI.
 
 **key DB schema**
-- No new collections were created. The  collection is pending deletion.
+  - No changes to the database schema in this session.
 
 **All files of reference**
-*   **Created:**
-    *    (auth, projects, chats, sources, admin, images, insights, etc.) - Shells for refactoring.
-    *    (rag, cache, file_processor) - Shells for refactoring.
-    *   ,  - Shells for refactoring.
-    *    (ChatHeader, MessageList, etc.) - Components for refactoring .
-    *   ,  - New feature components.
 *   **Heavily Modified:**
-    *   : Added pagination, new insight/question endpoints, and multiple bug fixes. Grew to ~4000 lines.
-    *   : Fixed critical bugs related to data models.
-    *    (ChatPage, PersonalSourcesPage, GlobalSourcesPage, ProjectPage, AdminUsersPage, DashboardPage): Updated to add new features, fix styles, and handle paginated data.
-    *   : Removed .
+    *   : Grew significantly with the implementation of the new source selection panel and multiple bug fixes.
+*   **Modified (Bug Fixes):**
+    *   : Fixed to handle paginated API data.
+*   **Modified (Feature Removal):**
+    *   : Analyzer routes and imports removed.
+    *   : Route for Analyzer page removed.
+    *   : Navigation link to Analyzer removed.
+    *   : Translation key for Analyzer removed.
+    *   : Test class for Analyzer removed.
+*   **Deleted:**
+    *   
 
 **Areas that need refactoring**:
-- ** (CRITICAL):** The top priority is to complete the migration of all logic from this 4000-line file into the modular files that have already been created.
-- ** (CRITICAL):** The second priority is to integrate the new components in  to break down this 1400-line monolith.
+- ** (CRITICAL):** Remains a ~4000-line monolith. The top priority is to refactor the route modules (, ) to use FastAPI's  for dependency injection, which will unblock the final migration.
+- ** (CRITICAL):** This file has now grown to over 1600 lines and contains complex state logic for the chat, source list, modals, etc. It urgently needs to be broken down into the smaller components already created in .
 
 **key api endpoints**
-- **New:**
-    -  (GET): Generates summary and questions for a source.
-    -  (GET): Generates suggested questions for a chat.
-- **Updated with Pagination:**
-    - 
-    - 
-    - 
-    - 
-    - 
-    - 
+- **Modified:**
+    -  (POST): Now used by the frontend  hook to update the list of  whenever the user changes their file selections in the new source panel.
+- **Removed:**
+    - All endpoints under .
 
 **Critical Info for New Agent**
 - **User Language:** User is Russian. ALL communication must be in Russian.
-- **Top Priorities:** The user has explicitly requested the following order of operations:
-    1.  **Remove the Excel Analyzer feature.**
-    2.  **Complete the backend refactoring** by moving all logic out of  into the prepared modules.
-    3.  **Add pagination** (which was partially done on the backend, but the user may want frontend UI controls).
-    4.  **Complete i18n.**
-- **Refactoring State:** All the files for the backend refactor have been created. The next agent's job is not to design the structure, but to **execute the migration** of code from  into these files.
-- **Pagination State:** Backend pagination is implemented on key endpoints. Frontend pages have been updated to consume the  array. No frontend UI for page selection exists yet.
+- **Top Priorities (User Driven):** The user has shown they will pivot priorities. The current focus should be:
+    1. Verify the new source selection feature.
+    2. Implement the second part of the request: showing the exact source file in the AI's answer.
+    3. Then, re-propose and execute the  refactoring plan.
+- **Refactoring Block:** The backend refactor is blocked on converting the  functions in the route modules to use standard FastAPI  for dependency injection. Do not attempt to switch to the modular  until this is done.
 
 **documents and test reports created in this job**
-- /app/test_reports/iteration_10.json
-- PRD.md was updated multiple times to reflect new features and bug fixes.
+- /app/test_reports/iteration_11.json
+- /app/memory/PRD.md (updated to reflect the removal of the Analyzer feature).
 
 **Last 10 User Messages and any pending HUMAN messages**
-1.  **User:** Asks what bugs/risks are left. (Status: COMPLETED)
-2.  **Agent:** Provides a detailed breakdown of all open issues and priorities. (Status: COMPLETED)
-3.  **User:** Prioritizes integrating modules for  and adding pagination. (Status: COMPLETED - Agent implemented backend pagination)
-4.  **User:** Provides a new, superseding list of priorities: 1) Fully replace , 2) Remove the Excel Analyzer, 3) Add i18n. (Status: IN PROGRESS)
-5.  **Agent:** Acknowledges the new priorities and starts work on removing the Excel Analyzer. (Status: IN PROGRESS)
-6.  **User:** Reports my source ne mogu otpravi v project, Publish failed. (Status: COMPLETED - Agent fixed )
-7.  **User:** Reports Failed to load chat. (Status: COMPLETED - Agent fixed Pydantic )
-8.  **User:** Requests knopki vsegda budut vidni, bez hovera (buttons always visible). (Status: COMPLETED)
-9.  **User:** Requests Source Insights and Smart Question Suggestions. (Status: COMPLETED)
-10. **User:** Reports posle analiza, posle save-a, prossmotre empty prixodyat text (preview is empty after saving insights). (Status: COMPLETED)
+1.  **User:** Reports a critical error: . (Status: RESOLVED)
+2.  **User:** Reports another critical error: . (Status: RESOLVED)
+3.  **User:** Asks for a time estimate to refactor . (Status: COMPLETED - Agent provided a plan)
+4.  **User:** Pivots from the refactor, requesting a new feature: allow selection of specific files within a source in the chat UI. (Status: IN PROGRESS - UI is built)
+5.  **User:** Clarifies the feature request, confirming they want an expandable tree view of sources and files. (Status: COMPLETED - Agent understood and started implementation).
 
 **Project Health Check:**
-- **Broken:** None.
+- **Broken:** None. The application is stable after the bug fixes.
 - **Mocked:** None.
 - **Technical Debt / Needs Refactoring:**
-    - **CRITICAL:**  is a ~4000-line monolith.
-    - **CRITICAL:**  is a ~1400-line monolith.
-    - Inconsistent data models for sources ( vs. ) required defensive coding that should be unified in a future refactor.
-    - Lack of frontend UI for pagination.
-    - Old frontend  warnings and a navigation test failure persist.
+    - **CRITICAL:**  is a ~4000-line monolith. A refactor plan exists but is blocked.
+    - **CRITICAL:**  is a ~1600-line monolith that is becoming increasingly complex.
 
 **3rd Party Integrations**
-- **OpenAI GPT-4.1-mini / text-embedding-3-small:** Used for all chat, analysis, and embedding functions.
-- **Anthropic Claude Sonnet 4:**  library is installed and was used for the Excel Analyzer. It's now unused since the analyzer is being removed.
-- ~~**Google Gemini Pro (via Emergent LLM Key):**~~ The  dependency has been **removed**.
+- No changes in this session. The  library is now entirely unused and could be removed.
+- **OpenAI GPT-4.1-mini / text-embedding-3-small:** Used for all chat and embedding functions.
 
 **Testing status**
-- **Testing agent used after significant changes:** YES, one run which passed and also fixed a bug ().
-- **Troubleshoot agent used after agent stuck in loop:** NO
-- **Test files created:** None
-- **Known regressions:** A fix for one bug ( vs ) caused a regression in the preview endpoint, which was then subsequently fixed. This highlights the fragility of the monolithic codebase.
+  - Testing agent used after significant changes: YES, after removing the Analyzer feature (), all tests passed.
+  - Troubleshoot agent used after agent stuck in loop: NO
+  - Test files created: None. One test file was deleted.
+  - Known regressions: None in this session.
 
 **Credentials to test flow:**
 - **Admin:**  / 
 - **Manager:**  / 
 
 **What agent forgot to execute**
-- The agent did not complete the primary refactoring task it prepared for ( and  integration). It pivoted to other tasks, which, while valuable, left the main technical debt unresolved.
-- The agent did not address the pre-existing frontend issues noted in the initial handoff ( warnings, navigation test failure).</analysis>
+- The agent did not run the  after implementing the new source selection feature, which was its stated plan. It only performed manual screenshot verification.
+- The agent implemented the UI for selecting sources but did not implement the second part of the user's request: showing the specific file/page/chunk in the AI's response attribution.</analysis>
