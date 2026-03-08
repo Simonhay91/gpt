@@ -40,7 +40,8 @@ import {
   Save,
   Target,
   Globe2,
-  Lightbulb
+  Lightbulb,
+  TrendingUp
 } from 'lucide-react';
 import { Label } from '../components/ui/label';
 import { Checkbox } from '../components/ui/checkbox';
