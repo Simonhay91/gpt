@@ -9,7 +9,7 @@ import logging
 import re
 from pathlib import Path
 from pydantic import BaseModel, Field, EmailStr, HttpUrl
-from typing import List, Optional, Literal
+from typing import List, Optional, Literal, Dict, Any
 import uuid
 from datetime import datetime, timezone, timedelta
 import jwt
