@@ -3998,6 +3998,276 @@ async def update_department_ai_context(
     return DepartmentAiContextResponse(**ai_context_update)
 
 
+# ==================== COMPETITOR TRACKER ENDPOINTS ====================
+
+@api_router.post("/competitors", response_model=CompetitorResponse)
+async def create_competitor(data: CompetitorCreate, current_user: dict = Depends(get_current_user)):
+    """Create a new competitor (requires competitor_tracker access)"""
+    # Check access
+    has_access = await check_competitor_tracker_access(current_user)
+    if not has_access:
+        raise HTTPException(status_code=403, detail="Access denied. Competitor Tracker not enabled for your department.")
+    
+    competitor_id = str(uuid4())
+    now = datetime.now(timezone.utc).isoformat()
+    
+    competitor = {
+        "id": competitor_id,
+        "name": data.name,
+        "website": data.website,
+        "products": [],
+        "matched_our_products": [],
+        "created_by": current_user["id"],
+        "created_at": now
+    }
+    
+    await db.competitors.insert_one(competitor)
+    
+    return CompetitorResponse(**competitor)
+
+
+@api_router.get("/competitors")
+async def list_competitors(current_user: dict = Depends(get_current_user)):
+    """List all competitors (requires competitor_tracker access)"""
+    # Check access
+    has_access = await check_competitor_tracker_access(current_user)
+    if not has_access:
+        raise HTTPException(status_code=403, detail="Access denied. Competitor Tracker not enabled for your department.")
+    
+    competitors = await db.competitors.find({}, {"_id": 0}).to_list(1000)
+    return competitors
+
+
+@api_router.get("/competitors/{competitor_id}", response_model=CompetitorResponse)
+async def get_competitor(competitor_id: str, current_user: dict = Depends(get_current_user)):
+    """Get competitor details"""
+    # Check access
+    has_access = await check_competitor_tracker_access(current_user)
+    if not has_access:
+        raise HTTPException(status_code=403, detail="Access denied")
+    
+    competitor = await db.competitors.find_one({"id": competitor_id}, {"_id": 0})
+    if not competitor:
+        raise HTTPException(status_code=404, detail="Competitor not found")
+    
+    return CompetitorResponse(**competitor)
+
+
+@api_router.put("/competitors/{competitor_id}", response_model=CompetitorResponse)
+async def update_competitor(competitor_id: str, data: CompetitorUpdate, current_user: dict = Depends(get_current_user)):
+    """Update competitor"""
+    # Check access
+    has_access = await check_competitor_tracker_access(current_user)
+    if not has_access:
+        raise HTTPException(status_code=403, detail="Access denied")
+    
+    competitor = await db.competitors.find_one({"id": competitor_id}, {"_id": 0})
+    if not competitor:
+        raise HTTPException(status_code=404, detail="Competitor not found")
+    
+    update_data = {}
+    if data.name is not None:
+        update_data["name"] = data.name
+    if data.website is not None:
+        update_data["website"] = data.website
+    
+    if update_data:
+        await db.competitors.update_one({"id": competitor_id}, {"$set": update_data})
+        competitor.update(update_data)
+    
+    return CompetitorResponse(**competitor)
+
+
+@api_router.delete("/competitors/{competitor_id}")
+async def delete_competitor(competitor_id: str, current_user: dict = Depends(get_current_user)):
+    """Delete competitor"""
+    # Check access
+    has_access = await check_competitor_tracker_access(current_user)
+    if not has_access:
+        raise HTTPException(status_code=403, detail="Access denied")
+    
+    result = await db.competitors.delete_one({"id": competitor_id})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Competitor not found")
+    
+    return {"success": True, "message": "Competitor deleted"}
+
+
+@api_router.post("/competitors/{competitor_id}/products")
+async def add_competitor_product(
+    competitor_id: str,
+    data: CompetitorProductCreate,
+    current_user: dict = Depends(get_current_user)
+):
+    """Add a product URL to competitor"""
+    # Check access
+    has_access = await check_competitor_tracker_access(current_user)
+    if not has_access:
+        raise HTTPException(status_code=403, detail="Access denied")
+    
+    competitor = await db.competitors.find_one({"id": competitor_id}, {"_id": 0})
+    if not competitor:
+        raise HTTPException(status_code=404, detail="Competitor not found")
+    
+    product_id = str(uuid4())
+    product = {
+        "id": product_id,
+        "url": data.url,
+        "title": None,
+        "cached_content": None,
+        "last_fetched": None,
+        "auto_refresh": data.auto_refresh,
+        "refresh_interval_days": data.refresh_interval_days
+    }
+    
+    await db.competitors.update_one(
+        {"id": competitor_id},
+        {"$push": {"products": product}}
+    )
+    
+    return {"success": True, "product": product}
+
+
+@api_router.delete("/competitors/{competitor_id}/products/{product_id}")
+async def delete_competitor_product(
+    competitor_id: str,
+    product_id: str,
+    current_user: dict = Depends(get_current_user)
+):
+    """Delete a product from competitor"""
+    # Check access
+    has_access = await check_competitor_tracker_access(current_user)
+    if not has_access:
+        raise HTTPException(status_code=403, detail="Access denied")
+    
+    result = await db.competitors.update_one(
+        {"id": competitor_id},
+        {"$pull": {"products": {"id": product_id}}}
+    )
+    
+    if result.modified_count == 0:
+        raise HTTPException(status_code=404, detail="Product not found")
+    
+    return {"success": True, "message": "Product deleted"}
+
+
+@api_router.post("/competitors/{competitor_id}/products/{product_id}/fetch")
+async def fetch_competitor_product(
+    competitor_id: str,
+    product_id: str,
+    current_user: dict = Depends(get_current_user)
+):
+    """Fetch and cache product URL content"""
+    # Check access
+    has_access = await check_competitor_tracker_access(current_user)
+    if not has_access:
+        raise HTTPException(status_code=403, detail="Access denied")
+    
+    competitor = await db.competitors.find_one({"id": competitor_id}, {"_id": 0})
+    if not competitor:
+        raise HTTPException(status_code=404, detail="Competitor not found")
+    
+    # Find product
+    product = next((p for p in competitor.get("products", []) if p["id"] == product_id), None)
+    if not product:
+        raise HTTPException(status_code=404, detail="Product not found")
+    
+    # Fetch URL
+    result = await fetch_and_parse_url(product["url"])
+    
+    if result["error"]:
+        raise HTTPException(status_code=400, detail=result["error"])
+    
+    # Update product
+    now = datetime.now(timezone.utc).isoformat()
+    await db.competitors.update_one(
+        {"id": competitor_id, "products.id": product_id},
+        {"$set": {
+            "products.$.title": result["title"],
+            "products.$.cached_content": result["content"],
+            "products.$.last_fetched": now
+        }}
+    )
+    
+    return {
+        "success": True,
+        "title": result["title"],
+        "content_length": len(result["content"]),
+        "last_fetched": now
+    }
+
+
+@api_router.post("/competitors/{competitor_id}/refresh")
+async def refresh_all_products(
+    competitor_id: str,
+    current_user: dict = Depends(get_current_user)
+):
+    """Refresh all products for a competitor"""
+    # Check access
+    has_access = await check_competitor_tracker_access(current_user)
+    if not has_access:
+        raise HTTPException(status_code=403, detail="Access denied")
+    
+    competitor = await db.competitors.find_one({"id": competitor_id}, {"_id": 0})
+    if not competitor:
+        raise HTTPException(status_code=404, detail="Competitor not found")
+    
+    products = competitor.get("products", [])
+    success_count = 0
+    failed_count = 0
+    
+    for product in products:
+        result = await fetch_and_parse_url(product["url"])
+        
+        if not result["error"]:
+            now = datetime.now(timezone.utc).isoformat()
+            await db.competitors.update_one(
+                {"id": competitor_id, "products.id": product["id"]},
+                {"$set": {
+                    "products.$.title": result["title"],
+                    "products.$.cached_content": result["content"],
+                    "products.$.last_fetched": now
+                }}
+            )
+            success_count += 1
+        else:
+            failed_count += 1
+    
+    return {
+        "success": True,
+        "total": len(products),
+        "success_count": success_count,
+        "failed_count": failed_count
+    }
+
+
+@api_router.put("/competitors/{competitor_id}/match")
+async def update_competitor_matches(
+    competitor_id: str,
+    data: CompetitorMatchUpdate,
+    current_user: dict = Depends(get_current_user)
+):
+    """Update product matching"""
+    # Check access
+    has_access = await check_competitor_tracker_access(current_user)
+    if not has_access:
+        raise HTTPException(status_code=403, detail="Access denied")
+    
+    competitor = await db.competitors.find_one({"id": competitor_id}, {"_id": 0})
+    if not competitor:
+        raise HTTPException(status_code=404, detail="Competitor not found")
+    
+    # Convert to dict
+    matches = [m.dict() for m in data.matched_our_products]
+    
+    await db.competitors.update_one(
+        {"id": competitor_id},
+        {"$set": {"matched_our_products": matches}}
+    )
+    
+    return {"success": True, "matched_count": len(matches)}
+
+
 # ==================== HEALTH CHECK ====================
 
 @api_router.get("/")
