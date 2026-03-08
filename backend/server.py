@@ -2701,6 +2701,21 @@ async def send_message(chat_id: str, message_data: MessageCreate, current_user: 
             
             document_context = "\n\n---\n\n".join(context_parts)
     
+    # Add competitor data to context if found
+    if competitor_data and competitor_product_info:
+        competitor_context = f"""
+[🔍 COMPETITOR DATA - {competitor_product_info['competitor_name']}]
+Product: {competitor_product_info['product_title']}
+URL: {competitor_product_info['product_url']}
+Last Updated: {competitor_product_info.get('last_fetched', 'Unknown')}
+
+{competitor_data}
+"""
+        if document_context:
+            document_context = competitor_context + "\n\n---\n\n" + document_context
+        else:
+            document_context = competitor_context
+    
     # Get user's custom prompt
     user_prompt_doc = await db.user_prompts.find_one({"userId": current_user["id"]}, {"_id": 0})
     user_custom_prompt = user_prompt_doc.get("customPrompt") if user_prompt_doc else None
