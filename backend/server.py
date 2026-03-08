@@ -2926,6 +2926,7 @@ Answer based on the provided sources. Always provide accurate and relevant infor
         "senderName": "GPT",
         "fromCache": from_cache,
         "cacheInfo": cache_info,
+        "competitorInfo": competitor_product_info,  # Add competitor info
         "createdAt": datetime.now(timezone.utc).isoformat()
     }
     await db.messages.insert_one(assistant_message)
