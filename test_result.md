@@ -102,7 +102,7 @@
 # Testing Data - Main Agent and testing sub agent both should log testing data below this section
 #====================================================================================================
 
-user_problem_statement: "Протестируй новую функциональность сворачиваемых источников в Planet Knowledge"
+user_problem_statement: "Протестируй отображение отделов в AI Settings для обычного пользователя"
 
 frontend:
   - task: "AI Settings Page Implementation"
