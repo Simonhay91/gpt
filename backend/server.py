@@ -2599,6 +2599,39 @@ async def send_message(chat_id: str, message_data: MessageCreate, current_user: 
     # Get chat history
     history = await db.messages.find({"chatId": chat_id}, {"_id": 0}).sort("createdAt", 1).to_list(1000)
     
+    # === COMPETITOR TRACKER INTEGRATION ===
+    # Check if user message contains URLs and if they're in Competitor Tracker
+    competitor_data = None
+    competitor_product_info = None
+    
+    # Simple URL extraction
+    url_pattern = r'https?://[^\s<>"{}|\\^`\[\]]+'
+    urls_in_message = re.findall(url_pattern, message_data.content)
+    
+    if urls_in_message:
+        # Check if user has competitor tracker access
+        has_competitor_access = await check_competitor_tracker_access(current_user)
+        
+        if has_competitor_access:
+            # Check each URL against competitor products
+            for url in urls_in_message:
+                competitors = await db.competitors.find({}, {"_id": 0}).to_list(1000)
+                
+                for competitor in competitors:
+                    for product in competitor.get("products", []):
+                        if product.get("url") == url and product.get("cached_content"):
+                            competitor_data = product["cached_content"]
+                            competitor_product_info = {
+                                "competitor_name": competitor["name"],
+                                "product_url": url,
+                                "product_title": product.get("title", url),
+                                "last_fetched": product.get("last_fetched")
+                            }
+                            logger.info(f"🔍 Using cached competitor data for: {url}")
+                            break
+                    if competitor_data:
+                        break
+    
     # Get active sources and relevant chunks (including newly ingested)
     citations = []
     document_context = ""
