@@ -4099,7 +4099,7 @@ async def get_source_chunks(source_id: str, current_user: dict = Depends(get_cur
                 raise HTTPException(status_code=403, detail="Access denied")
     
     # Get all chunks for this source
-    chunks = await db.chunks.find(
+    chunks = await db.source_chunks.find(
         {"sourceId": source_id},
         {"_id": 0}
     ).sort("chunkIndex", 1).to_list(10000)
