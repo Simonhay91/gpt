@@ -41,6 +41,9 @@ mongo_url = os.environ['MONGO_URL']
 client = AsyncIOMotorClient(mongo_url)
 db = client[os.environ['DB_NAME']]
 
+# Scheduler for background tasks
+scheduler = AsyncIOScheduler()
+
 # JWT Settings
 JWT_SECRET = os.environ.get('JWT_SECRET', 'shared-project-gpt-secret-key-2024')
 JWT_ALGORITHM = "HS256"
