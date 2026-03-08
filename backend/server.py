@@ -4066,6 +4066,50 @@ async def get_source_insights(source_id: str, current_user: dict = Depends(get_c
     }
 
 
+@api_router.get("/sources/{source_id}/chunks")
+async def get_source_chunks(source_id: str, current_user: dict = Depends(get_current_user)):
+    """Get all chunks for a source to display content"""
+    # Check if source exists and user has access
+    source = await db.sources.find_one({"id": source_id}, {"_id": 0})
+    if not source:
+        raise HTTPException(status_code=404, detail="Source not found")
+    
+    # Check access based on source level
+    source_level = source.get("level", "project")
+    
+    if source_level == "personal":
+        # Personal source - only owner can access
+        if source.get("ownerId") != current_user["id"]:
+            raise HTTPException(status_code=403, detail="Access denied")
+    elif source_level == "department":
+        # Department source - user must be in department
+        user_departments = current_user.get("departments", [])
+        if source.get("departmentId") not in user_departments:
+            raise HTTPException(status_code=403, detail="Access denied")
+    elif source_level == "global":
+        # Global source - everyone can access
+        pass
+    else:
+        # Project source - check project access
+        project_id = source.get("projectId")
+        if project_id and project_id != GLOBAL_PROJECT_ID:
+            try:
+                await check_project_access(current_user, project_id, required_role="viewer")
+            except HTTPException:
+                raise HTTPException(status_code=403, detail="Access denied")
+    
+    # Get all chunks for this source
+    chunks = await db.chunks.find(
+        {"sourceId": source_id},
+        {"_id": 0}
+    ).sort("chunkIndex", 1).to_list(10000)
+    
+    if not chunks:
+        return []
+    
+    return chunks
+
+
 @api_router.post("/chats/{chat_id}/smart-questions", response_model=SmartQuestionsResponse)
 async def generate_smart_questions(chat_id: str, current_user: dict = Depends(get_current_user)):
     """
