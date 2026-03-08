@@ -105,6 +105,78 @@
 user_problem_statement: "Протестируй Competitor Tracker UI в Planet Knowledge"
 
 frontend:
+  - task: "Competitor Tracker Page Access and Navigation"
+    implemented: true
+    working: "NA"
+    file: "/app/frontend/src/pages/CompetitorsPage.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "Need to test Competitor Tracker page access for manager@test.com user. Test: 1) Login with manager@test.com/testpassword, 2) Verify 'Competitors' appears in sidebar, 3) Navigate to /competitors page, 4) Verify page loads with proper header and 'Add Competitor' button."
+
+  - task: "Add Competitor Functionality"
+    implemented: true
+    working: "NA"
+    file: "/app/frontend/src/pages/CompetitorsPage.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "Need to test Add Competitor functionality. Test: 1) Click 'Add Competitor' button, 2) Verify modal opens, 3) Fill Name='Test Competitor', Website='https://example.com', 4) Click 'Add' button, 5) Verify competitor appears in list."
+
+  - task: "Add Product Functionality"
+    implemented: true
+    working: "NA"
+    file: "/app/frontend/src/pages/CompetitorsPage.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "Need to test Add Product functionality. Test: 1) Find competitor card, 2) Click 'Add' button in Products section, 3) Fill URL='https://example.com', 4) Enable Auto-refresh toggle, 5) Select 7 days interval, 6) Click 'Add', 7) Verify product appears in list."
+
+  - task: "Fetch Product Content Functionality"
+    implemented: true
+    working: "NA"
+    file: "/app/frontend/src/pages/CompetitorsPage.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "Need to test Fetch Product Content functionality. Test: 1) Find added product, 2) Click Refresh (RefreshCw icon) button, 3) Wait for spinner to disappear, 4) Verify 'Cached' badge appears, 5) Verify last_fetched date updates."
+
+  - task: "Refresh All Products Functionality"
+    implemented: true
+    working: "NA"
+    file: "/app/frontend/src/pages/CompetitorsPage.js"
+    stuck_count: 0
+    priority: "medium"
+    needs_retesting: true
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "Need to test Refresh All functionality. Test: 1) Click 'Refresh All' button in competitor card header, 2) Verify toast notification appears with results."
+
+  - task: "Delete Product and Competitor Functionality"
+    implemented: true
+    working: "NA"
+    file: "/app/frontend/src/pages/CompetitorsPage.js"
+    stuck_count: 0
+    priority: "medium"
+    needs_retesting: true
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "Need to test Delete functionality. Test: 1) Delete product by clicking Trash2 icon, 2) Verify product is removed, 3) Delete competitor by clicking Trash2 icon in header, 4) Confirm in alert dialog, 5) Verify competitor is removed."
+
   - task: "Department Selection Access Control for Regular Users"
     implemented: true
     working: true
