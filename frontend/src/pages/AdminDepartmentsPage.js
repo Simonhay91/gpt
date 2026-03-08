@@ -9,18 +9,19 @@ import { Label } from '../components/ui/label';
 import { toast } from 'sonner';
 import { 
   Building2, Plus, Users, Shield, Trash2, UserPlus, 
-  ChevronRight, Settings, FileText, Crown
+  ChevronRight, Settings, FileText, Crown, Sparkles
 } from 'lucide-react';
 import DashboardLayout from '../components/DashboardLayout';
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
+import DepartmentAiContextDialog from '../components/DepartmentAiContextDialog';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
 const AdminDepartmentsPage = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   const [departments, setDepartments] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
@@ -30,6 +31,7 @@ const AdminDepartmentsPage = () => {
   const [selectedDept, setSelectedDept] = useState(null);
   const [allUsers, setAllUsers] = useState([]);
   const [isLoadingUsers, setIsLoadingUsers] = useState(false);
+  const [aiContextDept, setAiContextDept] = useState(null);
 
   useEffect(() => {
     fetchDepartments();
@@ -302,6 +304,21 @@ const AdminDepartmentsPage = () => {
                     >
                       <Users className="h-4 w-4 mr-1" />
                       Участники
+                    </Button>
+                  </div>
+                  <div className="mt-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="w-full bg-purple-500/10 hover:bg-purple-500/20 border-purple-500/30"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setAiContextDept(dept);
+                      }}
+                      data-testid={`dept-ai-context-btn-${dept.id}`}
+                    >
+                      <Sparkles className="h-4 w-4 mr-1 text-purple-400" />
+                      AI Контекст
                     </Button>
                   </div>
                 </CardContent>
