@@ -105,6 +105,18 @@
 user_problem_statement: "Протестируй отображение отделов в AI Settings для обычного пользователя"
 
 frontend:
+  - task: "Department Selection Access Control for Regular Users"
+    implemented: true
+    working: true
+    file: "/app/frontend/src/pages/AiSettingsPage.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: true
+          agent: "testing"
+          comment: "✅ Department selection access control tested successfully for regular user (manager@test.com). VERIFIED: Regular user sees only 1 department (Engineering) in dropdown, confirming proper access control. User does NOT see all system departments. Department selection, save functionality, and data persistence all working correctly. Form loads properly, dropdown opens/closes correctly, selected department persists after page reload. No console errors detected. Access control is working as expected - regular users see only their own departments, not admin-level access to all departments."
+
   - task: "AI Settings Page Implementation"
     implemented: true
     working: true
