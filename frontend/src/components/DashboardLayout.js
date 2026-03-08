@@ -102,7 +102,7 @@ const DashboardLayout = ({ children }) => {
     ...(hasCompetitorAccess ? [{
       name: language === 'ru' ? 'Competitors' : 'Competitors',
       path: '/competitors',
-      icon: ScrollText
+      icon: TrendingUp
     }] : [])
   ];
 
