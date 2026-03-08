@@ -403,6 +403,76 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(s
 def is_admin(email: str) -> bool:
     return email.endswith(ADMIN_EMAIL_DOMAIN)
 
+# ==================== COMPETITOR TRACKER HELPERS ====================
+
+async def fetch_and_parse_url(url: str, max_chars: int = 3000) -> Dict[str, Any]:
+    """
+    Fetch URL and parse content using BeautifulSoup.
+    Returns: {
+        "title": str,
+        "content": str (limited to max_chars),
+        "error": Optional[str]
+    }
+    """
+    try:
+        async with httpx.AsyncClient(timeout=30.0, follow_redirects=True) as client:
+            response = await client.get(url, headers={
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+            })
+            response.raise_for_status()
+            
+            # Parse HTML
+            soup = BeautifulSoup(response.content, 'lxml')
+            
+            # Remove scripts and styles
+            for element in soup(['script', 'style', 'nav', 'footer', 'header']):
+                element.decompose()
+            
+            # Get title
+            title = soup.title.string.strip() if soup.title else url
+            
+            # Get body text
+            body = soup.find('body')
+            if body:
+                text = body.get_text(separator='\n', strip=True)
+            else:
+                text = soup.get_text(separator='\n', strip=True)
+            
+            # Clean up text
+            lines = [line.strip() for line in text.splitlines() if line.strip()]
+            text = '\n'.join(lines)
+            
+            # Limit to max_chars
+            if len(text) > max_chars:
+                text = text[:max_chars] + "..."
+            
+            return {
+                "title": title[:200],  # Limit title length
+                "content": text,
+                "error": None
+            }
+    except httpx.TimeoutException:
+        return {"title": None, "content": None, "error": "Timeout while fetching URL"}
+    except httpx.HTTPStatusError as e:
+        return {"title": None, "content": None, "error": f"HTTP error: {e.response.status_code}"}
+    except Exception as e:
+        return {"title": None, "content": None, "error": f"Error fetching URL: {str(e)}"}
+
+
+async def check_competitor_tracker_access(current_user: dict) -> bool:
+    """Check if user has access to Competitor Tracker"""
+    user_dept_ids = current_user.get("departments", [])
+    if not user_dept_ids:
+        return False
+    
+    # Check if any of user's departments has competitor_tracker_enabled
+    departments = await db.departments.find(
+        {"id": {"$in": user_dept_ids}},
+        {"_id": 0, "competitor_tracker_enabled": 1}
+    ).to_list(100)
+    
+    return any(dept.get("competitor_tracker_enabled", False) for dept in departments)
+
 # ==================== PERMISSION MATRIX ====================
 
 import hashlib
