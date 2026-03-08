@@ -43,6 +43,7 @@ import {
   Lightbulb
 } from 'lucide-react';
 import { Label } from '../components/ui/label';
+import { Checkbox } from '../components/ui/checkbox';
 import DashboardLayout from '../components/DashboardLayout';
 import ImageGenerator from '../components/ImageGenerator';
 import AuthImage from '../components/AuthImage';
