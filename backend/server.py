@@ -3810,11 +3810,11 @@ async def update_user_ai_profile(data: AiProfileUpdate, current_user: dict = Dep
 async def get_department_ai_context(department_id: str, current_user: dict = Depends(get_current_user)):
     """Get AI context for a department. Accessible by admin and department managers."""
     
-    # Check if user is admin or manager of this department
-    is_admin = current_user.get("isAdmin", False)
-    logger.info(f"User {current_user.get('email')} accessing AI context. isAdmin: {is_admin}, user data: {current_user.keys()}")
+    # Check if user is admin (check email domain) or manager of this department
+    is_admin_user = is_admin(current_user.get("email", ""))
+    logger.info(f"User {current_user.get('email')} accessing AI context. isAdmin: {is_admin_user}")
     
-    if not is_admin:
+    if not is_admin_user:
         # Check if user is manager of this department
         user_dept = await db.department_members.find_one({
             "userId": current_user["id"],
@@ -3844,9 +3844,9 @@ async def update_department_ai_context(
 ):
     """Update AI context for a department. Only admin and department managers can update."""
     
-    # Check if user is admin or manager of this department
-    is_admin = current_user.get("isAdmin", False)
-    if not is_admin:
+    # Check if user is admin (check email domain) or manager of this department
+    is_admin_user = is_admin(current_user.get("email", ""))
+    if not is_admin_user:
         # Check if user is manager of this department
         user_dept = await db.department_members.find_one({
             "userId": current_user["id"],
