@@ -22,14 +22,27 @@ const CompetitorsPage = () => {
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [selectedCompetitor, setSelectedCompetitor] = useState(null);
   const [isProductDialogOpen, setIsProductDialogOpen] = useState(false);
+  const [isMatchDialogOpen, setIsMatchDialogOpen] = useState(false);
   const [isFetching, setIsFetching] = useState({});
+  const [sources, setSources] = useState([]);  // For matching
   
   const [newCompetitor, setNewCompetitor] = useState({ name: '', website: '' });
   const [newProduct, setNewProduct] = useState({ url: '', auto_refresh: false, refresh_interval_days: 7 });
+  const [newMatch, setNewMatch] = useState({ competitor_product_url: '', our_product_ref: '', match_type: 'manual' });
 
   useEffect(() => {
     loadCompetitors();
+    loadSources();
   }, []);
+
+  const loadSources = async () => {
+    try {
+      const response = await axios.get(`${API}/sources`);
+      setSources(response.data.items || []);
+    } catch (error) {
+      console.error('Failed to load sources:', error);
+    }
+  };
 
   const loadCompetitors = async () => {
     try {
