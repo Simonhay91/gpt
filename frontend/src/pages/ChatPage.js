@@ -1551,6 +1551,23 @@ const ChatPage = () => {
                       </div>
                     )}
                     
+                    {/* Competitor Data Indicator */}
+                    {message.role === 'assistant' && message.competitorInfo && (
+                      <div className="mt-2 px-2">
+                        <div className="flex items-center gap-2 p-2 rounded-lg bg-orange-500/10 border border-orange-500/20">
+                          <TrendingUp className="h-4 w-4 text-orange-400" />
+                          <div className="flex-1">
+                            <p className="text-xs font-medium text-orange-400">
+                              🔍 Competitor Data Used
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                              {message.competitorInfo.competitor_name} - {message.competitorInfo.product_title}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                    
                     {/* Citations / Used Sources - Collapsible */}
                     {message.role === 'assistant' && !message.isGeneratedImage && (message.citations?.length > 0 || message.usedSources?.length > 0) && (
                       <div className="mt-2 px-2">
