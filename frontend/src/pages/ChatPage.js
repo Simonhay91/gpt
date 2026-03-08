@@ -712,6 +712,25 @@ const ChatPage = () => {
     setActiveSourceIds([]);
   };
 
+  // Sync activeSourceIds with backend when changed
+  useEffect(() => {
+    if (!chatId || isLoading) return;
+    
+    const syncActiveSources = async () => {
+      try {
+        await axios.put(`${API}/chats/${chatId}/active-sources`, {
+          sourceIds: activeSourceIds
+        });
+      } catch (error) {
+        console.error('Failed to sync active sources:', error);
+      }
+    };
+    
+    // Debounce the sync to avoid too many requests
+    const timeoutId = setTimeout(syncActiveSources, 500);
+    return () => clearTimeout(timeoutId);
+  }, [activeSourceIds, chatId, isLoading]);
+
   if (isLoading) {
     return (
       <DashboardLayout>
