@@ -462,16 +462,22 @@ async def fetch_and_parse_url(url: str, max_chars: int = 3000) -> Dict[str, Any]
 async def check_competitor_tracker_access(current_user: dict) -> bool:
     """Check if user has access to Competitor Tracker"""
     user_dept_ids = current_user.get("departments", [])
+    logger.info(f"Checking competitor access for user {current_user.get('email')}, departments: {user_dept_ids}")
+    
     if not user_dept_ids:
+        logger.info("User has no departments")
         return False
     
     # Check if any of user's departments has competitor_tracker_enabled
     departments = await db.departments.find(
         {"id": {"$in": user_dept_ids}},
-        {"_id": 0, "competitor_tracker_enabled": 1}
+        {"_id": 0, "id": 1, "name": 1, "competitor_tracker_enabled": 1}
     ).to_list(100)
     
-    return any(dept.get("competitor_tracker_enabled", False) for dept in departments)
+    logger.info(f"Found departments: {departments}")
+    result = any(dept.get("competitor_tracker_enabled", False) for dept in departments)
+    logger.info(f"Access result: {result}")
+    return result
 
 # ==================== PERMISSION MATRIX ====================
 
