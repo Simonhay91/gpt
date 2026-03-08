@@ -3705,6 +3705,135 @@ async def update_user_prompt(data: UserPromptUpdate, current_user: dict = Depend
         updatedAt=now
     )
 
+
+# ==================== AI PROFILE ENDPOINTS ====================
+
+@api_router.get("/users/me/ai-profile", response_model=AiProfileResponse)
+async def get_user_ai_profile(current_user: dict = Depends(get_current_user)):
+    """Get the current user's AI profile"""
+    user = await db.users.find_one({"id": current_user["id"]}, {"_id": 0})
+    
+    if not user or "ai_profile" not in user:
+        # Return default values
+        return AiProfileResponse(
+            display_name=user.get("name") if user else None,
+            position=None,
+            department_id=user.get("primaryDepartmentId") if user else None,
+            preferred_language="ru",
+            response_style="formal",
+            custom_instruction=None
+        )
+    
+    ai_profile = user["ai_profile"]
+    return AiProfileResponse(**ai_profile)
+
+
+@api_router.put("/users/me/ai-profile", response_model=AiProfileResponse)
+async def update_user_ai_profile(data: AiProfileUpdate, current_user: dict = Depends(get_current_user)):
+    """Update the current user's AI profile"""
+    
+    # Build update data - only include fields that were provided
+    ai_profile_update = {}
+    if data.display_name is not None:
+        ai_profile_update["display_name"] = data.display_name
+    if data.position is not None:
+        ai_profile_update["position"] = data.position
+    if data.department_id is not None:
+        ai_profile_update["department_id"] = data.department_id
+    if data.preferred_language is not None:
+        ai_profile_update["preferred_language"] = data.preferred_language
+    if data.response_style is not None:
+        ai_profile_update["response_style"] = data.response_style
+    if data.custom_instruction is not None:
+        ai_profile_update["custom_instruction"] = data.custom_instruction
+    
+    # Update user's ai_profile
+    await db.users.update_one(
+        {"id": current_user["id"]},
+        {"$set": {"ai_profile": ai_profile_update}}
+    )
+    
+    # Return updated profile
+    return AiProfileResponse(**ai_profile_update)
+
+
+@api_router.get("/departments/{department_id}/ai-context", response_model=DepartmentAiContextResponse)
+async def get_department_ai_context(department_id: str, current_user: dict = Depends(get_current_user)):
+    """Get AI context for a department. Accessible by admin and department managers."""
+    
+    # Check if user is admin or manager of this department
+    if not current_user.get("isAdmin"):
+        # Check if user is manager of this department
+        user_dept = await db.department_members.find_one({
+            "userId": current_user["id"],
+            "departmentId": department_id,
+            "role": "manager"
+        })
+        if not user_dept:
+            raise HTTPException(status_code=403, detail="Access denied. Admin or department manager role required.")
+    
+    # Get department
+    department = await db.departments.find_one({"id": department_id}, {"_id": 0})
+    if not department:
+        raise HTTPException(status_code=404, detail="Department not found")
+    
+    if "ai_context" not in department:
+        return DepartmentAiContextResponse(style=None, instruction=None)
+    
+    ai_context = department["ai_context"]
+    return DepartmentAiContextResponse(**ai_context)
+
+
+@api_router.put("/departments/{department_id}/ai-context", response_model=DepartmentAiContextResponse)
+async def update_department_ai_context(
+    department_id: str, 
+    data: DepartmentAiContextUpdate, 
+    current_user: dict = Depends(get_current_user)
+):
+    """Update AI context for a department. Only admin and department managers can update."""
+    
+    # Check if user is admin or manager of this department
+    if not current_user.get("isAdmin"):
+        # Check if user is manager of this department
+        user_dept = await db.department_members.find_one({
+            "userId": current_user["id"],
+            "departmentId": department_id,
+            "role": "manager"
+        })
+        if not user_dept:
+            raise HTTPException(status_code=403, detail="Access denied. Admin or department manager role required.")
+    
+    # Check department exists
+    department = await db.departments.find_one({"id": department_id}, {"_id": 0})
+    if not department:
+        raise HTTPException(status_code=404, detail="Department not found")
+    
+    # Build update data
+    ai_context_update = {}
+    if data.style is not None:
+        ai_context_update["style"] = data.style
+    if data.instruction is not None:
+        ai_context_update["instruction"] = data.instruction
+    
+    # Update department's ai_context
+    await db.departments.update_one(
+        {"id": department_id},
+        {"$set": {"ai_context": ai_context_update}}
+    )
+    
+    # Log audit
+    await AuditService.log_action(
+        db=db,
+        user_id=current_user["id"],
+        action="update_department_ai_context",
+        resource_type="department",
+        resource_id=department_id,
+        details={"ai_context": ai_context_update}
+    )
+    
+    return DepartmentAiContextResponse(**ai_context_update)
+
+
 # ==================== HEALTH CHECK ====================
 
 @api_router.get("/")
