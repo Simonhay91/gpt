@@ -628,6 +628,45 @@ const ChatPage = () => {
     });
   };
 
+  // Toggle source expansion for a message
+  const toggleSourceExpansion = (messageId) => {
+    setExpandedSources(prev => ({
+      ...prev,
+      [messageId]: !prev[messageId]
+    }));
+  };
+
+  // View source content
+  const viewSourceContent = async (sourceId, sourceName) => {
+    setIsLoadingSourceContent(true);
+    setViewingSource({ id: sourceId, name: sourceName });
+    setSourceContent(null);
+    
+    try {
+      const response = await axios.get(`${API}/sources/${sourceId}/chunks`);
+      const chunks = response.data;
+      
+      // Combine all chunks to show full content
+      const fullContent = chunks
+        .sort((a, b) => a.chunkIndex - b.chunkIndex)
+        .map(chunk => chunk.content || chunk.text)
+        .join('\n\n');
+      
+      setSourceContent(fullContent);
+    } catch (error) {
+      console.error('Failed to load source content:', error);
+      toast.error('Не удалось загрузить содержимое');
+      setViewingSource(null);
+    } finally {
+      setIsLoadingSourceContent(false);
+    }
+  };
+
+  const closeSourceModal = () => {
+    setViewingSource(null);
+    setSourceContent(null);
+  };
+
   const getFileTypeLabel = (mimeType, kind) => {
     if (kind === 'url') return 'URL';
     if (mimeType?.includes('pdf')) return 'PDF';
