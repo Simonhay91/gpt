@@ -4773,6 +4773,19 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+@app.on_event("startup")
+async def startup_event():
+    """Start background scheduler"""
+    # Schedule auto-refresh task to run daily at 2 AM
+    scheduler.add_job(
+        auto_refresh_competitor_products,
+        CronTrigger(hour=2, minute=0),  # Every day at 2:00 AM
+        id="auto_refresh_competitors",
+        replace_existing=True
+    )
+    scheduler.start()
+    logger.info("✓ Scheduler started - Auto-refresh will run daily at 2:00 AM")
+
 @app.on_event("shutdown")
 async def shutdown_db_client():
     client.close()
