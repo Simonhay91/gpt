@@ -21,6 +21,8 @@ import io
 import aiofiles
 import httpx
 from bs4 import BeautifulSoup
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from apscheduler.triggers.cron import CronTrigger
 from docx import Document
 import pytesseract
 from PIL import Image
