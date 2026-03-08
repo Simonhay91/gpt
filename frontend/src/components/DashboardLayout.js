@@ -38,10 +38,11 @@ const DashboardLayout = ({ children }) => {
   // Pending approvals count for managers
   const [pendingCount, setPendingCount] = useState(0);
   const [isManager, setIsManager] = useState(false);
+  const [hasCompetitorAccess, setHasCompetitorAccess] = useState(false);
 
-  // Fetch pending approvals count for managers
+  // Fetch pending approvals count for managers and competitor access
   useEffect(() => {
-    const fetchPendingCount = async () => {
+    const fetchData = async () => {
       try {
         const response = await axios.get(`${API}/departments/pending-count`);
         setPendingCount(response.data.count || 0);
@@ -51,12 +52,22 @@ const DashboardLayout = ({ children }) => {
         setPendingCount(0);
         setIsManager(false);
       }
+      
+      // Check competitor tracker access
+      try {
+        const deptResponse = await axios.get(`${API}/departments`);
+        const departments = deptResponse.data || [];
+        const hasAccess = departments.some(dept => dept.competitor_tracker_enabled === true);
+        setHasCompetitorAccess(hasAccess);
+      } catch (error) {
+        setHasCompetitorAccess(false);
+      }
     };
     
     if (user) {
-      fetchPendingCount();
+      fetchData();
       // Refresh every 60 seconds
-      const interval = setInterval(fetchPendingCount, 60000);
+      const interval = setInterval(fetchData, 60000);
       return () => clearInterval(interval);
     }
   }, [user]);
@@ -86,7 +97,13 @@ const DashboardLayout = ({ children }) => {
       name: t('nav.myGptPrompt'),
       path: '/my-prompt',
       icon: Sparkles
-    }
+    },
+    // Conditionally add Competitors if user has access
+    ...(hasCompetitorAccess ? [{
+      name: language === 'ru' ? 'Competitors' : 'Competitors',
+      path: '/competitors',
+      icon: ScrollText
+    }] : [])
   ];
 
   if (user?.isAdmin) {
