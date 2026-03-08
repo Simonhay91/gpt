@@ -37,8 +37,9 @@ const AiSettingsPage = () => {
 
   const loadDepartments = async () => {
     try {
-      const response = await axios.get(`${API}/departments`);
-      setDepartments(response.data.items || []);
+      // Load only user's departments
+      const response = await axios.get(`${API}/departments/my`);
+      setDepartments(response.data || []);
     } catch (error) {
       console.error('Failed to load departments:', error);
     }
