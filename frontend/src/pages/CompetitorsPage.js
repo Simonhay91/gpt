@@ -330,6 +330,60 @@ const CompetitorsPage = () => {
                       </p>
                     )}
                   </div>
+                  
+                  {/* Matching Section */}
+                  <div className="mt-6 pt-6 border-t">
+                    <div className="flex items-center justify-between mb-3">
+                      <h3 className="text-sm font-medium">
+                        {language === 'ru' ? 'Product Matching' : 'Product Matching'} ({competitor.matched_our_products?.length || 0})
+                      </h3>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          setSelectedCompetitor(competitor);
+                          setIsMatchDialogOpen(true);
+                        }}
+                      >
+                        <Plus className="h-3 w-3 mr-1" />
+                        {language === 'ru' ? 'Add Match' : 'Add Match'}
+                      </Button>
+                    </div>
+                    
+                    {competitor.matched_our_products?.length > 0 ? (
+                      <div className="space-y-2">
+                        {competitor.matched_our_products.map((match, idx) => {
+                          const source = sources.find(s => s.id === match.our_product_ref);
+                          return (
+                            <div key={idx} className="flex items-center justify-between p-3 border rounded-lg bg-green-500/5 border-green-500/20">
+                              <div className="flex-1">
+                                <div className="flex items-center gap-2 mb-1">
+                                  <Badge variant="outline" className="text-xs bg-green-500/10">
+                                    {match.match_type}
+                                  </Badge>
+                                  <span className="text-xs text-muted-foreground">{match.competitor_product_url}</span>
+                                </div>
+                                <p className="text-sm font-medium">
+                                  ↔ {source?.name || match.our_product_ref}
+                                </p>
+                              </div>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => removeMatch(competitor.id, match.competitor_product_url)}
+                              >
+                                <Trash2 className="h-4 w-4 text-red-400" />
+                              </Button>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <p className="text-sm text-muted-foreground text-center py-4">
+                        {language === 'ru' ? 'Нет matches' : 'No matches'}
+                      </p>
+                    )}
+                  </div>
                 </CardContent>
               </Card>
             ))}
