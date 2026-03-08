@@ -102,7 +102,7 @@
 # Testing Data - Main Agent and testing sub agent both should log testing data below this section
 #====================================================================================================
 
-user_problem_statement: "Протестируй новую страницу AI Настройки и функциональность AI Context для отделов в Planet Knowledge"
+user_problem_statement: "Протестируй новую функциональность сворачиваемых источников в Planet Knowledge"
 
 frontend:
   - task: "AI Settings Page Implementation"
@@ -110,7 +110,7 @@ frontend:
     working: true
     file: "/app/frontend/src/pages/AiSettingsPage.js"
     stuck_count: 0
-    priority: "high"
+    priority: "medium"
     needs_retesting: false
     status_history:
         - working: true
@@ -122,7 +122,7 @@ frontend:
     working: true
     file: "/app/frontend/src/components/DepartmentAiContextDialog.js"
     stuck_count: 0
-    priority: "high"
+    priority: "medium"
     needs_retesting: false
     status_history:
         - working: true
@@ -134,12 +134,36 @@ frontend:
     working: true
     file: "/app/frontend/src/pages/AdminDepartmentsPage.js"
     stuck_count: 0
-    priority: "high"
+    priority: "medium"
     needs_retesting: false
     status_history:
         - working: true
           agent: "testing"
           comment: "✅ Admin Departments page integration tested successfully. Page loads correctly at /admin/departments with proper admin authentication. Found 2 department cards (Engineering and Sales) with AI Context buttons properly displayed. AI Context buttons have correct styling (purple background with Sparkles icon) and are clickable. Integration with DepartmentAiContextDialog component works seamlessly."
+
+  - task: "Collapsible Sources Implementation"
+    implemented: true
+    working: "NA"
+    file: "/app/frontend/src/pages/ChatPage.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "Collapsible sources functionality implemented in ChatPage.js. Need to test: 1) Sources collapsed by default, 2) Toggle expand/collapse with ChevronDown/Up icons, 3) Source viewer modal opens on click, 4) Content loading and display, 5) Modal close functionality."
+
+  - task: "Source Viewer Modal Implementation"
+    implemented: true
+    working: "NA"
+    file: "/app/frontend/src/pages/ChatPage.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "Source viewer modal functionality implemented in ChatPage.js. Need to test: 1) Modal opens when clicking on source buttons, 2) Loading indicator displays while fetching content, 3) Source content displays in ScrollArea, 4) Close button works properly."
 
 metadata:
   created_by: "testing_agent"
