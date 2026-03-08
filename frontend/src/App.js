@@ -116,6 +116,13 @@ function AppRoutes() {
         </ProtectedRoute>
       } />
       
+      {/* Competitors Route */}
+      <Route path="/competitors" element={
+        <ProtectedRoute>
+          <CompetitorsPage />
+        </ProtectedRoute>
+      } />
+      
       {/* Admin Routes */}
       <Route path="/admin/config" element={
         <AdminRoute>
