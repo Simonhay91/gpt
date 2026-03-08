@@ -102,7 +102,7 @@
 # Testing Data - Main Agent and testing sub agent both should log testing data below this section
 #====================================================================================================
 
-user_problem_statement: "Протестируй отображение отделов в AI Settings для обычного пользователя"
+user_problem_statement: "Протестируй Competitor Tracker UI в Planet Knowledge"
 
 frontend:
   - task: "Department Selection Access Control for Regular Users"
