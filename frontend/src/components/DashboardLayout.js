@@ -22,7 +22,8 @@ import {
   ScrollText,
   Lock,
   Newspaper,
-  Languages
+  Languages,
+  TrendingUp
 } from 'lucide-react';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
