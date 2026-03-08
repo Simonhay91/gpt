@@ -2606,15 +2606,64 @@ async def send_message(chat_id: str, message_data: MessageCreate, current_user: 
             tokens_used = 0
             from_cache = True
         else:
-            # Build system prompt for Claude
-            system_parts = [config["developerPrompt"]]
+            # === BUILD SYSTEM PROMPT ===
+            system_parts = []
             
-            # Add user's custom prompt if exists
-            if user_custom_prompt:
-                logger.info(f"Adding user custom prompt for user {current_user['id']}")
-                system_parts.append(f"USER INSTRUCTIONS:\n{user_custom_prompt}")
+            # 1. Base prompt
+            base_prompt = """You are a helpful AI assistant for Planet Fibers company. 
+Answer based on the provided sources. Always provide accurate and relevant information."""
+            system_parts.append(base_prompt)
             
-            # Add document context if available
+            # 2. Add user's AI profile if exists
+            user = await db.users.find_one({"id": current_user["id"]}, {"_id": 0})
+            if user and "ai_profile" in user:
+                ai_profile = user["ai_profile"]
+                profile_parts = []
+                
+                if ai_profile.get("display_name"):
+                    profile_parts.append(f"User name: {ai_profile['display_name']}")
+                if ai_profile.get("position"):
+                    profile_parts.append(f"Position: {ai_profile['position']}")
+                if ai_profile.get("preferred_language"):
+                    lang_map = {"ru": "Russian", "en": "English"}
+                    profile_parts.append(f"Preferred language: {lang_map.get(ai_profile['preferred_language'], ai_profile['preferred_language'])}")
+                if ai_profile.get("response_style"):
+                    style_map = {
+                        "formal": "formal and professional",
+                        "casual": "casual and friendly", 
+                        "technical": "technical and detailed",
+                        "simple": "simple and easy to understand"
+                    }
+                    profile_parts.append(f"Response style: {style_map.get(ai_profile['response_style'], ai_profile['response_style'])}")
+                
+                if profile_parts:
+                    system_parts.append("USER PROFILE:\n" + "\n".join(profile_parts))
+                
+                # Add custom instruction if exists
+                if ai_profile.get("custom_instruction"):
+                    system_parts.append(f"USER INSTRUCTIONS:\n{ai_profile['custom_instruction']}")
+            
+            # 3. Add department AI context if user belongs to a department
+            user_dept_id = user.get("primaryDepartmentId") if user else None
+            if user_dept_id:
+                department = await db.departments.find_one({"id": user_dept_id}, {"_id": 0})
+                if department and "ai_context" in department:
+                    ai_context = department["ai_context"]
+                    context_parts = []
+                    
+                    if ai_context.get("style"):
+                        context_parts.append(f"Department style: {ai_context['style']}")
+                    if ai_context.get("instruction"):
+                        context_parts.append(f"Department instruction: {ai_context['instruction']}")
+                    
+                    if context_parts:
+                        system_parts.append("DEPARTMENT CONTEXT:\n" + "\n".join(context_parts))
+            
+            # 4. Add developer prompt (config)
+            if config.get("developerPrompt"):
+                system_parts.append(f"SYSTEM CONFIGURATION:\n{config['developerPrompt']}")
+            
+            # 5. Add document context if available
             if document_context:
                 active_sources_list = ", ".join(active_source_names) if active_source_names else "None"
                 chunks_count = len(citations) if citations else 0
