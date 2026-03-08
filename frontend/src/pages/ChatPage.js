@@ -142,6 +142,9 @@ const ChatPage = () => {
   const [searchResults, setSearchResults] = useState([]);
   const [isSearching, setIsSearching] = useState(false);
   const [showSearchResults, setShowSearchResults] = useState(false);
+  
+  // Expanded source groups state
+  const [expandedGroups, setExpandedGroups] = useState({});
 
   useEffect(() => {
     fetchChatData();
