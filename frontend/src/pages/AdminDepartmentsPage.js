@@ -430,6 +430,14 @@ const AdminDepartmentsPage = () => {
             )}
           </DialogContent>
         </Dialog>
+        
+        {/* AI Context Dialog */}
+        <DepartmentAiContextDialog
+          department={aiContextDept}
+          isOpen={!!aiContextDept}
+          onClose={() => setAiContextDept(null)}
+          language={language}
+        />
       </div>
     </DashboardLayout>
   );
