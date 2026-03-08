@@ -1721,6 +1721,47 @@ const ChatPage = () => {
           </div>
         </div>
       </div>
+      
+      {/* Source Content Viewer Modal */}
+      <Dialog open={!!viewingSource} onOpenChange={closeSourceModal}>
+        <DialogContent className="sm:max-w-3xl max-h-[80vh]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <FileText className="h-5 w-5 text-indigo-400" />
+              {viewingSource?.name}
+            </DialogTitle>
+            <DialogDescription>
+              Содержимое источника
+            </DialogDescription>
+          </DialogHeader>
+          
+          <ScrollArea className="max-h-[60vh] pr-4">
+            {isLoadingSourceContent ? (
+              <div className="flex items-center justify-center py-12">
+                <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+              </div>
+            ) : sourceContent ? (
+              <div className="space-y-4">
+                <div className="p-4 bg-secondary/30 rounded-lg">
+                  <pre className="whitespace-pre-wrap text-sm font-mono leading-relaxed">
+                    {sourceContent}
+                  </pre>
+                </div>
+              </div>
+            ) : (
+              <div className="text-center py-8 text-muted-foreground">
+                Не удалось загрузить содержимое
+              </div>
+            )}
+          </ScrollArea>
+          
+          <DialogFooter>
+            <Button variant="outline" onClick={closeSourceModal}>
+              Закрыть
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </DashboardLayout>
   );
 };
