@@ -128,6 +128,12 @@ const ChatPage = () => {
   // Source mode state
   const [sourceMode, setSourceMode] = useState('all'); // 'all' or 'my'
   
+  // Collapsible sources state
+  const [expandedSources, setExpandedSources] = useState({}); // Track which message sources are expanded
+  const [viewingSource, setViewingSource] = useState(null); // For source content modal
+  const [sourceContent, setSourceContent] = useState(null); // Content of viewed source
+  const [isLoadingSourceContent, setIsLoadingSourceContent] = useState(false);
+  
   // Preview dialog state
   const [previewDialogOpen, setPreviewDialogOpen] = useState(false);
   const [previewSource, setPreviewSource] = useState(null);
