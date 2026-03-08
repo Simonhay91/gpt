@@ -635,6 +635,83 @@ const ChatPage = () => {
     return 'File';
   };
 
+  // Group sources by type for expandable UI
+  const groupedSources = React.useMemo(() => {
+    const groups = {
+      pdf: { label: 'PDF документы', icon: FileText, color: 'text-red-400', sources: [] },
+      doc: { label: 'Документы Word', icon: File, color: 'text-blue-500', sources: [] },
+      excel: { label: 'Таблицы Excel', icon: File, color: 'text-green-500', sources: [] },
+      ppt: { label: 'Презентации', icon: File, color: 'text-orange-500', sources: [] },
+      url: { label: 'Web URLs', icon: Globe, color: 'text-blue-400', sources: [] },
+      image: { label: 'Изображения', icon: ImageIcon, color: 'text-purple-400', sources: [] },
+      other: { label: 'Другие файлы', icon: FileText, color: 'text-gray-400', sources: [] }
+    };
+
+    projectSources.forEach(source => {
+      if (source.kind === 'url') {
+        groups.url.sources.push(source);
+      } else if (source.mimeType?.includes('pdf')) {
+        groups.pdf.sources.push(source);
+      } else if (source.mimeType?.includes('wordprocessingml')) {
+        groups.doc.sources.push(source);
+      } else if (source.mimeType?.includes('spreadsheetml')) {
+        groups.excel.sources.push(source);
+      } else if (source.mimeType?.includes('presentationml')) {
+        groups.ppt.sources.push(source);
+      } else if (source.mimeType?.includes('image')) {
+        groups.image.sources.push(source);
+      } else {
+        groups.other.sources.push(source);
+      }
+    });
+
+    // Return only groups with sources
+    return Object.entries(groups).filter(([_, group]) => group.sources.length > 0);
+  }, [projectSources]);
+
+  // Toggle group expansion
+  const toggleGroup = (groupKey) => {
+    setExpandedGroups(prev => ({
+      ...prev,
+      [groupKey]: !prev[groupKey]
+    }));
+  };
+
+  // Toggle individual source selection
+  const toggleSourceSelection = (sourceId) => {
+    setActiveSourceIds(prev => {
+      if (prev.includes(sourceId)) {
+        return prev.filter(id => id !== sourceId);
+      } else {
+        return [...prev, sourceId];
+      }
+    });
+  };
+
+  // Toggle all sources in a group
+  const toggleGroupSelection = (sources) => {
+    const sourceIds = sources.map(s => s.id);
+    const allSelected = sourceIds.every(id => activeSourceIds.includes(id));
+    
+    if (allSelected) {
+      // Deselect all in group
+      setActiveSourceIds(prev => prev.filter(id => !sourceIds.includes(id)));
+    } else {
+      // Select all in group
+      setActiveSourceIds(prev => [...new Set([...prev, ...sourceIds])]);
+    }
+  };
+
+  // Select all sources
+  const selectAllSources = () => {
+    setActiveSourceIds(projectSources.map(s => s.id));
+  };
+
+  // Deselect all sources
+  const deselectAllSources = () => {
+    setActiveSourceIds([]);
+  };
+
   if (isLoading) {
     return (
       <DashboardLayout>
