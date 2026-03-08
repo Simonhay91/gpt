@@ -16,8 +16,8 @@ export const translations = {
     ru: 'Мои источники'
   },
   'nav.myGptPrompt': {
-    en: 'My GPT Prompt',
-    ru: 'Мой GPT промпт'
+    en: 'AI Settings',
+    ru: 'AI Настройки'
   },
   'nav.users': {
     en: 'Users',

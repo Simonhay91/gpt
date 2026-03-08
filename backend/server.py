@@ -9,8 +9,9 @@ import logging
 import re
 from pathlib import Path
 from pydantic import BaseModel, Field, EmailStr, HttpUrl
-from typing import List, Optional, Literal
+from typing import List, Optional, Literal, Dict, Any
 import uuid
+from uuid import uuid4
 from datetime import datetime, timezone, timedelta
 import jwt
 import bcrypt
@@ -20,6 +21,8 @@ import io
 import aiofiles
 import httpx
 from bs4 import BeautifulSoup
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from apscheduler.triggers.cron import CronTrigger
 from docx import Document
 import pytesseract
 from PIL import Image
@@ -37,6 +40,9 @@ load_dotenv(ROOT_DIR / '.env')
 mongo_url = os.environ['MONGO_URL']
 client = AsyncIOMotorClient(mongo_url)
 db = client[os.environ['DB_NAME']]
+
+# Scheduler for background tasks
+scheduler = AsyncIOScheduler()
 
 # JWT Settings
 JWT_SECRET = os.environ.get('JWT_SECRET', 'shared-project-gpt-secret-key-2024')
@@ -288,6 +294,71 @@ class UserPromptResponse(BaseModel):
     customPrompt: Optional[str] = None
     updatedAt: str
 
+class AiProfileUpdate(BaseModel):
+    display_name: Optional[str] = None
+    position: Optional[str] = None
+    department_id: Optional[str] = None
+    preferred_language: Optional[str] = None  # ru, en
+    response_style: Optional[str] = None  # formal, casual, technical, simple
+    custom_instruction: Optional[str] = None
+
+class AiProfileResponse(BaseModel):
+    display_name: Optional[str] = None
+    position: Optional[str] = None
+    department_id: Optional[str] = None
+    preferred_language: Optional[str] = "ru"
+    response_style: Optional[str] = "formal"
+    custom_instruction: Optional[str] = None
+
+class DepartmentAiContextUpdate(BaseModel):
+    style: Optional[str] = None
+    instruction: Optional[str] = None
+
+class DepartmentAiContextResponse(BaseModel):
+    style: Optional[str] = None
+    instruction: Optional[str] = None
+
+# ==================== COMPETITOR TRACKER MODELS ====================
+
+class CompetitorProduct(BaseModel):
+    id: str
+    url: str
+    title: Optional[str] = None
+    cached_content: Optional[str] = None
+    last_fetched: Optional[str] = None
+    auto_refresh: bool = False
+    refresh_interval_days: int = 7
+
+class CompetitorProductCreate(BaseModel):
+    url: str
+    auto_refresh: bool = False
+    refresh_interval_days: int = 7
+
+class MatchedProduct(BaseModel):
+    competitor_product_url: str
+    our_product_ref: str  # Source ID
+    match_type: str  # "auto" | "manual" | "category"
+
+class CompetitorCreate(BaseModel):
+    name: str
+    website: str
+
+class CompetitorUpdate(BaseModel):
+    name: Optional[str] = None
+    website: Optional[str] = None
+
+class CompetitorResponse(BaseModel):
+    id: str
+    name: str
+    website: str
+    products: List[CompetitorProduct] = []
+    matched_our_products: List[MatchedProduct] = []
+    created_by: str
+    created_at: str
+
+class CompetitorMatchUpdate(BaseModel):
+    matched_our_products: List[MatchedProduct]
+
 class ImageGenerateRequest(BaseModel):
     prompt: str
     size: Optional[str] = "1024x1024"
@@ -337,6 +408,141 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(s
 
 def is_admin(email: str) -> bool:
     return email.endswith(ADMIN_EMAIL_DOMAIN)
+
+# ==================== COMPETITOR TRACKER HELPERS ====================
+
+async def fetch_and_parse_url(url: str, max_chars: int = 3000) -> Dict[str, Any]:
+    """
+    Fetch URL and parse content using BeautifulSoup.
+    Returns: {
+        "title": str,
+        "content": str (limited to max_chars),
+        "error": Optional[str]
+    }
+    """
+    try:
+        async with httpx.AsyncClient(timeout=30.0, follow_redirects=True, verify=False) as client:
+            response = await client.get(url, headers={
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+            })
+            response.raise_for_status()
+            
+            # Parse HTML
+            soup = BeautifulSoup(response.content, 'lxml')
+            
+            # Remove scripts and styles
+            for element in soup(['script', 'style', 'nav', 'footer', 'header']):
+                element.decompose()
+            
+            # Get title
+            title = soup.title.string.strip() if soup.title else url
+            
+            # Get body text
+            body = soup.find('body')
+            if body:
+                text = body.get_text(separator='\n', strip=True)
+            else:
+                text = soup.get_text(separator='\n', strip=True)
+            
+            # Clean up text
+            lines = [line.strip() for line in text.splitlines() if line.strip()]
+            text = '\n'.join(lines)
+            
+            # Limit to max_chars
+            if len(text) > max_chars:
+                text = text[:max_chars] + "..."
+            
+            return {
+                "title": title[:200],  # Limit title length
+                "content": text,
+                "error": None
+            }
+    except httpx.TimeoutException:
+        return {"title": None, "content": None, "error": "Timeout while fetching URL"}
+    except httpx.HTTPStatusError as e:
+        return {"title": None, "content": None, "error": f"HTTP error: {e.response.status_code}"}
+    except Exception as e:
+        return {"title": None, "content": None, "error": f"Error fetching URL: {str(e)}"}
+
+
+async def check_competitor_tracker_access(current_user: dict) -> bool:
+    """Check if user has access to Competitor Tracker"""
+    user_dept_ids = current_user.get("departments", [])
+    logger.info(f"Checking competitor access for user {current_user.get('email')}, departments: {user_dept_ids}")
+    
+    if not user_dept_ids:
+        logger.info("User has no departments")
+        return False
+    
+    # Check if any of user's departments has competitor_tracker_enabled
+    departments = await db.departments.find(
+        {"id": {"$in": user_dept_ids}},
+        {"_id": 0, "id": 1, "name": 1, "competitor_tracker_enabled": 1}
+    ).to_list(100)
+    
+    logger.info(f"Found departments: {departments}")
+    result = any(dept.get("competitor_tracker_enabled", False) for dept in departments)
+    logger.info(f"Access result: {result}")
+    return result
+
+
+# ==================== BACKGROUND TASKS ====================
+
+async def auto_refresh_competitor_products():
+    """Background task to auto-refresh competitor products based on their schedule"""
+    logger.info("🔄 Starting auto-refresh of competitor products...")
+    
+    try:
+        # Get all competitors
+        competitors = await db.competitors.find({}, {"_id": 0}).to_list(10000)
+        
+        total_refreshed = 0
+        total_failed = 0
+        
+        for competitor in competitors:
+            for product in competitor.get("products", []):
+                # Check if auto_refresh is enabled
+                if not product.get("auto_refresh", False):
+                    continue
+                
+                # Check if it needs refresh
+                last_fetched = product.get("last_fetched")
+                refresh_interval_days = product.get("refresh_interval_days", 7)
+                
+                if last_fetched:
+                    last_fetched_dt = datetime.fromisoformat(last_fetched.replace('Z', '+00:00'))
+                    days_since_fetch = (datetime.now(timezone.utc) - last_fetched_dt).days
+                    
+                    if days_since_fetch < refresh_interval_days:
+                        # Not yet time to refresh
+                        continue
+                
+                # Fetch URL
+                logger.info(f"Auto-refreshing: {competitor['name']} - {product['url']}")
+                result = await fetch_and_parse_url(product["url"])
+                
+                if not result["error"]:
+                    # Update product
+                    now = datetime.now(timezone.utc).isoformat()
+                    await db.competitors.update_one(
+                        {"id": competitor["id"], "products.id": product["id"]},
+                        {"$set": {
+                            "products.$.title": result["title"],
+                            "products.$.cached_content": result["content"],
+                            "products.$.last_fetched": now
+                        }}
+                    )
+                    total_refreshed += 1
+                    logger.info(f"✓ Refreshed: {product['url']}")
+                else:
+                    total_failed += 1
+                    logger.error(f"✗ Failed to refresh {product['url']}: {result['error']}")
+        
+        logger.info(f"🔄 Auto-refresh completed: {total_refreshed} refreshed, {total_failed} failed")
+        
+    except Exception as e:
+        logger.error(f"Error in auto_refresh_competitor_products: {str(e)}")
+
 
 # ==================== PERMISSION MATRIX ====================
 
@@ -2457,6 +2663,39 @@ async def send_message(chat_id: str, message_data: MessageCreate, current_user: 
     # Get chat history
     history = await db.messages.find({"chatId": chat_id}, {"_id": 0}).sort("createdAt", 1).to_list(1000)
     
+    # === COMPETITOR TRACKER INTEGRATION ===
+    # Check if user message contains URLs and if they're in Competitor Tracker
+    competitor_data = None
+    competitor_product_info = None
+    
+    # Simple URL extraction
+    url_pattern = r'https?://[^\s<>"{}|\\^`\[\]]+'
+    urls_in_message = re.findall(url_pattern, message_data.content)
+    
+    if urls_in_message:
+        # Check if user has competitor tracker access
+        has_competitor_access = await check_competitor_tracker_access(current_user)
+        
+        if has_competitor_access:
+            # Check each URL against competitor products
+            for url in urls_in_message:
+                competitors = await db.competitors.find({}, {"_id": 0}).to_list(1000)
+                
+                for competitor in competitors:
+                    for product in competitor.get("products", []):
+                        if product.get("url") == url and product.get("cached_content"):
+                            competitor_data = product["cached_content"]
+                            competitor_product_info = {
+                                "competitor_name": competitor["name"],
+                                "product_url": url,
+                                "product_title": product.get("title", url),
+                                "last_fetched": product.get("last_fetched")
+                            }
+                            logger.info(f"🔍 Using cached competitor data for: {url}")
+                            break
+                    if competitor_data:
+                        break
+    
     # Get active sources and relevant chunks (including newly ingested)
     citations = []
     document_context = ""
@@ -2526,6 +2765,21 @@ async def send_message(chat_id: str, message_data: MessageCreate, current_user: 
             
             document_context = "\n\n---\n\n".join(context_parts)
     
+    # Add competitor data to context if found
+    if competitor_data and competitor_product_info:
+        competitor_context = f"""
+[🔍 COMPETITOR DATA - {competitor_product_info['competitor_name']}]
+Product: {competitor_product_info['product_title']}
+URL: {competitor_product_info['product_url']}
+Last Updated: {competitor_product_info.get('last_fetched', 'Unknown')}
+
+{competitor_data}
+"""
+        if document_context:
+            document_context = competitor_context + "\n\n---\n\n" + document_context
+        else:
+            document_context = competitor_context
+    
     # Get user's custom prompt
     user_prompt_doc = await db.user_prompts.find_one({"userId": current_user["id"]}, {"_id": 0})
     user_custom_prompt = user_prompt_doc.get("customPrompt") if user_prompt_doc else None
@@ -2582,15 +2836,64 @@ async def send_message(chat_id: str, message_data: MessageCreate, current_user: 
             tokens_used = 0
             from_cache = True
         else:
-            # Build system prompt for Claude
-            system_parts = [config["developerPrompt"]]
+            # === BUILD SYSTEM PROMPT ===
+            system_parts = []
             
-            # Add user's custom prompt if exists
-            if user_custom_prompt:
-                logger.info(f"Adding user custom prompt for user {current_user['id']}")
-                system_parts.append(f"USER INSTRUCTIONS:\n{user_custom_prompt}")
+            # 1. Base prompt
+            base_prompt = """You are a helpful AI assistant for Planet Fibers company. 
+Answer based on the provided sources. Always provide accurate and relevant information."""
+            system_parts.append(base_prompt)
             
-            # Add document context if available
+            # 2. Add user's AI profile if exists
+            user = await db.users.find_one({"id": current_user["id"]}, {"_id": 0})
+            if user and "ai_profile" in user:
+                ai_profile = user["ai_profile"]
+                profile_parts = []
+                
+                if ai_profile.get("display_name"):
+                    profile_parts.append(f"User name: {ai_profile['display_name']}")
+                if ai_profile.get("position"):
+                    profile_parts.append(f"Position: {ai_profile['position']}")
+                if ai_profile.get("preferred_language"):
+                    lang_map = {"ru": "Russian", "en": "English"}
+                    profile_parts.append(f"Preferred language: {lang_map.get(ai_profile['preferred_language'], ai_profile['preferred_language'])}")
+                if ai_profile.get("response_style"):
+                    style_map = {
+                        "formal": "formal and professional",
+                        "casual": "casual and friendly", 
+                        "technical": "technical and detailed",
+                        "simple": "simple and easy to understand"
+                    }
+                    profile_parts.append(f"Response style: {style_map.get(ai_profile['response_style'], ai_profile['response_style'])}")
+                
+                if profile_parts:
+                    system_parts.append("USER PROFILE:\n" + "\n".join(profile_parts))
+                
+                # Add custom instruction if exists
+                if ai_profile.get("custom_instruction"):
+                    system_parts.append(f"USER INSTRUCTIONS:\n{ai_profile['custom_instruction']}")
+            
+            # 3. Add department AI context if user belongs to a department
+            user_dept_id = user.get("primaryDepartmentId") if user else None
+            if user_dept_id:
+                department = await db.departments.find_one({"id": user_dept_id}, {"_id": 0})
+                if department and "ai_context" in department:
+                    ai_context = department["ai_context"]
+                    context_parts = []
+                    
+                    if ai_context.get("style"):
+                        context_parts.append(f"Department style: {ai_context['style']}")
+                    if ai_context.get("instruction"):
+                        context_parts.append(f"Department instruction: {ai_context['instruction']}")
+                    
+                    if context_parts:
+                        system_parts.append("DEPARTMENT CONTEXT:\n" + "\n".join(context_parts))
+            
+            # 4. Add developer prompt (config)
+            if config.get("developerPrompt"):
+                system_parts.append(f"SYSTEM CONFIGURATION:\n{config['developerPrompt']}")
+            
+            # 5. Add document context if available
             if document_context:
                 active_sources_list = ", ".join(active_source_names) if active_source_names else "None"
                 chunks_count = len(citations) if citations else 0
@@ -2687,6 +2990,7 @@ async def send_message(chat_id: str, message_data: MessageCreate, current_user: 
         "senderName": "GPT",
         "fromCache": from_cache,
         "cacheInfo": cache_info,
+        "competitorInfo": competitor_product_info,  # Add competitor info
         "createdAt": datetime.now(timezone.utc).isoformat()
     }
     await db.messages.insert_one(assistant_message)
@@ -3681,6 +3985,409 @@ async def update_user_prompt(data: UserPromptUpdate, current_user: dict = Depend
         updatedAt=now
     )
 
+
+# ==================== AI PROFILE ENDPOINTS ====================
+
+@api_router.get("/users/me/ai-profile", response_model=AiProfileResponse)
+async def get_user_ai_profile(current_user: dict = Depends(get_current_user)):
+    """Get the current user's AI profile"""
+    user = await db.users.find_one({"id": current_user["id"]}, {"_id": 0})
+    
+    if not user or "ai_profile" not in user:
+        # Return default values
+        return AiProfileResponse(
+            display_name=user.get("name") if user else None,
+            position=None,
+            department_id=user.get("primaryDepartmentId") if user else None,
+            preferred_language="ru",
+            response_style="formal",
+            custom_instruction=None
+        )
+    
+    ai_profile = user["ai_profile"]
+    return AiProfileResponse(**ai_profile)
+
+
+@api_router.put("/users/me/ai-profile", response_model=AiProfileResponse)
+async def update_user_ai_profile(data: AiProfileUpdate, current_user: dict = Depends(get_current_user)):
+    """Update the current user's AI profile"""
+    
+    # Build update data - only include fields that were provided
+    ai_profile_update = {}
+    if data.display_name is not None:
+        ai_profile_update["display_name"] = data.display_name
+    if data.position is not None:
+        ai_profile_update["position"] = data.position
+    if data.department_id is not None:
+        ai_profile_update["department_id"] = data.department_id
+    if data.preferred_language is not None:
+        ai_profile_update["preferred_language"] = data.preferred_language
+    if data.response_style is not None:
+        ai_profile_update["response_style"] = data.response_style
+    if data.custom_instruction is not None:
+        ai_profile_update["custom_instruction"] = data.custom_instruction
+    
+    # Update user's ai_profile
+    await db.users.update_one(
+        {"id": current_user["id"]},
+        {"$set": {"ai_profile": ai_profile_update}}
+    )
+    
+    # Return updated profile
+    return AiProfileResponse(**ai_profile_update)
+
+
+@api_router.get("/departments/{department_id}/ai-context", response_model=DepartmentAiContextResponse)
+async def get_department_ai_context(department_id: str, current_user: dict = Depends(get_current_user)):
+    """Get AI context for a department. Accessible by admin and department managers."""
+    
+    # Check if user is admin (check email domain) or manager of this department
+    is_admin_user = is_admin(current_user.get("email", ""))
+    logger.info(f"User {current_user.get('email')} accessing AI context. isAdmin: {is_admin_user}")
+    
+    if not is_admin_user:
+        # Check if user is manager of this department
+        user_dept = await db.department_members.find_one({
+            "userId": current_user["id"],
+            "departmentId": department_id,
+            "role": "manager"
+        })
+        if not user_dept:
+            raise HTTPException(status_code=403, detail="Access denied. Admin or department manager role required.")
+    
+    # Get department
+    department = await db.departments.find_one({"id": department_id}, {"_id": 0})
+    if not department:
+        raise HTTPException(status_code=404, detail="Department not found")
+    
+    if "ai_context" not in department:
+        return DepartmentAiContextResponse(style=None, instruction=None)
+    
+    ai_context = department["ai_context"]
+    return DepartmentAiContextResponse(**ai_context)
+
+
+@api_router.put("/departments/{department_id}/ai-context", response_model=DepartmentAiContextResponse)
+async def update_department_ai_context(
+    department_id: str, 
+    data: DepartmentAiContextUpdate, 
+    current_user: dict = Depends(get_current_user)
+):
+    """Update AI context for a department. Only admin and department managers can update."""
+    
+    # Check if user is admin (check email domain) or manager of this department
+    is_admin_user = is_admin(current_user.get("email", ""))
+    if not is_admin_user:
+        # Check if user is manager of this department
+        user_dept = await db.department_members.find_one({
+            "userId": current_user["id"],
+            "departmentId": department_id,
+            "role": "manager"
+        })
+        if not user_dept:
+            raise HTTPException(status_code=403, detail="Access denied. Admin or department manager role required.")
+    
+    # Check department exists
+    department = await db.departments.find_one({"id": department_id}, {"_id": 0})
+    if not department:
+        raise HTTPException(status_code=404, detail="Department not found")
+    
+    # Build update data
+    ai_context_update = {}
+    if data.style is not None:
+        ai_context_update["style"] = data.style
+    if data.instruction is not None:
+        ai_context_update["instruction"] = data.instruction
+    
+    # Update department's ai_context
+    await db.departments.update_one(
+        {"id": department_id},
+        {"$set": {"ai_context": ai_context_update}}
+    )
+    
+    # Log audit
+    await AuditService.log_action(
+        db=db,
+        user_id=current_user["id"],
+        action="update_department_ai_context",
+        resource_type="department",
+        resource_id=department_id,
+        details={"ai_context": ai_context_update}
+    )
+    
+    return DepartmentAiContextResponse(**ai_context_update)
+
+
+# ==================== COMPETITOR TRACKER ENDPOINTS ====================
+
+@api_router.post("/competitors", response_model=CompetitorResponse)
+async def create_competitor(data: CompetitorCreate, current_user: dict = Depends(get_current_user)):
+    """Create a new competitor (requires competitor_tracker access)"""
+    # Check access
+    has_access = await check_competitor_tracker_access(current_user)
+    if not has_access:
+        raise HTTPException(status_code=403, detail="Access denied. Competitor Tracker not enabled for your department.")
+    
+    competitor_id = str(uuid4())
+    now = datetime.now(timezone.utc).isoformat()
+    
+    competitor = {
+        "id": competitor_id,
+        "name": data.name,
+        "website": data.website,
+        "products": [],
+        "matched_our_products": [],
+        "created_by": current_user["id"],
+        "created_at": now
+    }
+    
+    await db.competitors.insert_one(competitor)
+    
+    return CompetitorResponse(**competitor)
+
+
+@api_router.get("/competitors")
+async def list_competitors(current_user: dict = Depends(get_current_user)):
+    """List all competitors (requires competitor_tracker access)"""
+    # Check access
+    has_access = await check_competitor_tracker_access(current_user)
+    if not has_access:
+        raise HTTPException(status_code=403, detail="Access denied. Competitor Tracker not enabled for your department.")
+    
+    competitors = await db.competitors.find({}, {"_id": 0}).to_list(1000)
+    return competitors
+
+
+@api_router.get("/competitors/{competitor_id}", response_model=CompetitorResponse)
+async def get_competitor(competitor_id: str, current_user: dict = Depends(get_current_user)):
+    """Get competitor details"""
+    # Check access
+    has_access = await check_competitor_tracker_access(current_user)
+    if not has_access:
+        raise HTTPException(status_code=403, detail="Access denied")
+    
+    competitor = await db.competitors.find_one({"id": competitor_id}, {"_id": 0})
+    if not competitor:
+        raise HTTPException(status_code=404, detail="Competitor not found")
+    
+    return CompetitorResponse(**competitor)
+
+
+@api_router.put("/competitors/{competitor_id}", response_model=CompetitorResponse)
+async def update_competitor(competitor_id: str, data: CompetitorUpdate, current_user: dict = Depends(get_current_user)):
+    """Update competitor"""
+    # Check access
+    has_access = await check_competitor_tracker_access(current_user)
+    if not has_access:
+        raise HTTPException(status_code=403, detail="Access denied")
+    
+    competitor = await db.competitors.find_one({"id": competitor_id}, {"_id": 0})
+    if not competitor:
+        raise HTTPException(status_code=404, detail="Competitor not found")
+    
+    update_data = {}
+    if data.name is not None:
+        update_data["name"] = data.name
+    if data.website is not None:
+        update_data["website"] = data.website
+    
+    if update_data:
+        await db.competitors.update_one({"id": competitor_id}, {"$set": update_data})
+        competitor.update(update_data)
+    
+    return CompetitorResponse(**competitor)
+
+
+@api_router.delete("/competitors/{competitor_id}")
+async def delete_competitor(competitor_id: str, current_user: dict = Depends(get_current_user)):
+    """Delete competitor"""
+    # Check access
+    has_access = await check_competitor_tracker_access(current_user)
+    if not has_access:
+        raise HTTPException(status_code=403, detail="Access denied")
+    
+    result = await db.competitors.delete_one({"id": competitor_id})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Competitor not found")
+    
+    return {"success": True, "message": "Competitor deleted"}
+
+
+@api_router.post("/competitors/{competitor_id}/products")
+async def add_competitor_product(
+    competitor_id: str,
+    data: CompetitorProductCreate,
+    current_user: dict = Depends(get_current_user)
+):
+    """Add a product URL to competitor"""
+    # Check access
+    has_access = await check_competitor_tracker_access(current_user)
+    if not has_access:
+        raise HTTPException(status_code=403, detail="Access denied")
+    
+    competitor = await db.competitors.find_one({"id": competitor_id}, {"_id": 0})
+    if not competitor:
+        raise HTTPException(status_code=404, detail="Competitor not found")
+    
+    product_id = str(uuid4())
+    product = {
+        "id": product_id,
+        "url": data.url,
+        "title": None,
+        "cached_content": None,
+        "last_fetched": None,
+        "auto_refresh": data.auto_refresh,
+        "refresh_interval_days": data.refresh_interval_days
+    }
+    
+    await db.competitors.update_one(
+        {"id": competitor_id},
+        {"$push": {"products": product}}
+    )
+    
+    return {"success": True, "product": product}
+
+
+@api_router.delete("/competitors/{competitor_id}/products/{product_id}")
+async def delete_competitor_product(
+    competitor_id: str,
+    product_id: str,
+    current_user: dict = Depends(get_current_user)
+):
+    """Delete a product from competitor"""
+    # Check access
+    has_access = await check_competitor_tracker_access(current_user)
+    if not has_access:
+        raise HTTPException(status_code=403, detail="Access denied")
+    
+    result = await db.competitors.update_one(
+        {"id": competitor_id},
+        {"$pull": {"products": {"id": product_id}}}
+    )
+    
+    if result.modified_count == 0:
+        raise HTTPException(status_code=404, detail="Product not found")
+    
+    return {"success": True, "message": "Product deleted"}
+
+
+@api_router.post("/competitors/{competitor_id}/products/{product_id}/fetch")
+async def fetch_competitor_product(
+    competitor_id: str,
+    product_id: str,
+    current_user: dict = Depends(get_current_user)
+):
+    """Fetch and cache product URL content"""
+    # Check access
+    has_access = await check_competitor_tracker_access(current_user)
+    if not has_access:
+        raise HTTPException(status_code=403, detail="Access denied")
+    
+    competitor = await db.competitors.find_one({"id": competitor_id}, {"_id": 0})
+    if not competitor:
+        raise HTTPException(status_code=404, detail="Competitor not found")
+    
+    # Find product
+    product = next((p for p in competitor.get("products", []) if p["id"] == product_id), None)
+    if not product:
+        raise HTTPException(status_code=404, detail="Product not found")
+    
+    # Fetch URL
+    result = await fetch_and_parse_url(product["url"])
+    
+    if result["error"]:
+        raise HTTPException(status_code=400, detail=result["error"])
+    
+    # Update product
+    now = datetime.now(timezone.utc).isoformat()
+    await db.competitors.update_one(
+        {"id": competitor_id, "products.id": product_id},
+        {"$set": {
+            "products.$.title": result["title"],
+            "products.$.cached_content": result["content"],
+            "products.$.last_fetched": now
+        }}
+    )
+    
+    return {
+        "success": True,
+        "title": result["title"],
+        "content_length": len(result["content"]),
+        "last_fetched": now
+    }
+
+
+@api_router.post("/competitors/{competitor_id}/refresh")
+async def refresh_all_products(
+    competitor_id: str,
+    current_user: dict = Depends(get_current_user)
+):
+    """Refresh all products for a competitor"""
+    # Check access
+    has_access = await check_competitor_tracker_access(current_user)
+    if not has_access:
+        raise HTTPException(status_code=403, detail="Access denied")
+    
+    competitor = await db.competitors.find_one({"id": competitor_id}, {"_id": 0})
+    if not competitor:
+        raise HTTPException(status_code=404, detail="Competitor not found")
+    
+    products = competitor.get("products", [])
+    success_count = 0
+    failed_count = 0
+    
+    for product in products:
+        result = await fetch_and_parse_url(product["url"])
+        
+        if not result["error"]:
+            now = datetime.now(timezone.utc).isoformat()
+            await db.competitors.update_one(
+                {"id": competitor_id, "products.id": product["id"]},
+                {"$set": {
+                    "products.$.title": result["title"],
+                    "products.$.cached_content": result["content"],
+                    "products.$.last_fetched": now
+                }}
+            )
+            success_count += 1
+        else:
+            failed_count += 1
+    
+    return {
+        "success": True,
+        "total": len(products),
+        "success_count": success_count,
+        "failed_count": failed_count
+    }
+
+
+@api_router.put("/competitors/{competitor_id}/match")
+async def update_competitor_matches(
+    competitor_id: str,
+    data: CompetitorMatchUpdate,
+    current_user: dict = Depends(get_current_user)
+):
+    """Update product matching"""
+    # Check access
+    has_access = await check_competitor_tracker_access(current_user)
+    if not has_access:
+        raise HTTPException(status_code=403, detail="Access denied")
+    
+    competitor = await db.competitors.find_one({"id": competitor_id}, {"_id": 0})
+    if not competitor:
+        raise HTTPException(status_code=404, detail="Competitor not found")
+    
+    # Convert to dict
+    matches = [m.dict() for m in data.matched_our_products]
+    
+    await db.competitors.update_one(
+        {"id": competitor_id},
+        {"$set": {"matched_our_products": matches}}
+    )
+    
+    return {"success": True, "matched_count": len(matches)}
+
+
 # ==================== HEALTH CHECK ====================
 
 @api_router.get("/")
@@ -3860,6 +4567,50 @@ async def get_source_insights(source_id: str, current_user: dict = Depends(get_c
     }
 
 
+@api_router.get("/sources/{source_id}/chunks")
+async def get_source_chunks(source_id: str, current_user: dict = Depends(get_current_user)):
+    """Get all chunks for a source to display content"""
+    # Check if source exists and user has access
+    source = await db.sources.find_one({"id": source_id}, {"_id": 0})
+    if not source:
+        raise HTTPException(status_code=404, detail="Source not found")
+    
+    # Check access based on source level
+    source_level = source.get("level", "project")
+    
+    if source_level == "personal":
+        # Personal source - only owner can access
+        if source.get("ownerId") != current_user["id"]:
+            raise HTTPException(status_code=403, detail="Access denied")
+    elif source_level == "department":
+        # Department source - user must be in department
+        user_departments = current_user.get("departments", [])
+        if source.get("departmentId") not in user_departments:
+            raise HTTPException(status_code=403, detail="Access denied")
+    elif source_level == "global":
+        # Global source - everyone can access
+        pass
+    else:
+        # Project source - check project access
+        project_id = source.get("projectId")
+        if project_id and project_id != GLOBAL_PROJECT_ID:
+            try:
+                await check_project_access(current_user, project_id, required_role="viewer")
+            except HTTPException:
+                raise HTTPException(status_code=403, detail="Access denied")
+    
+    # Get all chunks for this source
+    chunks = await db.source_chunks.find(
+        {"sourceId": source_id},
+        {"_id": 0}
+    ).sort("chunkIndex", 1).to_list(10000)
+    
+    if not chunks:
+        return []
+    
+    return chunks
+
+
 @api_router.post("/chats/{chat_id}/smart-questions", response_model=SmartQuestionsResponse)
 async def generate_smart_questions(chat_id: str, current_user: dict = Depends(get_current_user)):
     """
@@ -4021,6 +4772,19 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+@app.on_event("startup")
+async def startup_event():
+    """Start background scheduler"""
+    # Schedule auto-refresh task to run daily at 2 AM
+    scheduler.add_job(
+        auto_refresh_competitor_products,
+        CronTrigger(hour=2, minute=0),  # Every day at 2:00 AM
+        id="auto_refresh_competitors",
+        replace_existing=True
+    )
+    scheduler.start()
+    logger.info("✓ Scheduler started - Auto-refresh will run daily at 2:00 AM")
 
 @app.on_event("shutdown")
 async def shutdown_db_client():

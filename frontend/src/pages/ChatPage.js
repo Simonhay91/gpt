@@ -40,7 +40,8 @@ import {
   Save,
   Target,
   Globe2,
-  Lightbulb
+  Lightbulb,
+  TrendingUp
 } from 'lucide-react';
 import { Label } from '../components/ui/label';
 import { Checkbox } from '../components/ui/checkbox';
@@ -127,6 +128,12 @@ const ChatPage = () => {
   
   // Source mode state
   const [sourceMode, setSourceMode] = useState('all'); // 'all' or 'my'
+  
+  // Collapsible sources state
+  const [expandedSources, setExpandedSources] = useState({}); // Track which message sources are expanded
+  const [viewingSource, setViewingSource] = useState(null); // For source content modal
+  const [sourceContent, setSourceContent] = useState(null); // Content of viewed source
+  const [isLoadingSourceContent, setIsLoadingSourceContent] = useState(false);
   
   // Preview dialog state
   const [previewDialogOpen, setPreviewDialogOpen] = useState(false);
@@ -620,6 +627,45 @@ const ChatPage = () => {
       hour: '2-digit',
       minute: '2-digit'
     });
+  };
+
+  // Toggle source expansion for a message
+  const toggleSourceExpansion = (messageId) => {
+    setExpandedSources(prev => ({
+      ...prev,
+      [messageId]: !prev[messageId]
+    }));
+  };
+
+  // View source content
+  const viewSourceContent = async (sourceId, sourceName) => {
+    setIsLoadingSourceContent(true);
+    setViewingSource({ id: sourceId, name: sourceName });
+    setSourceContent(null);
+    
+    try {
+      const response = await axios.get(`${API}/sources/${sourceId}/chunks`);
+      const chunks = response.data;
+      
+      // Combine all chunks to show full content
+      const fullContent = chunks
+        .sort((a, b) => a.chunkIndex - b.chunkIndex)
+        .map(chunk => chunk.content || chunk.text)
+        .join('\n\n');
+      
+      setSourceContent(fullContent);
+    } catch (error) {
+      console.error('Failed to load source content:', error);
+      toast.error('Не удалось загрузить содержимое');
+      setViewingSource(null);
+    } finally {
+      setIsLoadingSourceContent(false);
+    }
+  };
+
+  const closeSourceModal = () => {
+    setViewingSource(null);
+    setSourceContent(null);
   };
 
   const getFileTypeLabel = (mimeType, kind) => {
@@ -1506,68 +1552,102 @@ const ChatPage = () => {
                       </div>
                     )}
                     
-                    {/* Citations / Used Sources */}
+                    {/* Competitor Data Indicator */}
+                    {message.role === 'assistant' && message.competitorInfo && (
+                      <div className="mt-2 px-2">
+                        <div className="flex items-center gap-2 p-2 rounded-lg bg-orange-500/10 border border-orange-500/20">
+                          <TrendingUp className="h-4 w-4 text-orange-400" />
+                          <div className="flex-1">
+                            <p className="text-xs font-medium text-orange-400">
+                              🔍 Competitor Data Used
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                              {message.competitorInfo.competitor_name} - {message.competitorInfo.product_title}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                    
+                    {/* Citations / Used Sources - Collapsible */}
                     {message.role === 'assistant' && !message.isGeneratedImage && (message.citations?.length > 0 || message.usedSources?.length > 0) && (
                       <div className="mt-2 px-2">
-                        <div className="flex items-center gap-1 text-xs text-muted-foreground mb-1">
+                        <button
+                          onClick={() => toggleSourceExpansion(message.id)}
+                          className="flex items-center gap-2 text-xs text-muted-foreground hover:text-foreground transition-colors w-full py-1 px-2 rounded hover:bg-secondary/50"
+                          data-testid={`toggle-sources-${index}`}
+                        >
                           <Quote className="h-3 w-3" />
-                          Sources used:
-                        </div>
-                        <div className="flex flex-wrap gap-2">
-                          {message.citations ? (
-                            message.citations.map((citation, cidx) => {
-                              const isGlobal = citation.sourceType === 'global';
+                          <span className="font-medium">
+                            Sources ({(message.citations || message.usedSources)?.length})
+                          </span>
+                          {expandedSources[message.id] ? (
+                            <ChevronUp className="h-3 w-3 ml-auto" />
+                          ) : (
+                            <ChevronDown className="h-3 w-3 ml-auto" />
+                          )}
+                        </button>
+                        
+                        {expandedSources[message.id] && (
+                          <div className="flex flex-wrap gap-2 mt-2 animate-slideIn">
+                            {message.citations ? (
+                              message.citations.map((citation, cidx) => {
+                                const isGlobal = citation.sourceType === 'global';
+                                const bgColor = isGlobal ? 'bg-emerald-500/10' : 'bg-indigo-500/10';
+                                const textColor = isGlobal ? 'text-emerald-400' : 'text-indigo-400';
+                                const borderColor = isGlobal ? 'border-emerald-500/20' : 'border-indigo-500/20';
+                                const Icon = isGlobal ? Globe : FileText;
+                                
+                                return (
+                                  <button
+                                    key={cidx}
+                                    onClick={() => viewSourceContent(citation.sourceId, citation.sourceName)}
+                                    className={`inline-flex items-center gap-1 px-2 py-1 rounded-md ${bgColor} ${textColor} text-xs border ${borderColor} hover:opacity-80 transition-opacity cursor-pointer`}
+                                    data-testid={`citation-${cidx}`}
+                                    title={`Нажмите для просмотра: ${citation.sourceName}`}
+                                  >
+                                    <Icon className="h-3 w-3" />
+                                    <span className="font-medium">
+                                      {isGlobal ? '🌐 ' : '📁 '}
+                                      {citation.sourceName.length > 25 
+                                        ? citation.sourceName.slice(0, 25) + '...' 
+                                        : citation.sourceName}
+                                    </span>
+                                    {citation.chunks && (
+                                      <span className="opacity-70">
+                                        (chunks {Array.isArray(citation.chunks) 
+                                          ? citation.chunks.map(c => c.index || c).join(', ')
+                                          : citation.chunks})
+                                      </span>
+                                    )}
+                                  </button>
+                                );
+                              })
+                            ) : message.usedSources?.map((source, sidx) => {
+                              const isGlobal = source.sourceType === 'global';
                               const bgColor = isGlobal ? 'bg-emerald-500/10' : 'bg-indigo-500/10';
                               const textColor = isGlobal ? 'text-emerald-400' : 'text-indigo-400';
                               const borderColor = isGlobal ? 'border-emerald-500/20' : 'border-indigo-500/20';
                               const Icon = isGlobal ? Globe : FileText;
                               
                               return (
-                                <span
-                                  key={cidx}
-                                  className={`inline-flex items-center gap-1 px-2 py-1 rounded-md ${bgColor} ${textColor} text-xs border ${borderColor}`}
-                                  data-testid={`citation-${cidx}`}
-                                  title={citation.textFragment || citation.sourceName}
+                                <button
+                                  key={sidx}
+                                  onClick={() => viewSourceContent(source.sourceId, source.sourceName)}
+                                  className={`inline-flex items-center gap-1 px-2 py-1 rounded-md ${bgColor} ${textColor} text-xs border ${borderColor} hover:opacity-80 transition-opacity cursor-pointer`}
+                                  data-testid={`used-source-${sidx}`}
+                                  title={`Нажмите для просмотра: ${source.sourceName}`}
                                 >
                                   <Icon className="h-3 w-3" />
-                                  <span className="font-medium">
-                                    {isGlobal ? '🌐 ' : '📁 '}
-                                    {citation.sourceName.length > 25 
-                                      ? citation.sourceName.slice(0, 25) + '...' 
-                                      : citation.sourceName}
-                                  </span>
-                                  {citation.chunks && (
-                                    <span className="opacity-70">
-                                      (chunks {Array.isArray(citation.chunks) 
-                                        ? citation.chunks.map(c => c.index || c).join(', ')
-                                        : citation.chunks})
-                                    </span>
-                                  )}
-                                </span>
+                                  {isGlobal ? '🌐 ' : '📁 '}
+                                  {source.sourceName.length > 25 
+                                    ? source.sourceName.slice(0, 25) + '...' 
+                                    : source.sourceName}
+                                </button>
                               );
-                            })
-                          ) : message.usedSources?.map((source, sidx) => {
-                            const isGlobal = source.sourceType === 'global';
-                            const bgColor = isGlobal ? 'bg-emerald-500/10' : 'bg-indigo-500/10';
-                            const textColor = isGlobal ? 'text-emerald-400' : 'text-indigo-400';
-                            const borderColor = isGlobal ? 'border-emerald-500/20' : 'border-indigo-500/20';
-                            const Icon = isGlobal ? Globe : FileText;
-                            
-                            return (
-                              <span
-                                key={sidx}
-                                className={`inline-flex items-center gap-1 px-2 py-1 rounded-md ${bgColor} ${textColor} text-xs border ${borderColor}`}
-                                data-testid={`used-source-${sidx}`}
-                              >
-                                <Icon className="h-3 w-3" />
-                                {isGlobal ? '🌐 ' : '📁 '}
-                                {source.sourceName.length > 25 
-                                  ? source.sourceName.slice(0, 25) + '...' 
-                                  : source.sourceName}
-                              </span>
-                            );
-                          })}
-                        </div>
+                            })}
+                          </div>
+                        )}
                       </div>
                     )}
                     
@@ -1659,6 +1739,47 @@ const ChatPage = () => {
           </div>
         </div>
       </div>
+      
+      {/* Source Content Viewer Modal */}
+      <Dialog open={!!viewingSource} onOpenChange={closeSourceModal}>
+        <DialogContent className="sm:max-w-3xl max-h-[80vh]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <FileText className="h-5 w-5 text-indigo-400" />
+              {viewingSource?.name}
+            </DialogTitle>
+            <DialogDescription>
+              Содержимое источника
+            </DialogDescription>
+          </DialogHeader>
+          
+          <ScrollArea className="max-h-[60vh] pr-4">
+            {isLoadingSourceContent ? (
+              <div className="flex items-center justify-center py-12">
+                <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+              </div>
+            ) : sourceContent ? (
+              <div className="space-y-4">
+                <div className="p-4 bg-secondary/30 rounded-lg">
+                  <pre className="whitespace-pre-wrap text-sm font-mono leading-relaxed">
+                    {sourceContent}
+                  </pre>
+                </div>
+              </div>
+            ) : (
+              <div className="text-center py-8 text-muted-foreground">
+                Не удалось загрузить содержимое
+              </div>
+            )}
+          </ScrollArea>
+          
+          <DialogFooter>
+            <Button variant="outline" onClick={closeSourceModal}>
+              Закрыть
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </DashboardLayout>
   );
 };

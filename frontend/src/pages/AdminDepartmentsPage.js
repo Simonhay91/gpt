@@ -9,18 +9,19 @@ import { Label } from '../components/ui/label';
 import { toast } from 'sonner';
 import { 
   Building2, Plus, Users, Shield, Trash2, UserPlus, 
-  ChevronRight, Settings, FileText, Crown
+  ChevronRight, Settings, FileText, Crown, Sparkles
 } from 'lucide-react';
 import DashboardLayout from '../components/DashboardLayout';
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
+import DepartmentAiContextDialog from '../components/DepartmentAiContextDialog';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
 const AdminDepartmentsPage = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   const [departments, setDepartments] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
@@ -30,6 +31,7 @@ const AdminDepartmentsPage = () => {
   const [selectedDept, setSelectedDept] = useState(null);
   const [allUsers, setAllUsers] = useState([]);
   const [isLoadingUsers, setIsLoadingUsers] = useState(false);
+  const [aiContextDept, setAiContextDept] = useState(null);
 
   useEffect(() => {
     fetchDepartments();
@@ -304,6 +306,60 @@ const AdminDepartmentsPage = () => {
                       Участники
                     </Button>
                   </div>
+                  <div className="mt-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="w-full bg-purple-500/10 hover:bg-purple-500/20 border-purple-500/30"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setAiContextDept(dept);
+                      }}
+                      data-testid={`dept-ai-context-btn-${dept.id}`}
+                    >
+                      <Sparkles className="h-4 w-4 mr-1 text-purple-400" />
+                      AI Контекст
+                    </Button>
+                  </div>
+                  
+                  {/* Competitor Tracker Toggle */}
+                  <div className="mt-3 p-3 bg-orange-500/5 rounded-lg border border-orange-500/20">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <div className="h-2 w-2 rounded-full bg-orange-500" />
+                        <span className="text-sm font-medium">Competitor Tracker</span>
+                      </div>
+                      <button
+                        onClick={async (e) => {
+                          e.stopPropagation();
+                          try {
+                            const newValue = !dept.competitor_tracker_enabled;
+                            await axios.put(`${API}/departments/${dept.id}`, {
+                              competitor_tracker_enabled: newValue
+                            });
+                            toast.success('Обновлено');
+                            fetchDepartments();
+                          } catch (error) {
+                            toast.error('Ошибка обновления');
+                          }
+                        }}
+                        className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${
+                          dept.competitor_tracker_enabled ? 'bg-orange-500' : 'bg-gray-300 dark:bg-gray-600'
+                        }`}
+                      >
+                        <span
+                          className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                            dept.competitor_tracker_enabled ? 'translate-x-5' : 'translate-x-0.5'
+                          }`}
+                        />
+                      </button>
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {dept.competitor_tracker_enabled 
+                        ? 'Отдел имеет доступ к Competitor Tracker'
+                        : 'Отдел не имеет доступа'}
+                    </p>
+                  </div>
                 </CardContent>
               </Card>
             ))}
@@ -413,6 +469,14 @@ const AdminDepartmentsPage = () => {
             )}
           </DialogContent>
         </Dialog>
+        
+        {/* AI Context Dialog */}
+        <DepartmentAiContextDialog
+          department={aiContextDept}
+          isOpen={!!aiContextDept}
+          onClose={() => setAiContextDept(null)}
+          language={language}
+        />
       </div>
     </DashboardLayout>
   );

@@ -724,7 +724,7 @@ db.audit_logs.createIndex({ "userId": 1, "action": 1 })
 
 ### Base URL
 ```
-Production: https://collab-saas-hub.preview.emergentagent.com/api
+Production: https://team-knowledge-hub-1.preview.emergentagent.com/api
 ```
 
 ### Authentication Header
@@ -937,6 +937,33 @@ PUT    /api/user/prompt
 
 ---
 
-**Document Version:** 1.2
-**Last Updated:** 2026-03-07
+## 14. Session Updates (2026-03-08)
+
+### Critical Bug Fixed
+1. **✅ ReferenceError: TrendingUp is not defined (P0 BLOCKER)** - ИСПРАВЛЕНО
+   - **Проблема:** Приложение крашилось после логина из-за отсутствующего импорта `TrendingUp` в `DashboardLayout.js`
+   - **Решение:** Добавлен импорт `TrendingUp` из `lucide-react` в `/app/frontend/src/components/DashboardLayout.js`
+   - **Тестирование:** Успешный логин под admin@admin.com, dashboard полностью загружается
+   - **Статус:** ✅ ИСПРАВЛЕНО И ПРОТЕСТИРОВАНО
+
+### Current Status
+- Приложение **полностью работоспособно**
+- Все основные функции доступны: логин, dashboard, чаты, проекты, competitors
+- Интерфейс на русском языке работает корректно
+
+### Pending Tasks (P1)
+1. **Рефакторинг server.py (~4800 строк)** - Требует модульную миграцию
+2. **Рефакторинг ChatPage.js (~1780 строк)** - Интегрировать созданные компоненты
+3. **Улучшение атрибуции источников в AI** - Показывать какой файл использован для ответа
+4. **Полная интернационализация (i18n)** - Все строки на русском
+
+### Known Technical Debt
+- `server.py`: ~4800 строк монолита
+- `ChatPage.js`: ~1780 строк монолита
+- Созданы компоненты чата, но не интегрированы
+
+---
+
+**Document Version:** 1.3
+**Last Updated:** 2026-03-08
 **Author:** Planet Knowledge Team

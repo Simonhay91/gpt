@@ -200,6 +200,36 @@ class UserPromptResponse(BaseModel):
     updatedAt: str
 
 
+# ==================== AI PROFILE MODELS ====================
+
+class AiProfileUpdate(BaseModel):
+    display_name: Optional[str] = None
+    position: Optional[str] = None
+    department_id: Optional[str] = None
+    preferred_language: Optional[str] = None  # ru, en
+    response_style: Optional[str] = None  # formal, casual, technical, simple
+    custom_instruction: Optional[str] = None
+
+
+class AiProfileResponse(BaseModel):
+    display_name: Optional[str] = None
+    position: Optional[str] = None
+    department_id: Optional[str] = None
+    preferred_language: Optional[str] = "ru"
+    response_style: Optional[str] = "formal"
+    custom_instruction: Optional[str] = None
+
+
+class DepartmentAiContextUpdate(BaseModel):
+    style: Optional[str] = None
+    instruction: Optional[str] = None
+
+
+class DepartmentAiContextResponse(BaseModel):
+    style: Optional[str] = None
+    instruction: Optional[str] = None
+
+
 # ==================== IMAGE MODELS ====================
 
 class ImageGenerateRequest(BaseModel):

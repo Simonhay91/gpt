@@ -25,6 +25,8 @@ import DepartmentSourcesPage from './pages/DepartmentSourcesPage';
 import MyDepartmentsPage from './pages/MyDepartmentsPage';
 import NewsPage from './pages/NewsPage';
 import MyGptPromptPage from './pages/MyGptPromptPage';
+import AiSettingsPage from './pages/AiSettingsPage';
+import CompetitorsPage from './pages/CompetitorsPage';
 
 // Protected Route Component
 const ProtectedRoute = ({ children }) => {
@@ -114,6 +116,13 @@ function AppRoutes() {
         </ProtectedRoute>
       } />
       
+      {/* Competitors Route */}
+      <Route path="/competitors" element={
+        <ProtectedRoute>
+          <CompetitorsPage />
+        </ProtectedRoute>
+      } />
+      
       {/* Admin Routes */}
       <Route path="/admin/config" element={
         <AdminRoute>
@@ -182,10 +191,17 @@ function AppRoutes() {
         </ProtectedRoute>
       } />
       
-      {/* My GPT Prompt Route */}
+      {/* AI Settings Route (replaces My GPT Prompt) */}
       <Route path="/my-prompt" element={
         <ProtectedRoute>
-          <MyGptPromptPage />
+          <AiSettingsPage />
+        </ProtectedRoute>
+      } />
+      
+      {/* Legacy My GPT Prompt Route (for backward compatibility) */}
+      <Route path="/ai-settings" element={
+        <ProtectedRoute>
+          <AiSettingsPage />
         </ProtectedRoute>
       } />
       

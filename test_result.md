@@ -101,3 +101,189 @@
 #====================================================================================================
 # Testing Data - Main Agent and testing sub agent both should log testing data below this section
 #====================================================================================================
+
+user_problem_statement: "Протестируй Competitor Tracker UI в Planet Knowledge"
+
+frontend:
+  - task: "Competitor Tracker Page Access and Navigation"
+    implemented: true
+    working: "NA"
+    file: "/app/frontend/src/pages/CompetitorsPage.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "Need to test Competitor Tracker page access for manager@test.com user. Test: 1) Login with manager@test.com/testpassword, 2) Verify 'Competitors' appears in sidebar, 3) Navigate to /competitors page, 4) Verify page loads with proper header and 'Add Competitor' button."
+
+  - task: "Add Competitor Functionality"
+    implemented: true
+    working: "NA"
+    file: "/app/frontend/src/pages/CompetitorsPage.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "Need to test Add Competitor functionality. Test: 1) Click 'Add Competitor' button, 2) Verify modal opens, 3) Fill Name='Test Competitor', Website='https://example.com', 4) Click 'Add' button, 5) Verify competitor appears in list."
+
+  - task: "Add Product Functionality"
+    implemented: true
+    working: "NA"
+    file: "/app/frontend/src/pages/CompetitorsPage.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "Need to test Add Product functionality. Test: 1) Find competitor card, 2) Click 'Add' button in Products section, 3) Fill URL='https://example.com', 4) Enable Auto-refresh toggle, 5) Select 7 days interval, 6) Click 'Add', 7) Verify product appears in list."
+
+  - task: "Fetch Product Content Functionality"
+    implemented: true
+    working: "NA"
+    file: "/app/frontend/src/pages/CompetitorsPage.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "Need to test Fetch Product Content functionality. Test: 1) Find added product, 2) Click Refresh (RefreshCw icon) button, 3) Wait for spinner to disappear, 4) Verify 'Cached' badge appears, 5) Verify last_fetched date updates."
+
+  - task: "Refresh All Products Functionality"
+    implemented: true
+    working: "NA"
+    file: "/app/frontend/src/pages/CompetitorsPage.js"
+    stuck_count: 0
+    priority: "medium"
+    needs_retesting: true
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "Need to test Refresh All functionality. Test: 1) Click 'Refresh All' button in competitor card header, 2) Verify toast notification appears with results."
+
+  - task: "Delete Product and Competitor Functionality"
+    implemented: true
+    working: "NA"
+    file: "/app/frontend/src/pages/CompetitorsPage.js"
+    stuck_count: 0
+    priority: "medium"
+    needs_retesting: true
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "Need to test Delete functionality. Test: 1) Delete product by clicking Trash2 icon, 2) Verify product is removed, 3) Delete competitor by clicking Trash2 icon in header, 4) Confirm in alert dialog, 5) Verify competitor is removed."
+
+  - task: "Department Selection Access Control for Regular Users"
+    implemented: true
+    working: true
+    file: "/app/frontend/src/pages/AiSettingsPage.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: true
+          agent: "testing"
+          comment: "✅ Department selection access control tested successfully for regular user (manager@test.com). VERIFIED: Regular user sees only 1 department (Engineering) in dropdown, confirming proper access control. User does NOT see all system departments. Department selection, save functionality, and data persistence all working correctly. Form loads properly, dropdown opens/closes correctly, selected department persists after page reload. No console errors detected. Access control is working as expected - regular users see only their own departments, not admin-level access to all departments."
+
+  - task: "AI Settings Page Implementation"
+    implemented: true
+    working: true
+    file: "/app/frontend/src/pages/AiSettingsPage.js"
+    stuck_count: 0
+    priority: "medium"
+    needs_retesting: false
+    status_history:
+        - working: true
+          agent: "testing"
+          comment: "✅ AI Settings page tested successfully. All form elements present and functional: display name input, position input, department select, language select, response style select, and custom instruction textarea. Form data saves correctly and persists after page refresh. Successfully filled form with test data: Display name 'Test Admin', Position 'Администратор', Custom instruction 'Тестовая инструкция для AI'. Save functionality works with success notifications."
+
+  - task: "Department AI Context Dialog Implementation"
+    implemented: true
+    working: true
+    file: "/app/frontend/src/components/DepartmentAiContextDialog.js"
+    stuck_count: 0
+    priority: "medium"
+    needs_retesting: false
+    status_history:
+        - working: true
+          agent: "testing"
+          comment: "✅ Department AI Context functionality tested successfully. Modal opens correctly from department cards via purple 'AI Контекст' button with Sparkles icon. Form contains style input and instruction textarea as expected. Successfully filled and saved test data: Style 'Технический стиль', Instruction 'Отвечай подробно с примерами кода'. Data persists correctly when modal is reopened. Save functionality works with success notifications."
+
+  - task: "Admin Departments Page Integration"
+    implemented: true
+    working: true
+    file: "/app/frontend/src/pages/AdminDepartmentsPage.js"
+    stuck_count: 0
+    priority: "medium"
+    needs_retesting: false
+    status_history:
+        - working: true
+          agent: "testing"
+          comment: "✅ Admin Departments page integration tested successfully. Page loads correctly at /admin/departments with proper admin authentication. Found 2 department cards (Engineering and Sales) with AI Context buttons properly displayed. AI Context buttons have correct styling (purple background with Sparkles icon) and are clickable. Integration with DepartmentAiContextDialog component works seamlessly."
+
+  - task: "Collapsible Sources Implementation"
+    implemented: true
+    working: true
+    file: "/app/frontend/src/pages/ChatPage.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "Collapsible sources functionality implemented in ChatPage.js. Need to test: 1) Sources collapsed by default, 2) Toggle expand/collapse with ChevronDown/Up icons, 3) Source viewer modal opens on click, 4) Content loading and display, 5) Modal close functionality."
+        - working: true
+          agent: "testing"
+          comment: "✅ Collapsible sources functionality tested successfully. Sources are collapsed by default showing only 'Sources (N)' button. Toggle functionality works - clicking expands/collapses sources list. Found Sources button with count display (e.g., 'Sources (2)'). Expand/collapse mechanism functions correctly. Sources remain hidden when collapsed and become visible when expanded. Basic collapsible behavior is working as expected."
+
+  - task: "Source Viewer Modal Implementation"
+    implemented: true
+    working: true
+    file: "/app/frontend/src/pages/ChatPage.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "Source viewer modal functionality implemented in ChatPage.js. Need to test: 1) Modal opens when clicking on source buttons, 2) Loading indicator displays while fetching content, 3) Source content displays in ScrollArea, 4) Close button works properly."
+        - working: false
+          agent: "testing"
+          comment: "❌ Source viewer modal functionality has issues. While Sources button is found and clickable, individual source file buttons are not appearing after expansion in Quick Chat. The modal opening functionality could not be fully tested due to source buttons not being visible after expansion. This may be related to Quick Chat vs Project Chat differences, or source loading issues. Need investigation into why source file buttons don't appear after Sources expansion."
+        - working: false
+          agent: "testing"
+          comment: "❌ Source viewer modal has backend API issue. Frontend functionality is implemented correctly - source file buttons are visible and clickable after expansion (found 'engineering_knowledge.txt' button). However, modal doesn't open due to 404 error from backend API endpoint '/api/sources/{sourceId}/chunks'. Console shows: 'Failed to load resource: the server responded with a status of 404'. The viewSourceContent function in ChatPage.js tries to fetch from this endpoint but gets 404 response. Backend API endpoint needs to be implemented or fixed."
+        - working: true
+          agent: "testing"
+          comment: "✅ Source viewer modal functionality tested successfully and working perfectly! Complete test flow verified: 1) Modal opens correctly when clicking source file button ('📁 engineering_knowledge.txt(chunks 1)'), 2) Modal displays correct title 'engineering_knowledge.txt', 3) ScrollArea component found and working, 4) Content loads successfully (689 characters of engineering knowledge content), 5) 'Закрыть' close button functions correctly, 6) Modal closes properly returning to chat. Backend API endpoint '/api/sources/{sourceId}/chunks' is now implemented and working correctly. Full end-to-end source content viewing functionality is operational."
+
+metadata:
+  created_by: "testing_agent"
+  version: "1.0"
+  test_sequence: 1
+  run_ui: true
+
+test_plan:
+  current_focus:
+    - "Department Selection Access Control for Regular Users"
+  stuck_tasks: []
+  test_all: false
+  test_priority: "high_first"
+
+agent_communication:
+    - agent: "testing"
+      message: "Comprehensive testing completed for AI Settings page and Department AI Context functionality. Both features are working correctly with proper form validation, data persistence, and user feedback. All test scenarios from the user request have been successfully validated. The implementation meets the requirements: AI Settings page accessible via /my-prompt with complete form functionality, and Department AI Context accessible via purple buttons on department cards in /admin/departments with modal dialog functionality."
+    - agent: "main"
+      message: "New test request received for collapsible sources functionality in Planet Knowledge. Need to test: 1) Login with admin@admin.com/admin123, 2) Find/create chat with AI messages having sources, 3) Test collapsible sources (collapsed by default), 4) Test expand/collapse functionality, 5) Test source viewer modal, 6) Test content loading and display, 7) Test modal close functionality."
+    - agent: "testing"
+      message: "Collapsible sources testing completed. WORKING: Sources are collapsed by default, Sources button shows count correctly, expand/collapse toggle works. ISSUE FOUND: Individual source file buttons don't appear after expansion in Quick Chat, preventing full modal testing. The Sources (N) button is functional but source files aren't visible when expanded. This may be specific to Quick Chat vs Project Chat behavior or a source loading issue. Recommend investigating why source file buttons don't render after Sources expansion."
+    - agent: "testing"
+      message: "FINAL TEST RESULTS: ✅ Collapsible Sources Implementation is WORKING perfectly - sources collapsed by default with 'Sources (2)' button, expand/collapse toggle works with proper ChevronDown/Up icons, source file buttons appear correctly after expansion. ❌ Source Viewer Modal Implementation has BACKEND API ISSUE - frontend code is correct, source buttons are clickable, but modal fails to open due to 404 error from '/api/sources/{sourceId}/chunks' endpoint. The viewSourceContent function works but backend API returns 404. This is a backend issue, not frontend. Main agent needs to implement or fix the backend API endpoint for source content retrieval."
+    - agent: "testing"
+      message: "✅ COMPLETE SUCCESS! Full collapsible sources & content viewer functionality tested and working perfectly! Test completed successfully on chat 6a01b3b3-3977-4dca-8da2-b021b983d917. All requirements verified: 1) Sources collapsed by default showing 'Sources (2)' button, 2) Expand/collapse toggle works correctly, 3) Source file buttons appear after expansion ('📁 engineering_knowledge.txt(chunks 1)'), 4) Modal opens successfully when clicking source button, 5) Modal displays correct title and ScrollArea, 6) Content loads properly (689 characters), 7) 'Закрыть' close button functions correctly, 8) Modal closes returning to chat, 9) Sources collapse properly hiding file buttons. Backend API '/api/sources/{sourceId}/chunks' is now implemented and working. Both Collapsible Sources Implementation and Source Viewer Modal Implementation are fully functional with no console errors."
+    - agent: "testing"
+      message: "✅ Department Selection Access Control Testing COMPLETED SUCCESSFULLY! Tested regular user (manager@test.com) access to AI Settings department dropdown. VERIFIED: Proper access control implemented - regular user sees only 1 department (Engineering) instead of all system departments. This confirms users see only their own departments, not admin-level access. All functionality working: login successful, AI Settings page accessible at /my-prompt, department dropdown functional, selection and save working, data persistence verified after reload. No console errors detected. Access control is working as expected for regular users."

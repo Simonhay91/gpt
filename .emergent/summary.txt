@@ -1,222 +1,174 @@
 <analysis>**original_problem_statement:**
-The user wants to build a production-ready, full-stack SaaS web app, Planet Knowledge, for multi-user collaboration.
+The user wants to build a production-ready, full-stack SaaS web app, Planet Knowledge, for multi-user collaboration using React, FastAPI, and MongoDB.
 
-**PRODUCT REQUIREMENTS:**
-*   **Core App:** Multi-user application with project-based data isolation using React, FastAPI, and MongoDB.
-*   **User Management:** Admin-centric model where an admin creates users and manages their settings.
-*   **Project & Chat Functionality:** Project-based chats, sharing with roles, and fine-grained chat visibility. A Save to Knowledge feature allows saving AI responses. A Source Mode selector toggles between knowledge sources.
-*   **Source Management:** Users can attach various file types. Sources are project-specific.
-*   **Enterprise Knowledge Architecture:** A hierarchical knowledge base (Personal, Project, Department, Global) with an approval workflow.
-*   **Efficiency & Cost:** Semantic caching and RAG pipeline optimization.
-*   **UX/UI:** Light/dark modes and intuitive navigation. An  is in place.
-*   **Source Insights & Smart Questions:** AI-powered features to generate summaries/questions for sources and suggest relevant questions in chat.
-*   **Excel/CSV Analyzer:** This feature was built but is now slated for **removal** at the user's request.
+In this session, the user requested several new features and a bug fix:
+1.  **AI Personalization:** Implement a system for users to set their AI profile ( in the  collection) and for admins to set department-level AI context ( in the  collection). This required a new AI Settings page and modifications to the chat logic to use this data in the system prompt.
+2.  **Collapsible Chat Sources:** The Sources block in the chat UI should be collapsed by default and expandable. Each source should be clickable to view its content.
+3.  **Department Filtering Bug:** Fix a bug where regular users could see all departments in their AI Settings page, instead of only the departments they are members of.
+4.  **Competitor Tracker Feature:** A major new feature for users in the Sales department (or other enabled departments) to track competitors. This involves a new  collection, multiple backend endpoints for CRUD and web scraping ( + ), a new frontend page (), background jobs for auto-refreshing data (), and integration with the chat to provide context on competitor URLs.
+5.  **Critical Bug:** A recurring  that crashes the frontend after login.
 
 **User's preferred language**: Russian
 
 **what currently exists?**
-The application is a functional full-stack SaaS platform. This session focused on bug fixing, implementing new features, and preparing for a major refactor.
-*   **Bug Fixes:**
-    *   : Fixed a critical bug where publishing personal sources (saved from chat) failed because their data structure ( field) differed from uploaded sources ( field). The fix was applied across the backend.
-    *   : Resolved an issue where chats failed to load because the Pydantic model didn't recognize sources with .
-    *   **Empty Preview:** Fixed a regression where the source preview was empty after an earlier fix.
-*   **New Features & Enhancements:**
-    *   **Source Insights & Smart Questions:** Implemented two new AI features. Analyze Source generates a summary and questions for a source. Smart Question Suggestions provides clickable question ideas in the chat UI based on active sources. The AI was prompted to respond in the same language as the source material.
-    *   **Always-Visible Buttons:** Updated the entire frontend to make action buttons (e.g., delete, preview) permanently visible instead of only on hover.
-    *   **Backend API Pagination:** Added pagination (, ) to key API endpoints that return lists (projects, chats, messages, sources, users) to improve performance. The corresponding frontend pages were updated to handle the new paginated data structure.
-*   **Refactoring Preparation:**
-    *   **Backend:** Created a complete modular file structure under  (e.g., , , ) to break down the  monolith. The new files are currently empty shells or contain small pieces of logic. The core application logic **still runs from the monolithic **.
-    *   **Frontend:** Created a new component structure under  to break down the  monolith. These components are not yet integrated.
-*   **Dependency Cleanup:** Removed the  package dependency, which was causing build failures and was no longer in use.
+The AI Personalization feature is fully implemented and tested. The Collapsible Sources feature is also complete and verified. The bug related to department filtering in AI settings has been fixed. The core functionality of the Competitor Tracker feature is implemented across both the frontend and backend, including data models, APIs, web scraping, background jobs, and the main user interface. However, the entire application is currently **unusable** due to a critical JavaScript error that occurs after login, which the previous agent failed to resolve despite multiple attempts.
 
 **Last working item**:
-- Last item agent was working: The agent was beginning to execute the user's request to remove the Excel/CSV Analyzer feature entirely. It had started by using  to identify all files that referenced Analyzer or ExcelAnalyzer to plan the removal.
-- Status: IN PROGRESS
+- Last item agent was working: The agent was attempting to fix a critical and recurring JavaScript error, , which breaks the application after a user logs in. The agent identified that the  icon was used in  and  but failed to correctly import it, leading to a persistent crash. The user reported this bug multiple times. The agent's final action was to call the  for a deep analysis of the problem.
+- Status: **BLOCKED**
 - Agent Testing Done: N
-- Which testing method agent to use? both.
-    - **Backend:** The testing agent should verify that all  endpoints are removed and return 404.
-    - **Frontend:** The testing agent should confirm the Excel Analyzer link is gone from the navigation and that navigating to the old URL redirects or shows a 404 page, without crashing the app.
+- Which testing method agent to use? The  has already been invoked. The next agent's first step MUST be to analyze its output to get a diagnosis. If the troubleshooter's fix doesn't work, manual debugging will be required, focusing on all files that use the  icon. After a fix is applied, use the frontend testing agent to perform a login and confirm the dashboard loads without errors.
 - User Testing Done: N
 
 **All Pending/In progress Issue list**:
-  - Issue 1: (P1) Incomplete Internationalization (i18n). The user has requested this be completed. Many parts of the UI remain hardcoded in English.
-  - Issue 2: (P2)  has a missing dependency warning. This was noted in the previous handoff and remains unfixed. It can cause stale state issues.
-  - Issue 3: (P2) Frontend Navigation Test Failure from a previous session () remains unaddressed.
+  - Issue 1: Critical Frontend Crash after Login (P0)
+  - Issue 2: Incomplete Internationalization (i18n) (P1)
+  - Issue 3:  has a missing dependency warning (P2)
+  - Issue 4: Frontend Navigation Test Failure from a past session (P2)
 
 **Issues Detail:**
-  - **Issue 1: Incomplete Internationalization (i18n)**
-     - **Attempted fixes:** None in this session.
+  - **Issue 1: Critical Frontend Crash after Login**
+     - **Attempted fixes:** The agent made multiple attempts to add  to  and . These fixes were unsuccessful, indicating the root cause was not correctly identified or the fix was improperly applied. The agent's last resort was to call the .
      - **Next debug checklist:**
-        1. Identify a library for i18n if one isn't already present (e.g., ).
-        2. Create JSON translation files for Russian and any other requested languages (e.g., Armenian).
-        3. Systematically replace hardcoded English strings in all  components with keys that pull from the translation files.
-     - **Why fix this issue and what will be achieved with the fix?** Fulfills a user requirement and makes the application fully usable for its target Russian-speaking audience.
+        1.  **Analyze the  output.** This is the most crucial first step.
+        2.  If the troubleshooter's plan is unclear, perform a global search () for  across the entire  directory to ensure no file has been missed.
+        3.  Carefully re-examine the import statements in  and . The error might be a typo or incorrect placement.
+        4.  Once a fix is applied, restart the frontend and perform a test login to confirm the error is resolved.
+     - **Why fix this issue and what will be achieved with the fix?** This is a **P0 (Critical)** blocker. The application is completely unusable after login. Fixing it will restore core functionality and allow further development and testing.
+     - **Status:** IN PROGRESS
+     - **Is recurring issue?** Y
+     - **Should Test frontend/backend/both after fix?** Frontend
+     - **Blocked on other issue:** None. This issue blocks everything else.
+  - **Issue 2: Incomplete Internationalization (i18n)**
+     - **Attempted fixes:** None in this session.
+     - **Next debug checklist:** Identify hardcoded English strings in React components and replace them with keys from  using the  function.
+     - **Why fix this issue and what will be achieved with the fix?** Fulfills a user requirement for a fully Russian-language UI.
      - **Status:** NOT STARTED
      - **Is recurring issue?** Y
      - **Should Test frontend/backend/both after fix?** Frontend
-     - **Blocked on other issue:** None
-
-  - **Issue 2:  missing dependency warning**
-     - **Attempted fixes:** None.
-     - **Next debug checklist:** Check frontend compilation logs, identify the component and specific  hook, and add the missing variable/function to the dependency array.
-     - **Why fix this issue and what will be achieved with the fix?** Prevents potential bugs related to stale state and follows React best practices.
-     - **Status:** NOT STARTED
-     - **Is recurring issue?** Y
-     - **Should Test frontend/backend/both after fix?** Frontend
-     - **Blocked on other issue:** None
-
-  - **Issue 3: Frontend Navigation Test Failure**
-     - **Attempted fixes:** None.
-     - **Next debug checklist:** Review the old test report at . Attempt to reproduce the failure with the testing agent. Check the routing logic in  and related components.
-     - **Why fix this issue and what will be achieved with the fix?** Ensures the application's core navigation is stable and reliable.
-     - **Status:** NOT STARTED
-     - **Is recurring issue?** Y
-     - **Should Test frontend/backend/both after fix?** Frontend
-     - **Blocked on other issue:** None
+     - **Blocked on other issue:** Issue 1
 
 **In progress Task List**:
-  - Task 1: (P0) Remove Excel/CSV Analyzer
-     - **Where to resume:** The agent has already used  to find references. The next step is to use  or  with  and  to:
-        1. Delete .
-        2. Delete .
-        3. Remove the route import and link from  and .
-        4. Remove the setup call for the analyzer router from .
-        5. Delete the  collection from MongoDB if it's no longer needed.
-     - **What will be achieved with this?** Fulfills a direct user request and removes a feature that was causing problems and was deemed unnecessary.
-     - **Status:** IN PROGRESS
-     - **Should Test frontend/backend/both after fix?** Both
-     - **Blocked on something:** No
+- None.
 
 **Upcoming and Future Tasks**
 - **Upcoming Tasks:**
-  - (P0) **Integrate Backend Modules:** This is the top priority after the analyzer removal. Move all endpoint logic from the monolithic  into the newly created modular files in . Replace the current  with a minimal version that imports and includes all the route modules. **This will drastically reduce  from ~4000 lines to a few hundred.**
-  - (P1) **Integrate Frontend Chat Components:** After the backend refactor, break down the monolithic  by moving UI logic into the components already created in  and importing them back into a simplified .
+    - (P0) **Complete Backend Refactor:** Refactor the monolithic  into modular route files using FastAPI's  for dependency injection.
+    - (P1) **Enhance AI Source Attribution:** Implement logic to make the AI specify which source file was used to generate an answer (e.g., ).
+    - (P1) **Complete Frontend Refactor:** Break down the monolithic  by integrating the pre-built components from .
 - **Future Tasks:**
-  - Implement full pagination on the frontend (UI for changing pages).
-  - Add API rate limiting.
-  - Implement Question Templates for common user tasks.
-  - Create a usage/cost dashboard.
-  - Add bookmarks for the Tech News page.
-  - Implement a global search feature.
-  - Add chat export functionality.
+    - Implement frontend UI for pagination.
+    - Add API rate limiting.
+    - Implement Question Templates.
+    - Create a usage/cost dashboard.
+    - Add a global search feature.
+    - Add chat export functionality.
 
 **Completed work in this session**
-- **Feature: Source Insights & Smart Questions:** Added new AI-powered features for source analysis and question generation.
-- **Feature: Backend API Pagination:** Implemented pagination for major list-based endpoints.
-- **Enhancement: Always-Visible Buttons:** Removed hover effects for action buttons across the UI.
-- **Bug Fix: Publish failed**: Fixed inconsistent data structures between saved-from-chat sources and uploaded sources.
-- **Bug Fix: Failed to load chat**: Fixed a Pydantic validation error for sources of .
-- **Bug Fix: Empty Preview**: Fixed a regression causing source previews to be empty.
-- **Refactoring:** Created a full modular structure for the backend and frontend chat page (files created, but not yet integrated).
-- **Dependency Cleanup**: Removed the unused and build-breaking  package.
+- **Feature: AI Personalization:** Fully implemented. This includes backend model changes, new API endpoints, and a new AI Settings page for users, replacing the old My GPT Prompt page.
+- **Feature: Collapsible Sources in Chat:** Implemented a collapsible UI for sources in the chat, along with a modal to view source content fetched from a new backend endpoint.
+- **Bug Fix: Department Visibility in AI Settings:** Fixed an API call in  to ensure non-admin users only see their own departments.
+- **Feature: Competitor Tracker (Core Implementation):** The main logic for the Competitor Tracker is complete. This includes backend models, APIs for CRUD and web scraping, background jobs for auto-refresh, and frontend UI for managing competitors and enabling the feature in the admin panel.
 
 **Earlier issues found/mentioned but not fixed**
    - **Issue 1:  has a missing dependency warning**
-     - **Debug checklist:** Check frontend logs during compilation, identify the component, and add the missing dependency.
-     - **Why to solve this issue and what will be achieved with this?** Fixes potential stale state issues.
+     - **Debug checklist:** Check frontend compilation logs.
+     - **Why to solve this issue and what will be achieved with this?** Prevents potential bugs related to stale state.
      - **Should Test frontend/backend/both after fix:** Frontend
      - **Is recurring issue?** Y
    - **Issue 2: Frontend Navigation Test Failure**
-     - **Debug checklist:** Review , try to reproduce the failure, check routing logic in .
-     - **Why to solve this issue and what will be achieved with this?** Ensures application stability.
+     - **Debug checklist:** Review , reproduce with testing agent.
+     - **Why to solve this issue and what will be achieved with this?** Ensures navigation is stable.
      - **Should Test frontend/backend/both after fix:** Frontend
      - **Is recurring issue?** Y
 
 **Known issue recurrence from previous fork**
-  - None.
+  - **Issue recurrence in previous fork:** 
+  - **Recurrence count:** The agent encountered and failed to fix this issue at least 5 times in this session.
+  - **Status:** IN PROGRESS
 
 **Code Architecture**
 
 
 **Key Technical Concepts**
-- **Incremental Refactoring:** The agent prepared for a large refactor by creating a modular file structure but pivoted to smaller, safer tasks (like pagination) when faced with the risk of a big-bang migration.
-- **Defensive Coding:** Multiple bugs were fixed by using  to handle inconsistent data models gracefully.
-- **Backend API Pagination:** Implemented server-side pagination using  and  on MongoDB queries and updated the API response format to include total counts.
-- **Dynamic Language Prompts for LLM:** The AI prompts for Source Insights and Smart Questions were updated to instruct the LLM to respond in the language of the source text.
+- **AI Personalization:** Dynamically constructing an LLM system prompt from user and department-specific settings stored in MongoDB.
+- **Feature Flagging:** Using a  boolean in the  model to control feature access on both backend and frontend.
+- **Background Tasks:** Using  within FastAPI to run a daily cron job for web scraping.
+- **Web Scraping:** Using  and  to asynchronously fetch and parse HTML content.
 
 **key DB schema**
-- No new collections were created. The  collection is pending deletion.
+  - : Added embedded document .
+  - : Added embedded document  and boolean .
+  - : New collection to store competitor data, including their products and scraped content.
+  - : Existing collection used to store text chunks from source files.
 
 **All files of reference**
-*   **Created:**
-    *    (auth, projects, chats, sources, admin, images, insights, etc.) - Shells for refactoring.
-    *    (rag, cache, file_processor) - Shells for refactoring.
-    *   ,  - Shells for refactoring.
-    *    (ChatHeader, MessageList, etc.) - Components for refactoring .
-    *   ,  - New feature components.
-*   **Heavily Modified:**
-    *   : Added pagination, new insight/question endpoints, and multiple bug fixes. Grew to ~4000 lines.
-    *   : Fixed critical bugs related to data models.
-    *    (ChatPage, PersonalSourcesPage, GlobalSourcesPage, ProjectPage, AdminUsersPage, DashboardPage): Updated to add new features, fix styles, and handle paginated data.
-    *   : Removed .
+- **New Files:**
+    - 
+    - 
+    - 
+- **Heavily Modified:**
+    - 
+    - 
+    - 
+    - 
+- **Modified:**
+    - 
+    - 
 
 **Areas that need refactoring**:
-- ** (CRITICAL):** The top priority is to complete the migration of all logic from this 4000-line file into the modular files that have already been created.
-- ** (CRITICAL):** The second priority is to integrate the new components in  to break down this 1400-line monolith.
+- ** (CRITICAL):** This ~4800-line monolith is unmanageable and needs to be broken into smaller route modules.
+- ** (CRITICAL):** This ~1780-line component is overly complex and must be refactored into smaller, reusable components.
 
 **key api endpoints**
-- **New:**
-    -  (GET): Generates summary and questions for a source.
-    -  (GET): Generates suggested questions for a chat.
-- **Updated with Pagination:**
-    - 
-    - 
-    - 
-    - 
-    - 
-    - 
+- **New Endpoints:**
+    -  (GET, PUT)
+    -  (GET, PUT)
+    -  (GET)
+    -  (Full set of CRUD endpoints for competitors, products, matching, and fetching)
 
 **Critical Info for New Agent**
-- **User Language:** User is Russian. ALL communication must be in Russian.
-- **Top Priorities:** The user has explicitly requested the following order of operations:
-    1.  **Remove the Excel Analyzer feature.**
-    2.  **Complete the backend refactoring** by moving all logic out of  into the prepared modules.
-    3.  **Add pagination** (which was partially done on the backend, but the user may want frontend UI controls).
-    4.  **Complete i18n.**
-- **Refactoring State:** All the files for the backend refactor have been created. The next agent's job is not to design the structure, but to **execute the migration** of code from  into these files.
-- **Pagination State:** Backend pagination is implemented on key endpoints. Frontend pages have been updated to consume the  array. No frontend UI for page selection exists yet.
+- **User Language:** The user is Russian. ALL communication must be in Russian.
+- **TOP PRIORITY (BLOCKER):** The application is **unusable** due to the  bug. This MUST be fixed first. The previous agent has already called the ; its output is the first thing to check.
+- **Technical Debt:** The  and  monoliths are critical technical debt. The user has approved refactoring them, which should be the next priority after fixing the blocker.
 
 **documents and test reports created in this job**
-- /app/test_reports/iteration_10.json
-- PRD.md was updated multiple times to reflect new features and bug fixes.
+- None.
 
 **Last 10 User Messages and any pending HUMAN messages**
-1.  **User:** Asks what bugs/risks are left. (Status: COMPLETED)
-2.  **Agent:** Provides a detailed breakdown of all open issues and priorities. (Status: COMPLETED)
-3.  **User:** Prioritizes integrating modules for  and adding pagination. (Status: COMPLETED - Agent implemented backend pagination)
-4.  **User:** Provides a new, superseding list of priorities: 1) Fully replace , 2) Remove the Excel Analyzer, 3) Add i18n. (Status: IN PROGRESS)
-5.  **Agent:** Acknowledges the new priorities and starts work on removing the Excel Analyzer. (Status: IN PROGRESS)
-6.  **User:** Reports my source ne mogu otpravi v project, Publish failed. (Status: COMPLETED - Agent fixed )
-7.  **User:** Reports Failed to load chat. (Status: COMPLETED - Agent fixed Pydantic )
-8.  **User:** Requests knopki vsegda budut vidni, bez hovera (buttons always visible). (Status: COMPLETED)
-9.  **User:** Requests Source Insights and Smart Question Suggestions. (Status: COMPLETED)
-10. **User:** Reports posle analiza, posle save-a, prossmotre empty prixodyat text (preview is empty after saving insights). (Status: COMPLETED)
+10. **User:** Reports the Competitor Tracker link disappears from the sidebar. (Status: ATTEMPTED FIX)
+9. **User:** Reports the critical crash . (Status: IN PROGRESS)
+8. **User:** Confirms the  error is still happening. (Status: IN PROGRESS)
+7. **User:** Reports login is slow. (Status: Likely caused by the crash)
+6. **User:** Reports they can't create a chat after login. (Status: IN PROGRESS, blocked by crash)
+5. **User:** Reports the  error persists after another fix attempt. (Status: IN PROGRESS)
+4. **User:** Repeats again about the error after login. (Status: IN PROGRESS)
+3. **User:** Demands a deep investigation and fix for . (Status: IN PROGRESS - Agent called troubleshooter)
+2. **User:** Asks for an explanation of Background Tasks and Matching UI. (Status: RESOLVED)
+1. **User:** Confirms both Background Tasks and Matching UI should be implemented. (Status: RESOLVED)
 
 **Project Health Check:**
-- **Broken:** None.
+- **Broken:** **CRITICAL**. The frontend is non-functional after login due to a persistent .
 - **Mocked:** None.
 - **Technical Debt / Needs Refactoring:**
-    - **CRITICAL:**  is a ~4000-line monolith.
-    - **CRITICAL:**  is a ~1400-line monolith.
-    - Inconsistent data models for sources ( vs. ) required defensive coding that should be unified in a future refactor.
-    - Lack of frontend UI for pagination.
-    - Old frontend  warnings and a navigation test failure persist.
+    - **CRITICAL:**  (~4800 lines).
+    - **CRITICAL:**  (~1780 lines).
 
 **3rd Party Integrations**
-- **OpenAI GPT-4.1-mini / text-embedding-3-small:** Used for all chat, analysis, and embedding functions.
-- **Anthropic Claude Sonnet 4:**  library is installed and was used for the Excel Analyzer. It's now unused since the analyzer is being removed.
-- ~~**Google Gemini Pro (via Emergent LLM Key):**~~ The  dependency has been **removed**.
+- **apscheduler:**  - Used for background jobs in the backend.
+- **beautifulsoup4:**  - Used for web scraping.
+- **lxml:**  - Used as a parser for BeautifulSoup.
+- **OpenAI GPT-4.1-mini / text-embedding-3-small:** Used for chat and embedding functions.
 
 **Testing status**
-- **Testing agent used after significant changes:** YES, one run which passed and also fixed a bug ().
-- **Troubleshoot agent used after agent stuck in loop:** NO
-- **Test files created:** None
-- **Known regressions:** A fix for one bug ( vs ) caused a regression in the preview endpoint, which was then subsequently fixed. This highlights the fragility of the monolithic codebase.
+  - Testing agent used after significant changes: YES
+  - Troubleshoot agent used after agent stuck in loop: **YES**. The previous agent's last action was to call  for the  error.
+  - Test files created: None.
+  - Known regressions: **YES**, the entire application is unusable after login.
 
 **Credentials to test flow:**
 - **Admin:**  / 
 - **Manager:**  / 
 
 **What agent forgot to execute**
-- The agent did not complete the primary refactoring task it prepared for ( and  integration). It pivoted to other tasks, which, while valuable, left the main technical debt unresolved.
-- The agent did not address the pre-existing frontend issues noted in the initial handoff ( warnings, navigation test failure).</analysis>
+- The agent repeatedly failed to resolve the  reference error. Despite multiple attempts and user reports, the agent did not successfully debug the root cause, leading to a complete blockage of the application. The final delegation to the  was a necessary step that should have been taken earlier.</analysis>
