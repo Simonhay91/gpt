@@ -173,13 +173,14 @@ metadata:
 
 test_plan:
   current_focus:
-    - "AI Settings Page Implementation"
-    - "Department AI Context Dialog Implementation"
-    - "Admin Departments Page Integration"
+    - "Collapsible Sources Implementation"
+    - "Source Viewer Modal Implementation"
   stuck_tasks: []
-  test_all: true
+  test_all: false
   test_priority: "high_first"
 
 agent_communication:
     - agent: "testing"
       message: "Comprehensive testing completed for AI Settings page and Department AI Context functionality. Both features are working correctly with proper form validation, data persistence, and user feedback. All test scenarios from the user request have been successfully validated. The implementation meets the requirements: AI Settings page accessible via /my-prompt with complete form functionality, and Department AI Context accessible via purple buttons on department cards in /admin/departments with modal dialog functionality."
+    - agent: "main"
+      message: "New test request received for collapsible sources functionality in Planet Knowledge. Need to test: 1) Login with admin@admin.com/admin123, 2) Find/create chat with AI messages having sources, 3) Test collapsible sources (collapsed by default), 4) Test expand/collapse functionality, 5) Test source viewer modal, 6) Test content loading and display, 7) Test modal close functionality."
