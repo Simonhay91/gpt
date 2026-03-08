@@ -505,6 +505,105 @@ const CompetitorsPage = () => {
             </DialogFooter>
           </DialogContent>
         </Dialog>
+        
+        {/* Add Match Dialog */}
+        <Dialog open={isMatchDialogOpen} onOpenChange={setIsMatchDialogOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>
+                {language === 'ru' ? 'Add Product Match' : 'Add Product Match'}
+              </DialogTitle>
+              <DialogDescription>
+                {selectedCompetitor?.name}
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <Label>
+                  {language === 'ru' ? 'Competitor Product URL' : 'Competitor Product URL'}
+                </Label>
+                <Select
+                  value={newMatch.competitor_product_url}
+                  onValueChange={(value) => setNewMatch({ ...newMatch, competitor_product_url: value })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder={language === 'ru' ? 'Выберите продукт' : 'Select product'} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {selectedCompetitor?.products?.map((product) => (
+                      <SelectItem key={product.id} value={product.url}>
+                        {product.title || product.url}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              
+              <div className="space-y-2">
+                <Label>{language === 'ru' ? 'Match Type' : 'Match Type'}</Label>
+                <Select
+                  value={newMatch.match_type}
+                  onValueChange={(value) => setNewMatch({ ...newMatch, match_type: value })}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="manual">Manual</SelectItem>
+                    <SelectItem value="auto">Auto (AI)</SelectItem>
+                    <SelectItem value="category">Category</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              
+              {newMatch.match_type === 'manual' && (
+                <div className="space-y-2">
+                  <Label>
+                    {language === 'ru' ? 'Our Product (Source)' : 'Our Product (Source)'}
+                  </Label>
+                  <Select
+                    value={newMatch.our_product_ref}
+                    onValueChange={(value) => setNewMatch({ ...newMatch, our_product_ref: value })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder={language === 'ru' ? 'Выберите источник' : 'Select source'} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {sources.map((source) => (
+                        <SelectItem key={source.id} value={source.id}>
+                          {source.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+              
+              {newMatch.match_type === 'category' && (
+                <div className="space-y-2">
+                  <Label>Category</Label>
+                  <Input
+                    placeholder={language === 'ru' ? 'Например: CRM' : 'E.g.: CRM'}
+                    value={newMatch.our_product_ref}
+                    onChange={(e) => setNewMatch({ ...newMatch, our_product_ref: e.target.value })}
+                  />
+                </div>
+              )}
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setIsMatchDialogOpen(false)}>
+                {language === 'ru' ? 'Отмена' : 'Cancel'}
+              </Button>
+              <Button
+                onClick={addMatch}
+                disabled={!newMatch.competitor_product_url || !newMatch.our_product_ref}
+                className="bg-green-500 hover:bg-green-600"
+              >
+                {language === 'ru' ? 'Add Match' : 'Add Match'}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     </DashboardLayout>
   );
