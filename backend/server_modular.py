@@ -52,7 +52,7 @@ from routes.news import router as news_router
 
 # Import services and dependencies needed for enterprise route setup
 from services.enterprise import AuditService, VersionService
-from services.file_processor import extract_text_from_file, chunk_text, chunk_tabular_text
+from services.file_processor import chunk_text, chunk_tabular_text
 from middleware.auth import get_current_user, is_admin
 
 # File storage settings
