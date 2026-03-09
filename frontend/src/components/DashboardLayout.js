@@ -39,7 +39,12 @@ const DashboardLayout = ({ children }) => {
   // Pending approvals count for managers
   const [pendingCount, setPendingCount] = useState(0);
   const [isManager, setIsManager] = useState(false);
-  const [hasCompetitorAccess, setHasCompetitorAccess] = useState(false);
+  const [hasCompetitorAccess, setHasCompetitorAccess] = useState(() => {
+    // Initialize from localStorage to prevent flicker
+    const cached = localStorage.getItem('hasCompetitorAccess');
+    return cached === 'true';
+  });
+  const [competitorAccessLoaded, setCompetitorAccessLoaded] = useState(false);
 
   // Fetch pending approvals count for managers and competitor access
   useEffect(() => {
@@ -54,14 +59,21 @@ const DashboardLayout = ({ children }) => {
         setIsManager(false);
       }
       
-      // Check competitor tracker access
-      try {
-        const deptResponse = await axios.get(`${API}/departments`);
-        const departments = deptResponse.data || [];
-        const hasAccess = departments.some(dept => dept.competitor_tracker_enabled === true);
-        setHasCompetitorAccess(hasAccess);
-      } catch (error) {
-        setHasCompetitorAccess(false);
+      // Check competitor tracker access (only if not already loaded)
+      if (!competitorAccessLoaded) {
+        try {
+          const deptResponse = await axios.get(`${API}/departments`);
+          const departments = deptResponse.data || [];
+          const hasAccess = departments.some(dept => dept.competitor_tracker_enabled === true);
+          setHasCompetitorAccess(hasAccess);
+          localStorage.setItem('hasCompetitorAccess', hasAccess.toString());
+          setCompetitorAccessLoaded(true);
+        } catch (error) {
+          // Don't reset if already have cached value
+          if (!localStorage.getItem('hasCompetitorAccess')) {
+            setHasCompetitorAccess(false);
+          }
+        }
       }
     };
     
@@ -71,7 +83,7 @@ const DashboardLayout = ({ children }) => {
       const interval = setInterval(fetchData, 60000);
       return () => clearInterval(interval);
     }
-  }, [user]);
+  }, [user, competitorAccessLoaded]);
 
   const handleLogout = () => {
     logout();

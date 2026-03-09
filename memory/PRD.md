@@ -952,18 +952,55 @@ PUT    /api/user/prompt
 - Интерфейс на русском языке работает корректно
 
 ### Pending Tasks (P1)
-1. **Рефакторинг server.py (~4800 строк)** - Требует модульную миграцию
+1. ~~**Рефакторинг server.py (~4800 строк)**~~ ✅ ЗАВЕРШЕНО
 2. **Рефакторинг ChatPage.js (~1780 строк)** - Интегрировать созданные компоненты
 3. **Улучшение атрибуции источников в AI** - Показывать какой файл использован для ответа
 4. **Полная интернационализация (i18n)** - Все строки на русском
 
 ### Known Technical Debt
-- `server.py`: ~4800 строк монолита
+- ~~`server.py`: ~4800 строк монолита~~ ✅ Рефакторинг завершен
 - `ChatPage.js`: ~1780 строк монолита
 - Созданы компоненты чата, но не интегрированы
 
 ---
 
-**Document Version:** 1.3
-**Last Updated:** 2026-03-08
+## 15. Session Updates (2026-03-09)
+
+### Completed: Server.py Refactoring (P0)
+**БЫЛО:** `server.py` = 4791 строк (монолит)
+**СТАЛО:** `server.py` = 177 строк (точка входа)
+
+Код разбит на модульные файлы:
+| Модуль | Строк | Описание |
+|--------|-------|----------|
+| `routes/admin.py` | 429 | Админ-панель, управление пользователями |
+| `routes/auth.py` | 50 | Аутентификация |
+| `routes/chats.py` | 217 | Управление чатами |
+| `routes/competitors.py` | 418 | **NEW** Competitor Tracker |
+| `routes/departments.py` | 430 | Управление отделами |
+| `routes/enterprise_sources.py` | 802 | Корпоративные источники |
+| `routes/global_sources.py` | 369 | Глобальные источники |
+| `routes/images.py` | 189 | Генерация изображений |
+| `routes/insights.py` | 288 | AI-аналитика |
+| `routes/messages.py` | 590 | RAG pipeline, сообщения |
+| `routes/news.py` | 108 | Новости |
+| `routes/projects.py` | 336 | Проекты |
+| `routes/sources.py` | 647 | Источники документов |
+| `routes/user_settings.py` | 232 | Настройки пользователя, AI Profile |
+
+**Всего в routes:** 5106 строк (модульная структура)
+
+### Test Results
+- ✅ Login API работает
+- ✅ Projects API работает
+- ✅ Quick chats API работает
+- ✅ Admin users API работает
+- ✅ AI Profile API работает
+- ✅ Dashboard загружается
+- ✅ Все функции работают
+
+---
+
+**Document Version:** 1.4
+**Last Updated:** 2026-03-09
 **Author:** Planet Knowledge Team
