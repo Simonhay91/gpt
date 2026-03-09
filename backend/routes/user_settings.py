@@ -195,7 +195,7 @@ async def update_department_ai_context(
     current_user: dict = Depends(get_current_user)
 ):
     """Update department's AI context settings (admin or manager only)"""
-    # db reference from get_current_user
+    db = get_db()
     
     department = await db.departments.find_one({"id": department_id}, {"_id": 0})
     if not department:
@@ -203,6 +203,7 @@ async def update_department_ai_context(
     
     # Check access - admin or manager
     is_admin_user = is_admin(current_user["email"])
+    is_manager = current_user["id"] in department.get("managers", [])
     
     if not is_admin_user and not is_manager:
         raise HTTPException(status_code=403, detail="Only admin or department manager can update AI context")
