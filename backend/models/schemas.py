@@ -258,3 +258,81 @@ class SaveToKnowledgeRequest(BaseModel):
 
 class UpdateUserModelRequest(BaseModel):
     model: Optional[str] = None
+
+
+# ==================== COMPETITOR TRACKER MODELS ====================
+
+class CompetitorProduct(BaseModel):
+    id: str
+    url: str
+    title: Optional[str] = None
+    cached_content: Optional[str] = None
+    last_fetched: Optional[str] = None
+    auto_refresh: bool = False
+    refresh_interval_days: int = 7
+
+
+class CompetitorProductCreate(BaseModel):
+    url: str
+    auto_refresh: bool = False
+    refresh_interval_days: int = 7
+
+
+class MatchedProduct(BaseModel):
+    competitor_product_url: str
+    our_product_ref: str  # Source ID
+    match_type: str  # "auto" | "manual" | "category"
+
+
+class CompetitorCreate(BaseModel):
+    name: str
+    website: str
+
+
+class CompetitorUpdate(BaseModel):
+    name: Optional[str] = None
+    website: Optional[str] = None
+
+
+class CompetitorResponse(BaseModel):
+    id: str
+    name: str
+    website: str
+    products: List[CompetitorProduct] = []
+    matched_our_products: List[MatchedProduct] = []
+    created_by: str
+    created_at: str
+
+
+class CompetitorMatchUpdate(BaseModel):
+    matched_our_products: List[MatchedProduct]
+
+
+# ==================== AI SETTINGS MODELS ====================
+
+class AiProfileUpdate(BaseModel):
+    display_name: Optional[str] = None
+    position: Optional[str] = None
+    department_id: Optional[str] = None
+    preferred_language: Optional[str] = None  # ru, en
+    response_style: Optional[str] = None  # formal, casual, technical, simple
+    custom_instruction: Optional[str] = None
+
+
+class AiProfileResponse(BaseModel):
+    display_name: Optional[str] = None
+    position: Optional[str] = None
+    department_id: Optional[str] = None
+    preferred_language: Optional[str] = "ru"
+    response_style: Optional[str] = "formal"
+    custom_instruction: Optional[str] = None
+
+
+class DepartmentAiContextUpdate(BaseModel):
+    style: Optional[str] = None
+    instruction: Optional[str] = None
+
+
+class DepartmentAiContextResponse(BaseModel):
+    style: Optional[str] = None
+    instruction: Optional[str] = None
