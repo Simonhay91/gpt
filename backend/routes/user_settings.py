@@ -112,7 +112,6 @@ async def get_my_departments(current_user: dict = Depends(get_current_user)):
 @router.get("/users/me/ai-profile", response_model=AiProfileResponse)
 async def get_ai_profile(current_user: dict = Depends(get_current_user)):
     """Get current user's AI profile settings"""
-    # db reference from get_current_user
     ai_profile = current_user.get("ai_profile", {})
     
     return AiProfileResponse(
@@ -128,7 +127,7 @@ async def get_ai_profile(current_user: dict = Depends(get_current_user)):
 @router.put("/users/me/ai-profile", response_model=AiProfileResponse)
 async def update_ai_profile(data: AiProfileUpdate, current_user: dict = Depends(get_current_user)):
     """Update current user's AI profile settings"""
-    # db reference from get_current_user
+    db = get_db()
     
     ai_profile_update = {}
     if data.display_name is not None:
@@ -168,7 +167,7 @@ async def update_ai_profile(data: AiProfileUpdate, current_user: dict = Depends(
 @router.get("/departments/{department_id}/ai-context", response_model=DepartmentAiContextResponse)
 async def get_department_ai_context(department_id: str, current_user: dict = Depends(get_current_user)):
     """Get department's AI context settings"""
-    # db reference from get_current_user
+    db = get_db()
     
     department = await db.departments.find_one({"id": department_id}, {"_id": 0})
     if not department:
