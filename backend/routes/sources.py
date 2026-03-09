@@ -58,6 +58,41 @@ SUPPORTED_MIME_TYPES = {
 }
 
 
+# ==================== GET ALL USER SOURCES ====================
+
+@router.get("/sources")
+async def get_all_user_sources(current_user: dict = Depends(get_current_user)):
+    """Get all sources accessible to the current user (for matching in Competitors)"""
+    db = get_db()
+    
+    user_id = current_user["id"]
+    user_dept_ids = current_user.get("departments", [])
+    
+    # Get user's projects
+    projects = await db.projects.find(
+        {"$or": [
+            {"ownerId": user_id},
+            {"sharedWith": user_id}
+        ]},
+        {"_id": 0, "id": 1}
+    ).to_list(1000)
+    project_ids = [p["id"] for p in projects]
+    
+    # Query sources from projects, departments, and global
+    query = {
+        "$or": [
+            {"projectId": {"$in": project_ids}},
+            {"level": "personal", "ownerId": user_id},
+            {"level": "department", "departmentId": {"$in": user_dept_ids}},
+            {"level": "global"}
+        ]
+    }
+    
+    sources = await db.sources.find(query, {"_id": 0}).to_list(1000)
+    
+    return {"items": sources, "total": len(sources)}
+
+
 @router.post("/projects/{project_id}/sources/upload", response_model=SourceResponse)
 async def upload_source(
     project_id: str,
