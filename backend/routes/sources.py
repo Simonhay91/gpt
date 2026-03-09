@@ -599,3 +599,49 @@ async def get_active_sources(chat_id: str, current_user: dict = Depends(get_curr
     }, {"_id": 0}).to_list(1000)
     
     return {"activeSources": sources}
+
+
+# ==================== SOURCE CHUNKS ENDPOINT ====================
+
+GLOBAL_PROJECT_ID = "__global__"
+
+@router.get("/sources/{source_id}/chunks")
+async def get_source_chunks(source_id: str, current_user: dict = Depends(get_current_user)):
+    """Get all chunks for a source to display content"""
+    db = get_db()
+    
+    source = await db.sources.find_one({"id": source_id}, {"_id": 0})
+    if not source:
+        raise HTTPException(status_code=404, detail="Source not found")
+    
+    # Check access based on source level
+    source_level = source.get("level", "project")
+    
+    if source_level == "personal":
+        if source.get("ownerId") != current_user["id"]:
+            raise HTTPException(status_code=403, detail="Access denied")
+    elif source_level == "department":
+        user_departments = current_user.get("departments", [])
+        if source.get("departmentId") not in user_departments:
+            raise HTTPException(status_code=403, detail="Access denied")
+    elif source_level == "global":
+        pass  # Everyone can access global sources
+    else:
+        # Project source - check project access
+        project_id = source.get("projectId")
+        if project_id and project_id != GLOBAL_PROJECT_ID:
+            try:
+                await check_project_access(current_user, project_id, required_role="viewer")
+            except HTTPException:
+                raise HTTPException(status_code=403, detail="Access denied")
+    
+    # Get all chunks for this source
+    chunks = await db.source_chunks.find(
+        {"sourceId": source_id},
+        {"_id": 0}
+    ).sort("chunkIndex", 1).to_list(10000)
+    
+    if not chunks:
+        return []
+    
+    return chunks
