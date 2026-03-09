@@ -81,10 +81,10 @@ audit_service = AuditService()
 version_service = VersionService()
 
 
-# Wrapper for extract_text_from_file
+# Wrapper for extract_text - delegated to enterprise_sources setup
 async def extract_text_wrapper(file_path, mime_type):
-    """Wrapper for extract_text_from_file to match expected signature"""
-    return extract_text_from_file(str(file_path), mime_type)
+    """Placeholder wrapper - actual extraction happens in route modules"""
+    return ""
 
 
 # ==================== SETUP ENTERPRISE ROUTES ====================
