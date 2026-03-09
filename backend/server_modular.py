@@ -77,8 +77,8 @@ SUPPORTED_MIME_TYPES = {
 
 # Initialize services
 db = get_db()
-audit_service = AuditService()
-version_service = VersionService()
+audit_service = AuditService(db)
+version_service = VersionService(db)
 
 
 # Wrapper for extract_text - delegated to enterprise_sources setup
