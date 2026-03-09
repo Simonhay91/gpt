@@ -177,7 +177,6 @@ async def get_department_ai_context(department_id: str, current_user: dict = Dep
     # Check access
     user_departments = current_user.get("departments", [])
     is_admin_user = is_admin(current_user["email"])
-    is_manager = current_user["id"] in department.get("managers", [])
     
     if not is_admin_user and department_id not in user_departments:
         raise HTTPException(status_code=403, detail="Access denied")
@@ -205,7 +204,6 @@ async def update_department_ai_context(
     
     # Check access - admin or manager
     is_admin_user = is_admin(current_user["email"])
-    is_manager = current_user["id"] in department.get("managers", [])
     
     if not is_admin_user and not is_manager:
         raise HTTPException(status_code=403, detail="Only admin or department manager can update AI context")
