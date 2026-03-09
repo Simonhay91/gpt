@@ -20,7 +20,7 @@ router = APIRouter(prefix="/api", tags=["user_settings"])
 @router.get("/user/prompt", response_model=UserPromptResponse)
 async def get_user_prompt(current_user: dict = Depends(get_current_user)):
     """Get the current user's custom GPT prompt"""
-    # db reference from get_current_user
+    db = get_db()
     user_prompt = await db.user_prompts.find_one({"userId": current_user["id"]}, {"_id": 0})
     
     if not user_prompt:
@@ -36,7 +36,7 @@ async def get_user_prompt(current_user: dict = Depends(get_current_user)):
 @router.put("/user/prompt", response_model=UserPromptResponse)
 async def update_user_prompt(data: UserPromptUpdate, current_user: dict = Depends(get_current_user)):
     """Update the current user's custom GPT prompt"""
-    # db reference from get_current_user
+    db = get_db()
     now = datetime.now(timezone.utc).isoformat()
     
     existing = await db.user_prompts.find_one({"userId": current_user["id"]})
@@ -66,7 +66,7 @@ async def set_primary_department(
     current_user: dict = Depends(get_current_user)
 ):
     """Set user's primary department"""
-    # db reference from get_current_user
+    db = get_db()
     department_id = data.get("departmentId")
     
     if department_id:
