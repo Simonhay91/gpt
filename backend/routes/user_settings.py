@@ -89,7 +89,7 @@ async def set_primary_department(
 @router.get("/users/me/departments")
 async def get_my_departments(current_user: dict = Depends(get_current_user)):
     """Get current user's departments with details"""
-    # db reference from get_current_user
+    db = get_db()
     user_dept_ids = current_user.get("departments", [])
     
     if not user_dept_ids:
