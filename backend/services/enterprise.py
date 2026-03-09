@@ -101,6 +101,29 @@ class AuditService:
         cursor = self.collection.find(query, {"_id": 0})
         cursor = cursor.sort("timestamp", -1).skip(offset).limit(limit)
         return await cursor.to_list(limit)
+    
+    @staticmethod
+    async def log_action(
+        db,
+        user_id: str,
+        action: str,
+        resource_type: str,
+        resource_id: str,
+        details: dict = None
+    ):
+        """Static method to log audit action without instance"""
+        entry = {
+            "id": generate_id(),
+            "userId": user_id,
+            "action": action,
+            "resourceType": resource_type,
+            "resourceId": resource_id,
+            "details": details or {},
+            "timestamp": now_iso()
+        }
+        await db.audit_logs.insert_one(entry)
+        logger.info(f"Audit: {action} on {resource_type}/{resource_id}")
+        return entry
 
 
 class VersionService:
