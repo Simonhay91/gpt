@@ -2,9 +2,17 @@
 from fastapi import APIRouter, HTTPException, Depends
 from datetime import datetime, timezone
 
-from models.schemas import UserPromptUpdate, UserPromptResponse
-from middleware.auth import get_current_user
+from models.schemas import (
+    UserPromptUpdate, 
+    UserPromptResponse,
+    AiProfileUpdate,
+    AiProfileResponse,
+    DepartmentAiContextUpdate,
+    DepartmentAiContextResponse
+)
+from middleware.auth import get_current_user, is_admin
 from db.connection import get_db
+from services.enterprise import AuditService
 
 router = APIRouter(prefix="/api", tags=["user_settings"])
 
