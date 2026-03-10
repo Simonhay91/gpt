@@ -25,6 +25,7 @@ const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 export default function ProductDetailPage() {
   const { productId } = useParams();
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [product, setProduct] = useState(null);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(false);
@@ -37,13 +38,8 @@ export default function ProductDetailPage() {
   const [searchResults, setSearchResults] = useState([]);
   const [selectedRelationType, setSelectedRelationType] = useState('compatible');
   
-  const [canEdit, setCanEdit] = useState(false);
-
-  useEffect(() => {
-    const user = JSON.parse(localStorage.getItem('user') || '{}');
-    const isAdmin = user.email?.endsWith('@admin.com') || user.isAdmin;
-    setCanEdit(isAdmin);
-  }, []);
+  // Permission check - Admin or Manager can edit
+  const canEdit = user?.isAdmin || user?.email?.endsWith('@admin.com');
 
   useEffect(() => {
     loadProduct();
