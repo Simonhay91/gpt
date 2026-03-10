@@ -627,29 +627,3 @@ async def match_products(
             results.append(ProductMatchResult(query=title, matched=None, confidence=0.0))
     
     return results
-
-
-# ==================== STATS ENDPOINT ====================
-
-@router.get("/product-catalog/stats")
-async def get_stats(current_user: dict = Depends(get_current_user)):
-    """Get product catalog statistics"""
-    db = get_db()
-    
-    total = await db.product_catalog.count_documents({})
-    active = await db.product_catalog.count_documents({"is_active": True})
-    inactive = await db.product_catalog.count_documents({"is_active": False})
-    
-    # Get last sync date
-    last_synced = await db.product_catalog.find_one(
-        {"last_synced_at": {"$ne": None}},
-        {"_id": 0, "last_synced_at": 1},
-        sort=[("last_synced_at", -1)]
-    )
-    
-    return {
-        "total": total,
-        "active": active,
-        "inactive": inactive,
-        "last_synced_at": last_synced.get("last_synced_at") if last_synced else None
-    }
