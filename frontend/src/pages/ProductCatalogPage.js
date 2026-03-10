@@ -380,6 +380,59 @@ export default function ProductCatalogPage() {
           </table>
         </div>
 
+        {/* Pagination */}
+        {totalProducts > pageSize && (
+          <div className="flex items-center justify-between px-4 py-3 border rounded-lg bg-muted/30">
+            <div className="text-sm text-muted-foreground">
+              Показано {((page - 1) * pageSize) + 1} - {Math.min(page * pageSize, totalProducts)} из {totalProducts}
+            </div>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setPage(p => Math.max(1, p - 1))}
+                disabled={page === 1}
+              >
+                ← Назад
+              </Button>
+              <div className="flex items-center gap-1">
+                {Array.from({ length: Math.min(5, Math.ceil(totalProducts / pageSize)) }, (_, i) => {
+                  const totalPages = Math.ceil(totalProducts / pageSize);
+                  let pageNum;
+                  if (totalPages <= 5) {
+                    pageNum = i + 1;
+                  } else if (page <= 3) {
+                    pageNum = i + 1;
+                  } else if (page >= totalPages - 2) {
+                    pageNum = totalPages - 4 + i;
+                  } else {
+                    pageNum = page - 2 + i;
+                  }
+                  return (
+                    <Button
+                      key={pageNum}
+                      variant={page === pageNum ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => setPage(pageNum)}
+                      className="w-8"
+                    >
+                      {pageNum}
+                    </Button>
+                  );
+                })}
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setPage(p => Math.min(Math.ceil(totalProducts / pageSize), p + 1))}
+                disabled={page >= Math.ceil(totalProducts / pageSize)}
+              >
+                Вперёд →
+              </Button>
+            </div>
+          </div>
+        )}
+
         {/* Import Modal */}
         {showImportModal && (
           <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
