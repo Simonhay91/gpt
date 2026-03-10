@@ -110,6 +110,11 @@ export default function ProductCatalogPage() {
     loadCategories();
   }, [loadProducts]);
 
+  // Reset page when filters change
+  useEffect(() => {
+    setPage(1);
+  }, [search, selectedCategory, selectedVendor, showInactive]);
+
   // Debounced search
   useEffect(() => {
     const timer = setTimeout(() => {
