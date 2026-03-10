@@ -27,6 +27,8 @@ import NewsPage from './pages/NewsPage';
 import MyGptPromptPage from './pages/MyGptPromptPage';
 import AiSettingsPage from './pages/AiSettingsPage';
 import CompetitorsPage from './pages/CompetitorsPage';
+import ProductCatalogPage from './pages/ProductCatalogPage';
+import ProductDetailPage from './pages/ProductDetailPage';
 
 // Protected Route Component
 const ProtectedRoute = ({ children }) => {
