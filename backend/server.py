@@ -44,6 +44,7 @@ from routes.user_settings import router as user_settings_router
 from routes.images import router as images_router
 from routes.insights import router as insights_router
 from routes.competitors import router as competitors_router, auto_refresh_competitor_products
+from routes.product_catalog import router as product_catalog_router
 
 # Enterprise routes with setup functions
 from routes.departments import setup_department_routes, router as departments_router
