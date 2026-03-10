@@ -112,6 +112,11 @@ const DashboardLayout = ({ children }) => {
       path: '/my-prompt',
       icon: Sparkles
     },
+    {
+      name: language === 'ru' ? 'Product Catalog' : 'Product Catalog',
+      path: '/product-catalog',
+      icon: Package
+    },
     // Conditionally add Competitors if user has access
     ...(hasCompetitorAccess ? [{
       name: language === 'ru' ? 'Competitors' : 'Competitors',
