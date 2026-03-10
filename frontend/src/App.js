@@ -125,6 +125,18 @@ function AppRoutes() {
         </ProtectedRoute>
       } />
       
+      {/* Product Catalog Routes */}
+      <Route path="/product-catalog" element={
+        <ProtectedRoute>
+          <ProductCatalogPage />
+        </ProtectedRoute>
+      } />
+      <Route path="/product-catalog/:productId" element={
+        <ProtectedRoute>
+          <ProductDetailPage />
+        </ProtectedRoute>
+      } />
+      
       {/* Admin Routes */}
       <Route path="/admin/config" element={
         <AdminRoute>
