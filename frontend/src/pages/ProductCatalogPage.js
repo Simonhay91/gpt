@@ -25,6 +25,7 @@ const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
 export default function ProductCatalogPage() {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState({ total: 0, active: 0, inactive: 0 });
@@ -56,15 +57,8 @@ export default function ProductCatalogPage() {
     description: ''
   });
   
-  // Permission check
-  const [canEdit, setCanEdit] = useState(false);
-  
-  useEffect(() => {
-    // Check if user is admin or manager
-    const user = JSON.parse(localStorage.getItem('user') || '{}');
-    const isAdmin = user.email?.endsWith('@admin.com') || user.isAdmin;
-    setCanEdit(isAdmin);
-  }, []);
+  // Permission check - Admin or Manager can edit
+  const canEdit = user?.isAdmin || user?.email?.endsWith('@admin.com');
 
   const loadProducts = useCallback(async () => {
     try {
