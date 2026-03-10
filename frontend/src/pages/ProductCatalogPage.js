@@ -89,6 +89,7 @@ export default function ProductCatalogPage() {
     try {
       const response = await axios.get(`${API}/product-catalog/stats`);
       setStats(response.data);
+      setTotalProducts(showInactive ? response.data.total : response.data.active);
     } catch (error) {
       console.error('Failed to load stats:', error);
     }
