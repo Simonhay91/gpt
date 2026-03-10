@@ -57,16 +57,24 @@ export default function ProductCatalogPage() {
     description: ''
   });
   
+  // Pagination
+  const [page, setPage] = useState(1);
+  const [totalProducts, setTotalProducts] = useState(0);
+  const pageSize = 20;
+  
   // Permission check - Admin or Manager can edit
   const canEdit = user?.isAdmin || user?.email?.endsWith('@admin.com');
 
   const loadProducts = useCallback(async () => {
     try {
+      setLoading(true);
       const params = new URLSearchParams();
       if (search) params.append('search', search);
       if (selectedCategory) params.append('root_category', selectedCategory);
       if (selectedVendor) params.append('vendor', selectedVendor);
       if (!showInactive) params.append('is_active', 'true');
+      params.append('limit', pageSize.toString());
+      params.append('offset', ((page - 1) * pageSize).toString());
       
       const response = await axios.get(`${API}/product-catalog?${params}`);
       setProducts(response.data);
@@ -75,7 +83,7 @@ export default function ProductCatalogPage() {
     } finally {
       setLoading(false);
     }
-  }, [search, selectedCategory, selectedVendor, showInactive]);
+  }, [search, selectedCategory, selectedVendor, showInactive, page]);
 
   const loadStats = async () => {
     try {
