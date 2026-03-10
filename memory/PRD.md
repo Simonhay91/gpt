@@ -1001,6 +1001,78 @@ PUT    /api/user/prompt
 
 ---
 
-**Document Version:** 1.4
-**Last Updated:** 2026-03-09
+## 16. Session Updates (2026-03-10)
+
+### Completed: Product Catalog Feature (Этапы 1-2)
+
+**Backend (`/app/backend/routes/product_catalog.py`):**
+- CRUD endpoints для продуктов
+- CSV импорт с preview и выбором колонок
+- Relations management (compatible, bundle, requires)
+- Tender matching endpoint
+- Статистика и фильтры по категориям/вендорам
+
+**Frontend:**
+- `/product-catalog` — список продуктов с поиском и фильтрами
+- `/product-catalog/{id}` — детальная страница с редактированием
+- Import Modal с preview и выбором extra columns
+- Relations UI с двусторонними связями
+- Sidebar link "Product Catalog" (доступен всем)
+
+**Схема данных (`product_catalog` collection):**
+```
+{
+  "id": uuid,
+  "article_number": string (unique),
+  "title_en": string,
+  "crm_code": string,
+  "root_category": string,
+  "lvl1/2/3_subcategory": string,
+  "vendor": string,
+  "description": string,
+  "features": string,
+  "attribute_values": string,
+  "product_model": string,
+  "datasheet_url": string,
+  "aliases": [string],
+  "price": float,
+  "relations": [{product_id, relation_type}],
+  "extra_fields": object,
+  "is_active": bool,
+  "source": "csv_import" | "manual",
+  "last_synced_at": datetime
+}
+```
+
+**API Endpoints:**
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/product-catalog` | GET | Список с поиском и фильтрами |
+| `/api/product-catalog/stats` | GET | Статистика |
+| `/api/product-catalog/categories` | GET | Категории для фильтров |
+| `/api/product-catalog/{id}` | GET | Один продукт |
+| `/api/product-catalog` | POST | Создать (Admin/Manager) |
+| `/api/product-catalog/{id}` | PUT | Обновить |
+| `/api/product-catalog/{id}` | DELETE | Soft delete |
+| `/api/product-catalog/import/preview` | POST | Preview CSV |
+| `/api/product-catalog/import` | POST | Импорт CSV |
+| `/api/product-catalog/{id}/relations` | POST | Добавить связь |
+| `/api/product-catalog/{id}/relations/{rid}` | DELETE | Удалить связь |
+| `/api/product-catalog/match` | POST | Tender matching |
+
+### Bug Fixes
+- Исправлен конфликт `date-fns@4.1.0` → `^3.6.0`
+- Исправлен конфликт `react-day-picker@8.10.1` → `^9.4.4`
+- Исправлен `db = get_db()` в `user_settings.py`
+- Исправлен порядок роутов `/stats` перед `/{product_id}`
+
+### Pending (Этап 3)
+- AI Integration — поиск продуктов в чате
+- Tender Analysis panel в Project Sources
+- Weekly Sync (APScheduler)
+
+---
+
+**Document Version:** 1.5
+**Last Updated:** 2026-03-10
 **Author:** Planet Knowledge Team
