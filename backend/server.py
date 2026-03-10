@@ -125,6 +125,7 @@ app.include_router(user_settings_router)
 app.include_router(images_router)
 app.include_router(insights_router)
 app.include_router(competitors_router)
+app.include_router(product_catalog_router)
 
 # Enterprise routes
 app.include_router(departments_router)
