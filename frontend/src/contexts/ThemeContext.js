@@ -30,7 +30,7 @@ export const ThemeProvider = ({ children }) => {
     }
     
     // Save to localStorage
-    localStorage.setItem('planet-gpt-theme', theme);
+    localStorage.setItem('planet-knowledge-theme', theme);
   }, [theme]);
 
   const toggleTheme = () => {
