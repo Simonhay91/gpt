@@ -293,7 +293,7 @@ async def admin_list_users(current_user: dict = Depends(get_current_user)):
 
 @router.delete("/admin/users/{user_id}")
 async def admin_delete_user(user_id: str, current_user: dict = Depends(get_current_user)):
-    """Admin deletes a user"""
+    """Admin deletes a user - CASCADE DELETE all related data"""
     db = get_db()
     if not is_admin(current_user["email"]):
         raise HTTPException(status_code=403, detail="Admin access required")
@@ -305,24 +305,77 @@ async def admin_delete_user(user_id: str, current_user: dict = Depends(get_curre
     if user_id == current_user["id"]:
         raise HTTPException(status_code=400, detail="Cannot delete yourself")
     
-    await db.users.delete_one({"id": user_id})
-    await db.token_usage.delete_one({"userId": user_id})
-    await db.user_prompts.delete_one({"userId": user_id})
-    await db.chats.delete_many({"ownerId": user_id})
-    
+    # 1. Delete user's projects and all related data
     projects = await db.projects.find({"ownerId": user_id}).to_list(1000)
     for project in projects:
         project_id = project["id"]
+        # Delete project chats and their messages
         chats = await db.chats.find({"projectId": project_id}).to_list(1000)
         for chat in chats:
             await db.messages.delete_many({"chatId": chat["id"]})
         await db.chats.delete_many({"projectId": project_id})
+        # Delete project sources and chunks
         await db.sources.delete_many({"projectId": project_id})
         await db.source_chunks.delete_many({"projectId": project_id})
+        # Delete generated images
         await db.generated_images.delete_many({"projectId": project_id})
+        # Delete project files
+        await db.project_files.delete_many({"projectId": project_id})
+        await db.project_file_chunks.delete_many({"projectId": project_id})
     await db.projects.delete_many({"ownerId": user_id})
     
-    return {"message": "User deleted successfully"}
+    # 2. Delete user's quick chats (no project)
+    quick_chats = await db.chats.find({"ownerId": user_id, "projectId": None}).to_list(1000)
+    for chat in quick_chats:
+        await db.messages.delete_many({"chatId": chat["id"]})
+    await db.chats.delete_many({"ownerId": user_id})
+    
+    # 3. Delete user's personal sources
+    await db.sources.delete_many({"ownerId": user_id, "level": "personal"})
+    await db.source_chunks.delete_many({"ownerId": user_id})
+    
+    # 4. Delete user settings and prompts
+    await db.user_prompts.delete_one({"userId": user_id})
+    await db.token_usage.delete_one({"userId": user_id})
+    
+    # 5. Delete user's analyzer sessions
+    await db.analyzer_sessions.delete_many({"userId": user_id})
+    
+    # 6. Delete user's semantic cache entries
+    await db.semantic_cache.delete_many({"userId": user_id})
+    
+    # 7. Delete user's source usage history
+    await db.source_usage.delete_many({"userId": user_id})
+    
+    # 8. Remove user from departments (update, not delete)
+    await db.departments.update_many(
+        {"members": user_id},
+        {"$pull": {"members": user_id}}
+    )
+    await db.departments.update_many(
+        {"managers": user_id},
+        {"$pull": {"managers": user_id}}
+    )
+    
+    # 9. Update audit logs to mark user as deleted (keep for audit trail)
+    await db.audit_logs.update_many(
+        {"userId": user_id},
+        {"$set": {"userDeleted": True}}
+    )
+    
+    # 10. Delete competitors created by user
+    await db.competitors.delete_many({"created_by": user_id})
+    
+    # 11. Delete products created by user (or mark as orphaned)
+    await db.product_catalog.update_many(
+        {"created_by": user_id},
+        {"$set": {"created_by": "deleted_user", "updated_by": "deleted_user"}}
+    )
+    
+    # 12. Finally delete the user
+    await db.users.delete_one({"id": user_id})
+    
+    return {"message": "User and all related data deleted successfully"}
 
 
 @router.get("/admin/users/{user_id}/details")
