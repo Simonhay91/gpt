@@ -1,5 +1,5 @@
 """
-Test suite for Global Sources feature in Planet GPT
+Test suite for Global Sources feature in Planet Knowledge
 Tests admin endpoints for managing global knowledge base
 """
 import pytest
