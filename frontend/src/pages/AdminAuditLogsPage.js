@@ -307,6 +307,35 @@ const AdminAuditLogsPage = () => {
             })}
           </div>
         )}
+
+        {/* Pagination */}
+        {!isLoading && logs.length > 0 && (
+          <div className="mt-6 flex items-center justify-between">
+            <div className="text-sm text-muted-foreground">
+              Страница {currentPage} • Показано {logs.length} записей
+            </div>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => fetchLogs(currentPage - 1)}
+                disabled={currentPage === 1}
+              >
+                <ChevronLeft className="h-4 w-4 mr-1" />
+                Назад
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => fetchLogs(currentPage + 1)}
+                disabled={!hasMore}
+              >
+                Вперед
+                <ChevronRight className="h-4 w-4 ml-1" />
+              </Button>
+            </div>
+          </div>
+        )}
       </div>
     </DashboardLayout>
   );
