@@ -23,6 +23,7 @@ class UserResponse(BaseModel):
     canEditGlobalSources: Optional[bool] = False
     departments: Optional[List[str]] = []
     primaryDepartmentId: Optional[str] = None
+    mustChangePassword: Optional[bool] = False
 
 
 class UserWithUsageResponse(BaseModel):
