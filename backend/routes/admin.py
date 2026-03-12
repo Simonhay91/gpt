@@ -226,7 +226,7 @@ async def update_gpt_config(config_data: GPTConfigUpdate, current_user: dict = D
 
 @router.post("/admin/users", response_model=UserResponse)
 async def admin_create_user(user_data: UserCreate, current_user: dict = Depends(get_current_user)):
-    """Admin creates a new user"""
+    """Admin creates a new user - user must change password on first login"""
     db = get_db()
     if not is_admin(current_user["email"]):
         raise HTTPException(status_code=403, detail="Admin access required")
@@ -243,7 +243,8 @@ async def admin_create_user(user_data: UserCreate, current_user: dict = Depends(
         "createdAt": datetime.now(timezone.utc).isoformat(),
         "departments": [],
         "primaryDepartmentId": None,
-        "canEditGlobalSources": False
+        "canEditGlobalSources": False,
+        "mustChangePassword": True  # User must change password on first login
     }
     await db.users.insert_one(user)
     
