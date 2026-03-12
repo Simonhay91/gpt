@@ -63,7 +63,7 @@ const AdminAuditLogsPage = () => {
     }
   }, [user]);
 
-  const fetchLogs = async () => {
+  const fetchLogs = async (page = 1) => {
     setIsLoading(true);
     try {
       const params = new URLSearchParams();
@@ -71,9 +71,14 @@ const AdminAuditLogsPage = () => {
       if (filters.action) params.append('action', filters.action);
       if (filters.level) params.append('level', filters.level);
       params.append('limit', filters.limit.toString());
+      const offset = (page - 1) * filters.limit;
+      params.append('offset', offset.toString());
       
       const response = await axios.get(`${API}/admin/audit-logs?${params}`);
       setLogs(response.data);
+      setCurrentPage(page);
+      // Check if there are more pages by checking if we got full limit
+      setHasMore(response.data.length === filters.limit);
     } catch (error) {
       toast.error(t('common.error'));
     } finally {
