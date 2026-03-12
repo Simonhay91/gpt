@@ -49,29 +49,39 @@ const DashboardLayout = ({ children }) => {
 
   // Fetch pending approvals count for managers and competitor access
   useEffect(() => {
+    let isMounted = true;
+    
     const fetchData = async () => {
+      if (!isMounted) return;
+      
       try {
         const response = await axios.get(`${API}/departments/pending-count`);
-        setPendingCount(response.data.count || 0);
-        setIsManager(response.data.isManager || false);
+        if (isMounted) {
+          setPendingCount(response.data.count || 0);
+          setIsManager(response.data.isManager || false);
+        }
       } catch (error) {
         // Silently fail - user might not be a manager
-        setPendingCount(0);
-        setIsManager(false);
+        if (isMounted) {
+          setPendingCount(0);
+          setIsManager(false);
+        }
       }
       
       // Check competitor tracker access (only if not already loaded)
-      if (!competitorAccessLoaded) {
+      if (!competitorAccessLoaded && isMounted) {
         try {
           const deptResponse = await axios.get(`${API}/departments`);
           const departments = deptResponse.data || [];
           const hasAccess = departments.some(dept => dept.competitor_tracker_enabled === true);
-          setHasCompetitorAccess(hasAccess);
-          localStorage.setItem('hasCompetitorAccess', hasAccess.toString());
-          setCompetitorAccessLoaded(true);
+          if (isMounted) {
+            setHasCompetitorAccess(hasAccess);
+            localStorage.setItem('hasCompetitorAccess', hasAccess.toString());
+            setCompetitorAccessLoaded(true);
+          }
         } catch (error) {
           // Don't reset if already have cached value
-          if (!localStorage.getItem('hasCompetitorAccess')) {
+          if (!localStorage.getItem('hasCompetitorAccess') && isMounted) {
             setHasCompetitorAccess(false);
           }
         }
@@ -80,10 +90,15 @@ const DashboardLayout = ({ children }) => {
     
     if (user) {
       fetchData();
-      // Refresh every 60 seconds
-      const interval = setInterval(fetchData, 60000);
-      return () => clearInterval(interval);
+      // Refresh every 5 minutes (300000ms) instead of 60 seconds
+      const interval = setInterval(fetchData, 300000);
+      return () => {
+        isMounted = false;
+        clearInterval(interval);
+      };
     }
+    
+    return () => { isMounted = false; };
   }, [user, competitorAccessLoaded]);
 
   const handleLogout = () => {
