@@ -166,7 +166,7 @@ async def init_admin_user():
         if user_count == 0:
             logger.info("No users found - creating default admin user...")
             
-            admin_email = "admin@planetworkspace.com"
+            admin_email = "admin@ai.planetworkspace.com"
             admin_password = "Admin@123456"  # Default password - MUST be changed on first login
             
             password_hash = bcrypt.hashpw(admin_password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
