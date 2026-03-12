@@ -1,63 +1,272 @@
 <analysis>**original_problem_statement:**
-The user wants to build a production-ready, full-stack SaaS web app, Planet Knowledge, for multi-user collaboration using React, FastAPI, and MongoDB.
+The user's goal is to build Planet Knowledge, a production-ready, full-stack SaaS web app for multi-user collaboration using React, FastAPI, and MongoDB.
 
-In this session, the user requested several new features and a bug fix:
-1.  **AI Personalization:** Implement a system for users to set their AI profile ( in the  collection) and for admins to set department-level AI context ( in the  collection). This required a new AI Settings page and modifications to the chat logic to use this data in the system prompt.
-2.  **Collapsible Chat Sources:** The Sources block in the chat UI should be collapsed by default and expandable. Each source should be clickable to view its content.
-3.  **Department Filtering Bug:** Fix a bug where regular users could see all departments in their AI Settings page, instead of only the departments they are members of.
-4.  **Competitor Tracker Feature:** A major new feature for users in the Sales department (or other enabled departments) to track competitors. This involves a new  collection, multiple backend endpoints for CRUD and web scraping ( + ), a new frontend page (), background jobs for auto-refreshing data (), and integration with the chat to provide context on competitor URLs.
-5.  **Critical Bug:** A recurring  that crashes the frontend after login.
+In this extensive session, the agent implemented the Product Catalog feature, performed a major backend refactoring, and fixed numerous critical bugs and dependency issues. Key requests included:
+1.  **Backend Refactor:** Modularize the monolithic .
+2.  **New Feature: Product Catalog:** Implement a comprehensive catalog with a new database collection, full CRUD APIs, CSV import functionality, product relationship management, and corresponding frontend pages with pagination and role-based access.
+3.  **Security Feature:** Implement a forced password change for new users upon their first login.
+4.  **Data Management:** Create a mechanism to clean all test data from the database and implement cascade deletion for users.
+5.  **Branding:** Change all instances of Planet GPT to PLANET KNOWLEDGE.
+6.  **Bug Fixes:** Address a series of critical issues, including dependency conflicts (, ), UI bugs (flickering buttons, missing buttons for admins), and backend errors ().
+7.  **Deployment Issues:** Resolve recurring deployment failures related to missing Python dependencies () and logic for initializing the admin user in a clean production database.
 
 **User's preferred language**: Russian
 
 **what currently exists?**
-The AI Personalization feature is fully implemented and tested. The Collapsible Sources feature is also complete and verified. The bug related to department filtering in AI settings has been fixed. The core functionality of the Competitor Tracker feature is implemented across both the frontend and backend, including data models, APIs, web scraping, background jobs, and the main user interface. However, the entire application is currently **unusable** due to a critical JavaScript error that occurs after login, which the previous agent failed to resolve despite multiple attempts.
+The application is a feature-rich, full-stack SaaS platform. Core functionalities like authentication, user/department management, AI chat, a competitor tracker, and a new product catalog are implemented. The backend has been significantly improved by refactoring the monolithic  into a modular structure. Several critical bugs, including a show-stopping frontend crash from the previous session ( error), dependency conflicts, and deployment blockers, have been resolved. The application now includes robust user management features like cascade delete and forced password changes.
+
+However, the application's stability is compromised by two key issues: a broken file upload feature and a persistent, unverified problem with admin user creation during production deployment.
 
 **Last working item**:
-- Last item agent was working: The agent was attempting to fix a critical and recurring JavaScript error, , which breaks the application after a user logs in. The agent identified that the  icon was used in  and  but failed to correctly import it, leading to a persistent crash. The user reported this bug multiple times. The agent's final action was to call the  for a deep analysis of the problem.
-- Status: **BLOCKED**
+- Last item agent was working: The agent was investigating a  error that occurs when a user tries to upload a document via the  endpoint. After confirming the file size limit is 50MB, the agent began inspecting the  file to diagnose if the error is due to an unsupported file type, excessive file size, or a failure to extract text.
+- Status: **IN PROGRESS**
 - Agent Testing Done: N
-- Which testing method agent to use? The  has already been invoked. The next agent's first step MUST be to analyze its output to get a diagnosis. If the troubleshooter's fix doesn't work, manual debugging will be required, focusing on all files that use the  icon. After a fix is applied, use the frontend testing agent to perform a login and confirm the dashboard loads without errors.
-- User Testing Done: N
+- Which testing method agent to use? Manual testing by curl. The next agent should first ask the user for the type and size of the file they are attempting to upload. Then, craft a  command to replicate the file upload and inspect the backend logs for a precise error message.
+- User Testing Done: N (User reported the issue)
 
 **All Pending/In progress Issue list**:
-  - Issue 1: Critical Frontend Crash after Login (P0)
-  - Issue 2: Incomplete Internationalization (i18n) (P1)
-  - Issue 3:  has a missing dependency warning (P2)
-  - Issue 4: Frontend Navigation Test Failure from a past session (P2)
+  - Issue 1:  on file upload (P0)
+  - Issue 2: Admin user not updating on production re-deploy (P1)
+  - Issue 3: Incomplete Internationalization (i18n) (P2)
+  - Issue 4:  has a missing dependency warning (P3)
 
 **Issues Detail:**
-  - **Issue 1: Critical Frontend Crash after Login**
-     - **Attempted fixes:** The agent made multiple attempts to add  to  and . These fixes were unsuccessful, indicating the root cause was not correctly identified or the fix was improperly applied. The agent's last resort was to call the .
+  - **Issue 1:  on file upload**
+     - **Attempted fixes:** None. The agent was in the initial investigation phase.
      - **Next debug checklist:**
-        1.  **Analyze the  output.** This is the most crucial first step.
-        2.  If the troubleshooter's plan is unclear, perform a global search () for  across the entire  directory to ensure no file has been missed.
-        3.  Carefully re-examine the import statements in  and . The error might be a typo or incorrect placement.
-        4.  Once a fix is applied, restart the frontend and perform a test login to confirm the error is resolved.
-     - **Why fix this issue and what will be achieved with the fix?** This is a **P0 (Critical)** blocker. The application is completely unusable after login. Fixing it will restore core functionality and allow further development and testing.
+        1.  Ask the user for the file's type (e.g., , ) and size.
+        2.  Check the  list in  against the user's file type.
+        3.  Examine the logic within the  function in .
+        4.  Reproduce the failed upload and immediately check backend logs (==> /var/log/supervisor/backend.err.log <==
+INFO:     Started server process [2888]
+INFO:     Waiting for application startup.
+INFO:server:✓ Found 1 existing users
+INFO:apscheduler.scheduler:Adding job tentatively -- it will be properly scheduled when the scheduler starts
+INFO:apscheduler.scheduler:Added job "auto_refresh_competitor_products" to job store "default"
+INFO:apscheduler.scheduler:Scheduler started
+INFO:server:✓ Planet Knowledge API started
+INFO:server:✓ Scheduler started - Auto-refresh will run daily at 2:00 AM
+INFO:     Application startup complete.
+WARNING:  WatchFiles detected changes in 'server.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:server:✓ Planet Knowledge API shutdown complete
+INFO:apscheduler.scheduler:Scheduler has been shut down
+INFO:     Application shutdown complete.
+INFO:     Finished server process [2888]
+INFO:     Started server process [2935]
+INFO:     Waiting for application startup.
+INFO:server:✓ Found 1 existing users
+INFO:apscheduler.scheduler:Adding job tentatively -- it will be properly scheduled when the scheduler starts
+INFO:apscheduler.scheduler:Added job "auto_refresh_competitor_products" to job store "default"
+INFO:apscheduler.scheduler:Scheduler started
+INFO:server:✓ Planet Knowledge API started
+INFO:server:✓ Scheduler started - Auto-refresh will run daily at 2:00 AM
+INFO:     Application startup complete.
+WARNING:  WatchFiles detected changes in 'server.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:server:✓ Planet Knowledge API shutdown complete
+INFO:apscheduler.scheduler:Scheduler has been shut down
+INFO:     Application shutdown complete.
+INFO:     Finished server process [2935]
+INFO:     Started server process [3171]
+INFO:     Waiting for application startup.
+INFO:server:✓ Admin user already exists: admin@ai.planetworkspace.com
+INFO:apscheduler.scheduler:Adding job tentatively -- it will be properly scheduled when the scheduler starts
+INFO:apscheduler.scheduler:Added job "auto_refresh_competitor_products" to job store "default"
+INFO:apscheduler.scheduler:Scheduler started
+INFO:server:✓ Planet Knowledge API started
+INFO:server:✓ Scheduler started - Auto-refresh will run daily at 2:00 AM
+INFO:     Application startup complete.
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:server:✓ Planet Knowledge API shutdown complete
+INFO:apscheduler.scheduler:Scheduler has been shut down
+INFO:     Application shutdown complete.
+INFO:     Finished server process [3171]
+INFO:     Stopping reloader process [2485]
+INFO:     Will watch for changes in these directories: ['/app/backend']
+INFO:     Uvicorn running on http://0.0.0.0:8001 (Press CTRL+C to quit)
+INFO:     Started reloader process [3210] using WatchFiles
+INFO:     Started server process [3212]
+INFO:     Waiting for application startup.
+INFO:server:✓ Admin user already exists: admin@ai.planetworkspace.com
+INFO:apscheduler.scheduler:Adding job tentatively -- it will be properly scheduled when the scheduler starts
+INFO:apscheduler.scheduler:Added job "auto_refresh_competitor_products" to job store "default"
+INFO:apscheduler.scheduler:Scheduler started
+INFO:server:✓ Planet Knowledge API started
+INFO:server:✓ Scheduler started - Auto-refresh will run daily at 2:00 AM
+INFO:     Application startup complete.
+WARNING:  WatchFiles detected changes in 'server.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:server:✓ Planet Knowledge API shutdown complete
+INFO:apscheduler.scheduler:Scheduler has been shut down
+INFO:     Application shutdown complete.
+INFO:     Finished server process [3212]
+INFO:     Started server process [3587]
+INFO:     Waiting for application startup.
+INFO:server:✓ Admin user already exists: admin@ai.planetworkspace.com
+INFO:apscheduler.scheduler:Adding job tentatively -- it will be properly scheduled when the scheduler starts
+INFO:apscheduler.scheduler:Added job "auto_refresh_competitor_products" to job store "default"
+INFO:apscheduler.scheduler:Scheduler started
+INFO:server:✓ Planet Knowledge API started
+INFO:server:✓ Scheduler started - Auto-refresh will run daily at 2:00 AM
+INFO:     Application startup complete.
+INFO:     Will watch for changes in these directories: ['/app/backend']
+INFO:     Uvicorn running on http://0.0.0.0:8001 (Press CTRL+C to quit)
+INFO:     Started reloader process [47] using WatchFiles
+INFO:     Started server process [85]
+INFO:     Waiting for application startup.
+INFO:server:✓ Admin user already exists: admin@ai.planetworkspace.com
+INFO:apscheduler.scheduler:Adding job tentatively -- it will be properly scheduled when the scheduler starts
+INFO:apscheduler.scheduler:Added job "auto_refresh_competitor_products" to job store "default"
+INFO:apscheduler.scheduler:Scheduler started
+INFO:server:✓ Planet Knowledge API started
+INFO:server:✓ Scheduler started - Auto-refresh will run daily at 2:00 AM
+INFO:     Application startup complete.
+INFO:     Will watch for changes in these directories: ['/app/backend']
+INFO:     Uvicorn running on http://0.0.0.0:8001 (Press CTRL+C to quit)
+INFO:     Started reloader process [42] using WatchFiles
+INFO:     Started server process [91]
+INFO:     Waiting for application startup.
+INFO:server:✓ Admin user already exists: admin@ai.planetworkspace.com
+INFO:apscheduler.scheduler:Adding job tentatively -- it will be properly scheduled when the scheduler starts
+INFO:apscheduler.scheduler:Added job "auto_refresh_competitor_products" to job store "default"
+INFO:apscheduler.scheduler:Scheduler started
+INFO:server:✓ Planet Knowledge API started
+INFO:server:✓ Scheduler started - Auto-refresh will run daily at 2:00 AM
+INFO:     Application startup complete.
+
+==> /var/log/supervisor/backend.out.log <==
+INFO:     10.208.159.130:46968 - "GET /api/departments HTTP/1.1" 200 OK
+INFO:     10.208.159.130:46968 - "GET /api/departments/pending-count HTTP/1.1" 200 OK
+INFO:     10.208.159.130:46968 - "GET /api/departments HTTP/1.1" 200 OK
+INFO:     10.208.138.74:41830 - "GET /api/departments HTTP/1.1" 200 OK
+INFO:     10.208.138.74:41830 - "GET /api/departments/pending-count HTTP/1.1" 200 OK
+INFO:     10.208.138.74:41830 - "GET /api/product-catalog?is_active=true&limit=20&offset=0 HTTP/1.1" 200 OK
+INFO:     10.208.159.130:46968 - "GET /api/departments/pending-count HTTP/1.1" 200 OK
+INFO:     10.208.159.130:46956 - "GET /api/product-catalog/categories HTTP/1.1" 200 OK
+INFO:     10.208.138.74:41818 - "GET /api/product-catalog/stats HTTP/1.1" 200 OK
+INFO:     10.208.159.130:46956 - "GET /api/departments/pending-count HTTP/1.1" 200 OK
+INFO:     10.208.159.130:46968 - "GET /api/product-catalog?is_active=true&limit=20&offset=0 HTTP/1.1" 200 OK
+INFO:     10.208.159.130:46956 - "GET /api/product-catalog/categories HTTP/1.1" 200 OK
+INFO:     10.208.138.74:41818 - "GET /api/product-catalog/stats HTTP/1.1" 200 OK
+INFO:     10.208.138.74:41830 - "GET /api/departments HTTP/1.1" 200 OK
+INFO:     10.208.138.74:41830 - "GET /api/product-catalog?is_active=true&limit=20&offset=0 HTTP/1.1" 200 OK
+INFO:     10.208.138.74:41818 - "GET /api/departments HTTP/1.1" 200 OK
+INFO:     10.208.138.74:41818 - "GET /api/departments/pending-count HTTP/1.1" 200 OK
+INFO:     10.208.138.74:41818 - "GET /api/competitors HTTP/1.1" 200 OK
+INFO:     10.208.138.74:41830 - "GET /api/sources HTTP/1.1" 200 OK
+INFO:     10.208.159.130:46956 - "GET /api/departments/pending-count HTTP/1.1" 200 OK
+INFO:     10.208.138.74:41830 - "GET /api/sources HTTP/1.1" 200 OK
+INFO:     10.208.159.130:46956 - "GET /api/competitors HTTP/1.1" 200 OK
+INFO:     10.208.159.130:46956 - "GET /api/departments/pending-count HTTP/1.1" 200 OK
+INFO:     10.208.138.74:41830 - "GET /api/departments HTTP/1.1" 200 OK
+INFO:     10.208.159.130:46956 - "GET /api/departments HTTP/1.1" 200 OK
+INFO:     10.208.159.130:46956 - "GET /api/departments/pending-count HTTP/1.1" 200 OK
+INFO:     10.208.159.130:46956 - "GET /api/departments/pending-count HTTP/1.1" 200 OK
+INFO:     10.208.159.130:46968 - "GET /api/product-catalog?is_active=true&limit=20&offset=0 HTTP/1.1" 200 OK
+INFO:     10.208.138.74:41830 - "GET /api/product-catalog/categories HTTP/1.1" 200 OK
+INFO:     10.208.159.130:49342 - "GET /api/product-catalog/stats HTTP/1.1" 200 OK
+INFO:     10.208.159.130:46968 - "GET /api/product-catalog?is_active=true&limit=20&offset=0 HTTP/1.1" 200 OK
+INFO:     10.208.138.74:41818 - "GET /api/departments/pending-count HTTP/1.1" 200 OK
+INFO:     10.208.138.74:41830 - "GET /api/product-catalog/stats HTTP/1.1" 200 OK
+INFO:     10.208.159.130:46968 - "GET /api/product-catalog/categories HTTP/1.1" 200 OK
+INFO:     10.208.159.130:46956 - "GET /api/departments HTTP/1.1" 200 OK
+INFO:     10.208.159.130:46968 - "GET /api/product-catalog?is_active=true&limit=20&offset=0 HTTP/1.1" 200 OK
+INFO:     10.208.159.130:46968 - "GET /api/departments HTTP/1.1" 200 OK
+INFO:     10.208.159.130:46968 - "GET /api/departments/pending-count HTTP/1.1" 200 OK
+INFO:     10.208.138.76:35012 - "POST /api/auth/login HTTP/1.1" 200 OK
+INFO:     10.208.138.75:46626 - "GET /api/auth/me HTTP/1.1" 200 OK
+INFO:     10.208.138.75:46626 - "GET /api/auth/me HTTP/1.1" 200 OK
+INFO:     10.208.138.75:46628 - "GET /api/projects HTTP/1.1" 200 OK
+INFO:     10.208.138.75:46638 - "GET /api/quick-chats HTTP/1.1" 200 OK
+INFO:     10.208.138.75:46626 - "GET /api/departments/pending-count HTTP/1.1" 200 OK
+INFO:     10.208.138.76:55246 - "GET /api/projects HTTP/1.1" 200 OK
+INFO:     10.208.138.76:55246 - "GET /api/departments/pending-count HTTP/1.1" 200 OK
+INFO:     10.208.138.75:46638 - "GET /api/quick-chats HTTP/1.1" 200 OK
+INFO:     10.208.138.75:46638 - "GET /api/departments HTTP/1.1" 200 OK
+INFO:     10.208.138.76:55246 - "GET /api/departments HTTP/1.1" 200 OK
+INFO:     10.208.138.75:46638 - "GET /api/departments/pending-count HTTP/1.1" 200 OK
+INFO:     10.208.138.75:46638 - "GET /api/departments/pending-count HTTP/1.1" 200 OK
+INFO:     10.208.138.76:55246 - "GET /api/departments HTTP/1.1" 200 OK
+INFO:     10.208.138.75:33578 - "POST /api/auth/login HTTP/1.1" 200 OK
+INFO:     10.208.138.75:33578 - "POST /api/admin/users HTTP/1.1" 200 OK
+INFO:     10.208.138.75:33578 - "POST /api/auth/login HTTP/1.1" 200 OK
+INFO:     10.208.138.76:33578 - "POST /api/auth/login HTTP/1.1" 200 OK
+INFO:     10.208.138.75:51522 - "GET /api/auth/me HTTP/1.1" 200 OK
+INFO:     10.208.138.75:51522 - "GET /api/departments/pending-count HTTP/1.1" 200 OK
+INFO:     10.208.138.75:51522 - "GET /api/projects HTTP/1.1" 200 OK
+INFO:     10.208.138.75:51528 - "GET /api/quick-chats HTTP/1.1" 200 OK
+INFO:     10.208.138.76:33578 - "GET /api/departments/pending-count HTTP/1.1" 200 OK
+INFO:     10.208.138.75:51522 - "GET /api/quick-chats HTTP/1.1" 200 OK
+INFO:     10.208.138.75:51528 - "GET /api/departments HTTP/1.1" 200 OK
+INFO:     10.208.138.76:33578 - "GET /api/projects HTTP/1.1" 200 OK
+INFO:     10.208.138.75:51528 - "GET /api/departments/pending-count HTTP/1.1" 200 OK
+INFO:     10.208.138.76:33578 - "GET /api/departments HTTP/1.1" 200 OK
+INFO:     10.208.138.75:51528 - "GET /api/departments/pending-count HTTP/1.1" 200 OK
+INFO:     10.208.138.76:33578 - "GET /api/departments HTTP/1.1" 200 OK
+INFO:     10.208.138.75:48440 - "POST /api/auth/login HTTP/1.1" 200 OK
+INFO:     10.208.138.75:48440 - "GET /api/admin/users HTTP/1.1" 200 OK
+INFO:     10.208.138.75:48440 - "DELETE /api/admin/users/5ea96004-84ed-46b9-bd30-cab847b56ab5 HTTP/1.1" 200 OK
+INFO:     10.208.138.76:41210 - "POST /api/auth/login HTTP/1.1" 200 OK
+INFO:     10.208.138.75:49230 - "POST /api/auth/login HTTP/1.1" 200 OK
+INFO:     10.208.138.76:58066 - "GET /api/auth/me HTTP/1.1" 200 OK
+INFO:     10.208.138.76:58066 - "GET /api/departments/pending-count HTTP/1.1" 200 OK
+INFO:     10.208.138.76:58066 - "GET /api/quick-chats HTTP/1.1" 200 OK
+INFO:     10.208.138.76:58068 - "GET /api/projects HTTP/1.1" 200 OK
+INFO:     10.208.138.75:49230 - "GET /api/departments/pending-count HTTP/1.1" 200 OK
+INFO:     10.208.138.75:49238 - "GET /api/departments HTTP/1.1" 200 OK
+INFO:     10.208.138.76:58066 - "GET /api/projects HTTP/1.1" 200 OK
+INFO:     10.208.138.75:49238 - "GET /api/quick-chats HTTP/1.1" 200 OK
+INFO:     10.208.138.76:58066 - "GET /api/departments HTTP/1.1" 200 OK
+INFO:     10.208.138.75:49230 - "GET /api/departments/pending-count HTTP/1.1" 200 OK
+INFO:     10.208.138.76:58066 - "GET /api/departments/pending-count HTTP/1.1" 200 OK
+INFO:     10.208.138.76:58068 - "GET /api/departments HTTP/1.1" 200 OK
+INFO:     10.208.138.75:55782 - "GET /api/auth/me HTTP/1.1" 200 OK
+INFO:     10.208.138.76:48152 - "GET /api/auth/me HTTP/1.1" 200 OK
+INFO:     10.208.138.75:55782 - "GET /api/projects HTTP/1.1" 200 OK
+INFO:     10.208.138.75:55790 - "GET /api/quick-chats HTTP/1.1" 200 OK
+INFO:     10.208.138.75:55792 - "GET /api/departments/pending-count HTTP/1.1" 200 OK
+INFO:     10.208.138.76:48152 - "GET /api/projects HTTP/1.1" 200 OK
+INFO:     10.208.138.75:55790 - "GET /api/quick-chats HTTP/1.1" 200 OK
+INFO:     10.208.138.76:48152 - "GET /api/departments/pending-count HTTP/1.1" 200 OK
+INFO:     10.208.138.75:55790 - "GET /api/departments HTTP/1.1" 200 OK
+INFO:     10.208.138.76:48166 - "GET /api/departments HTTP/1.1" 200 OK
+INFO:     10.208.138.76:48152 - "GET /api/departments/pending-count HTTP/1.1" 200 OK
+INFO:     10.208.138.75:55790 - "GET /api/departments/pending-count HTTP/1.1" 200 OK
+INFO:     10.208.138.75:55790 - "GET /api/departments HTTP/1.1" 200 OK
+INFO:     10.208.138.75:49160 - "POST /api/auth/login HTTP/1.1" 200 OK
+INFO:     10.208.138.75:36860 - "POST /api/auth/login HTTP/1.1" 200 OK) for specific errors like Unsupported file type, File too large, or No text extracted.
+     - **Why fix this issue and what will be achieved with the fix?** File upload is a core feature for adding knowledge sources to the application. Fixing it is essential for user workflows.
      - **Status:** IN PROGRESS
+     - **Is recurring issue?** N
+     - **Should Test frontend/backend/both after fix?** Backend first with , then confirm via the frontend.
+     - **Blocked on other issue:** None.
+  - **Issue 2: Admin user not updating on production re-deploy**
+     - **Attempted fixes:** The agent modified the  function in  multiple times. The last attempt involved finding the old admin user by exact email match () and then updating the document using its . This fix has not been verified by the user.
+     - **Next debug checklist:**
+        1.  Instruct the user to re-deploy the application.
+        2.  Ask the user to check the production logs for the success message: .
+        3.  If it fails, re-examine the  function in  for potential issues with how it connects to and queries the production Atlas DB.
+     - **Why fix this issue and what will be achieved with the fix?** This is a critical blocker for successful deployment and application setup in a new environment.
+     - **Status:** USER VERIFICATION PENDING
      - **Is recurring issue?** Y
-     - **Should Test frontend/backend/both after fix?** Frontend
-     - **Blocked on other issue:** None. This issue blocks everything else.
-  - **Issue 2: Incomplete Internationalization (i18n)**
-     - **Attempted fixes:** None in this session.
-     - **Next debug checklist:** Identify hardcoded English strings in React components and replace them with keys from  using the  function.
-     - **Why fix this issue and what will be achieved with the fix?** Fulfills a user requirement for a fully Russian-language UI.
-     - **Status:** NOT STARTED
-     - **Is recurring issue?** Y
-     - **Should Test frontend/backend/both after fix?** Frontend
-     - **Blocked on other issue:** Issue 1
+     - **Should Test frontend/backend/both after fix?** Deployment verification.
+     - **Blocked on other issue:** None.
 
 **In progress Task List**:
 - None.
 
 **Upcoming and Future Tasks**
 - **Upcoming Tasks:**
-    - (P0) **Complete Backend Refactor:** Refactor the monolithic  into modular route files using FastAPI's  for dependency injection.
-    - (P1) **Enhance AI Source Attribution:** Implement logic to make the AI specify which source file was used to generate an answer (e.g., ).
-    - (P1) **Complete Frontend Refactor:** Break down the monolithic  by integrating the pre-built components from .
+    - (P1) **Product Catalog - AI Integration (Phase 3):** Implement AI-powered product search within the chat, AI suggestions based on product relations, and the Tender Analysis feature.
+    - (P2) **Refactor :** Break down the large component (~1780 lines) into smaller, manageable sub-components.
+    - (P2) **Complete Internationalization (i18n):** Translate all remaining hardcoded English UI strings into Russian.
 - **Future Tasks:**
-    - Implement frontend UI for pagination.
+    - Implement a weekly background job () for Product Catalog synchronization.
     - Add API rate limiting.
     - Implement Question Templates.
     - Create a usage/cost dashboard.
@@ -65,110 +274,123 @@ The AI Personalization feature is fully implemented and tested. The Collapsible 
     - Add chat export functionality.
 
 **Completed work in this session**
-- **Feature: AI Personalization:** Fully implemented. This includes backend model changes, new API endpoints, and a new AI Settings page for users, replacing the old My GPT Prompt page.
-- **Feature: Collapsible Sources in Chat:** Implemented a collapsible UI for sources in the chat, along with a modal to view source content fetched from a new backend endpoint.
-- **Bug Fix: Department Visibility in AI Settings:** Fixed an API call in  to ensure non-admin users only see their own departments.
-- **Feature: Competitor Tracker (Core Implementation):** The main logic for the Competitor Tracker is complete. This includes backend models, APIs for CRUD and web scraping, background jobs for auto-refresh, and frontend UI for managing competitors and enabling the feature in the admin panel.
+- **Critical Bug Fix:** Resolved the  crash that made the app unusable.
+- **Backend Refactor:** Successfully modularized the monolithic  (from ~4800 to ~220 lines), moving all endpoints into the  directory.
+- **Feature: Product Catalog:** Fully implemented backend (CRUD, CSV import using , relationship management) and frontend (catalog page, detail page, pagination, role-based controls).
+- **Feature: Security & User Management:**
+    - Implemented a forced password change modal for new users on first login.
+    - Implemented a comprehensive cascade delete for users, removing all their associated data.
+    - Created a script and endpoint to clean all test data from the database.
+- **Deployment & Bug Fixes:**
+    - Added missing dependencies (, , etc.) to  to fix deployment failures.
+    - Created an  function in  to automatically create/update the admin user in clean production databases.
+    - Fixed  and  dependency conflicts.
+    - Fixed multiple UI/API bugs, including the non-visibility of admin buttons and a flickering sidebar link.
+- **Branding:** Replaced all Planet GPT references with PLANET KNOWLEDGE.
 
 **Earlier issues found/mentioned but not fixed**
    - **Issue 1:  has a missing dependency warning**
-     - **Debug checklist:** Check frontend compilation logs.
-     - **Why to solve this issue and what will be achieved with this?** Prevents potential bugs related to stale state.
-     - **Should Test frontend/backend/both after fix:** Frontend
-     - **Is recurring issue?** Y
-   - **Issue 2: Frontend Navigation Test Failure**
-     - **Debug checklist:** Review , reproduce with testing agent.
-     - **Why to solve this issue and what will be achieved with this?** Ensures navigation is stable.
+     - **Debug checklist:** Check frontend compilation logs. This is a low-priority warning.
+     - **Why to solve this issue and what will be achieved with this?** Prevents potential bugs related to stale state in React components.
      - **Should Test frontend/backend/both after fix:** Frontend
      - **Is recurring issue?** Y
 
 **Known issue recurrence from previous fork**
-  - **Issue recurrence in previous fork:** 
-  - **Recurrence count:** The agent encountered and failed to fix this issue at least 5 times in this session.
-  - **Status:** IN PROGRESS
+  - **Issue recurrence in previous fork:** .
+  - **Recurrence count:** 5+ times in the previous session.
+  - **Status:** **RESOLVED**.
 
 **Code Architecture**
 
 
 **Key Technical Concepts**
-- **AI Personalization:** Dynamically constructing an LLM system prompt from user and department-specific settings stored in MongoDB.
-- **Feature Flagging:** Using a  boolean in the  model to control feature access on both backend and frontend.
-- **Background Tasks:** Using  within FastAPI to run a daily cron job for web scraping.
-- **Web Scraping:** Using  and  to asynchronously fetch and parse HTML content.
+- **Backend Refactoring:** Converted a monolithic FastAPI application into a modular structure using  for improved maintainability.
+- **Database Seeding on Startup:** Implemented a function () that runs on application startup to create or update the primary admin user, ensuring the app can initialize in a clean production environment.
+- **Forced Password Change Flow:** Used a  flag in the database and JWT payload to trigger a mandatory password reset UI for new users.
+- **Cascade Deletion:** Implemented a robust data cleanup function in the backend to ensure all of a user's associated data across multiple collections is deleted when the user is removed.
+- **CSV Data Import:** Used  and  on the backend to parse uploaded CSV files, validate columns, and perform create/update operations in the Product Catalog.
 
 **key DB schema**
-  - : Added embedded document .
-  - : Added embedded document  and boolean .
-  - : New collection to store competitor data, including their products and scraped content.
-  - : Existing collection used to store text chunks from source files.
+  - : Added a  field.
+  - : A new collection to store product data, including  (unique), , , and .
+
+**changes in tech stack**
+- Dependencies added to backend: , .
 
 **All files of reference**
 - **New Files:**
     - 
     - 
     - 
+    - 
+    - 
 - **Heavily Modified:**
-    - 
-    - 
-    - 
-    - 
-- **Modified:**
-    - 
-    - 
+    -  (Refactored into an entrypoint)
+    -  (Added ProductCatalog models)
+    -  (Added cascade delete and user creation logic)
+    -  (Added password change logic)
+    -  (Added missing dependencies)
+    -  (Added new routes and password change modal)
+    -  (Updated to handle password change state)
 
 **Areas that need refactoring**:
-- ** (CRITICAL):** This ~4800-line monolith is unmanageable and needs to be broken into smaller route modules.
-- ** (CRITICAL):** This ~1780-line component is overly complex and must be refactored into smaller, reusable components.
+- ** (CRITICAL):** This ~1780-line component remains a monolith and is a prime candidate for being broken down into smaller, reusable components to improve maintainability.
 
 **key api endpoints**
-- **New Endpoints:**
-    -  (GET, PUT)
-    -  (GET, PUT)
-    -  (GET)
-    -  (Full set of CRUD endpoints for competitors, products, matching, and fetching)
+- **Product Catalog:**
+    - 
+    - Full CRUD at  and 
+    - 
+- **Auth:**
+    - 
+- **Sources:**
+    -  (Currently returning )
 
 **Critical Info for New Agent**
-- **User Language:** The user is Russian. ALL communication must be in Russian.
-- **TOP PRIORITY (BLOCKER):** The application is **unusable** due to the  bug. This MUST be fixed first. The previous agent has already called the ; its output is the first thing to check.
-- **Technical Debt:** The  and  monoliths are critical technical debt. The user has approved refactoring them, which should be the next priority after fixing the blocker.
+- **User Language:** The user communicates primarily in **Russian**. All responses should be in Russian.
+- **TOP PRIORITY:** The  on file uploads is the most immediate bug to fix.
+- **Deployment Focus:** The user is actively trying to deploy to production. The logic in  in  is critical for this and may require further debugging if the last fix was insufficient. The application must successfully initialize in a clean Atlas MongoDB environment.
+- **Credentials:** The target admin credentials for a fresh deployment are  / .
 
 **documents and test reports created in this job**
-- None.
+-  was updated with progress on the Product Catalog feature and bug fixes.
 
 **Last 10 User Messages and any pending HUMAN messages**
-10. **User:** Reports the Competitor Tracker link disappears from the sidebar. (Status: ATTEMPTED FIX)
-9. **User:** Reports the critical crash . (Status: IN PROGRESS)
-8. **User:** Confirms the  error is still happening. (Status: IN PROGRESS)
-7. **User:** Reports login is slow. (Status: Likely caused by the crash)
-6. **User:** Reports they can't create a chat after login. (Status: IN PROGRESS, blocked by crash)
-5. **User:** Reports the  error persists after another fix attempt. (Status: IN PROGRESS)
-4. **User:** Repeats again about the error after login. (Status: IN PROGRESS)
-3. **User:** Demands a deep investigation and fix for . (Status: IN PROGRESS - Agent called troubleshooter)
-2. **User:** Asks for an explanation of Background Tasks and Matching UI. (Status: RESOLVED)
-1. **User:** Confirms both Background Tasks and Matching UI should be implemented. (Status: RESOLVED)
+10. **User:** Asks about the file upload size limit. (Status: Answered)
+9. **User:** Reports a  on file upload. (Status: IN PROGRESS)
+8. **User:** Clarifies they should log in as an admin. (Status: Answered)
+7. **User:** Reports that the admin email in the production DB is still the old one (). (Status: ATTEMPTED FIX)
+6. **User:** Provides a screenshot of the old admin document from the production DB. (Status: ATTEMPTED FIX)
+5. **User:** Confirms the new admin domain should be . (Status: IMPLEMENTED)
+4. **User:** Asks if a re-deploy is needed. (Status: Answered)
+3. **User:** Reports Invalid credentials after deployment. (Status: ATTEMPTED FIX)
+2. **User:** Asks to delete and recreate the admin user in the sandbox to test. (Status: DONE)
+1. **User:** Reports they cannot access the admin panel. (Status: ATTEMPTED FIX)
 
 **Project Health Check:**
-- **Broken:** **CRITICAL**. The frontend is non-functional after login due to a persistent .
+- **Broken:**
+    - File upload () is non-functional.
+    - Production deployment is likely unstable due to unverified admin creation logic.
 - **Mocked:** None.
 - **Technical Debt / Needs Refactoring:**
-    - **CRITICAL:**  (~4800 lines).
-    - **CRITICAL:**  (~1780 lines).
+    - **CRITICAL:**  is a large monolithic component.
 
 **3rd Party Integrations**
-- **apscheduler:**  - Used for background jobs in the backend.
-- **beautifulsoup4:**  - Used for web scraping.
-- **lxml:**  - Used as a parser for BeautifulSoup.
-- **OpenAI GPT-4.1-mini / text-embedding-3-small:** Used for chat and embedding functions.
+- **apscheduler:** Used for background jobs (Competitor refresh, planned for Product Catalog sync).
+- **beautifulsoup4:** Used for web scraping in the Competitor Tracker.
+- **OpenAI:** Used for core AI chat functionality.
+- **pandas, openpyxl:** Used for CSV/Excel file processing during Product Catalog import.
 
 **Testing status**
-  - Testing agent used after significant changes: YES
-  - Troubleshoot agent used after agent stuck in loop: **YES**. The previous agent's last action was to call  for the  error.
-  - Test files created: None.
-  - Known regressions: **YES**, the entire application is unusable after login.
+  - Testing agent used after significant changes: NO (Agent performed extensive self-testing via  and screenshots).
+  - Troubleshoot agent used after agent stuck in loop: NO
+  - Test files created: None
+  - Known regressions: File upload is broken.
 
 **Credentials to test flow:**
 - **Admin:**  / 
-- **Manager:**  / 
+- **Note:** The  function in  will create a user with a default password of  in a new production environment, which must be changed on first login.
 
 **What agent forgot to execute**
-- The agent repeatedly failed to resolve the  reference error. Despite multiple attempts and user reports, the agent did not successfully debug the root cause, leading to a complete blockage of the application. The final delegation to the  was a necessary step that should have been taken earlier.</analysis>
+- The agent did not run regression tests on the file upload feature after the major backend refactoring, which likely led to the  bug being discovered late by the user.
+- The iterative fixes for the deployment admin-creation issue were not robustly tested in a simulated clean environment, causing a prolonged back-and-forth with the user.</analysis>
