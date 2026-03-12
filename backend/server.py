@@ -136,6 +136,7 @@ setup_enterprise_source_routes(
     MAX_FILE_SIZE,
     SUPPORTED_MIME_TYPES
 )
+setup_insights_routes(db, get_current_user)
 
 # ==================== REGISTER ALL ROUTERS ====================
 
