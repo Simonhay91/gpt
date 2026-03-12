@@ -160,9 +160,6 @@ async def health():
 
 async def init_admin_user():
     """Create admin user if no users exist in database (for fresh deployments)"""
-    import bcrypt
-    from uuid import uuid4
-    
     try:
         user_count = await db.users.count_documents({})
         
