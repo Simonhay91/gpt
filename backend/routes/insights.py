@@ -163,7 +163,7 @@ async def get_source_insights(source_id: str, current_user: dict = Depends(get_c
 
 
 @router.post("/chats/{chat_id}/smart-questions", response_model=SmartQuestionsResponse)
-async def generate_smart_questions(chat_id: str, current_user: dict = Depends(lambda: get_current_user)):
+async def generate_smart_questions(chat_id: str, current_user: dict = Depends(get_current_user)):
     """
     Generate smart question suggestions based on active sources in the chat.
     """
