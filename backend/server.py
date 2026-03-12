@@ -6,8 +6,10 @@ from fastapi import FastAPI
 from fastapi.responses import JSONResponse
 from starlette.middleware.cors import CORSMiddleware
 from datetime import datetime, timezone
+from uuid import uuid4
 import os
 import logging
+import bcrypt
 from pathlib import Path
 from dotenv import load_dotenv
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
