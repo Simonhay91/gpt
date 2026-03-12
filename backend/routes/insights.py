@@ -144,7 +144,7 @@ async def save_source_insights(
 
 
 @router.get("/sources/{source_id}/insights")
-async def get_source_insights(source_id: str, current_user: dict = Depends(lambda: get_current_user)):
+async def get_source_insights(source_id: str, current_user: dict = Depends(get_current_user)):
     """Get saved insights for a source"""
     source = await db.sources.find_one({"id": source_id}, {"_id": 0, "insights": 1})
     if not source:
