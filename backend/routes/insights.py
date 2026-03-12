@@ -4,7 +4,7 @@ AI-powered analysis of sources and question generation
 """
 from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
-from typing import List
+from typing import List, Callable
 from datetime import datetime, timezone
 import os
 import json
@@ -16,7 +16,7 @@ router = APIRouter(prefix="/api", tags=["insights"])
 
 # Will be set by setup function
 db = None
-get_current_user = None
+_get_current_user_func = None
 
 
 class SourceInsightsResponse(BaseModel):
@@ -36,15 +36,22 @@ class SmartQuestionsResponse(BaseModel):
     generatedAt: str
 
 
+def get_current_user_dependency():
+    """Wrapper to get current user - deferred dependency injection"""
+    async def _get_user(token: str = Depends(_get_current_user_func)):
+        return token
+    return _get_user
+
+
 def setup_insights_routes(database, auth_dependency):
     """Initialize routes with dependencies"""
-    global db, get_current_user
+    global db, _get_current_user_func
     db = database
-    get_current_user = auth_dependency
+    _get_current_user_func = auth_dependency
 
 
 @router.post("/sources/{source_id}/analyze", response_model=SourceInsightsResponse)
-async def analyze_source(source_id: str, current_user: dict = Depends(get_current_user)):
+async def analyze_source(source_id: str, current_user: dict = Depends(_get_current_user_func)):
     """
     Analyze a source and generate insights (summary + suggested questions).
     Available to ALL users who can see the source.
