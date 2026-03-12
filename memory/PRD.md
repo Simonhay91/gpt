@@ -1065,6 +1065,7 @@ PUT    /api/user/prompt
 - Исправлен конфликт `react-day-picker@8.10.1` → `^9.4.4`
 - Исправлен `db = get_db()` в `user_settings.py`
 - Исправлен порядок роутов `/stats` перед `/{product_id}`
+- **[FIXED 2026-03-12]** Исправлена критическая ошибка загрузки файлов (400 Bad Request) - `extract_text_wrapper` возвращал пустую строку вместо извлечения текста из файлов
 
 ### Pending (Этап 3)
 - AI Integration — поиск продуктов в чате
@@ -1073,6 +1074,6 @@ PUT    /api/user/prompt
 
 ---
 
-**Document Version:** 1.5
-**Last Updated:** 2026-03-10
+**Document Version:** 1.6
+**Last Updated:** 2026-03-12
 **Author:** Planet Knowledge Team
