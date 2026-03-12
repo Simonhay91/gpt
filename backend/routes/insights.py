@@ -44,7 +44,7 @@ def setup_insights_routes(database, auth_dependency):
 
 
 @router.post("/sources/{source_id}/analyze", response_model=SourceInsightsResponse)
-async def analyze_source(source_id: str, current_user: dict = Depends(lambda: get_current_user)):
+async def analyze_source(source_id: str, current_user: dict = Depends(get_current_user)):
     """
     Analyze a source and generate insights (summary + suggested questions).
     Available to ALL users who can see the source.
