@@ -14,7 +14,7 @@ JWT_ALGORITHM = "HS256"
 JWT_EXPIRATION_HOURS = 24
 
 # Admin email domain
-ADMIN_EMAIL_DOMAIN = "@admin.com"
+ADMIN_EMAIL_DOMAIN = "@planetworkspace.com"
 
 # Security
 security = HTTPBearer()
