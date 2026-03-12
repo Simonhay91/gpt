@@ -159,34 +159,54 @@ async def health():
 # ==================== LIFECYCLE EVENTS ====================
 
 async def init_admin_user():
-    """Create admin user if no users exist in database (for fresh deployments)"""
+    """Create or update admin user for fresh deployments"""
     try:
-        user_count = await db.users.count_documents({})
+        admin_email = "admin@ai.planetworkspace.com"
+        admin_password = "Admin@123456"  # Default password - MUST be changed on first login
         
-        if user_count == 0:
-            logger.info("No users found - creating default admin user...")
-            
-            admin_email = "admin@ai.planetworkspace.com"
-            admin_password = "Admin@123456"  # Default password - MUST be changed on first login
-            
+        # Check if correct admin exists
+        existing_admin = await db.users.find_one({"email": admin_email})
+        
+        if existing_admin:
+            logger.info(f"✓ Admin user already exists: {admin_email}")
+            return
+        
+        # Check if old admin exists and update it
+        old_admin = await db.users.find_one({"email": {"$regex": "admin@", "$options": "i"}})
+        
+        if old_admin:
+            # Update old admin to new email
             password_hash = bcrypt.hashpw(admin_password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
-            
-            admin_user = {
-                "id": str(uuid4()),
-                "email": admin_email,
-                "passwordHash": password_hash,
-                "createdAt": datetime.now(timezone.utc).isoformat(),
-                "departments": [],
-                "primaryDepartmentId": None,
-                "canEditGlobalSources": True,
-                "mustChangePassword": True  # Force password change on first login
-            }
-            
-            await db.users.insert_one(admin_user)
-            logger.info(f"✓ Created admin user: {admin_email}")
-            logger.info(f"✓ Default password: {admin_password} (must be changed on first login)")
-        else:
-            logger.info(f"✓ Found {user_count} existing users")
+            await db.users.update_one(
+                {"id": old_admin["id"]},
+                {"$set": {
+                    "email": admin_email,
+                    "passwordHash": password_hash,
+                    "mustChangePassword": True,
+                    "canEditGlobalSources": True
+                }}
+            )
+            logger.info(f"✓ Updated admin user to: {admin_email}")
+            logger.info(f"✓ Default password: {admin_password}")
+            return
+        
+        # No admin exists - create new one
+        password_hash = bcrypt.hashpw(admin_password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+        
+        admin_user = {
+            "id": str(uuid4()),
+            "email": admin_email,
+            "passwordHash": password_hash,
+            "createdAt": datetime.now(timezone.utc).isoformat(),
+            "departments": [],
+            "primaryDepartmentId": None,
+            "canEditGlobalSources": True,
+            "mustChangePassword": True
+        }
+        
+        await db.users.insert_one(admin_user)
+        logger.info(f"✓ Created admin user: {admin_email}")
+        logger.info(f"✓ Default password: {admin_password}")
             
     except Exception as e:
         logger.error(f"Error initializing admin user: {e}")
