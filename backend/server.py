@@ -94,10 +94,30 @@ audit_service = AuditService(db)
 version_service = VersionService(db)
 
 
-# Wrapper for extract_text - delegated to enterprise_sources setup
-async def extract_text_wrapper(file_path, mime_type):
-    """Placeholder wrapper - actual extraction happens in route modules"""
-    return ""
+# Text extraction wrapper that routes to appropriate extraction function
+async def extract_text_wrapper(content: bytes, file_type: str) -> str:
+    """Extract text from file content based on file type"""
+    try:
+        if file_type == "pdf":
+            return extract_text_from_pdf(content)
+        elif file_type == "docx":
+            return extract_text_from_docx(content)
+        elif file_type == "pptx":
+            return extract_text_from_pptx(content)
+        elif file_type == "xlsx":
+            return extract_text_from_xlsx(content)
+        elif file_type in ["csv"]:
+            return extract_text_from_csv(content)
+        elif file_type in ["txt", "md"]:
+            return extract_text_from_txt(content)
+        elif file_type in ["png", "jpg", "jpeg", "gif", "webp"]:
+            return extract_text_from_image(content)
+        else:
+            logger.warning(f"Unsupported file type for extraction: {file_type}")
+            return ""
+    except Exception as e:
+        logger.error(f"Text extraction error for type {file_type}: {str(e)}")
+        raise
 
 
 # ==================== SETUP ENTERPRISE ROUTES ====================
