@@ -162,7 +162,7 @@ async def init_admin_user():
     """Create or update admin user for fresh deployments"""
     try:
         admin_email = "admin@ai.planetworkspace.com"
-        admin_password = "Admin@123456"  # Default password - MUST be changed on first login
+        admin_password = "Admin@123456"
         
         # Check if correct admin exists
         existing_admin = await db.users.find_one({"email": admin_email})
@@ -171,14 +171,21 @@ async def init_admin_user():
             logger.info(f"✓ Admin user already exists: {admin_email}")
             return
         
-        # Check if old admin exists and update it
-        old_admin = await db.users.find_one({"email": {"$regex": "admin@", "$options": "i"}})
+        # Check for old admin emails and update
+        old_emails = ["admin@admin.com", "admin@planetworkspace.com"]
+        old_admin = None
+        
+        for old_email in old_emails:
+            old_admin = await db.users.find_one({"email": old_email})
+            if old_admin:
+                logger.info(f"Found old admin: {old_email}")
+                break
         
         if old_admin:
-            # Update old admin to new email
+            # Update old admin to new email and password
             password_hash = bcrypt.hashpw(admin_password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
             await db.users.update_one(
-                {"id": old_admin["id"]},
+                {"_id": old_admin["_id"]},
                 {"$set": {
                     "email": admin_email,
                     "passwordHash": password_hash,
@@ -187,10 +194,11 @@ async def init_admin_user():
                 }}
             )
             logger.info(f"✓ Updated admin user to: {admin_email}")
-            logger.info(f"✓ Default password: {admin_password}")
+            logger.info(f"✓ Password reset to: {admin_password}")
             return
         
         # No admin exists - create new one
+        logger.info("No admin found - creating new admin user...")
         password_hash = bcrypt.hashpw(admin_password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
         
         admin_user = {
@@ -210,6 +218,8 @@ async def init_admin_user():
             
     except Exception as e:
         logger.error(f"Error initializing admin user: {e}")
+        import traceback
+        logger.error(traceback.format_exc())
 
 
 @app.on_event("startup")
