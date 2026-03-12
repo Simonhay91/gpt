@@ -235,6 +235,7 @@ function App() {
           <AuthProvider>
             <ErrorBoundary>
               <AppRoutes />
+              <ChangePasswordModal />
             </ErrorBoundary>
             <Toaster 
               position="top-right"
