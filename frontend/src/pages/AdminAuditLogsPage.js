@@ -9,7 +9,7 @@ import { toast } from 'sonner';
 import { 
   ScrollText, User, FileText, Building2, Settings,
   Filter, RefreshCw, ChevronDown, CheckCircle, XCircle,
-  Plus, Trash2, Edit, Share, RotateCcw
+  Plus, Trash2, Edit, Share, RotateCcw, ChevronLeft, ChevronRight
 } from 'lucide-react';
 import DashboardLayout from '../components/DashboardLayout';
 import { useAuth } from '../contexts/AuthContext';
