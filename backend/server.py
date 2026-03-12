@@ -44,7 +44,7 @@ from routes.admin import router as admin_router
 from routes.global_sources import router as global_sources_router
 from routes.user_settings import router as user_settings_router
 from routes.images import router as images_router
-from routes.insights import router as insights_router
+from routes.insights import router as insights_router, setup_insights_routes
 from routes.competitors import router as competitors_router, auto_refresh_competitor_products
 from routes.product_catalog import router as product_catalog_router
 
