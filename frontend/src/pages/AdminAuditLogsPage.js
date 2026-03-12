@@ -54,6 +54,8 @@ const AdminAuditLogsPage = () => {
     limit: 50
   });
   const [showFilters, setShowFilters] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [hasMore, setHasMore] = useState(false);
 
   useEffect(() => {
     if (user?.isAdmin) {
