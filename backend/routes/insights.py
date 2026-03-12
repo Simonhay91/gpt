@@ -121,7 +121,7 @@ Important: Respond ONLY with valid JSON, no additional text. Questions and summa
 async def save_source_insights(
     source_id: str, 
     data: SaveInsightsRequest,
-    current_user: dict = Depends(lambda: get_current_user)
+    current_user: dict = Depends(get_current_user)
 ):
     """Save generated insights to a source"""
     source = await db.sources.find_one({"id": source_id}, {"_id": 0})
