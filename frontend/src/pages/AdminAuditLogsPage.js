@@ -222,7 +222,10 @@ const AdminAuditLogsPage = () => {
                   </div>
                 </div>
                 <div className="mt-4 flex justify-end">
-                  <Button size="sm" onClick={fetchLogs}>
+                  <Button size="sm" onClick={() => {
+                    setCurrentPage(1);
+                    fetchLogs(1);
+                  }}>
                     Применить
                   </Button>
                 </div>
