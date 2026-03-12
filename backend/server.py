@@ -156,9 +156,49 @@ async def health():
 
 # ==================== LIFECYCLE EVENTS ====================
 
+async def init_admin_user():
+    """Create admin user if no users exist in database (for fresh deployments)"""
+    import bcrypt
+    from uuid import uuid4
+    
+    try:
+        user_count = await db.users.count_documents({})
+        
+        if user_count == 0:
+            logger.info("No users found - creating default admin user...")
+            
+            admin_email = "admin@planetworkspace.com"
+            admin_password = "Admin@123456"  # Default password - MUST be changed on first login
+            
+            password_hash = bcrypt.hashpw(admin_password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+            
+            admin_user = {
+                "id": str(uuid4()),
+                "email": admin_email,
+                "passwordHash": password_hash,
+                "createdAt": datetime.now(timezone.utc).isoformat(),
+                "departments": [],
+                "primaryDepartmentId": None,
+                "canEditGlobalSources": True,
+                "mustChangePassword": True  # Force password change on first login
+            }
+            
+            await db.users.insert_one(admin_user)
+            logger.info(f"✓ Created admin user: {admin_email}")
+            logger.info(f"✓ Default password: {admin_password} (must be changed on first login)")
+        else:
+            logger.info(f"✓ Found {user_count} existing users")
+            
+    except Exception as e:
+        logger.error(f"Error initializing admin user: {e}")
+
+
 @app.on_event("startup")
 async def startup_event():
-    """Start background scheduler"""
+    """Initialize database and start background scheduler"""
+    # Create admin user if database is empty
+    await init_admin_user()
+    
     # Schedule auto-refresh task to run daily at 2 AM
     scheduler.add_job(
         auto_refresh_competitor_products,
