@@ -49,21 +49,7 @@ const AdminUserDetailPage = () => {
 
   useEffect(() => {
     fetchUserDetails();
-    fetchQuestionHistory();
   }, [userId]);
-
-  const fetchQuestionHistory = async () => {
-    setIsLoadingQuestions(true);
-    try {
-      const response = await axios.get(`${API}/admin/users/${userId}/question-history`);
-      setQuestionHistory(response.data);
-    } catch (error) {
-      console.error('Failed to load question history:', error);
-      // Don't show error toast - it's not critical
-    } finally {
-      setIsLoadingQuestions(false);
-    }
-  };
 
   const fetchUserDetails = async () => {
     try {
