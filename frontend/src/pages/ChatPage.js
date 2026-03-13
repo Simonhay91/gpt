@@ -588,6 +588,49 @@ const ChatPage = () => {
     return text.replace(regex, '<mark class="bg-yellow-300 dark:bg-yellow-600 px-0.5 rounded">$1</mark>');
   };
 
+  const saveContext = async () => {
+    if (messages.length === 0) {
+      toast.error('Нет сообщений для сохранения');
+      return;
+    }
+
+    setIsSavingContext(true);
+    try {
+      // Prepare dialog text
+      const dialogText = messages
+        .map(msg => `${msg.role === 'user' ? 'Пользователь' : 'AI'}: ${msg.content}`)
+        .join('\n\n');
+
+      // Send to AI for summarization
+      const response = await axios.post(`${API}/chats/${chatId}/save-context`, {
+        dialogText
+      });
+
+      const contextSummary = response.data.summary;
+      
+      // Show toast notification
+      const toastElement = document.createElement('div');
+      toastElement.className = 'fixed bottom-6 left-1/2 transform -translate-x-1/2 bg-emerald-600 text-white px-6 py-3 rounded-lg shadow-lg flex items-center gap-2 z-50 animate-slide-up';
+      toastElement.innerHTML = `
+        <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+        </svg>
+        <span>Контекст сохранен в AI Profile</span>
+      `;
+      document.body.appendChild(toastElement);
+      
+      setTimeout(() => {
+        toastElement.remove();
+      }, 3000);
+
+    } catch (error) {
+      const message = error.response?.data?.detail || 'Не удалось сохранить контекст';
+      toast.error(message);
+    } finally {
+      setIsSavingContext(false);
+    }
+  };
+
   const sendMessage = async () => {
     const content = input.trim();
     if (!content || isSending) return;
