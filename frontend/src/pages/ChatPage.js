@@ -1369,6 +1369,18 @@ const ChatPage = () => {
                                           <Download className="h-3.5 w-3.5 text-green-400" />
                                         </Button>
                                       )}
+                                      {source.level === 'project' && currentUser?.departments?.length > 0 && (
+                                        <Button
+                                          variant="ghost"
+                                          size="icon"
+                                          className="h-7 w-7"
+                                          onClick={(e) => { e.stopPropagation(); saveToDepartment(source, e); }}
+                                          title="Сохранить в источники департамента"
+                                          data-testid={`save-to-dept-${source.id}`}
+                                        >
+                                          <Building2 className="h-3.5 w-3.5 text-amber-400" />
+                                        </Button>
+                                      )}
                                       <Button
                                         variant="ghost"
                                         size="icon"
