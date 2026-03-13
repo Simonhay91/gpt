@@ -100,6 +100,7 @@ const getFileIcon = (mimeType, kind) => {
 const ChatPage = () => {
   const { chatId } = useParams();
   const navigate = useNavigate();
+  const { currentUser } = useAuth();
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
   const [urlInput, setUrlInput] = useState('');
