@@ -157,6 +157,9 @@ const ChatPage = () => {
   
   // Expanded source groups state
   const [expandedGroups, setExpandedGroups] = useState({});
+  
+  // Info block visibility state
+  const [showInfoBlock, setShowInfoBlock] = useState(true);
 
   useEffect(() => {
     fetchChatData();
