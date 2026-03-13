@@ -1187,6 +1187,36 @@ const ChatPage = () => {
               <div className="text-xs text-muted-foreground mb-3">
                 Supported: PDF, DOCX, PPTX, XLSX, TXT, MD, PNG, JPEG files and web URLs (multiple files allowed)
               </div>
+              
+              {/* Info Block - How Sources Work */}
+              {projectSources.length > 0 && (
+                <div className="mb-4 p-3 rounded-lg bg-blue-500/10 border border-blue-500/20">
+                  <div className="flex items-start gap-3">
+                    <Info className="h-5 w-5 text-blue-400 flex-shrink-0 mt-0.5" />
+                    <div className="flex-1 text-sm text-blue-200/90 space-y-2">
+                      <p className="font-medium text-blue-300">Как работают источники в AI-чате:</p>
+                      <ul className="space-y-1.5 text-xs">
+                        <li className="flex items-start gap-2">
+                          <Database className="h-3.5 w-3.5 text-blue-400 flex-shrink-0 mt-0.5" />
+                          <span><strong className="text-blue-300">Иерархия:</strong> Личные → Проектные → Департамент → Глобальные</span>
+                        </li>
+                        <li className="flex items-start gap-2">
+                          <Target className="h-3.5 w-3.5 text-blue-400 flex-shrink-0 mt-0.5" />
+                          <span><strong className="text-blue-300">Активные источники:</strong> Только выбранные источники используются для генерации ответов</span>
+                        </li>
+                        <li className="flex items-start gap-2">
+                          <Lightbulb className="h-3.5 w-3.5 text-blue-400 flex-shrink-0 mt-0.5" />
+                          <span><strong className="text-blue-300">Влияние на ответы:</strong> AI ищет информацию в активных источниках и формирует ответ на основе найденного контекста</span>
+                        </li>
+                        <li className="flex items-start gap-2">
+                          <ChevronRight className="h-3.5 w-3.5 text-blue-400 flex-shrink-0 mt-0.5" />
+                          <span><strong className="text-blue-300">Режимы:</strong> "Только проектные" использует только источники проекта, "Все источники" включает доступные на всех уровнях</span>
+                        </li>
+                      </ul>
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {/* Sources List with Grouping */}
               {projectSources.length === 0 ? (
