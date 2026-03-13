@@ -588,3 +588,91 @@ async def save_to_knowledge(
     except Exception as e:
         logger.error(f"Error saving to knowledge: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Failed to save: {str(e)}")
+
+
+@router.post("/chats/{chat_id}/save-context")
+async def save_chat_context(chat_id: str, data: dict, current_user: dict = Depends(get_current_user)):
+    """
+    Save chat context to user's AI Profile
+    - Sends dialog to AI for summarization
+    - Saves summary to user_prompts with timestamp
+    """
+    db = get_db()
+    
+    # Verify chat access
+    chat = await db.chats.find_one({"id": chat_id}, {"_id": 0})
+    if not chat:
+        raise HTTPException(status_code=404, detail="Chat not found")
+    
+    # Check access
+    if chat.get("ownerId") != current_user["id"]:
+        if chat.get("projectId"):
+            project = await db.projects.find_one({"id": chat["projectId"]}, {"_id": 0})
+            if not project or project.get("ownerId") != current_user["id"]:
+                raise HTTPException(status_code=403, detail="Access denied")
+    
+    dialog_text = data.get("dialogText", "")
+    if not dialog_text or len(dialog_text.strip()) < 10:
+        raise HTTPException(status_code=400, detail="Dialog text too short")
+    
+    try:
+        # Send to AI for summarization
+        openai_client = get_openai_client()
+        
+        system_prompt = """Прочитай этот диалог и напиши краткое резюме: какие темы обсуждались, к каким выводам пришли, что важно помнить для продолжения в следующем чате. Максимум 150 слов. Только резюме, без предисловий."""
+        
+        completion = openai_client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": dialog_text}
+            ],
+            max_tokens=300,
+            temperature=0.7
+        )
+        
+        summary = completion.choices[0].message.content.strip()
+        
+        # Word count check (approximate)
+        word_count = len(summary.split())
+        if word_count > 200:  # Allow some buffer
+            # Truncate to approximately 150 words
+            words = summary.split()[:150]
+            summary = ' '.join(words) + '...'
+        
+        # Save to user's AI Profile
+        now = datetime.now(timezone.utc)
+        context_prefix = f"[Контекст чата: {now.strftime('%Y-%m-%d %H:%M')}]\n{summary}"
+        
+        # Get existing prompt
+        user_prompt_doc = await db.user_prompts.find_one({"userId": current_user["id"]}, {"_id": 0})
+        
+        if user_prompt_doc:
+            existing_prompt = user_prompt_doc.get("customPrompt", "")
+            # Append new context
+            updated_prompt = f"{existing_prompt}\n\n{context_prefix}".strip()
+        else:
+            updated_prompt = context_prefix
+        
+        # Update user prompt
+        await db.user_prompts.update_one(
+            {"userId": current_user["id"]},
+            {
+                "$set": {
+                    "userId": current_user["id"],
+                    "customPrompt": updated_prompt,
+                    "updatedAt": now.isoformat()
+                }
+            },
+            upsert=True
+        )
+        
+        return {
+            "success": True,
+            "summary": summary,
+            "message": "Контекст сохранен в AI Profile"
+        }
+        
+    except Exception as e:
+        logger.error(f"Error saving context: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to save context: {str(e)}")
