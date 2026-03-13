@@ -616,22 +616,28 @@ async def save_chat_context(chat_id: str, data: dict, current_user: dict = Depen
         raise HTTPException(status_code=400, detail="Dialog text too short")
     
     try:
-        # Send to AI for summarization
-        openai_client = get_openai_client()
+        # Send to Claude for summarization
+        import anthropic
+        import os
+        
+        CLAUDE_API_KEY = os.environ.get('CLAUDE_API_KEY', '')
+        if not CLAUDE_API_KEY:
+            raise HTTPException(status_code=500, detail="AI service not configured")
+        
+        claude_client = anthropic.Anthropic(api_key=CLAUDE_API_KEY)
         
         system_prompt = """Прочитай этот диалог и напиши краткое резюме: какие темы обсуждались, к каким выводам пришли, что важно помнить для продолжения в следующем чате. Максимум 150 слов. Только резюме, без предисловий."""
         
-        completion = openai_client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": dialog_text}
-            ],
+        response = claude_client.messages.create(
+            model="claude-sonnet-4-20250514",
             max_tokens=300,
-            temperature=0.7
+            system=system_prompt,
+            messages=[
+                {"role": "user", "content": dialog_text}
+            ]
         )
         
-        summary = completion.choices[0].message.content.strip()
+        summary = response.content[0].text.strip()
         
         # Word count check (approximate)
         word_count = len(summary.split())
