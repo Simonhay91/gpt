@@ -17,11 +17,7 @@ import {
   Clock, 
   Save,
   Settings,
-  Activity,
-  Globe2,
-  History,
-  ChevronDown,
-  ChevronUp
+  Globe2
 } from 'lucide-react';
 import DashboardLayout from '../components/DashboardLayout';
 
