@@ -1000,6 +1000,24 @@ const ChatPage = () => {
               Move
             </Button>
 
+            {/* Save Context Button */}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={saveContext}
+              disabled={isSavingContext || messages.length === 0}
+              className="gap-2"
+              data-testid="save-context-btn"
+              title="Сохранить контекст диалога в AI Profile"
+            >
+              {isSavingContext ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Save className="h-4 w-4" />
+              )}
+              <span className="hidden sm:inline">Контекст</span>
+            </Button>
+
             {/* Image Generator - only for project chats */}
             {chat && chat.projectId && (
               <ImageGenerator 
