@@ -160,6 +160,9 @@ const ChatPage = () => {
   
   // Info block visibility state
   const [showInfoBlock, setShowInfoBlock] = useState(true);
+  
+  // Save context state
+  const [isSavingContext, setIsSavingContext] = useState(false);
 
   useEffect(() => {
     fetchChatData();
