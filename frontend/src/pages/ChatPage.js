@@ -41,7 +41,9 @@ import {
   Target,
   Globe2,
   Lightbulb,
-  TrendingUp
+  TrendingUp,
+  Info,
+  Database
 } from 'lucide-react';
 import { Label } from '../components/ui/label';
 import { Checkbox } from '../components/ui/checkbox';
