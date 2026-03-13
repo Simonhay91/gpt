@@ -1218,9 +1218,16 @@ const ChatPage = () => {
               </div>
               
               {/* Info Block - How Sources Work */}
-              {projectSources.length > 0 && (
-                <div className="mb-4 p-3 rounded-lg bg-blue-500/10 border border-blue-500/20">
-                  <div className="flex items-start gap-3">
+              {projectSources.length > 0 && showInfoBlock && (
+                <div className="mb-4 p-3 rounded-lg bg-blue-500/10 border border-blue-500/20 relative">
+                  <button
+                    onClick={() => setShowInfoBlock(false)}
+                    className="absolute top-2 right-2 p-1 hover:bg-blue-500/20 rounded transition-colors"
+                    title="Закрыть"
+                  >
+                    <X className="h-4 w-4 text-blue-400" />
+                  </button>
+                  <div className="flex items-start gap-3 pr-8">
                     <Info className="h-5 w-5 text-blue-400 flex-shrink-0 mt-0.5" />
                     <div className="flex-1 text-sm text-blue-200/90 space-y-2">
                       <p className="font-medium text-blue-300">Как работают источники в AI-чате:</p>
