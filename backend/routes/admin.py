@@ -481,3 +481,40 @@ async def update_user_global_permission(
     )
     
     return {"message": f"Global sources permission {'granted' if data.canEditGlobalSources else 'revoked'}"}
+
+
+@router.get("/admin/users/{user_id}/question-history")
+async def get_user_question_history(user_id: str, current_user: dict = Depends(get_current_user)):
+    """Get user's question history (user messages only, no AI responses)"""
+    db = get_db()
+    if not is_admin(current_user["email"]):
+        raise HTTPException(status_code=403, detail="Admin access required")
+    
+    user = await db.users.find_one({"id": user_id}, {"_id": 0, "email": 1})
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    # Get all user messages (role=user) in chronological order
+    user_messages = await db.messages.find(
+        {"senderEmail": user["email"], "role": "user"},
+        {"_id": 0, "id": 1, "chatId": 1, "content": 1, "createdAt": 1}
+    ).sort("createdAt", -1).to_list(500)  # Last 500 questions
+    
+    # Enrich with chat names
+    chat_ids = list(set(msg["chatId"] for msg in user_messages))
+    chats = await db.chats.find(
+        {"id": {"$in": chat_ids}},
+        {"_id": 0, "id": 1, "name": 1}
+    ).to_list(len(chat_ids))
+    
+    chat_name_map = {chat["id"]: chat.get("name") or "Untitled Chat" for chat in chats}
+    
+    result = []
+    for msg in user_messages:
+        result.append({
+            "content": msg["content"],
+            "createdAt": msg["createdAt"],
+            "chatName": chat_name_map.get(msg["chatId"], "Unknown Chat")
+        })
+    
+    return result
