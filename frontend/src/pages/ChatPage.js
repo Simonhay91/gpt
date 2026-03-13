@@ -529,6 +529,29 @@ const ChatPage = () => {
     }
   };
 
+  const saveToDepartment = async (source, e) => {
+    e.stopPropagation();
+    
+    if (!currentUser?.departments || currentUser.departments.length === 0) {
+      toast.error('У вас нет департаментов для сохранения');
+      return;
+    }
+
+    try {
+      // Copy source to department sources
+      const departmentId = currentUser.departments[0]; // Use first department
+      await axios.post(`${API}/department-sources/copy-from-project`, {
+        sourceId: source.id,
+        projectId: chat.projectId,
+        departmentId: departmentId
+      });
+      toast.success('Файл сохранен в источники департамента');
+    } catch (error) {
+      const message = error.response?.data?.detail || 'Failed to save to department';
+      toast.error(message);
+    }
+  };
+
   const searchSources = async () => {
     if (!searchQuery.trim() || searchQuery.trim().length < 2) {
       toast.error('Введите минимум 2 символа');
