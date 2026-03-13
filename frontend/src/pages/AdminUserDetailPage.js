@@ -18,7 +18,10 @@ import {
   Save,
   Settings,
   Activity,
-  Globe2
+  Globe2,
+  History,
+  ChevronDown,
+  ChevronUp
 } from 'lucide-react';
 import DashboardLayout from '../components/DashboardLayout';
 
