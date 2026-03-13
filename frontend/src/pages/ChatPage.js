@@ -43,7 +43,8 @@ import {
   Lightbulb,
   TrendingUp,
   Info,
-  Database
+  Database,
+  Building2
 } from 'lucide-react';
 import { Label } from '../components/ui/label';
 import { Checkbox } from '../components/ui/checkbox';
