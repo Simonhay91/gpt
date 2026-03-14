@@ -1131,9 +1131,9 @@ startxref
             self.log_test("Auto-Ingest URL - Invalid URL doesn't break message flow", False,
                          f"Status: {status}, Data: {data}")
 
-    def test_save_context_endpoint(self):
-        """Test save-context endpoint in messages.py"""
-        print("\n🔍 Testing Save Context Endpoint")
+    def test_save_context_endpoint_updated(self):
+        """Test updated save-context endpoint - saves to ai_profile.custom_instruction"""
+        print("\n🔍 Testing Updated Save Context Endpoint (AI Profile)")
         
         # Step 1: Login as admin
         admin_email = "admin@ai.planetworkspace.com"
@@ -1145,50 +1145,43 @@ startxref
         })
         
         if not (success and status == 200 and 'token' in data):
-            self.log_test("Save Context - Admin login", False, 
+            self.log_test("Save Context Updated - Admin login", False, 
                          f"Failed to login as admin: Status {status}, Data: {data}")
             return
         
         admin_token = data['token']
-        self.log_test("Save Context - Admin login", True, "Admin logged in successfully")
+        admin_user_id = data['user']['id']
+        self.log_test("Save Context Updated - Admin login", True, 
+                     f"Admin logged in successfully, User ID: {admin_user_id}")
         
-        # Step 2: Get list of existing chats
+        # Step 2: Get or create a test chat
         success, data, status = self.make_request('GET', '/chats', token=admin_token)
         
-        if success and status == 200 and isinstance(data, list):
-            existing_chats = data
-            self.log_test("Save Context - Get existing chats", True, 
-                         f"Found {len(existing_chats)} existing chats")
-        else:
-            existing_chats = []
-            self.log_test("Save Context - Get existing chats", False, 
-                         f"Failed to get chats: Status {status}")
-        
-        # Step 3: Create a quick chat if no chats exist
         test_chat_id = None
-        if not existing_chats:
+        if success and status == 200 and isinstance(data, list) and len(data) > 0:
+            test_chat_id = data[0]['id']
+            self.log_test("Save Context Updated - Use existing chat", True, 
+                         f"Using existing chat ID: {test_chat_id}")
+        else:
+            # Create a quick chat
             success, data, status = self.make_request('POST', '/quick-chats', {
-                "name": "Test Chat for Save Context"
+                "name": "Test Chat for Save Context Updated"
             }, token=admin_token)
             
             if success and status == 200 and 'id' in data:
                 test_chat_id = data['id']
-                self.log_test("Save Context - Create quick chat", True, 
+                self.log_test("Save Context Updated - Create quick chat", True, 
                              f"Created chat ID: {test_chat_id}")
             else:
-                self.log_test("Save Context - Create quick chat", False, 
+                self.log_test("Save Context Updated - Create quick chat", False, 
                              f"Failed to create chat: Status {status}, Data: {data}")
                 return
-        else:
-            test_chat_id = existing_chats[0]['id']
-            self.log_test("Save Context - Use existing chat", True, 
-                         f"Using existing chat ID: {test_chat_id}")
         
-        # Step 4: Send a few test messages to the chat
+        # Step 3: Send test messages to the chat
         test_messages = [
-            "Hello, I need help with Python programming.",
-            "Can you explain how to use decorators?",
-            "What are the best practices for error handling?"
+            "Привет, мне нужна помощь с Python программированием.",
+            "Можешь объяснить как использовать декораторы?",
+            "Какие лучшие практики для обработки ошибок?"
         ]
         
         for i, message_content in enumerate(test_messages):
@@ -1197,78 +1190,123 @@ startxref
             }, token=admin_token)
             
             if success and status == 200:
-                self.log_test(f"Save Context - Send test message {i+1}", True, 
-                             f"Message sent: {message_content[:50]}...")
+                self.log_test(f"Save Context Updated - Send test message {i+1}", True, 
+                             f"Message sent successfully")
             else:
-                self.log_test(f"Save Context - Send test message {i+1}", False, 
+                self.log_test(f"Save Context Updated - Send test message {i+1}", False, 
                              f"Failed to send message: Status {status}")
         
+        # Step 4: Get initial AI Profile state
+        success, data, status = self.make_request('GET', '/users/me/ai-profile', token=admin_token)
+        
+        initial_custom_instruction = ""
+        if success and status == 200:
+            initial_custom_instruction = data.get('custom_instruction', '') or ""
+            self.log_test("Save Context Updated - Get initial AI Profile", True, 
+                         f"Initial custom_instruction length: {len(initial_custom_instruction)}")
+        else:
+            self.log_test("Save Context Updated - Get initial AI Profile", False, 
+                         f"Failed to get AI Profile: Status {status}")
+        
         # Step 5: Test the save-context endpoint with valid data
-        sample_dialog = """User: Hello, I need help with Python programming.
-Assistant: I'd be happy to help you with Python programming! What specific aspect would you like to learn about?
+        sample_dialog = """User: Привет, мне нужна помощь с Python программированием.
+Assistant: Привет! Я буду рад помочь тебе с программированием на Python. Что конкретно тебя интересует?
 
-User: Can you explain how to use decorators?
-Assistant: Decorators in Python are a powerful feature that allows you to modify or extend the behavior of functions or classes without permanently modifying their code.
+User: Можешь объяснить как использовать декораторы?
+Assistant: Декораторы в Python - это мощный инструмент, который позволяет изменять или расширять поведение функций или классов без постоянного изменения их кода.
 
-User: What are the best practices for error handling?
-Assistant: Here are some Python error handling best practices: 1) Use specific exception types, 2) Handle exceptions at the appropriate level, 3) Use try-except-finally blocks properly."""
+User: Какие лучшие практики для обработки ошибок?
+Assistant: Вот основные практики обработки ошибок в Python: 1) Используй конкретные типы исключений, 2) Обрабатывай исключения на подходящем уровне, 3) Правильно используй блоки try-except-finally."""
         
         success, data, status = self.make_request('POST', f'/chats/{test_chat_id}/save-context', {
             "dialogText": sample_dialog
         }, token=admin_token)
         
+        generated_summary = ""
         if success and status == 200:
             has_success = data.get('success') == True
             has_summary = 'summary' in data and len(data.get('summary', '')) > 0
+            generated_summary = data.get('summary', '')
             
-            self.log_test("Save Context - Valid dialog text", has_success and has_summary, 
-                         f"Success: {has_success}, Summary length: {len(data.get('summary', ''))}")
+            self.log_test("Save Context Updated - Valid dialog text", has_success and has_summary, 
+                         f"Success: {has_success}, Summary length: {len(generated_summary)}")
             
             if has_summary:
-                print(f"   📝 Generated Summary: {data['summary'][:100]}...")
+                print(f"   📝 Generated Summary: {generated_summary[:100]}...")
         else:
-            self.log_test("Save Context - Valid dialog text", False, 
+            self.log_test("Save Context Updated - Valid dialog text", False, 
                          f"Status: {status}, Data: {data}")
+            return
         
-        # Step 6: Verify the context was saved to user_prompts in MongoDB
-        # Check the user's prompt to see if the context was appended
-        success, data, status = self.make_request('GET', '/user/prompt', token=admin_token)
+        # Step 6: CRITICAL - Verify context was saved to ai_profile.custom_instruction
+        success, data, status = self.make_request('GET', '/users/me/ai-profile', token=admin_token)
         
         if success and status == 200:
-            custom_prompt = data.get('customPrompt', '')
-            has_context = custom_prompt and '[Контекст чата:' in custom_prompt
+            updated_custom_instruction = data.get('custom_instruction', '') or ""
+            has_context = '[Контекст чата:' in updated_custom_instruction
+            has_timestamp = '2025-' in updated_custom_instruction  # Check for current year timestamp
             
-            self.log_test("Save Context - Context saved to user_prompts", has_context, 
-                         f"Custom prompt contains context: {has_context}")
+            self.log_test("Save Context Updated - Context saved to ai_profile.custom_instruction", 
+                         has_context and has_timestamp, 
+                         f"Context found: {has_context}, Timestamp found: {has_timestamp}")
             
             if has_context:
-                print(f"   📝 User Prompt Preview: {custom_prompt[:150]}...")
+                print(f"   📝 AI Profile Custom Instruction Preview: {updated_custom_instruction[:200]}...")
+                
+                # Verify the content contains the summary
+                summary_in_instruction = generated_summary[:50] in updated_custom_instruction if generated_summary else False
+                self.log_test("Save Context Updated - Summary content in custom_instruction", 
+                             summary_in_instruction,
+                             f"Generated summary found in custom instruction: {summary_in_instruction}")
         else:
-            self.log_test("Save Context - Context saved to user_prompts", False, 
-                         f"Failed to get user prompt: Status {status}")
+            self.log_test("Save Context Updated - Context saved to ai_profile.custom_instruction", False, 
+                         f"Failed to get AI Profile: Status {status}")
+            return
         
-        # Make another save-context call to test appending behavior
+        # Step 7: Test appending multiple contexts
+        second_dialog = """User: Спасибо за помощь с Python!
+Assistant: Пожалуйста! Если у тебя будут еще вопросы по программированию, обращайся."""
+        
         success, data, status = self.make_request('POST', f'/chats/{test_chat_id}/save-context', {
-            "dialogText": "User: Thank you for the help!\nAssistant: You're welcome! Feel free to ask if you have more questions."
+            "dialogText": second_dialog
         }, token=admin_token)
         
         if success and status == 200:
-            self.log_test("Save Context - Context persistence", True, 
-                         "Second save-context call successful, indicating persistence works")
+            second_summary = data.get('summary', '')
+            self.log_test("Save Context Updated - Second context save", True, 
+                         f"Second save successful, Summary: {second_summary[:50]}...")
             
-            # Verify the second context was also appended
-            success, data, status = self.make_request('GET', '/user/prompt', token=admin_token)
+            # Verify both contexts are present
+            success, data, status = self.make_request('GET', '/users/me/ai-profile', token=admin_token)
             if success and status == 200:
-                custom_prompt = data.get('customPrompt', '')
-                context_count = custom_prompt.count('[Контекст чата:') if custom_prompt else 0
+                final_custom_instruction = data.get('custom_instruction', '') or ""
+                context_count = final_custom_instruction.count('[Контекст чата:')
                 
-                self.log_test("Save Context - Multiple contexts appended", context_count >= 2, 
+                self.log_test("Save Context Updated - Multiple contexts appended", context_count >= 2, 
                              f"Found {context_count} context entries (should be >= 2)")
+                
+                print(f"   📝 Final AI Profile Custom Instruction: {final_custom_instruction}")
         else:
-            self.log_test("Save Context - Context persistence", False, 
+            self.log_test("Save Context Updated - Second context save", False, 
                          f"Second save failed: Status {status}")
         
-        # Step 7: Test error cases
+        # Step 8: Verify via direct MongoDB query (simulate what the review request asks)
+        # Since we can't directly query MongoDB, we'll verify through the API
+        success, data, status = self.make_request('GET', '/users/me/ai-profile', token=admin_token)
+        if success and status == 200:
+            final_instruction = data.get('custom_instruction', '')
+            
+            # Check timestamp format [Контекст чата: YYYY-MM-DD HH:MM]
+            import re
+            timestamp_pattern = r'\[Контекст чата: \d{4}-\d{2}-\d{2} \d{2}:\d{2}\]'
+            timestamp_matches = re.findall(timestamp_pattern, final_instruction)
+            
+            self.log_test("Save Context Updated - Correct timestamp format", len(timestamp_matches) >= 2,
+                         f"Found {len(timestamp_matches)} properly formatted timestamps")
+            
+            print(f"   🔍 Timestamp matches found: {timestamp_matches}")
+        
+        # Step 9: Test error cases
         
         # Test with non-existent chat (should return 404)
         fake_chat_id = "00000000-0000-0000-0000-000000000000"
@@ -1276,7 +1314,7 @@ Assistant: Here are some Python error handling best practices: 1) Use specific e
             "dialogText": sample_dialog
         }, token=admin_token)
         
-        self.log_test("Save Context - Non-existent chat (404)", status == 404, 
+        self.log_test("Save Context Updated - Non-existent chat (404)", status == 404, 
                      f"Status: {status} (should be 404)")
         
         # Test with empty dialogText (should return 400)
@@ -1284,7 +1322,7 @@ Assistant: Here are some Python error handling best practices: 1) Use specific e
             "dialogText": ""
         }, token=admin_token)
         
-        self.log_test("Save Context - Empty dialog text (400)", status == 400, 
+        self.log_test("Save Context Updated - Empty dialog text (400)", status == 400, 
                      f"Status: {status} (should be 400)")
         
         # Test with very short dialogText (should return 400)
@@ -1292,10 +1330,10 @@ Assistant: Here are some Python error handling best practices: 1) Use specific e
             "dialogText": "Hi"
         }, token=admin_token)
         
-        self.log_test("Save Context - Short dialog text (400)", status == 400, 
+        self.log_test("Save Context Updated - Short dialog text (400)", status == 400, 
                      f"Status: {status} (should be 400)")
         
-        print("✅ Save Context Endpoint testing completed")
+        print("✅ Updated Save Context Endpoint testing completed")
 
     def test_project_isolation(self):
         """Test that users can't access each other's projects"""
