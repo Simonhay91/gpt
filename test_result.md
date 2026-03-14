@@ -102,7 +102,20 @@
 # Testing Data - Main Agent and testing sub agent both should log testing data below this section
 #====================================================================================================
 
-user_problem_statement: "Протестируй Competitor Tracker UI в Planet Knowledge"
+user_problem_statement: "Test the save-context endpoint in messages.py"
+
+backend:
+  - task: "Save Context Endpoint Testing"
+    implemented: true
+    working: true
+    file: "/app/backend/routes/messages.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: true
+          agent: "testing"
+          comment: "✅ Save Context endpoint tested successfully. VERIFIED: 1) Admin login with admin@ai.planetworkspace.com/Admin@123456 works, 2) Quick chat creation works when no existing chats, 3) Test messages sent successfully, 4) Save-context endpoint (POST /api/chats/{chat_id}/save-context) works with valid dialogText, 5) AI generates proper summary using Claude API, 6) Context is correctly saved to user_prompts collection in MongoDB, 7) Multiple contexts are properly appended, 8) Error cases work correctly: 404 for non-existent chat, 400 for empty/short dialogText. All functionality working as expected."
 
 frontend:
   - task: "Competitor Tracker Page Access and Navigation"
