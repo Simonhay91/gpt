@@ -1342,6 +1342,9 @@ Assistant: Here are some Python error handling best practices: 1) Use specific e
             # Test Auto-Ingest URL feature
             self.test_auto_ingest_url_feature()
             
+            # Test Save Context endpoint
+            self.test_save_context_endpoint()
+            
             # Test Image Generation functionality
             self.test_image_generation_crud()
             self.test_image_rate_limiting()
