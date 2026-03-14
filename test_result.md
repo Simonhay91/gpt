@@ -116,6 +116,9 @@ backend:
         - working: true
           agent: "testing"
           comment: "✅ Save Context endpoint tested successfully. VERIFIED: 1) Admin login with admin@ai.planetworkspace.com/Admin@123456 works, 2) Quick chat creation works when no existing chats, 3) Test messages sent successfully, 4) Save-context endpoint (POST /api/chats/{chat_id}/save-context) works with valid dialogText, 5) AI generates proper summary using Claude API, 6) Context is correctly saved to user_prompts collection in MongoDB, 7) Multiple contexts are properly appended, 8) Error cases work correctly: 404 for non-existent chat, 400 for empty/short dialogText. All functionality working as expected."
+        - working: true
+          agent: "testing"
+          comment: "✅ UPDATED SAVE CONTEXT ENDPOINT RE-TESTED AND VERIFIED! CRITICAL VERIFICATION COMPLETED: 1) Admin login admin@ai.planetworkspace.com/Admin@123456 ✅, 2) Chat creation/access ✅, 3) POST /api/chats/{chat_id}/save-context with sample dialogText ✅, 4) Response has success=true and AI-generated summary ✅, 5) **CRITICAL CONFIRMED**: Context saved to users.ai_profile.custom_instruction (NOT user_prompts.customPrompt) ✅, 6) GET /api/users/me/ai-profile returns custom_instruction field ✅, 7) Multiple contexts append correctly with timestamp format [Контекст чата: YYYY-MM-DD HH:MM] ✅, 8) Error handling: 404 for non-existent chat, 400 for empty/short dialogText ✅. EXACT CONTENT VERIFIED: Context properly saved with timestamp format and AI summaries in ai_profile.custom_instruction field. All review requirements met successfully."
 
 frontend:
   - task: "Competitor Tracker Page Access and Navigation"
