@@ -1231,7 +1231,23 @@ Assistant: Here are some Python error handling best practices: 1) Use specific e
                          f"Status: {status}, Data: {data}")
         
         # Step 6: Verify the context was saved to user_prompts in MongoDB
-        # We'll check this by making another save-context call and seeing if the prompt was updated
+        # Check the user's prompt to see if the context was appended
+        success, data, status = self.make_request('GET', '/user/prompt', token=admin_token)
+        
+        if success and status == 200:
+            custom_prompt = data.get('customPrompt', '')
+            has_context = custom_prompt and '[Контекст чата:' in custom_prompt
+            
+            self.log_test("Save Context - Context saved to user_prompts", has_context, 
+                         f"Custom prompt contains context: {has_context}")
+            
+            if has_context:
+                print(f"   📝 User Prompt Preview: {custom_prompt[:150]}...")
+        else:
+            self.log_test("Save Context - Context saved to user_prompts", False, 
+                         f"Failed to get user prompt: Status {status}")
+        
+        # Make another save-context call to test appending behavior
         success, data, status = self.make_request('POST', f'/chats/{test_chat_id}/save-context', {
             "dialogText": "User: Thank you for the help!\nAssistant: You're welcome! Feel free to ask if you have more questions."
         }, token=admin_token)
@@ -1239,6 +1255,15 @@ Assistant: Here are some Python error handling best practices: 1) Use specific e
         if success and status == 200:
             self.log_test("Save Context - Context persistence", True, 
                          "Second save-context call successful, indicating persistence works")
+            
+            # Verify the second context was also appended
+            success, data, status = self.make_request('GET', '/user/prompt', token=admin_token)
+            if success and status == 200:
+                custom_prompt = data.get('customPrompt', '')
+                context_count = custom_prompt.count('[Контекст чата:') if custom_prompt else 0
+                
+                self.log_test("Save Context - Multiple contexts appended", context_count >= 2, 
+                             f"Found {context_count} context entries (should be >= 2)")
         else:
             self.log_test("Save Context - Context persistence", False, 
                          f"Second save failed: Status {status}")
