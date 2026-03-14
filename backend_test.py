@@ -1405,8 +1405,8 @@ Assistant: Пожалуйста! Если у тебя будут еще вопр
             # Test Auto-Ingest URL feature
             self.test_auto_ingest_url_feature()
             
-            # Test Save Context endpoint
-            self.test_save_context_endpoint()
+            # Test Save Context endpoint (updated version)
+            self.test_save_context_endpoint_updated()
             
             # Test Image Generation functionality
             self.test_image_generation_crud()
