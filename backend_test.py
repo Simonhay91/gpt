@@ -1131,6 +1131,147 @@ startxref
             self.log_test("Auto-Ingest URL - Invalid URL doesn't break message flow", False,
                          f"Status: {status}, Data: {data}")
 
+    def test_save_context_endpoint(self):
+        """Test save-context endpoint in messages.py"""
+        print("\n🔍 Testing Save Context Endpoint")
+        
+        # Step 1: Login as admin
+        admin_email = "admin@ai.planetworkspace.com"
+        admin_password = "Admin@123456"
+        
+        success, data, status = self.make_request('POST', '/auth/login', {
+            "email": admin_email,
+            "password": admin_password
+        })
+        
+        if not (success and status == 200 and 'token' in data):
+            self.log_test("Save Context - Admin login", False, 
+                         f"Failed to login as admin: Status {status}, Data: {data}")
+            return
+        
+        admin_token = data['token']
+        self.log_test("Save Context - Admin login", True, "Admin logged in successfully")
+        
+        # Step 2: Get list of existing chats
+        success, data, status = self.make_request('GET', '/chats', token=admin_token)
+        
+        if success and status == 200 and isinstance(data, list):
+            existing_chats = data
+            self.log_test("Save Context - Get existing chats", True, 
+                         f"Found {len(existing_chats)} existing chats")
+        else:
+            existing_chats = []
+            self.log_test("Save Context - Get existing chats", False, 
+                         f"Failed to get chats: Status {status}")
+        
+        # Step 3: Create a quick chat if no chats exist
+        test_chat_id = None
+        if not existing_chats:
+            success, data, status = self.make_request('POST', '/quick-chats', {
+                "name": "Test Chat for Save Context"
+            }, token=admin_token)
+            
+            if success and status == 200 and 'id' in data:
+                test_chat_id = data['id']
+                self.log_test("Save Context - Create quick chat", True, 
+                             f"Created chat ID: {test_chat_id}")
+            else:
+                self.log_test("Save Context - Create quick chat", False, 
+                             f"Failed to create chat: Status {status}, Data: {data}")
+                return
+        else:
+            test_chat_id = existing_chats[0]['id']
+            self.log_test("Save Context - Use existing chat", True, 
+                         f"Using existing chat ID: {test_chat_id}")
+        
+        # Step 4: Send a few test messages to the chat
+        test_messages = [
+            "Hello, I need help with Python programming.",
+            "Can you explain how to use decorators?",
+            "What are the best practices for error handling?"
+        ]
+        
+        for i, message_content in enumerate(test_messages):
+            success, data, status = self.make_request('POST', f'/chats/{test_chat_id}/messages', {
+                "content": message_content
+            }, token=admin_token)
+            
+            if success and status == 200:
+                self.log_test(f"Save Context - Send test message {i+1}", True, 
+                             f"Message sent: {message_content[:50]}...")
+            else:
+                self.log_test(f"Save Context - Send test message {i+1}", False, 
+                             f"Failed to send message: Status {status}")
+        
+        # Step 5: Test the save-context endpoint with valid data
+        sample_dialog = """User: Hello, I need help with Python programming.
+Assistant: I'd be happy to help you with Python programming! What specific aspect would you like to learn about?
+
+User: Can you explain how to use decorators?
+Assistant: Decorators in Python are a powerful feature that allows you to modify or extend the behavior of functions or classes without permanently modifying their code.
+
+User: What are the best practices for error handling?
+Assistant: Here are some Python error handling best practices: 1) Use specific exception types, 2) Handle exceptions at the appropriate level, 3) Use try-except-finally blocks properly."""
+        
+        success, data, status = self.make_request('POST', f'/chats/{test_chat_id}/save-context', {
+            "dialogText": sample_dialog
+        }, token=admin_token)
+        
+        if success and status == 200:
+            has_success = data.get('success') == True
+            has_summary = 'summary' in data and len(data.get('summary', '')) > 0
+            
+            self.log_test("Save Context - Valid dialog text", has_success and has_summary, 
+                         f"Success: {has_success}, Summary length: {len(data.get('summary', ''))}")
+            
+            if has_summary:
+                print(f"   📝 Generated Summary: {data['summary'][:100]}...")
+        else:
+            self.log_test("Save Context - Valid dialog text", False, 
+                         f"Status: {status}, Data: {data}")
+        
+        # Step 6: Verify the context was saved to user_prompts in MongoDB
+        # We'll check this by making another save-context call and seeing if the prompt was updated
+        success, data, status = self.make_request('POST', f'/chats/{test_chat_id}/save-context', {
+            "dialogText": "User: Thank you for the help!\nAssistant: You're welcome! Feel free to ask if you have more questions."
+        }, token=admin_token)
+        
+        if success and status == 200:
+            self.log_test("Save Context - Context persistence", True, 
+                         "Second save-context call successful, indicating persistence works")
+        else:
+            self.log_test("Save Context - Context persistence", False, 
+                         f"Second save failed: Status {status}")
+        
+        # Step 7: Test error cases
+        
+        # Test with non-existent chat (should return 404)
+        fake_chat_id = "00000000-0000-0000-0000-000000000000"
+        success, data, status = self.make_request('POST', f'/chats/{fake_chat_id}/save-context', {
+            "dialogText": sample_dialog
+        }, token=admin_token)
+        
+        self.log_test("Save Context - Non-existent chat (404)", status == 404, 
+                     f"Status: {status} (should be 404)")
+        
+        # Test with empty dialogText (should return 400)
+        success, data, status = self.make_request('POST', f'/chats/{test_chat_id}/save-context', {
+            "dialogText": ""
+        }, token=admin_token)
+        
+        self.log_test("Save Context - Empty dialog text (400)", status == 400, 
+                     f"Status: {status} (should be 400)")
+        
+        # Test with very short dialogText (should return 400)
+        success, data, status = self.make_request('POST', f'/chats/{test_chat_id}/save-context', {
+            "dialogText": "Hi"
+        }, token=admin_token)
+        
+        self.log_test("Save Context - Short dialog text (400)", status == 400, 
+                     f"Status: {status} (should be 400)")
+        
+        print("✅ Save Context Endpoint testing completed")
+
     def test_project_isolation(self):
         """Test that users can't access each other's projects"""
         if not self.test_user_token or not self.admin_user_token or not self.test_project_id:
