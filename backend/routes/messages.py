@@ -595,7 +595,7 @@ async def save_chat_context(chat_id: str, data: dict, current_user: dict = Depen
     """
     Save chat context to user's AI Profile
     - Sends dialog to AI for summarization
-    - Saves summary to user_prompts with timestamp
+    - Saves summary to user's ai_profile.custom_instruction with timestamp
     """
     db = get_db()
     
@@ -646,31 +646,34 @@ async def save_chat_context(chat_id: str, data: dict, current_user: dict = Depen
             words = summary.split()[:150]
             summary = ' '.join(words) + '...'
         
-        # Save to user's AI Profile
+        # Save to user's AI Profile (ai_profile.custom_instruction)
         now = datetime.now(timezone.utc)
         context_prefix = f"[Контекст чата: {now.strftime('%Y-%m-%d %H:%M')}]\n{summary}"
         
-        # Get existing prompt
-        user_prompt_doc = await db.user_prompts.find_one({"userId": current_user["id"]}, {"_id": 0})
+        # Get current user data
+        user_data = await db.users.find_one({"id": current_user["id"]}, {"_id": 0})
+        if not user_data:
+            raise HTTPException(status_code=404, detail="User not found")
         
-        if user_prompt_doc:
-            existing_prompt = user_prompt_doc.get("customPrompt", "")
-            # Append new context
-            updated_prompt = f"{existing_prompt}\n\n{context_prefix}".strip()
+        # Get existing custom instruction
+        ai_profile = user_data.get("ai_profile", {})
+        existing_instruction = ai_profile.get("custom_instruction", "")
+        
+        # Append new context
+        if existing_instruction:
+            updated_instruction = f"{existing_instruction}\n\n{context_prefix}".strip()
         else:
-            updated_prompt = context_prefix
+            updated_instruction = context_prefix
         
-        # Update user prompt
-        await db.user_prompts.update_one(
-            {"userId": current_user["id"]},
+        # Update user's ai_profile.custom_instruction
+        await db.users.update_one(
+            {"id": current_user["id"]},
             {
                 "$set": {
-                    "userId": current_user["id"],
-                    "customPrompt": updated_prompt,
-                    "updatedAt": now.isoformat()
+                    "ai_profile.custom_instruction": updated_instruction,
+                    "ai_profile.updatedAt": now.isoformat()
                 }
-            },
-            upsert=True
+            }
         )
         
         return {
