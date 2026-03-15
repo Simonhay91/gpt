@@ -588,3 +588,100 @@ async def save_to_knowledge(
     except Exception as e:
         logger.error(f"Error saving to knowledge: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Failed to save: {str(e)}")
+
+
+@router.post("/chats/{chat_id}/save-context")
+async def save_chat_context(chat_id: str, data: dict, current_user: dict = Depends(get_current_user)):
+    """
+    Save chat context to user's AI Profile
+    - Sends dialog to AI for summarization
+    - Saves summary to user's ai_profile.custom_instruction with timestamp
+    """
+    db = get_db()
+    
+    # Verify chat access
+    chat = await db.chats.find_one({"id": chat_id}, {"_id": 0})
+    if not chat:
+        raise HTTPException(status_code=404, detail="Chat not found")
+    
+    # Check access
+    if chat.get("ownerId") != current_user["id"]:
+        if chat.get("projectId"):
+            project = await db.projects.find_one({"id": chat["projectId"]}, {"_id": 0})
+            if not project or project.get("ownerId") != current_user["id"]:
+                raise HTTPException(status_code=403, detail="Access denied")
+    
+    dialog_text = data.get("dialogText", "")
+    if not dialog_text or len(dialog_text.strip()) < 10:
+        raise HTTPException(status_code=400, detail="Dialog text too short")
+    
+    try:
+        # Send to Claude for summarization
+        import anthropic
+        import os
+        
+        CLAUDE_API_KEY = os.environ.get('CLAUDE_API_KEY', '')
+        if not CLAUDE_API_KEY:
+            raise HTTPException(status_code=500, detail="AI service not configured")
+        
+        claude_client = anthropic.Anthropic(api_key=CLAUDE_API_KEY)
+        
+        system_prompt = """Прочитай этот диалог и напиши краткое резюме: какие темы обсуждались, к каким выводам пришли, что важно помнить для продолжения в следующем чате. Максимум 150 слов. Только резюме, без предисловий."""
+        
+        response = claude_client.messages.create(
+            model="claude-sonnet-4-20250514",
+            max_tokens=300,
+            system=system_prompt,
+            messages=[
+                {"role": "user", "content": dialog_text}
+            ]
+        )
+        
+        summary = response.content[0].text.strip()
+        
+        # Word count check (approximate)
+        word_count = len(summary.split())
+        if word_count > 200:  # Allow some buffer
+            # Truncate to approximately 150 words
+            words = summary.split()[:150]
+            summary = ' '.join(words) + '...'
+        
+        # Save to user's AI Profile (ai_profile.custom_instruction)
+        now = datetime.now(timezone.utc)
+        context_prefix = f"[Контекст чата: {now.strftime('%Y-%m-%d %H:%M')}]\n{summary}"
+        
+        # Get current user data
+        user_data = await db.users.find_one({"id": current_user["id"]}, {"_id": 0})
+        if not user_data:
+            raise HTTPException(status_code=404, detail="User not found")
+        
+        # Get existing custom instruction
+        ai_profile = user_data.get("ai_profile", {})
+        existing_instruction = ai_profile.get("custom_instruction", "")
+        
+        # Append new context
+        if existing_instruction:
+            updated_instruction = f"{existing_instruction}\n\n{context_prefix}".strip()
+        else:
+            updated_instruction = context_prefix
+        
+        # Update user's ai_profile.custom_instruction
+        await db.users.update_one(
+            {"id": current_user["id"]},
+            {
+                "$set": {
+                    "ai_profile.custom_instruction": updated_instruction,
+                    "ai_profile.updatedAt": now.isoformat()
+                }
+            }
+        )
+        
+        return {
+            "success": True,
+            "summary": summary,
+            "message": "Контекст сохранен в AI Profile"
+        }
+        
+    except Exception as e:
+        logger.error(f"Error saving context: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to save context: {str(e)}")

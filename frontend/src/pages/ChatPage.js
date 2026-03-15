@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
+import { useAuth } from '../contexts/AuthContext';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Textarea } from '../components/ui/textarea';
@@ -41,7 +42,10 @@ import {
   Target,
   Globe2,
   Lightbulb,
-  TrendingUp
+  TrendingUp,
+  Info,
+  Database,
+  Building2
 } from 'lucide-react';
 import { Label } from '../components/ui/label';
 import { Checkbox } from '../components/ui/checkbox';
@@ -96,6 +100,7 @@ const getFileIcon = (mimeType, kind) => {
 const ChatPage = () => {
   const { chatId } = useParams();
   const navigate = useNavigate();
+  const { currentUser } = useAuth();
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
   const [urlInput, setUrlInput] = useState('');
@@ -152,6 +157,12 @@ const ChatPage = () => {
   
   // Expanded source groups state
   const [expandedGroups, setExpandedGroups] = useState({});
+  
+  // Info block visibility state
+  const [showInfoBlock, setShowInfoBlock] = useState(true);
+  
+  // Save context state
+  const [isSavingContext, setIsSavingContext] = useState(false);
 
   useEffect(() => {
     fetchChatData();
@@ -524,6 +535,29 @@ const ChatPage = () => {
     }
   };
 
+  const saveToDepartment = async (source, e) => {
+    e.stopPropagation();
+    
+    if (!currentUser?.departments || currentUser.departments.length === 0) {
+      toast.error('У вас нет департаментов для сохранения');
+      return;
+    }
+
+    try {
+      // Copy source to department sources
+      const departmentId = currentUser.departments[0]; // Use first department
+      await axios.post(`${API}/department-sources/copy-from-project`, {
+        sourceId: source.id,
+        projectId: chat.projectId,
+        departmentId: departmentId
+      });
+      toast.success('Файл сохранен в источники департамента');
+    } catch (error) {
+      const message = error.response?.data?.detail || 'Failed to save to department';
+      toast.error(message);
+    }
+  };
+
   const searchSources = async () => {
     if (!searchQuery.trim() || searchQuery.trim().length < 2) {
       toast.error('Введите минимум 2 символа');
@@ -552,6 +586,49 @@ const ChatPage = () => {
   const highlightMatch = (text, query) => {
     const regex = new RegExp(`(${query})`, 'gi');
     return text.replace(regex, '<mark class="bg-yellow-300 dark:bg-yellow-600 px-0.5 rounded">$1</mark>');
+  };
+
+  const saveContext = async () => {
+    if (messages.length === 0) {
+      toast.error('Нет сообщений для сохранения');
+      return;
+    }
+
+    setIsSavingContext(true);
+    try {
+      // Prepare dialog text
+      const dialogText = messages
+        .map(msg => `${msg.role === 'user' ? 'Пользователь' : 'AI'}: ${msg.content}`)
+        .join('\n\n');
+
+      // Send to AI for summarization
+      const response = await axios.post(`${API}/chats/${chatId}/save-context`, {
+        dialogText
+      });
+
+      const contextSummary = response.data.summary;
+      
+      // Show toast notification
+      const toastElement = document.createElement('div');
+      toastElement.className = 'fixed bottom-6 left-1/2 transform -translate-x-1/2 bg-emerald-600 text-white px-6 py-3 rounded-lg shadow-lg flex items-center gap-2 z-50 animate-slide-up';
+      toastElement.innerHTML = `
+        <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+        </svg>
+        <span>Контекст сохранен в AI Profile</span>
+      `;
+      document.body.appendChild(toastElement);
+      
+      setTimeout(() => {
+        toastElement.remove();
+      }, 3000);
+
+    } catch (error) {
+      const message = error.response?.data?.detail || 'Не удалось сохранить контекст';
+      toast.error(message);
+    } finally {
+      setIsSavingContext(false);
+    }
   };
 
   const sendMessage = async () => {
@@ -923,6 +1000,24 @@ const ChatPage = () => {
               Move
             </Button>
 
+            {/* Save Context Button */}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={saveContext}
+              disabled={isSavingContext || messages.length === 0}
+              className="gap-2"
+              data-testid="save-context-btn"
+              title="Сохранить контекст диалога в AI Profile"
+            >
+              {isSavingContext ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Save className="h-4 w-4" />
+              )}
+              <span className="hidden sm:inline">Контекст</span>
+            </Button>
+
             {/* Image Generator - only for project chats */}
             {chat && chat.projectId && (
               <ImageGenerator 
@@ -1185,6 +1280,43 @@ const ChatPage = () => {
               <div className="text-xs text-muted-foreground mb-3">
                 Supported: PDF, DOCX, PPTX, XLSX, TXT, MD, PNG, JPEG files and web URLs (multiple files allowed)
               </div>
+              
+              {/* Info Block - How Sources Work */}
+              {projectSources.length > 0 && showInfoBlock && (
+                <div className="mb-4 p-3 rounded-lg bg-blue-500/10 border border-blue-500/20 relative">
+                  <button
+                    onClick={() => setShowInfoBlock(false)}
+                    className="absolute top-2 right-2 p-1 hover:bg-blue-500/20 rounded transition-colors"
+                    title="Закрыть"
+                  >
+                    <X className="h-4 w-4 text-blue-400" />
+                  </button>
+                  <div className="flex items-start gap-3 pr-8">
+                    <Info className="h-5 w-5 text-blue-400 flex-shrink-0 mt-0.5" />
+                    <div className="flex-1 text-sm text-blue-200/90 space-y-2">
+                      <p className="font-medium text-blue-300">Как работают источники в AI-чате:</p>
+                      <ul className="space-y-1.5 text-xs">
+                        <li className="flex items-start gap-2">
+                          <Database className="h-3.5 w-3.5 text-blue-400 flex-shrink-0 mt-0.5" />
+                          <span><strong className="text-blue-300">Иерархия:</strong> Личные → Проектные → Департамент → Глобальные</span>
+                        </li>
+                        <li className="flex items-start gap-2">
+                          <Target className="h-3.5 w-3.5 text-blue-400 flex-shrink-0 mt-0.5" />
+                          <span><strong className="text-blue-300">Активные источники:</strong> Только выбранные источники используются для генерации ответов</span>
+                        </li>
+                        <li className="flex items-start gap-2">
+                          <Lightbulb className="h-3.5 w-3.5 text-blue-400 flex-shrink-0 mt-0.5" />
+                          <span><strong className="text-blue-300">Влияние на ответы:</strong> AI ищет информацию в активных источниках и формирует ответ на основе найденного контекста</span>
+                        </li>
+                        <li className="flex items-start gap-2">
+                          <ChevronRight className="h-3.5 w-3.5 text-blue-400 flex-shrink-0 mt-0.5" />
+                          <span><strong className="text-blue-300">Режимы:</strong> "Только проектные" использует только источники проекта, "Все источники" включает доступные на всех уровнях</span>
+                        </li>
+                      </ul>
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {/* Sources List with Grouping */}
               {projectSources.length === 0 ? (
@@ -1309,6 +1441,18 @@ const ChatPage = () => {
                                           data-testid={`download-source-${source.id}`}
                                         >
                                           <Download className="h-3.5 w-3.5 text-green-400" />
+                                        </Button>
+                                      )}
+                                      {source.level === 'project' && currentUser?.departments?.length > 0 && (
+                                        <Button
+                                          variant="ghost"
+                                          size="icon"
+                                          className="h-7 w-7"
+                                          onClick={(e) => { e.stopPropagation(); saveToDepartment(source, e); }}
+                                          title="Сохранить в источники департамента"
+                                          data-testid={`save-to-dept-${source.id}`}
+                                        >
+                                          <Building2 className="h-3.5 w-3.5 text-amber-400" />
                                         </Button>
                                       )}
                                       <Button

@@ -5,6 +5,7 @@ import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { ThemeProvider } from './contexts/ThemeContext';
 import { LanguageProvider } from './contexts/LanguageContext';
 import ErrorBoundary from './components/ErrorBoundary';
+import ChangePasswordModal from './components/ChangePasswordModal';
 import './App.css';
 
 // Pages
@@ -27,6 +28,8 @@ import NewsPage from './pages/NewsPage';
 import MyGptPromptPage from './pages/MyGptPromptPage';
 import AiSettingsPage from './pages/AiSettingsPage';
 import CompetitorsPage from './pages/CompetitorsPage';
+import ProductCatalogPage from './pages/ProductCatalogPage';
+import ProductDetailPage from './pages/ProductDetailPage';
 
 // Protected Route Component
 const ProtectedRoute = ({ children }) => {
@@ -120,6 +123,18 @@ function AppRoutes() {
       <Route path="/competitors" element={
         <ProtectedRoute>
           <CompetitorsPage />
+        </ProtectedRoute>
+      } />
+      
+      {/* Product Catalog Routes */}
+      <Route path="/product-catalog" element={
+        <ProtectedRoute>
+          <ProductCatalogPage />
+        </ProtectedRoute>
+      } />
+      <Route path="/product-catalog/:productId" element={
+        <ProtectedRoute>
+          <ProductDetailPage />
         </ProtectedRoute>
       } />
       
@@ -220,6 +235,7 @@ function App() {
           <AuthProvider>
             <ErrorBoundary>
               <AppRoutes />
+              <ChangePasswordModal />
             </ErrorBoundary>
             <Toaster 
               position="top-right"

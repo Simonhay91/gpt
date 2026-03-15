@@ -139,3 +139,19 @@ code, pre, .font-mono {
                 color 0.3s ease,
                 box-shadow 0.3s ease !important;
 }
+
+/* Toast notification slide up animation */
+@keyframes slideUp {
+    from { 
+        opacity: 0; 
+        transform: translate(-50%, 20px); 
+    }
+    to { 
+        opacity: 1; 
+        transform: translate(-50%, 0); 
+    }
+}
+
+.animate-slide-up {
+    animation: slideUp 0.3s ease-out forwards;
+}
