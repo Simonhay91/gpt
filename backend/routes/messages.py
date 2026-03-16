@@ -257,6 +257,7 @@ async def send_message(chat_id: str, message_data: MessageCreate, current_user: 
     
     # Get chat history
     history = await db.messages.find({"chatId": chat_id}, {"_id": 0}).sort("createdAt", 1).to_list(1000)
+    history = history[-20:]
     
     # Get relevant chunks and build context
     citations = []
@@ -696,3 +697,32 @@ async def save_chat_context(chat_id: str, data: dict, current_user: dict = Depen
     except Exception as e:
         logger.error(f"Error saving context: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Failed to save context: {str(e)}")
+
+@router.post("/chats/{chat_id}/extract-memory-points")
+async def extract_memory_points(chat_id: str, data: dict, current_user: dict = Depends(get_current_user)):
+    """Extract key points from conversation for project memory"""
+    db = get_db()
+    chat = await db.chats.find_one({"id": chat_id}, {"_id": 0})
+    if not chat:
+        raise HTTPException(status_code=404, detail="Chat not found")
+
+    dialog_text = data.get("dialogText", "")
+    if not dialog_text or len(dialog_text.strip()) < 20:
+        return {"points": []}
+
+    try:
+        import anthropic, os
+        claude_client = anthropic.Anthropic(api_key=os.environ.get('CLAUDE_API_KEY', ''))
+        response = claude_client.messages.create(
+            model="claude-sonnet-4-20250514",
+            max_tokens=1000,
+            system="You are extracting PROJECT KNOWLEDGE from a conversation. Extract only permanent, reusable facts about the project, domain, business rules, decisions, or technical details discussed. DO NOT describe what was asked or answered. DO NOT write meta-descriptions like 'user asked about X'. Instead write the actual fact, e.g. 'Stock Order deposit is 20%'. Return ONLY a JSON array of strings (max 10 items). Each item max 100 chars. Write in the SAME LANGUAGE as the conversation content. No preamble, no markdown, pure JSON array.",
+            messages=[{"role": "user", "content": dialog_text}]
+        )
+        import json
+        text = response.content[0].text.strip()
+        points = json.loads(text)
+        return {"points": points if isinstance(points, list) else []}
+    except Exception as e:
+        logger.error(f"Extract memory points error: {str(e)}")
+        return {"points": []}

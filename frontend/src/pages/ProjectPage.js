@@ -3,24 +3,27 @@ import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
+import { Textarea } from '../components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '../components/ui/dialog';
 import { Label } from '../components/ui/label';
 import { Checkbox } from '../components/ui/checkbox';
 import { toast } from 'sonner';
-import { Plus, MessageSquare, Trash2, Clock, ArrowRight, ArrowLeft, FolderOpen, Share2, Users, X, Shield, Eye, Edit, Settings, Search } from 'lucide-react';
+import { Plus, MessageSquare, Trash2, Clock, ArrowRight, ArrowLeft, FolderOpen, Share2, Users, X, Shield, Eye, Edit, Settings, Search, Brain, Loader2, Sparkles } from 'lucide-react';
 import DashboardLayout from '../components/DashboardLayout';
 import { useAuth } from '../contexts/AuthContext';
 import SourceInsightsModal from '../components/SourceInsightsModal';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
-// Role configuration
 const ROLES = {
   viewer: { label: 'Viewer', icon: Eye, color: 'text-blue-500', description: 'Только чтение' },
   editor: { label: 'Editor', icon: Edit, color: 'text-green-500', description: 'Создание чатов' },
   manager: { label: 'Manager', icon: Settings, color: 'text-orange-500', description: 'Управление источниками' }
 };
+
+const MAX_CHARS = 6000;
+const WARN_CHARS = 4800;
 
 const ProjectPage = () => {
   const { projectId } = useParams();
@@ -32,12 +35,11 @@ const ProjectPage = () => {
   const [newChatName, setNewChatName] = useState('');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
-  const [userRole, setUserRole] = useState(null);  // Current user's role in this project
-  
-  // Share dialog
+  const [userRole, setUserRole] = useState(null);
+
   const [shareDialogOpen, setShareDialogOpen] = useState(false);
   const [shareEmail, setShareEmail] = useState('');
-  const [shareRole, setShareRole] = useState('viewer');  // Default role for new shares
+  const [shareRole, setShareRole] = useState('viewer');
   const [isSharing, setIsSharing] = useState(false);
   const [members, setMembers] = useState([]);
   const [isOwner, setIsOwner] = useState(false);
@@ -47,9 +49,14 @@ const ProjectPage = () => {
   const [chatVisibility, setChatVisibility] = useState({});
   const [isUpdatingVisibility, setIsUpdatingVisibility] = useState(false);
   const [isUpdatingRole, setIsUpdatingRole] = useState(null);
-  
-  // Source insights
+
   const [insightsSource, setInsightsSource] = useState(null);
+
+  // Memory state
+  const [memoryDialogOpen, setMemoryDialogOpen] = useState(false);
+  const [projectMemory, setProjectMemory] = useState('');
+  const [isLoadingMemory, setIsLoadingMemory] = useState(false);
+  const [isSavingMemory, setIsSavingMemory] = useState(false);
 
   useEffect(() => {
     fetchProjectAndChats();
@@ -63,13 +70,10 @@ const ProjectPage = () => {
       ]);
       setProject(projectRes.data);
       setChats(chatsRes.data.items || chatsRes.data);
-      
-      // Check members and current user's role
+
       try {
         const membersRes = await axios.get(`${API}/projects/${projectId}/members`);
         setMembers(membersRes.data);
-        
-        // Find current user's role
         const currentUserMember = membersRes.data.find(m => m.email === user?.email);
         if (currentUserMember) {
           setUserRole(currentUserMember.role);
@@ -89,8 +93,8 @@ const ProjectPage = () => {
   const createChat = async () => {
     setIsCreating(true);
     try {
-      const response = await axios.post(`${API}/projects/${projectId}/chats`, { 
-        name: newChatName.trim() || 'New Chat' 
+      const response = await axios.post(`${API}/projects/${projectId}/chats`, {
+        name: newChatName.trim() || 'New Chat'
       });
       setChats([...chats, response.data]);
       setNewChatName('');
@@ -106,11 +110,7 @@ const ProjectPage = () => {
 
   const deleteChat = async (chatId, e) => {
     e.stopPropagation();
-    
-    if (!window.confirm('Are you sure? This will delete all messages in this chat.')) {
-      return;
-    }
-
+    if (!window.confirm('Are you sure? This will delete all messages in this chat.')) return;
     try {
       await axios.delete(`${API}/chats/${chatId}`);
       setChats(chats.filter(c => c.id !== chatId));
@@ -121,26 +121,17 @@ const ProjectPage = () => {
   };
 
   const shareProject = async () => {
-    if (!shareEmail.trim()) {
-      toast.error('Please enter an email');
-      return;
-    }
-    
+    if (!shareEmail.trim()) { toast.error('Please enter an email'); return; }
     setIsSharing(true);
     try {
-      await axios.post(`${API}/projects/${projectId}/share`, { 
-        email: shareEmail.trim(),
-        role: shareRole 
-      });
+      await axios.post(`${API}/projects/${projectId}/share`, { email: shareEmail.trim(), role: shareRole });
       toast.success(`Shared with ${shareEmail} as ${ROLES[shareRole]?.label || shareRole}`);
       setShareEmail('');
       setShareRole('viewer');
-      // Refresh members
       const membersRes = await axios.get(`${API}/projects/${projectId}/members`);
       setMembers(membersRes.data);
     } catch (error) {
-      const msg = error.response?.data?.detail || 'Failed to share';
-      toast.error(msg);
+      toast.error(error.response?.data?.detail || 'Failed to share');
     } finally {
       setIsSharing(false);
     }
@@ -151,12 +142,10 @@ const ProjectPage = () => {
     try {
       await axios.post(`${API}/projects/${projectId}/share`, { email, role });
       toast.success(`Shared with ${email} as ${ROLES[role]?.label || role}`);
-      // Refresh members
       const membersRes = await axios.get(`${API}/projects/${projectId}/members`);
       setMembers(membersRes.data);
     } catch (error) {
-      const msg = error.response?.data?.detail || 'Failed to share';
-      toast.error(msg);
+      toast.error(error.response?.data?.detail || 'Failed to share');
     } finally {
       setIsSharing(false);
     }
@@ -165,16 +154,12 @@ const ProjectPage = () => {
   const updateMemberRole = async (userId, newRole) => {
     setIsUpdatingRole(userId);
     try {
-      await axios.put(`${API}/projects/${projectId}/members/${userId}/role`, null, {
-        params: { role: newRole }
-      });
+      await axios.put(`${API}/projects/${projectId}/members/${userId}/role`, null, { params: { role: newRole } });
       toast.success(`Role updated to ${ROLES[newRole]?.label || newRole}`);
-      // Refresh members
       const membersRes = await axios.get(`${API}/projects/${projectId}/members`);
       setMembers(membersRes.data);
     } catch (error) {
-      const msg = error.response?.data?.detail || 'Failed to update role';
-      toast.error(msg);
+      toast.error(error.response?.data?.detail || 'Failed to update role');
     } finally {
       setIsUpdatingRole(null);
     }
@@ -209,86 +194,93 @@ const ProjectPage = () => {
 
   const openChatVisibilityForMember = (member) => {
     setSelectedMemberForChats(member);
-    // Initialize visibility state for this member
     const visibility = {};
     chats.forEach(chat => {
-      // If sharedWithUsers is null/undefined, all members can see it (true)
-      // If it's an array, check if member is in it
       const sharedWith = chat.sharedWithUsers;
       if (sharedWith === null || sharedWith === undefined) {
-        visibility[chat.id] = true; // visible to all
+        visibility[chat.id] = true;
       } else if (Array.isArray(sharedWith)) {
         visibility[chat.id] = sharedWith.includes(member.id);
       } else {
-        visibility[chat.id] = true; // default to visible
+        visibility[chat.id] = true;
       }
     });
     setChatVisibility(visibility);
   };
 
   const toggleChatVisibility = (chatId) => {
-    setChatVisibility(prev => ({
-      ...prev,
-      [chatId]: !prev[chatId]
-    }));
+    setChatVisibility(prev => ({ ...prev, [chatId]: !prev[chatId] }));
   };
 
   const saveChatVisibility = async () => {
     if (!selectedMemberForChats) return;
-    
     setIsUpdatingVisibility(true);
     try {
-      // For each chat, update visibility for this specific member
       for (const chat of chats) {
         const isVisible = chatVisibility[chat.id];
-        
-        // Get current sharedWithUsers or empty array
         let currentShared = chat.sharedWithUsers || [];
-        
-        // If chat was visible to all (null), convert to array of all member IDs first
         if (chat.sharedWithUsers === null || chat.sharedWithUsers === undefined) {
-          // Get all shared member IDs (not owner)
           currentShared = members.filter(m => m.role !== 'owner').map(m => m.id);
         }
-        
         let newSharedWith;
         if (isVisible) {
-          // Add this member if not already present
-          if (!currentShared.includes(selectedMemberForChats.id)) {
-            newSharedWith = [...currentShared, selectedMemberForChats.id];
-          } else {
-            newSharedWith = currentShared;
-          }
+          newSharedWith = currentShared.includes(selectedMemberForChats.id) ? currentShared : [...currentShared, selectedMemberForChats.id];
         } else {
-          // Remove this member
           newSharedWith = currentShared.filter(id => id !== selectedMemberForChats.id);
         }
-        
         await axios.put(`${API}/chats/${chat.id}/visibility`, { sharedWithUsers: newSharedWith });
       }
-      
-      // Refresh chats
       const chatsRes = await axios.get(`${API}/projects/${projectId}/chats`);
       setChats(chatsRes.data);
-      
       toast.success('Chat visibility updated');
       setSelectedMemberForChats(null);
     } catch (error) {
-      console.error('Error:', error);
       toast.error('Failed to update visibility');
     } finally {
       setIsUpdatingVisibility(false);
     }
   };
 
+  const openMemoryDialog = async () => {
+    setMemoryDialogOpen(true);
+    setIsLoadingMemory(true);
+    try {
+      const res = await axios.get(`${API}/projects/${projectId}/memory`);
+      setProjectMemory(res.data.project_memory || '');
+    } catch (e) {
+      setProjectMemory('');
+    } finally {
+      setIsLoadingMemory(false);
+    }
+  };
+
+  const saveMemory = async () => {
+    if (projectMemory.length > MAX_CHARS) {
+      toast.error('Слишком длинно — сократите текст');
+      return;
+    }
+    setIsSavingMemory(true);
+    try {
+      await axios.put(`${API}/projects/${projectId}/memory`, { project_memory: projectMemory });
+      toast.success('Memory сохранён ✅');
+      setMemoryDialogOpen(false);
+    } catch (e) {
+      toast.error(e.response?.data?.detail || 'Не удалось сохранить');
+    } finally {
+      setIsSavingMemory(false);
+    }
+  };
+
   const formatDate = (dateString) => {
     return new Date(dateString).toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
+      month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
     });
   };
+
+  const charCount = projectMemory.length;
+  const tokenApprox = Math.round(charCount / 4);
+  const isOverLimit = charCount > MAX_CHARS;
+  const isNearLimit = charCount > WARN_CHARS;
 
   if (isLoading) {
     return (
@@ -305,16 +297,11 @@ const ProjectPage = () => {
       <div className="p-6 lg:p-8" data-testid="project-page">
         {/* Header */}
         <div className="mb-8">
-          <Button
-            variant="ghost"
-            className="mb-4 -ml-2"
-            onClick={() => navigate('/dashboard')}
-            data-testid="back-to-dashboard-btn"
-          >
+          <Button variant="ghost" className="mb-4 -ml-2" onClick={() => navigate('/dashboard')} data-testid="back-to-dashboard-btn">
             <ArrowLeft className="mr-2 h-4 w-4" />
             Back to Projects
           </Button>
-          
+
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
               <div className="rounded-lg bg-secondary p-3">
@@ -325,15 +312,20 @@ const ProjectPage = () => {
                 <p className="text-muted-foreground mt-1">
                   {chats.length} {chats.length === 1 ? 'chat' : 'chats'}
                   {members.length > 1 && (
-                    <span className="ml-2 text-emerald-400">
-                      • {members.length} members
-                    </span>
+                    <span className="ml-2 text-emerald-400">• {members.length} members</span>
                   )}
                 </p>
               </div>
             </div>
-            
+
             <div className="flex items-center gap-2">
+
+              {/* Memory Button */}
+              <Button variant="outline" onClick={openMemoryDialog} data-testid="project-memory-btn">
+                <Brain className="mr-2 h-4 w-4 text-violet-400" />
+                Memory
+              </Button>
+
               {/* Share Button */}
               <Dialog open={shareDialogOpen} onOpenChange={setShareDialogOpen}>
                 <DialogTrigger asChild>
@@ -345,41 +337,21 @@ const ProjectPage = () => {
                 <DialogContent className="sm:max-w-xl w-[95vw]">
                   <DialogHeader>
                     <DialogTitle>Share Project</DialogTitle>
-                    <DialogDescription>
-                      Invite team members to collaborate on this project.
-                    </DialogDescription>
+                    <DialogDescription>Invite team members to collaborate on this project.</DialogDescription>
                   </DialogHeader>
-                  
-                  {/* Add member by email */}
+
                   <div className="flex gap-2 pt-4">
-                    <Input
-                      placeholder="Enter email address"
-                      value={shareEmail}
-                      onChange={(e) => setShareEmail(e.target.value)}
-                      onKeyDown={(e) => e.key === 'Enter' && shareProject()}
-                      className="flex-1"
-                      data-testid="share-email-input"
-                    />
-                    <select
-                      value={shareRole}
-                      onChange={(e) => setShareRole(e.target.value)}
-                      className="w-28 px-2 py-1 rounded-md border border-input bg-background text-sm"
-                      data-testid="share-role-select"
-                    >
+                    <Input placeholder="Enter email address" value={shareEmail} onChange={(e) => setShareEmail(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && shareProject()} className="flex-1" data-testid="share-email-input" />
+                    <select value={shareRole} onChange={(e) => setShareRole(e.target.value)} className="w-28 px-2 py-1 rounded-md border border-input bg-background text-sm" data-testid="share-role-select">
                       <option value="viewer">Viewer</option>
                       <option value="editor">Editor</option>
                       {isOwner && <option value="manager">Manager</option>}
                     </select>
-                    <Button 
-                      onClick={shareProject}
-                      disabled={isSharing}
-                      data-testid="share-btn"
-                    >
+                    <Button onClick={shareProject} disabled={isSharing} data-testid="share-btn">
                       {isSharing ? <div className="spinner" /> : 'Add'}
                     </Button>
                   </div>
 
-                  {/* Role Legend */}
                   <div className="flex flex-wrap gap-3 pb-2 text-xs text-muted-foreground">
                     {Object.entries(ROLES).map(([key, { label, icon: Icon, color, description }]) => (
                       <div key={key} className="flex items-center gap-1">
@@ -389,8 +361,7 @@ const ProjectPage = () => {
                       </div>
                     ))}
                   </div>
-                  
-                  {/* Available users to share with */}
+
                   {allUsers.length > 0 && (
                     <div className="space-y-2 mt-4">
                       <Label>Available Users</Label>
@@ -398,27 +369,20 @@ const ProjectPage = () => {
                         {isLoadingUsers ? (
                           <div className="text-center py-2"><div className="spinner" /></div>
                         ) : (
-                          allUsers
-                            .filter(u => !members.find(m => m.id === u.id))
-                            .map((u) => (
-                              <div 
-                                key={u.id} 
-                                className="flex items-center justify-between py-2 px-3 bg-secondary/50 rounded-lg hover:bg-secondary cursor-pointer transition-colors"
-                                onClick={() => !isSharing && shareWithUser(u.email, shareRole)}
-                                data-testid={`share-user-${u.id}`}
-                              >
-                                <div className="flex items-center gap-3">
-                                  <div className="w-7 h-7 rounded-full bg-gradient-to-br from-blue-500 to-cyan-500 flex items-center justify-center text-white text-xs font-medium">
-                                    {u.email?.charAt(0).toUpperCase()}
-                                  </div>
-                                  <span className="text-sm">{u.email}</span>
+                          allUsers.filter(u => !members.find(m => m.id === u.id)).map((u) => (
+                            <div key={u.id} className="flex items-center justify-between py-2 px-3 bg-secondary/50 rounded-lg hover:bg-secondary cursor-pointer transition-colors" onClick={() => !isSharing && shareWithUser(u.email, shareRole)} data-testid={`share-user-${u.id}`}>
+                              <div className="flex items-center gap-3">
+                                <div className="w-7 h-7 rounded-full bg-gradient-to-br from-blue-500 to-cyan-500 flex items-center justify-center text-white text-xs font-medium">
+                                  {u.email?.charAt(0).toUpperCase()}
                                 </div>
-                                <div className="flex items-center gap-2">
-                                  <span className="text-xs text-muted-foreground">{ROLES[shareRole]?.label}</span>
-                                  <Plus className="h-4 w-4 text-muted-foreground" />
-                                </div>
+                                <span className="text-sm">{u.email}</span>
                               </div>
-                            ))
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs text-muted-foreground">{ROLES[shareRole]?.label}</span>
+                                <Plus className="h-4 w-4 text-muted-foreground" />
+                              </div>
+                            </div>
+                          ))
                         )}
                         {!isLoadingUsers && allUsers.filter(u => !members.find(m => m.id === u.id)).length === 0 && (
                           <p className="text-sm text-muted-foreground text-center py-2">All users already have access</p>
@@ -426,15 +390,13 @@ const ProjectPage = () => {
                       </div>
                     </div>
                   )}
-                  
-                  {/* Current members list */}
+
                   <div className="space-y-2 mt-4">
                     <Label>Members ({members.length})</Label>
                     <div className="space-y-2 max-h-[200px] overflow-y-auto">
                       {members.map((member) => {
                         const roleConfig = ROLES[member.role] || {};
                         const RoleIcon = roleConfig.icon || Shield;
-                        
                         return (
                           <div key={member.id} className="flex items-center justify-between py-2 px-3 bg-secondary rounded-lg gap-2">
                             <div className="flex items-center gap-3 min-w-0 flex-1">
@@ -451,37 +413,18 @@ const ProjectPage = () => {
                             </div>
                             {member.role !== 'owner' && isOwner && (
                               <div className="flex items-center gap-1 flex-shrink-0">
-                                {/* Role selector */}
-                                <select
-                                  value={member.role}
-                                  onChange={(e) => updateMemberRole(member.id, e.target.value)}
-                                  disabled={isUpdatingRole === member.id}
-                                  className="h-7 px-2 text-xs rounded border border-input bg-background"
-                                  data-testid={`role-select-${member.id}`}
-                                >
+                                <select value={member.role} onChange={(e) => updateMemberRole(member.id, e.target.value)} disabled={isUpdatingRole === member.id} className="h-7 px-2 text-xs rounded border border-input bg-background" data-testid={`role-select-${member.id}`}>
                                   <option value="viewer">Viewer</option>
                                   <option value="editor">Editor</option>
                                   <option value="manager">Manager</option>
                                 </select>
                                 {chats.length > 0 && (
-                                  <Button
-                                    variant="outline"
-                                    size="sm"
-                                    className="h-7 text-xs px-2"
-                                    onClick={() => openChatVisibilityForMember(member)}
-                                    data-testid={`manage-chats-${member.id}`}
-                                  >
+                                  <Button variant="outline" size="sm" className="h-7 text-xs px-2" onClick={() => openChatVisibilityForMember(member)} data-testid={`manage-chats-${member.id}`}>
                                     <MessageSquare className="h-3 w-3 mr-1" />
                                     Chats
                                   </Button>
                                 )}
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  className="h-7 w-7 text-destructive hover:text-destructive"
-                                  onClick={() => removeMember(member.id)}
-                                  data-testid={`remove-member-${member.id}`}
-                                >
+                                <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive" onClick={() => removeMember(member.id)} data-testid={`remove-member-${member.id}`}>
                                   <X className="h-4 w-4" />
                                 </Button>
                               </div>
@@ -493,7 +436,7 @@ const ProjectPage = () => {
                   </div>
                 </DialogContent>
               </Dialog>
-              
+
               {/* Chat Visibility Dialog */}
               <Dialog open={!!selectedMemberForChats} onOpenChange={(open) => !open && setSelectedMemberForChats(null)}>
                 <DialogContent className="sm:max-w-lg">
@@ -503,32 +446,18 @@ const ProjectPage = () => {
                       Select which chats <span className="font-medium">{selectedMemberForChats?.email?.split('@')[0]}</span> can see.
                     </DialogDescription>
                   </DialogHeader>
-                  
                   <div className="space-y-3 py-4 max-h-[300px] overflow-y-auto">
                     {chats.map((chat) => (
-                      <div 
-                        key={chat.id} 
-                        className="flex items-center gap-3 p-3 rounded-lg border border-border hover:bg-secondary/50 cursor-pointer transition-colors"
-                        onClick={() => toggleChatVisibility(chat.id)}
-                      >
-                        <Checkbox
-                          checked={chatVisibility[chat.id] || false}
-                          onCheckedChange={() => toggleChatVisibility(chat.id)}
-                          data-testid={`chat-visibility-${chat.id}`}
-                        />
+                      <div key={chat.id} className="flex items-center gap-3 p-3 rounded-lg border border-border hover:bg-secondary/50 cursor-pointer transition-colors" onClick={() => toggleChatVisibility(chat.id)}>
+                        <Checkbox checked={chatVisibility[chat.id] || false} onCheckedChange={() => toggleChatVisibility(chat.id)} data-testid={`chat-visibility-${chat.id}`} />
                         <MessageSquare className="h-4 w-4 text-muted-foreground" />
                         <span className="text-sm flex-1">{chat.name}</span>
                       </div>
                     ))}
-                    {chats.length === 0 && (
-                      <p className="text-sm text-muted-foreground text-center py-4">No chats in this project</p>
-                    )}
+                    {chats.length === 0 && <p className="text-sm text-muted-foreground text-center py-4">No chats in this project</p>}
                   </div>
-                  
                   <DialogFooter>
-                    <Button variant="outline" onClick={() => setSelectedMemberForChats(null)}>
-                      Cancel
-                    </Button>
+                    <Button variant="outline" onClick={() => setSelectedMemberForChats(null)}>Cancel</Button>
                     <Button onClick={saveChatVisibility} disabled={isUpdatingVisibility}>
                       {isUpdatingVisibility ? <div className="spinner mr-2" /> : null}
                       Save
@@ -536,7 +465,7 @@ const ProjectPage = () => {
                   </DialogFooter>
                 </DialogContent>
               </Dialog>
-              
+
               {/* New Chat Button */}
               <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
                 <DialogTrigger asChild>
@@ -548,46 +477,89 @@ const ProjectPage = () => {
                 <DialogContent className="sm:max-w-md">
                   <DialogHeader>
                     <DialogTitle>Create New Chat</DialogTitle>
-                    <DialogDescription>
-                      Start a new conversation in this project.
-                    </DialogDescription>
+                    <DialogDescription>Start a new conversation in this project.</DialogDescription>
                   </DialogHeader>
                   <div className="space-y-4 py-4">
                     <div className="space-y-2">
                       <Label htmlFor="chatName">Chat Name (optional)</Label>
-                      <Input
-                        id="chatName"
-                        placeholder="New Chat"
-                        value={newChatName}
-                        onChange={(e) => setNewChatName(e.target.value)}
-                        onKeyDown={(e) => e.key === 'Enter' && createChat()}
-                        data-testid="chat-name-input"
-                      />
+                      <Input id="chatName" placeholder="New Chat" value={newChatName} onChange={(e) => setNewChatName(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && createChat()} data-testid="chat-name-input" />
                     </div>
                   </div>
                   <DialogFooter>
-                    <Button
-                      variant="outline"
-                      onClick={() => setIsDialogOpen(false)}
-                    >
-                      Cancel
-                    </Button>
-                    <Button
-                      onClick={createChat}
-                      disabled={isCreating}
-                      data-testid="confirm-create-chat-btn"
-                    >
+                    <Button variant="outline" onClick={() => setIsDialogOpen(false)}>Cancel</Button>
+                    <Button onClick={createChat} disabled={isCreating} data-testid="confirm-create-chat-btn">
                       {isCreating ? <div className="spinner mr-2" /> : null}
                       Create Chat
                     </Button>
                   </DialogFooter>
                 </DialogContent>
               </Dialog>
+
+              {/* Memory Dialog */}
+              <Dialog open={memoryDialogOpen} onOpenChange={setMemoryDialogOpen}>
+                <DialogContent className="sm:max-w-lg">
+                  <DialogHeader>
+                    <DialogTitle className="flex items-center gap-2">
+                      <Brain className="h-5 w-5 text-violet-400" />
+                      Project Memory
+                    </DialogTitle>
+                    <DialogDescription>
+                      Этот текст автоматически передаётся AI в начале каждого чата этого проекта
+                    </DialogDescription>
+                  </DialogHeader>
+
+                  {isLoadingMemory ? (
+                    <div className="flex items-center justify-center py-10">
+                      <Loader2 className="h-8 w-8 animate-spin text-violet-400" />
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      <Textarea
+                        value={projectMemory}
+                        onChange={(e) => setProjectMemory(e.target.value)}
+                        placeholder="Например: Этот проект — о разработке мобильного приложения для Planet Fibers. Основной язык — русский. Команда использует Agile..."
+                        className="min-h-[200px] resize-none text-sm"
+                      />
+                      <div className={`flex items-center justify-between text-xs px-1 ${
+                        isOverLimit ? 'text-red-400' : isNearLimit ? 'text-amber-400' : 'text-muted-foreground'
+                      }`}>
+                        <span>{charCount} символов</span>
+                        <span className={`font-medium ${isOverLimit ? 'text-red-400' : ''}`}>
+                          ~{tokenApprox} / 1500 токенов
+                        </span>
+                      </div>
+                      {isOverLimit && (
+                        <p className="text-xs text-red-400 px-1">⚠️ Лимит превышен — сократите текст</p>
+                      )}
+                      {!projectMemory && (
+                        <p className="text-xs text-muted-foreground px-1">
+                          💡 Memory пуста — AI не получает дополнительного контекста
+                        </p>
+                      )}
+                    </div>
+                  )}
+
+                  <DialogFooter className="gap-2">
+                    <Button variant="outline" onClick={() => setMemoryDialogOpen(false)} disabled={isSavingMemory}>
+                      Отмена
+                    </Button>
+                    <Button
+                      onClick={saveMemory}
+                      disabled={isSavingMemory || isLoadingMemory || isOverLimit}
+                      className="gap-2 bg-violet-600 hover:bg-violet-700"
+                    >
+                      {isSavingMemory ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+                      Сохранить
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
+
             </div>
           </div>
         </div>
 
-        {/* Chats List with 5px padding */}
+        {/* Chats List */}
         <div className="p-[5px]">
           {chats.length === 0 ? (
             <Card className="border-dashed">
@@ -596,9 +568,7 @@ const ProjectPage = () => {
                   <MessageSquare className="h-8 w-8 text-muted-foreground" />
                 </div>
                 <h3 className="text-lg font-semibold mb-2">No chats yet</h3>
-                <p className="text-muted-foreground text-center mb-4">
-                  Start a new conversation with the AI assistant
-                </p>
+                <p className="text-muted-foreground text-center mb-4">Start a new conversation with the AI assistant</p>
                 <Button onClick={() => setIsDialogOpen(true)}>
                   <Plus className="mr-2 h-4 w-4" />
                   New Chat
@@ -608,13 +578,7 @@ const ProjectPage = () => {
           ) : (
             <div className="space-y-3">
               {chats.map((chat, index) => (
-                <Card
-                  key={chat.id}
-                  className="card-hover cursor-pointer group"
-                  onClick={() => navigate(`/chats/${chat.id}`)}
-                  style={{ animationDelay: `${index * 50}ms` }}
-                  data-testid={`chat-card-${chat.id}`}
-                >
+                <Card key={chat.id} className="card-hover cursor-pointer group" onClick={() => navigate(`/chats/${chat.id}`)} style={{ animationDelay: `${index * 50}ms` }} data-testid={`chat-card-${chat.id}`}>
                   <CardContent className="py-4">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-4">
@@ -629,18 +593,11 @@ const ProjectPage = () => {
                           </div>
                         </div>
                       </div>
-                      
                       <div className="flex items-center gap-2">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className=" h-8 w-8"
-                          onClick={(e) => deleteChat(chat.id, e)}
-                          data-testid={`delete-chat-${chat.id}`}
-                        >
+                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={(e) => deleteChat(chat.id, e)} data-testid={`delete-chat-${chat.id}`}>
                           <Trash2 className="h-4 w-4 text-destructive" />
                         </Button>
-                        <ArrowRight className="h-4 w-4 text-muted-foreground " />
+                        <ArrowRight className="h-4 w-4 text-muted-foreground" />
                       </div>
                     </div>
                   </CardContent>

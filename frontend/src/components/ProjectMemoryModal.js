@@ -46,41 +46,30 @@ const ProjectMemoryModal = ({ open, onClose, chatId, projectId, messages }) => {
     }
   };
 
-  const extractPoints = async () => {
-    try {
-      const dialogText = messages
-        .slice(-30)
-        .map(m => `${m.role === 'user' ? 'User' : 'AI'}: ${m.content}`)
-        .join('\n\n');
+const extractPoints = async () => {
+  try {
+    const dialogText = messages
+      .slice(-30)
+      .map(m => `${m.role === 'user' ? 'User' : 'AI'}: ${m.content}`)
+      .join('\n\n');
 
-      if (!dialogText || dialogText.length < 20) {
-        setPoints([]);
-        setStep('selecting');
-        return;
-      }
-
-      const response = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          model: 'claude-sonnet-4-20250514',
-          max_tokens: 1000,
-          system: 'Extract key facts, decisions, and context from this conversation. Return ONLY a JSON array of strings (max 10 items). Each item max 100 chars. No preamble, no markdown, pure JSON array.',
-          messages: [{ role: 'user', content: dialogText }]
-        })
-      });
-
-      const data = await response.json();
-      const text = data.content?.[0]?.text?.trim() || '[]';
-      const clean = text.replace(/```json|```/g, '').trim();
-      const extracted = JSON.parse(clean);
-      setPoints(Array.isArray(extracted) ? extracted.slice(0, 10) : []);
-      setStep('selecting');
-    } catch (e) {
+    if (!dialogText || dialogText.length < 20) {
       setPoints([]);
       setStep('selecting');
+      return;
     }
-  };
+
+    const response = await axios.post(`${API}/chats/${chatId}/extract-memory-points`, {
+      dialogText
+    });
+
+    setPoints(response.data.points || []);
+    setStep('selecting');
+  } catch (e) {
+    setPoints([]);
+    setStep('selecting');
+  }
+};
 
   const togglePoint = (idx) => {
     setSelected(prev =>
