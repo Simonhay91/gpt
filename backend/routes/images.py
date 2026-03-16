@@ -1,12 +1,13 @@
 """Image generation routes"""
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, UploadFile, File, Form
 from fastapi.responses import FileResponse
-from typing import List
+from typing import List, Optional
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
 import uuid
 import aiofiles
 import httpx
+import io
 
 from models.schemas import ImageGenerateRequest, GeneratedImageResponse
 from middleware.auth import get_current_user
@@ -37,13 +38,22 @@ async def check_image_rate_limit(user_id: str) -> bool:
     return count < IMAGE_RATE_LIMIT_PER_HOUR
 
 
+def get_openai_client():
+    import os
+    from openai import OpenAI
+    OPENAI_API_KEY = os.environ.get('OPENAI_API_KEY', '')
+    if not OPENAI_API_KEY:
+        raise HTTPException(status_code=500, detail="OpenAI API key not configured")
+    return OpenAI(api_key=OPENAI_API_KEY)
+
+
 @router.post("/projects/{project_id}/generate-image", response_model=GeneratedImageResponse)
 async def generate_image(
     project_id: str,
     request: ImageGenerateRequest,
     current_user: dict = Depends(get_current_user)
 ):
-    """Generate an AI image using OpenAI's gpt-image-1 model"""
+    """Generate an AI image using OpenAI's DALL-E 3 model"""
     db = get_db()
     await verify_project_ownership(project_id, current_user["id"])
     
@@ -63,18 +73,11 @@ async def generate_image(
             detail=f"Rate limit exceeded. Maximum {IMAGE_RATE_LIMIT_PER_HOUR} images per hour."
         )
     
-    import os
-    from openai import OpenAI
-    
-    OPENAI_API_KEY = os.environ.get('OPENAI_API_KEY', '')
-    openai_client = OpenAI(api_key=OPENAI_API_KEY) if OPENAI_API_KEY else None
-    
-    if not openai_client:
-        raise HTTPException(status_code=500, detail="OpenAI API key not configured")
+    openai_client = get_openai_client()
     
     try:
         response = openai_client.images.generate(
-            model="gpt-image-1",
+            model="dall-e-3",
             prompt=request.prompt,
             size=size,
             n=1
@@ -122,6 +125,202 @@ async def generate_image(
         
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to generate image: {str(e)[:100]}")
+
+
+@router.post("/projects/{project_id}/resize-image", response_model=GeneratedImageResponse)
+async def resize_image(
+    project_id: str,
+    file: UploadFile = File(...),
+    width: int = Form(...),
+    height: int = Form(...),
+    current_user: dict = Depends(get_current_user)
+):
+    """Resize an uploaded image using Pillow"""
+    from PIL import Image as PILImage
+    db = get_db()
+    await verify_project_ownership(project_id, current_user["id"])
+
+    if width <= 0 or height <= 0 or width > 8000 or height > 8000:
+        raise HTTPException(status_code=400, detail="Width and height must be between 1 and 8000")
+
+    try:
+        contents = await file.read()
+        img = PILImage.open(io.BytesIO(contents)).convert("RGBA")
+        img_resized = img.resize((width, height), PILImage.LANCZOS)
+
+        image_id = str(uuid.uuid4())
+        image_filename = f"{image_id}.png"
+        image_path = IMAGES_DIR / image_filename
+
+        img_resized.save(str(image_path), format="PNG")
+
+        image_doc = {
+            "id": image_id,
+            "projectId": project_id,
+            "userId": current_user["id"],
+            "prompt": f"Resized to {width}x{height}",
+            "imagePath": image_filename,
+            "size": f"{width}x{height}",
+            "createdAt": datetime.now(timezone.utc).isoformat()
+        }
+        await db.generated_images.insert_one(image_doc)
+
+        return GeneratedImageResponse(
+            id=image_id,
+            projectId=project_id,
+            prompt=f"Resized to {width}x{height}",
+            imagePath=image_filename,
+            imageUrl=f"/api/images/{image_id}",
+            size=f"{width}x{height}",
+            createdAt=image_doc["createdAt"]
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to resize image: {str(e)[:100]}")
+
+
+@router.post("/projects/{project_id}/edit-image", response_model=GeneratedImageResponse)
+async def edit_image(
+    project_id: str,
+    file: UploadFile = File(...),
+    prompt: str = Form(...),
+    current_user: dict = Depends(get_current_user)
+):
+    """Edit an image using DALL-E 2 inpainting"""
+    from PIL import Image as PILImage
+    db = get_db()
+    await verify_project_ownership(project_id, current_user["id"])
+
+    if not await check_image_rate_limit(current_user["id"]):
+        raise HTTPException(
+            status_code=429,
+            detail=f"Rate limit exceeded. Maximum {IMAGE_RATE_LIMIT_PER_HOUR} images per hour."
+        )
+
+    if not prompt or len(prompt.strip()) < 3:
+        raise HTTPException(status_code=400, detail="Prompt must be at least 3 characters")
+
+    openai_client = get_openai_client()
+
+    try:
+        contents = await file.read()
+
+        # DALL-E 2 edit requires square 1024x1024 PNG with RGBA
+        img = PILImage.open(io.BytesIO(contents)).convert("RGBA")
+        min_side = min(img.size)
+        img = img.crop((0, 0, min_side, min_side))
+        img = img.resize((1024, 1024), PILImage.LANCZOS)
+
+        img_bytes = io.BytesIO()
+        img.save(img_bytes, format="PNG")
+        img_bytes.seek(0)
+
+        response = openai_client.images.edit(
+            model="dall-e-2",
+            image=("image.png", img_bytes, "image/png"),
+            prompt=prompt,
+            n=1,
+            size="1024x1024"
+        )
+
+        image_data = response.data[0]
+
+        if hasattr(image_data, 'b64_json') and image_data.b64_json:
+            import base64
+            image_bytes_out = base64.b64decode(image_data.b64_json)
+        elif hasattr(image_data, 'url') and image_data.url:
+            async with httpx.AsyncClient(timeout=60.0, verify=False) as http_client:
+                img_response = await http_client.get(image_data.url)
+                image_bytes_out = img_response.content
+        else:
+            raise HTTPException(status_code=500, detail="No image data returned from OpenAI")
+
+        image_id = str(uuid.uuid4())
+        image_filename = f"{image_id}.png"
+        image_path = IMAGES_DIR / image_filename
+
+        async with aiofiles.open(image_path, 'wb') as f:
+            await f.write(image_bytes_out)
+
+        image_doc = {
+            "id": image_id,
+            "projectId": project_id,
+            "userId": current_user["id"],
+            "prompt": prompt,
+            "imagePath": image_filename,
+            "size": "1024x1024",
+            "createdAt": datetime.now(timezone.utc).isoformat()
+        }
+        await db.generated_images.insert_one(image_doc)
+
+        return GeneratedImageResponse(
+            id=image_id,
+            projectId=project_id,
+            prompt=prompt,
+            imagePath=image_filename,
+            imageUrl=f"/api/images/{image_id}",
+            size="1024x1024",
+            createdAt=image_doc["createdAt"]
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to edit image: {str(e)[:100]}")
+
+
+@router.post("/projects/{project_id}/upscale-image", response_model=GeneratedImageResponse)
+async def upscale_image(
+    project_id: str,
+    file: UploadFile = File(...),
+    scale: int = Form(2),
+    current_user: dict = Depends(get_current_user)
+):
+    """Upscale an image using Pillow (2x or 4x)"""
+    from PIL import Image as PILImage
+    db = get_db()
+    await verify_project_ownership(project_id, current_user["id"])
+
+    if scale not in [2, 4]:
+        raise HTTPException(status_code=400, detail="Scale must be 2 or 4")
+
+    try:
+        contents = await file.read()
+        img = PILImage.open(io.BytesIO(contents)).convert("RGBA")
+        new_width = img.width * scale
+        new_height = img.height * scale
+
+        if new_width > 8000 or new_height > 8000:
+            raise HTTPException(status_code=400, detail="Resulting image too large. Max 8000px per side.")
+
+        img_upscaled = img.resize((new_width, new_height), PILImage.LANCZOS)
+
+        image_id = str(uuid.uuid4())
+        image_filename = f"{image_id}.png"
+        image_path = IMAGES_DIR / image_filename
+
+        img_upscaled.save(str(image_path), format="PNG")
+
+        image_doc = {
+            "id": image_id,
+            "projectId": project_id,
+            "userId": current_user["id"],
+            "prompt": f"Upscaled {scale}x to {new_width}x{new_height}",
+            "imagePath": image_filename,
+            "size": f"{new_width}x{new_height}",
+            "createdAt": datetime.now(timezone.utc).isoformat()
+        }
+        await db.generated_images.insert_one(image_doc)
+
+        return GeneratedImageResponse(
+            id=image_id,
+            projectId=project_id,
+            prompt=f"Upscaled {scale}x to {new_width}x{new_height}",
+            imagePath=image_filename,
+            imageUrl=f"/api/images/{image_id}",
+            size=f"{new_width}x{new_height}",
+            createdAt=image_doc["createdAt"]
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to upscale image: {str(e)[:100]}")
 
 
 @router.get("/images/{image_id}")

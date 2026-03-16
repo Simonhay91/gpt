@@ -367,11 +367,22 @@ async def send_message(chat_id: str, message_data: MessageCreate, current_user: 
             tokens_used = 0
             from_cache = True
         else:
-            system_parts = [config["developerPrompt"]]
+            # system_parts = [config["developerPrompt"]]
             
+            # if user_custom_prompt:
+            #     system_parts.append(f"USER INSTRUCTIONS:\n{user_custom_prompt}")
+            
+            system_parts = [config["developerPrompt"]]
+
+            # Inject project memory
+            if project_id:
+                project_doc = await db.projects.find_one({"id": project_id}, {"_id": 0})
+                if project_doc and project_doc.get("project_memory"):
+                    system_parts.append(f"PROJECT CONTEXT (important background):\n{project_doc['project_memory']}")
+
             if user_custom_prompt:
                 system_parts.append(f"USER INSTRUCTIONS:\n{user_custom_prompt}")
-            
+                        
             if document_context:
                 active_sources_list = ", ".join(active_source_names) if active_source_names else "None"
                 chunks_count = len(citations) if citations else 0

@@ -841,7 +841,7 @@ const ChatPage = () => {
     
     const syncActiveSources = async () => {
       try {
-        await axios.put(`${API}/chats/${chatId}/active-sources`, {
+        await axios.post(`${API}/chats/${chatId}/active-sources`, {
           sourceIds: activeSourceIds
         });
       } catch (error) {

@@ -1077,3 +1077,16 @@ PUT    /api/user/prompt
 **Document Version:** 1.6
 **Last Updated:** 2026-03-12
 **Author:** Planet Knowledge Team
+
+## 17. Session Updates (2026-03-16)
+
+### RAG Pipeline — Semantic Search Implementation
+
+**Changes:**
+- `services/rag.py` — replaced keyword search with cosine similarity
+- `services/rag.py` — OpenAI embeddings replaced with **Voyage AI** (`voyage-3`)
+- `routes/sources.py` — embeddings now generated on file upload (3 endpoints)
+- `frontend/ChatPage.js` — fixed `PUT → POST` for active-sources (405 bug)
+- `migrate_embeddings.py` — migration script for existing chunks
+
+**Result:** Semantic RAG pipeline fully operational in production ✅

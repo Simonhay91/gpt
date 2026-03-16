@@ -34,6 +34,7 @@ from services.file_processor import (
     chunk_text,
     chunk_tabular_text
 )
+from services.rag import get_embedding
 
 router = APIRouter(prefix="/api", tags=["sources"])
 
@@ -68,7 +69,6 @@ async def get_all_user_sources(current_user: dict = Depends(get_current_user)):
     user_id = current_user["id"]
     user_dept_ids = current_user.get("departments", [])
     
-    # Get user's projects
     projects = await db.projects.find(
         {"$or": [
             {"ownerId": user_id},
@@ -78,7 +78,6 @@ async def get_all_user_sources(current_user: dict = Depends(get_current_user)):
     ).to_list(1000)
     project_ids = [p["id"] for p in projects]
     
-    # Query sources from projects, departments, and global
     query = {
         "$or": [
             {"projectId": {"$in": project_ids}},
@@ -166,12 +165,14 @@ async def upload_source(
     await db.sources.insert_one(source_doc)
     
     for i, chunk_content in enumerate(chunks):
+        embedding = await get_embedding(chunk_content)
         chunk_doc = {
             "id": str(uuid.uuid4()),
             "sourceId": source_id,
             "projectId": project_id,
             "chunkIndex": i,
             "content": chunk_content,
+            "embedding": embedding,
             "createdAt": datetime.now(timezone.utc).isoformat()
         }
         await db.source_chunks.insert_one(chunk_doc)
@@ -266,12 +267,14 @@ async def upload_multiple_sources(
             await db.sources.insert_one(source_doc)
             
             for i, chunk_content in enumerate(chunks):
+                embedding = await get_embedding(chunk_content)
                 chunk_doc = {
                     "id": str(uuid.uuid4()),
                     "sourceId": source_id,
                     "projectId": project_id,
                     "chunkIndex": i,
                     "content": chunk_content,
+                    "embedding": embedding,
                     "createdAt": datetime.now(timezone.utc).isoformat()
                 }
                 await db.source_chunks.insert_one(chunk_doc)
@@ -347,12 +350,14 @@ async def add_url_source(
     await db.sources.insert_one(source_doc)
     
     for i, chunk_content in enumerate(chunks):
+        embedding = await get_embedding(chunk_content)
         chunk_doc = {
             "id": str(uuid.uuid4()),
             "sourceId": source_id,
             "projectId": project_id,
             "chunkIndex": i,
             "content": chunk_content,
+            "embedding": embedding,
             "createdAt": datetime.now(timezone.utc).isoformat()
         }
         await db.source_chunks.insert_one(chunk_doc)
@@ -649,7 +654,6 @@ async def get_source_chunks(source_id: str, current_user: dict = Depends(get_cur
     if not source:
         raise HTTPException(status_code=404, detail="Source not found")
     
-    # Check access based on source level
     source_level = source.get("level", "project")
     
     if source_level == "personal":
@@ -660,9 +664,8 @@ async def get_source_chunks(source_id: str, current_user: dict = Depends(get_cur
         if source.get("departmentId") not in user_departments:
             raise HTTPException(status_code=403, detail="Access denied")
     elif source_level == "global":
-        pass  # Everyone can access global sources
+        pass
     else:
-        # Project source - check project access
         project_id = source.get("projectId")
         if project_id and project_id != GLOBAL_PROJECT_ID:
             try:
@@ -670,7 +673,6 @@ async def get_source_chunks(source_id: str, current_user: dict = Depends(get_cur
             except HTTPException:
                 raise HTTPException(status_code=403, detail="Access denied")
     
-    # Get all chunks for this source
     chunks = await db.source_chunks.find(
         {"sourceId": source_id},
         {"_id": 0}
