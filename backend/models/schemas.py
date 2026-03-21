@@ -113,6 +113,10 @@ class MessageCreate(BaseModel):
     content: str
 
 
+class MessageEditRequest(BaseModel):
+    content: str
+
+
 class EnhancedCitation(BaseModel):
     """Enhanced citation with full context"""
     sourceId: str
