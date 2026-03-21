@@ -1408,6 +1408,9 @@ Assistant: Пожалуйста! Если у тебя будут еще вопр
             # Test Save Context endpoint (updated version)
             self.test_save_context_endpoint_updated()
             
+            # Test Brave Search Integration
+            self.test_brave_search_integration()
+            
             # Test Image Generation functionality
             self.test_image_generation_crud()
             self.test_image_rate_limiting()
