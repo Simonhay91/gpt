@@ -625,7 +625,7 @@ const ChatPage = () => {
       
       // Send new message to get AI response
       setTimeout(() => {
-        handleSendMessage();
+        sendMessage();
       }, 500);
 
     } catch (error) {
