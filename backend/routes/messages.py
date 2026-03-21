@@ -1020,7 +1020,8 @@ async def extract_memory_points(chat_id: str, data: dict, current_user: dict = D
         return {"points": []}
 
     try:
-        import anthropic, os
+        import anthropic
+        import os
         claude_client = anthropic.Anthropic(api_key=os.environ.get('CLAUDE_API_KEY', ''))
         response = claude_client.messages.create(
             model="claude-sonnet-4-20250514",
