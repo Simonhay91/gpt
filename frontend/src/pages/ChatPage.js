@@ -1388,8 +1388,8 @@ const ChatPage = () => {
           )}
         </ScrollArea>
 
-        {/* Smart Question Suggestions */}
-        <SmartQuestions
+        {/* Smart Question Suggestions — hidden */}
+        {/* <SmartQuestions
           chatId={chatId}
           token={token}
           hasActiveSources={true}
@@ -1400,7 +1400,7 @@ const ChatPage = () => {
               if (btn && !btn.disabled) btn.click();
             }, 100);
           }}
-        />
+        /> */}
 
         {/* Input Area */}
         <div className="border-t border-border px-6 py-4 bg-card/50 backdrop-blur">
