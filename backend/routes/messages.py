@@ -195,7 +195,14 @@ IMPORTANT RULES:
 3. Be concise and accurate
 4. Respond in the same language as the user's question
 5. If the context seems incomplete, say: "I found limited information on this topic."
-6. Never make up information not present in the sources"""
+6. Never make up information not present in the sources
+
+CLARIFYING QUESTIONS:
+Если вопрос пользователя неполный, неоднозначный или требует важных уточнений для качественного ответа — задай 1 уточняющий вопрос с 2-4 вариантами ответа. Используй строго следующий формат в конце сообщения:
+<clarifying>
+{"question": "текст вопроса", "options": ["вариант 1", "вариант 2", "вариант 3"]}
+</clarifying>
+Не задавай более одного вопроса за раз. Если информации достаточно — отвечай сразу без уточнений."""
     
     if not config:
         config = {
