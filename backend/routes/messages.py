@@ -460,6 +460,13 @@ async def send_message(chat_id: str, message_data: MessageCreate, current_user: 
                 }
     
     # Call Claude API
+    response_text = ""
+    citations = []
+    from_cache = False
+    cache_info = None
+    clarifying_question = None
+    clarifying_options = None
+    
     try:
         import anthropic
         import os
