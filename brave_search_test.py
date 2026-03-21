@@ -242,9 +242,11 @@ class BraveSearchTester:
         print("\n🔍 Checking Backend Logs for Brave Search Activity...")
         
         try:
-            # Check for Brave Search logs
+            # Check both output and error logs
             import subprocess
-            result = subprocess.run(['tail', '-n', '100', '/var/log/supervisor/backend.out.log'], 
+            
+            # Check error logs (where INFO logs are written)
+            result = subprocess.run(['tail', '-n', '100', '/var/log/supervisor/backend.err.log'], 
                                   capture_output=True, text=True, timeout=10)
             
             if result.returncode == 0:
@@ -253,12 +255,12 @@ class BraveSearchTester:
                 # Look for Brave Search related logs
                 brave_mentions = []
                 for line in log_content.split('\n'):
-                    if any(keyword in line.lower() for keyword in ['brave', 'web search', 'triggering']):
+                    if any(keyword in line for keyword in ['Triggering Brave Web Search', 'Brave Search returned', 'brave_web_search']):
                         brave_mentions.append(line.strip())
                 
                 if brave_mentions:
                     print(f"   📋 Found {len(brave_mentions)} Brave Search log entries:")
-                    for mention in brave_mentions[-5:]:  # Show last 5
+                    for mention in brave_mentions[-10:]:  # Show last 10
                         print(f"      {mention}")
                     self.log_test("Backend Logs Show Brave Search Activity", True,
                                  f"Found {len(brave_mentions)} log entries")
