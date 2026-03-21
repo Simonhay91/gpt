@@ -388,6 +388,35 @@ async def send_message(chat_id: str, message_data: MessageCreate, current_user: 
             
             document_context = "\n\n---\n\n".join(context_parts)
     
+    # Check if RAG found relevant results (score > 0.7)
+    has_relevant_rag = any(c.get("score", 0) > 0.7 for c in citations)
+    
+    # Brave Web Search integration
+    web_search_results = None
+    web_sources = None
+    
+    if should_use_web_search(message_data.content, has_relevant_rag):
+        logger.info("Triggering Brave Web Search...")
+        web_search_results = await brave_web_search(message_data.content)
+        
+        if web_search_results:
+            web_sources = [{"title": r["title"], "url": r["url"]} for r in web_search_results]
+            
+            # Add web results to context
+            web_context_parts = []
+            for idx, result in enumerate(web_search_results, 1):
+                web_context_parts.append(
+                    f"[Web Result {idx}: {result['title']}]\nURL: {result['url']}\n{result['description']}"
+                )
+            
+            web_context = "\n\n---\n\n".join(web_context_parts)
+            
+            # Append to document_context if exists, or create new
+            if document_context:
+                document_context = f"{document_context}\n\n===== WEB SEARCH RESULTS =====\n\n{web_context}"
+            else:
+                document_context = f"===== WEB SEARCH RESULTS =====\n\n{web_context}"
+    
     # Get user's custom prompt
     user_prompt_doc = await db.user_prompts.find_one({"userId": current_user["id"]}, {"_id": 0})
     user_custom_prompt = user_prompt_doc.get("customPrompt") if user_prompt_doc else None
