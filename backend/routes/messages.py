@@ -268,9 +268,16 @@ async def auto_ingest_url(db, url: str, project_id: str) -> Optional[dict]:
 
 
 async def ensure_gpt_config(db):
-    """Ensure GPT config singleton exists"""
-    config = await db.gpt_config.find_one({"id": "1"}, {"_id": 0})
-    default_prompt = """You are Claude, a helpful AI assistant by Anthropic. Use ONLY the active sources provided in context.
+    """Ensure GPT config singleton exists. Never overwrites existing config."""
+    existing = await db.gpt_config.find_one({}, {"_id": 0})
+    if existing:
+        return existing  # не трогать существующий конфиг
+
+    # Создаём дефолт только если конфига нет вовсе
+    default_config = {
+        "id": "1",
+        "model": "claude-sonnet-4-20250514",
+        "developerPrompt": """You are Claude, a helpful AI assistant by Anthropic. Use ONLY the active sources provided in context.
 
 IMPORTANT RULES:
 1. If no sources available - ask user to upload/activate files
@@ -285,17 +292,11 @@ CLARIFYING QUESTIONS:
 <clarifying>
 {"question": "текст вопроса", "options": ["вариант 1", "вариант 2", "вариант 3"]}
 </clarifying>
-Не задавай более одного вопроса за раз. Если информации достаточно — отвечай сразу без уточнений."""
-    
-    if not config:
-        config = {
-            "id": "1",
-            "model": "claude-sonnet-4-20250514",
-            "developerPrompt": default_prompt,
-            "updatedAt": datetime.now(timezone.utc).isoformat()
-        }
-        await db.gpt_config.insert_one(config)
-    return config
+Не задавай более одного вопроса за раз. Если информации достаточно — отвечай сразу без уточнений.""",
+        "updatedAt": datetime.now(timezone.utc).isoformat()
+    }
+    await db.gpt_config.insert_one(default_config)
+    return default_config
 
 
 @router.get("/chats/{chat_id}/messages", response_model=List[MessageResponse])
