@@ -144,6 +144,7 @@ class MessageResponse(BaseModel):
     web_sources: Optional[List[dict]] = None  # Brave Search results: [{"title": str, "url": str}]
     clarifying_question: Optional[str] = None  # Clarifying question text
     clarifying_options: Optional[List[str]] = None  # Options for clarifying question
+    fetchedUrls: Optional[List[str]] = None  # URLs whose content was fetched and used as context
 
 
 # ==================== SOURCE MODELS ====================

@@ -1305,6 +1305,32 @@ const ChatPage = () => {
                         </div>
                       </div>
                     )}
+
+                    {/* Fetched URL Content Indicator */}
+                    {message.role === 'assistant' && message.fetchedUrls?.length > 0 && (
+                      <div className="mt-2 px-2">
+                        <div className="flex flex-wrap gap-1.5" data-testid="fetched-urls-indicator">
+                          {message.fetchedUrls.map((url, idx) => {
+                            let hostname = url;
+                            try { hostname = new URL(url).hostname; } catch {}
+                            return (
+                              <a
+                                key={idx}
+                                href={url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                title={url}
+                                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-sky-500/10 text-sky-400 text-xs border border-sky-500/20 hover:bg-sky-500/20 transition-colors"
+                                data-testid={`fetched-url-badge-${idx}`}
+                              >
+                                <Link className="h-3 w-3 flex-shrink-0" />
+                                <span className="truncate max-w-[160px]">URL прочитан: {hostname}</span>
+                              </a>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
                     
                     {/* Clarifying Questions Section */}
                     {message.role === 'assistant' && message.clarifying_question && message.clarifying_options?.length > 0 && (

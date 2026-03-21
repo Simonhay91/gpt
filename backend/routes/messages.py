@@ -480,6 +480,7 @@ async def send_message(chat_id: str, message_data: MessageCreate, current_user: 
     
     # Fetch content from URLs mentioned in user message
     fetched_url_count = 0
+    fetched_urls_list = []
     if detected_urls:
         url_context_parts = []
         for url in detected_urls:
@@ -487,6 +488,7 @@ async def send_message(chat_id: str, message_data: MessageCreate, current_user: 
             if fetched_content:
                 url_context_parts.append(f"[URL Content: {url}]\n{fetched_content}")
                 fetched_url_count += 1
+                fetched_urls_list.append(url)
                 logger.info(f"Fetched URL content: {url} ({len(fetched_content)} chars)")
         
         if url_context_parts:
@@ -732,8 +734,9 @@ async def send_message(chat_id: str, message_data: MessageCreate, current_user: 
         "fromCache": from_cache,
         "cacheInfo": cache_info,
         "web_sources": web_sources,
-        "clarifying_question": clarifying_question,  # Add clarifying question
-        "clarifying_options": clarifying_options,  # Add clarifying options
+        "clarifying_question": clarifying_question,
+        "clarifying_options": clarifying_options,
+        "fetchedUrls": fetched_urls_list if fetched_urls_list else None,
         "createdAt": datetime.now(timezone.utc).isoformat()
     }
     await db.messages.insert_one(assistant_message)
