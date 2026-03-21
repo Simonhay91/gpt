@@ -258,7 +258,7 @@ async def send_message(chat_id: str, message_data: MessageCreate, current_user: 
     # Get chat history
     history = await db.messages.find({"chatId": chat_id}, {"_id": 0}).sort("createdAt", 1).to_list(1000)
     history = history[-20:]
-    
+
     # Get relevant chunks and build context
     citations = []
     document_context = ""
@@ -370,7 +370,7 @@ async def send_message(chat_id: str, message_data: MessageCreate, current_user: 
         else:
             # system_parts = [config["developerPrompt"]]
             
-            # if user_custom_prompt:
+            # if user_custom_prompt:s
             #     system_parts.append(f"USER INSTRUCTIONS:\n{user_custom_prompt}")
             
             system_parts = [config["developerPrompt"]]
@@ -379,7 +379,7 @@ async def send_message(chat_id: str, message_data: MessageCreate, current_user: 
             if project_id:
                 project_doc = await db.projects.find_one({"id": project_id}, {"_id": 0})
                 if project_doc and project_doc.get("project_memory"):
-                    system_parts.append(f"PROJECT CONTEXT (important background):\n{project_doc['project_memory']}")
+                    system_parts.append(f"BACKGROUND CONTEXT:\n{project_doc['project_memory']}\n\nUse this context naturally when relevant. Do not mention or reference this context explicitly — just use it to inform your answers.")
 
             if user_custom_prompt:
                 system_parts.append(f"USER INSTRUCTIONS:\n{user_custom_prompt}")
