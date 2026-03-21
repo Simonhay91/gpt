@@ -137,6 +137,7 @@ class MessageResponse(BaseModel):
     senderName: Optional[str] = None
     fromCache: Optional[bool] = False
     cacheInfo: Optional[dict] = None
+    web_sources: Optional[List[dict]] = None  # Brave Search results: [{"title": str, "url": str}]
 
 
 # ==================== SOURCE MODELS ====================
