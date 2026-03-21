@@ -5,8 +5,11 @@ from typing import List
 from datetime import datetime, timezone
 from pathlib import Path
 import uuid
+import logging
 import aiofiles
 import httpx
+
+logger = logging.getLogger(__name__)
 
 from models.schemas import (
     SourceResponse,
@@ -321,24 +324,41 @@ async def add_url_source(
     
     content_type = response.headers.get('content-type', '').lower()
     
-    # More flexible content-type check
-    # Allow HTML, plain text, XML, XHTML, or any text/* content
-    allowed_types = ['text/html', 'text/plain', 'application/xhtml+xml', 'text/xml', 'application/xml']
-    is_text_content = any(allowed in content_type for allowed in allowed_types) or content_type.startswith('text/')
+    # Allow HTML, plain text, XML, and PDF
+    allowed_types = ['text/html', 'text/plain', 'application/xhtml+xml', 'text/xml', 'application/xml', 'application/pdf']
+    is_supported = any(allowed in content_type for allowed in allowed_types) or content_type.startswith('text/')
     
-    # Also try to parse if content-type is missing or ambiguous
-    if not is_text_content and not content_type:
+    # Try to parse if content-type is missing or ambiguous
+    if not is_supported and not content_type:
         logger.warning(f"URL {url} has no content-type header, attempting to parse anyway")
-        is_text_content = True  # Try to parse
+        is_supported = True
     
-    if not is_text_content:
+    if not is_supported:
         raise HTTPException(
             status_code=400, 
-            detail=f"URL must return HTML or text content (got: {content_type})"
+            detail=f"URL must return HTML, text or PDF content (got: {content_type})"
         )
     
-    html_content = response.text
-    extracted_text = extract_text_from_html(html_content)
+    # Extract text depending on content type
+    is_pdf = 'application/pdf' in content_type
+    if is_pdf:
+        from io import BytesIO
+        from pypdf import PdfReader
+        try:
+            pdf_file = BytesIO(response.content)
+            pdf_reader = PdfReader(pdf_file)
+            text_parts = []
+            for page in pdf_reader.pages[:20]:
+                page_text = page.extract_text()
+                if page_text:
+                    text_parts.append(page_text)
+            extracted_text = "\n".join(text_parts)
+        except Exception as e:
+            logger.error(f"PDF extraction failed for {url}: {e}")
+            raise HTTPException(status_code=400, detail="Could not extract text from PDF")
+    else:
+        html_content = response.text
+        extracted_text = extract_text_from_html(html_content)
     
     if not extracted_text or len(extracted_text.strip()) < 10:
         raise HTTPException(status_code=400, detail="Could not extract meaningful text from this URL")
@@ -356,8 +376,8 @@ async def add_url_source(
         "kind": "url",
         "originalName": display_name,
         "url": url,
-        "mimeType": "text/html",
-        "sizeBytes": len(html_content.encode('utf-8')),
+        "mimeType": "application/pdf" if is_pdf else "text/html",
+        "sizeBytes": len(response.content) if is_pdf else len(response.text.encode('utf-8')),
         "storagePath": None,
         "createdAt": datetime.now(timezone.utc).isoformat()
     }
@@ -382,7 +402,7 @@ async def add_url_source(
         kind="url",
         originalName=display_name,
         url=url,
-        mimeType="text/html",
+        mimeType=source_doc["mimeType"],
         sizeBytes=source_doc["sizeBytes"],
         createdAt=source_doc["createdAt"],
         chunkCount=len(chunks)
