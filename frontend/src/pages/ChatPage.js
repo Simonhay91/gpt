@@ -1115,42 +1115,86 @@ const ChatPage = () => {
                       </div>
                     ) : (
                       <div className="group relative">
-                        <div className={`px-4 py-3 rounded-2xl ${message.role === 'user' ? 'bg-primary text-primary-foreground rounded-br-sm' : 'bg-secondary text-secondary-foreground rounded-bl-sm'}`}>
-                          <p className="whitespace-pre-wrap text-sm leading-relaxed">{renderTextWithLinks(message.content)}</p>
-                        </div>
-                        {message.role === 'assistant' && (
-                          <div className="absolute -bottom-1 -right-1 flex gap-1">
-                            <Button variant="ghost" size="icon" className="h-7 w-7 bg-background border border-border shadow-sm"
-                              onClick={async () => {
-                                try {
-                                  await axios.post(`${API}/save-to-knowledge`, { content: message.content, chatId });
-                                  toast.success('Saved to Knowledge ✅');
-                                } catch (err) { toast.error('Failed to save'); }
-                              }}
-                              title="Save to Knowledge" data-testid={`save-message-${index}`}>
-                              <Save className="h-3.5 w-3.5 text-green-500" />
-                            </Button>
-                            <Button variant="ghost" size="icon" className="h-7 w-7 bg-background border border-border shadow-sm"
-                              onClick={async () => {
-                                try {
-                                  await navigator.clipboard.writeText(message.content);
-                                  toast.success('Copied to clipboard');
-                                } catch (err) {
-                                  const textArea = document.createElement('textarea');
-                                  textArea.value = message.content;
-                                  textArea.style.position = 'fixed';
-                                  textArea.style.left = '-9999px';
-                                  document.body.appendChild(textArea);
-                                  textArea.select();
-                                  try { document.execCommand('copy'); toast.success('Copied to clipboard'); }
-                                  catch (e) { toast.error('Failed to copy'); }
-                                  document.body.removeChild(textArea);
-                                }
-                              }}
-                              data-testid={`copy-message-${index}`}>
-                              <Copy className="h-3.5 w-3.5" />
-                            </Button>
+                        {editingMessageId === message.id ? (
+                          // Edit mode
+                          <div className="space-y-2">
+                            <textarea
+                              value={editedContent}
+                              onChange={(e) => setEditedContent(e.target.value)}
+                              className="w-full px-4 py-3 rounded-2xl bg-primary/10 text-foreground border border-primary/20 focus:border-primary focus:outline-none resize-none min-h-[80px]"
+                              autoFocus
+                            />
+                            <div className="flex gap-2 justify-end">
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={cancelEditMessage}
+                              >
+                                <X className="h-4 w-4 mr-1" />
+                                Cancel
+                              </Button>
+                              <Button
+                                size="sm"
+                                onClick={() => saveEditedMessage(message.id)}
+                              >
+                                <Check className="h-4 w-4 mr-1" />
+                                Save
+                              </Button>
+                            </div>
                           </div>
+                        ) : (
+                          <>
+                            <div className={`px-4 py-3 rounded-2xl ${message.role === 'user' ? 'bg-primary text-primary-foreground rounded-br-sm' : 'bg-secondary text-secondary-foreground rounded-bl-sm'}`}>
+                              <p className="whitespace-pre-wrap text-sm leading-relaxed">{renderTextWithLinks(message.content)}</p>
+                            </div>
+                            {message.role === 'user' && (
+                              <div className="absolute -bottom-1 -right-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-7 w-7 bg-background border border-border shadow-sm"
+                                  onClick={() => startEditMessage(message)}
+                                  title="Edit message"
+                                >
+                                  <Pencil className="h-3.5 w-3.5" />
+                                </Button>
+                              </div>
+                            )}
+                            {message.role === 'assistant' && (
+                              <div className="absolute -bottom-1 -right-1 flex gap-1">
+                                <Button variant="ghost" size="icon" className="h-7 w-7 bg-background border border-border shadow-sm"
+                                  onClick={async () => {
+                                    try {
+                                      await axios.post(`${API}/save-to-knowledge`, { content: message.content, chatId });
+                                      toast.success('Saved to Knowledge ✅');
+                                    } catch (err) { toast.error('Failed to save'); }
+                                  }}
+                                  title="Save to Knowledge" data-testid={`save-message-${index}`}>
+                                  <Save className="h-3.5 w-3.5 text-green-500" />
+                                </Button>
+                                <Button variant="ghost" size="icon" className="h-7 w-7 bg-background border border-border shadow-sm"
+                                  onClick={async () => {
+                                    try {
+                                      await navigator.clipboard.writeText(message.content);
+                                      toast.success('Copied to clipboard');
+                                    } catch (err) {
+                                      const textArea = document.createElement('textarea');
+                                      textArea.value = message.content;
+                                      textArea.style.position = 'fixed';
+                                      textArea.style.left = '-9999px';
+                                      document.body.appendChild(textArea);
+                                      textArea.select();
+                                      try { document.execCommand('copy'); toast.success('Copied to clipboard'); }
+                                      catch (e) { toast.error('Failed to copy'); }
+                                      document.body.removeChild(textArea);
+                                    }
+                                  }}
+                                  data-testid={`copy-message-${index}`}>
+                                  <Copy className="h-3.5 w-3.5" />
+                                </Button>
+                              </div>
+                            )}
+                          </>
                         )}
                       </div>
                     )}
