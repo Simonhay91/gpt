@@ -497,6 +497,11 @@ async def send_message(chat_id: str, message_data: MessageCreate, current_user: 
                 context_message = f"SOURCES: {active_sources_list}\nCHUNKS: {chunks_count} (top {MAX_CHUNKS_PER_QUERY} most relevant)\n\n{document_context[:10000]}"
                 system_parts.append(context_message)
             
+            # Add web search instruction if web results are used
+            if web_search_results:
+                web_instruction = "IMPORTANT: Web search results are provided above. When using information from web sources, ALWAYS cite them at the end of your response in the format:\n\nСсылки:\n- [Title](URL)\n- [Title](URL)"
+                system_parts.append(web_instruction)
+            
             system_prompt = "\n\n".join(system_parts)
             
             messages = []
