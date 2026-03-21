@@ -142,6 +142,8 @@ class MessageResponse(BaseModel):
     fromCache: Optional[bool] = False
     cacheInfo: Optional[dict] = None
     web_sources: Optional[List[dict]] = None  # Brave Search results: [{"title": str, "url": str}]
+    clarifying_question: Optional[str] = None  # Clarifying question text
+    clarifying_options: Optional[List[str]] = None  # Options for clarifying question
 
 
 # ==================== SOURCE MODELS ====================
