@@ -546,6 +546,94 @@ const ChatPage = () => {
 
   const closeSourceModal = () => { setViewingSource(null); setSourceContent(null); };
 
+  const saveContext = async () => {
+    if (messages.length === 0) {
+      toast.error('Нет сообщений для сохранения');
+      return;
+    }
+
+    setIsSavingContext(true);
+    try {
+      // Prepare dialog text
+      const dialogText = messages
+        .map(msg => `${msg.role === 'user' ? 'Пользователь' : 'AI'}: ${msg.content}`)
+        .join('\n\n');
+
+      // Send to AI for summarization
+      const response = await axios.post(`${API}/chats/${chatId}/save-context`, {
+        dialogText
+      });
+
+      const contextSummary = response.data.summary;
+      
+      // Show toast notification
+      const toastElement = document.createElement('div');
+      toastElement.className = 'fixed bottom-6 left-1/2 transform -translate-x-1/2 bg-emerald-600 text-white px-6 py-3 rounded-lg shadow-lg flex items-center gap-2 z-50 animate-slide-up';
+      toastElement.innerHTML = `
+        <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+        </svg>
+        <span>Контекст сохранен в AI Profile</span>
+      `;
+      document.body.appendChild(toastElement);
+      
+      setTimeout(() => {
+        toastElement.remove();
+      }, 3000);
+
+    } catch (error) {
+      const message = error.response?.data?.detail || 'Не удалось сохранить контекст';
+      toast.error(message);
+    } finally {
+      setIsSavingContext(false);
+    }
+  };
+
+  const startEditMessage = (message) => {
+    setEditingMessageId(message.id);
+    setEditedContent(message.content);
+  };
+
+  const cancelEditMessage = () => {
+    setEditingMessageId(null);
+    setEditedContent("");
+  };
+
+  const saveEditedMessage = async (messageId) => {
+    if (!editedContent.trim()) {
+      toast.error('Сообщение не может быть пустым');
+      return;
+    }
+
+    try {
+      const response = await axios.put(`${API}/chats/${chatId}/messages/${messageId}/edit`, {
+        content: editedContent
+      });
+
+      // Remove messages after edited one
+      const editedIndex = messages.findIndex(m => m.id === messageId);
+      if (editedIndex !== -1) {
+        setMessages(messages.slice(0, editedIndex + 1));
+        // Update the edited message
+        setMessages(prev => prev.map(m => m.id === messageId ? response.data : m));
+      }
+
+      setEditingMessageId(null);
+      setEditedContent("");
+      
+      toast.success('Сообщение обновлено');
+      
+      // Send new message to get AI response
+      setTimeout(() => {
+        handleSendMessage();
+      }, 500);
+
+    } catch (error) {
+      const message = error.response?.data?.detail || 'Не удалось обновить сообщение';
+      toast.error(message);
+    }
+  };
+
   const groupedSources = React.useMemo(() => {
     const groups = {
       pdf: { label: 'PDF документы', icon: FileText, color: 'text-red-400', sources: [] },
