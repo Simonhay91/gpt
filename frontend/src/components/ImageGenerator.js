@@ -71,6 +71,8 @@ const ImageGenerator = ({ projectId, onImageGenerated }) => {
   const [referenceFile, setReferenceFile] = useState(null);
   const [referencePreview, setReferencePreview] = useState(null);
   const referenceFileRef = useRef();
+  // Edit tab state
+  const [editFile, setEditFile] = useState(null);
   const [editPreview, setEditPreview] = useState(null);
   const [editPrompt, setEditPrompt] = useState('');
   const [isEditing, setIsEditing] = useState(false);
