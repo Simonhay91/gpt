@@ -60,10 +60,28 @@ async def get_relevant_chunks(
     if not source_ids:
         return []
 
+    # Verify that sources actually exist and are active
+    existing_sources = await db.sources.find(
+        {"id": {"$in": source_ids}},
+        {"_id": 0, "id": 1}
+    ).to_list(len(source_ids))
+    
+    existing_source_ids = [s["id"] for s in existing_sources]
+    
+    if not existing_source_ids:
+        logger.warning(f"No existing sources found for provided IDs: {source_ids}")
+        return []
+    
+    # Log if some sources were not found (they were deleted)
+    missing_sources = set(source_ids) - set(existing_source_ids)
+    if missing_sources:
+        logger.info(f"Filtered out {len(missing_sources)} deleted sources: {missing_sources}")
+
     query_embedding = await get_embedding(query)
 
+    # Get chunks ONLY from existing sources
     all_chunks = await db.source_chunks.find(
-        {"sourceId": {"$in": source_ids}},
+        {"sourceId": {"$in": existing_source_ids}},
         {"_id": 0}
     ).to_list(50000)
 
@@ -98,7 +116,7 @@ async def get_relevant_chunks(
         total_chars += len(chunk["content"])
 
     top_score = selected[0]["score"] if selected else 0
-    logger.info(f"RAG: selected {len(selected)} chunks, {total_chars} chars, top score: {top_score:.3f}")
+    logger.info(f"RAG: selected {len(selected)} chunks from {len(existing_source_ids)} sources, {total_chars} chars, top score: {top_score:.3f}")
 
     return selected
 
