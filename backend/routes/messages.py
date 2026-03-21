@@ -525,9 +525,6 @@ async def send_message(chat_id: str, message_data: MessageCreate, current_user: 
             tokens_used = claude_response.usage.input_tokens + claude_response.usage.output_tokens
             
             # Parse clarifying questions
-            clarifying_question = None
-            clarifying_options = None
-            
             if "<clarifying>" in response_text and "</clarifying>" in response_text:
                 try:
                     import re
