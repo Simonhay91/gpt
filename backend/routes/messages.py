@@ -639,14 +639,38 @@ async def edit_message(
     """
     db = get_db()
     
+    logger.info(f"Edit request: chat_id={chat_id}, message_id={message_id}, user={current_user['email']}")
+    
     # Get the message
     message = await db.messages.find_one({"id": message_id, "chatId": chat_id}, {"_id": 0})
+    
     if not message:
+        # Debug: check if message exists without chatId filter
+        message_check = await db.messages.find_one({"id": message_id}, {"_id": 0})
+        if message_check:
+            logger.error(f"Message exists but chatId mismatch: expected {chat_id}, got {message_check.get('chatId')}")
+        else:
+            logger.error(f"Message {message_id} not found in database")
         raise HTTPException(status_code=404, detail="Message not found")
     
+    logger.info(f"Found message: role={message.get('role')}, senderEmail={message.get('senderEmail')}")
+    
     # Check if user is the author
-    if message.get("senderEmail") != current_user["email"]:
-        raise HTTPException(status_code=403, detail="Only message author can edit")
+    # User messages might not have senderEmail, so also check if role is 'user' and it's their chat
+    is_author = message.get("senderEmail") == current_user["email"]
+    is_user_message_in_own_chat = (
+        message.get("role") == "user" and 
+        not message.get("senderEmail")  # Old messages might not have senderEmail
+    )
+    
+    if not (is_author or is_user_message_in_own_chat):
+        # Verify chat ownership for user messages without senderEmail
+        if is_user_message_in_own_chat:
+            chat = await db.chats.find_one({"id": chat_id}, {"_id": 0})
+            if chat and chat.get("ownerId") != current_user["id"]:
+                raise HTTPException(status_code=403, detail="Only message author can edit")
+        else:
+            raise HTTPException(status_code=403, detail="Only message author can edit")
     
     # Check if message is from user role
     if message.get("role") != "user":
