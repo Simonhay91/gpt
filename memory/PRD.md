@@ -724,7 +724,7 @@ db.audit_logs.createIndex({ "userId": 1, "action": 1 })
 
 ### Base URL
 ```
-Production: https://team-catalog-hub.preview.emergentagent.com/api
+Production: https://url-fetch-dev.preview.emergentagent.com/api
 ```
 
 ### Authentication Header
