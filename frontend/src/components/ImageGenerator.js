@@ -70,7 +70,6 @@ const ImageGenerator = ({ projectId, onImageGenerated }) => {
   // Reference photo for Generate tab
   const [referenceFile, setReferenceFile] = useState(null);
   const [referencePreview, setReferencePreview] = useState(null);
-  const [showReferenceUpload, setShowReferenceUpload] = useState(false);
   const referenceFileRef = useRef();
   const [editPreview, setEditPreview] = useState(null);
   const [editPrompt, setEditPrompt] = useState('');
@@ -161,17 +160,17 @@ Requirements:
   };
 
   const generateImage = async () => {
-    if (!prompt.trim()) { toast.error('Please enter a prompt'); return; }
+    if (!prompt.trim() && !referenceFile) { toast.error('Please enter a prompt or upload a photo'); return; }
     setIsGenerating(true);
     setGeneratedImage(null);
     setImageUrl(null);
     try {
       if (referenceFile) {
-        // Generate from reference photo using edit endpoint
         const bgInstruction = backgroundType === 'transparent'
           ? 'transparent background (PNG), remove all original background'
           : 'clean pure white background (#FFFFFF), no shadows';
-        const planetPrompt = `Apply Planet Image Standard to this product: ${prompt.trim()}. Requirements: ${bgInstruction}. Product centered with 20% padding on all sides, occupies max 80% of frame. Professional studio lighting, high-resolution, sharp details, no noise.`;
+        const userDesc = prompt.trim() ? prompt.trim() : 'product';
+        const planetPrompt = `Apply Planet Image Standard to this ${userDesc}: ${bgInstruction}. Product centered with 20% padding on all sides, occupies max 80% of frame. Professional studio lighting, high-resolution, sharp details, no noise.`;
         const formData = new FormData();
         formData.append('file', referenceFile);
         formData.append('prompt', planetPrompt);
@@ -286,7 +285,7 @@ Requirements:
     setIsOpen(false);
     setPrompt('');
     setGeneratedImage(null);
-    setReferenceFile(null); setReferencePreview(null); setShowReferenceUpload(false);
+    setReferenceFile(null); setReferencePreview(null);
     setEditFile(null); setEditPreview(null); setEditPrompt(''); setEditedImage(null); setEditedImageUrl(null);
     setResizeFile(null); setResizePreview(null); setResizedImage(null); setResizedImageUrl(null);
     setUpscaleFile(null); setUpscalePreview(null); setUpscaledImage(null); setUpscaledImageUrl(null);
@@ -482,7 +481,7 @@ Requirements:
               )}
 
               <div className="space-y-2">
-                <Label>Product Description</Label>
+                <Label>Product Description <span className="text-xs text-muted-foreground font-normal">(optional with photo)</span></Label>
                 <Textarea
                   placeholder={standard === 'planet' ? "Describe your product: e.g., 'wireless bluetooth earbuds in matte black finish'" : "A futuristic cityscape at sunset..."}
                   value={prompt}
@@ -495,66 +494,25 @@ Requirements:
 
               {/* Reference Photo Upload */}
               <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <Label className="flex items-center gap-1.5">
-                    <Upload className="h-3.5 w-3.5 text-muted-foreground" />
-                    Reference Photo
-                    <span className="text-xs text-muted-foreground font-normal">(optional)</span>
-                  </Label>
-                  {!showReferenceUpload ? (
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      className="h-7 text-xs gap-1.5"
-                      onClick={() => setShowReferenceUpload(true)}
-                      disabled={isGenerating}
-                      data-testid="add-reference-photo-btn"
-                    >
-                      <Upload className="h-3 w-3" />
-                      Add photo
-                    </Button>
-                  ) : (
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      className="h-7 text-xs text-muted-foreground"
-                      onClick={() => { setShowReferenceUpload(false); setReferenceFile(null); setReferencePreview(null); }}
-                      disabled={isGenerating}
-                    >
-                      Remove
-                    </Button>
-                  )}
-                </div>
-
-                {showReferenceUpload && (
-                  <div
-                    className="border-2 border-dashed border-border rounded-lg p-3 text-center cursor-pointer hover:border-indigo-400 transition-colors"
-                    onClick={() => referenceFileRef.current?.click()}
-                    data-testid="reference-photo-upload-area"
+                <Label className="flex items-center gap-1.5">
+                  <Upload className="h-3.5 w-3.5 text-muted-foreground" />
+                  Reference Photo
+                  <span className="text-xs text-muted-foreground font-normal">(optional — AI applies Planet standards)</span>
+                </Label>
+                <FileUploadArea
+                  preview={referencePreview}
+                  fileRef={referenceFileRef}
+                  onChange={(e) => handleFileChange(e, setReferenceFile, setReferencePreview)}
+                  disabled={isGenerating}
+                />
+                {referenceFile && (
+                  <button
+                    type="button"
+                    onClick={() => { setReferenceFile(null); setReferencePreview(null); }}
+                    className="text-xs text-muted-foreground hover:text-destructive transition-colors"
                   >
-                    <input
-                      type="file"
-                      ref={referenceFileRef}
-                      accept="image/*"
-                      className="hidden"
-                      onChange={(e) => handleFileChange(e, setReferenceFile, setReferencePreview)}
-                      disabled={isGenerating}
-                    />
-                    {referencePreview ? (
-                      <div className="relative">
-                        <img src={referencePreview} alt="reference" className="max-h-32 mx-auto rounded object-contain" />
-                        <p className="text-xs text-emerald-400 mt-1.5">AI will apply Planet standards to this photo</p>
-                      </div>
-                    ) : (
-                      <div className="flex flex-col items-center gap-1.5 py-3 text-muted-foreground">
-                        <Upload className="h-6 w-6" />
-                        <span className="text-sm">Click to upload your product photo</span>
-                        <span className="text-xs">AI will apply Planet standards automatically</span>
-                      </div>
-                    )}
-                  </div>
+                    Remove photo
+                  </button>
                 )}
               </div>
 
