@@ -678,18 +678,22 @@ async def edit_message(
     
     # Update message content
     message_created_at = message.get("createdAt")
+    
+    logger.info(f"Editing message with createdAt: {message_created_at}")
+    
     await db.messages.update_one(
         {"id": message_id},
         {"$set": {"content": edit_data.content, "updatedAt": datetime.now(timezone.utc).isoformat()}}
     )
     
-    # Delete all subsequent messages (by createdAt)
+    # Delete ONLY subsequent messages (messages AFTER this one by createdAt)
+    # Messages BEFORE the edited message remain untouched
     deleted_result = await db.messages.delete_many({
         "chatId": chat_id,
-        "createdAt": {"$gt": message_created_at}
+        "createdAt": {"$gt": message_created_at}  # Only messages with createdAt > edited message's createdAt
     })
     
-    logger.info(f"Deleted {deleted_result.deleted_count} messages after edited message")
+    logger.info(f"Deleted {deleted_result.deleted_count} messages after edited message (createdAt > {message_created_at})")
     
     # Get updated message
     updated_message = await db.messages.find_one({"id": message_id}, {"_id": 0})
