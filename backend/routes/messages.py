@@ -624,6 +624,55 @@ async def send_message(chat_id: str, message_data: MessageCreate, current_user: 
     return MessageResponse(**assistant_message)
 
 
+# ==================== EDIT MESSAGE ====================
+
+@router.put("/chats/{chat_id}/messages/{message_id}/edit", response_model=MessageResponse)
+async def edit_message(
+    chat_id: str,
+    message_id: str,
+    edit_data: MessageEditRequest,
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Edit a user message and delete all subsequent messages
+    Only the message author can edit their message
+    """
+    db = get_db()
+    
+    # Get the message
+    message = await db.messages.find_one({"id": message_id, "chatId": chat_id}, {"_id": 0})
+    if not message:
+        raise HTTPException(status_code=404, detail="Message not found")
+    
+    # Check if user is the author
+    if message.get("senderEmail") != current_user["email"]:
+        raise HTTPException(status_code=403, detail="Only message author can edit")
+    
+    # Check if message is from user role
+    if message.get("role") != "user":
+        raise HTTPException(status_code=400, detail="Only user messages can be edited")
+    
+    # Update message content
+    message_created_at = message.get("createdAt")
+    await db.messages.update_one(
+        {"id": message_id},
+        {"$set": {"content": edit_data.content, "updatedAt": datetime.now(timezone.utc).isoformat()}}
+    )
+    
+    # Delete all subsequent messages (by createdAt)
+    deleted_result = await db.messages.delete_many({
+        "chatId": chat_id,
+        "createdAt": {"$gt": message_created_at}
+    })
+    
+    logger.info(f"Deleted {deleted_result.deleted_count} messages after edited message")
+    
+    # Get updated message
+    updated_message = await db.messages.find_one({"id": message_id}, {"_id": 0})
+    
+    return MessageResponse(**updated_message)
+
+
 # ==================== SAVE TO KNOWLEDGE ====================
 
 @router.post("/save-to-knowledge")
