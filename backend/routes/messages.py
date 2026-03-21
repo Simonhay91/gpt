@@ -7,8 +7,9 @@ import logging
 import re
 import httpx
 import hashlib
+import os
 
-from models.schemas import MessageCreate, MessageResponse, SaveToKnowledgeRequest
+from models.schemas import MessageCreate, MessageResponse, SaveToKnowledgeRequest, MessageEditRequest
 from middleware.auth import get_current_user
 from db.connection import get_db
 from routes.projects import (
@@ -32,6 +33,83 @@ GLOBAL_PROJECT_ID = "__global__"
 MAX_AUTO_INGEST_URLS = 3
 MAX_CHUNKS_PER_QUERY = 5
 URL_PATTERN = re.compile(r'https?://[^\s<>"{}|\\^`\[\]]+', re.IGNORECASE)
+
+# Web search keywords (multilingual)
+WEB_SEARCH_KEYWORDS = [
+    "research", "найди в интернете", "ищи", "поищи", "search",
+    "գտիր", "փնտրիր", "փնտրել", "որոնիր", "որոնել"
+]
+
+
+async def brave_web_search(query: str) -> Optional[List[dict]]:
+    """
+    Search the web using Brave Search API
+    Returns list of {"title": str, "url": str, "description": str}
+    """
+    brave_api_key = os.environ.get('BRAVE_API_KEY', '')
+    if not brave_api_key:
+        logger.warning("BRAVE_API_KEY not set, skipping web search")
+        return None
+    
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            response = await client.get(
+                "https://api.search.brave.com/res/v1/web/search",
+                headers={
+                    "X-Subscription-Token": brave_api_key,
+                    "Accept": "application/json"
+                },
+                params={
+                    "q": query,
+                    "count": 5,
+                    "search_lang": "en"
+                }
+            )
+            
+            if response.status_code != 200:
+                logger.error(f"Brave Search API error: {response.status_code}")
+                return None
+            
+            data = response.json()
+            web_results = data.get("web", {}).get("results", [])
+            
+            if not web_results:
+                return None
+            
+            formatted_results = []
+            for result in web_results[:5]:
+                formatted_results.append({
+                    "title": result.get("title", "Untitled"),
+                    "url": result.get("url", ""),
+                    "description": result.get("description", "")
+                })
+            
+            logger.info(f"Brave Search returned {len(formatted_results)} results")
+            return formatted_results
+            
+    except Exception as e:
+        logger.error(f"Brave Search error: {str(e)}")
+        return None
+
+
+def should_use_web_search(user_message: str, has_relevant_rag: bool) -> bool:
+    """
+    Determine if web search should be used
+    - If RAG has relevant results (score > 0.7) → No web search
+    - If user explicitly requests research → Yes web search
+    - Otherwise → No web search
+    """
+    # Check for explicit research keywords
+    message_lower = user_message.lower()
+    for keyword in WEB_SEARCH_KEYWORDS:
+        if keyword in message_lower:
+            return True
+    
+    # If RAG doesn't have relevant results
+    if not has_relevant_rag:
+        return False  # Let AI use its own knowledge
+    
+    return False
 
 
 def extract_urls_from_text(text: str) -> List[str]:
