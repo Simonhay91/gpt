@@ -112,6 +112,89 @@ def should_use_web_search(user_message: str, has_relevant_rag: bool) -> bool:
     return False
 
 
+async def fetch_url_content(url: str) -> Optional[str]:
+    """
+    Fetch and extract text content from URL
+    Supports HTML pages and PDF files
+    Returns extracted text (max 8000 chars) or None if failed
+    """
+    try:
+        async with httpx.AsyncClient(timeout=15.0, follow_redirects=True) as client:
+            response = await client.get(
+                url,
+                headers={
+                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+                }
+            )
+            
+            if response.status_code != 200:
+                logger.warning(f"URL fetch failed: {url} - status {response.status_code}")
+                return None
+            
+            content_type = response.headers.get('content-type', '').lower()
+            
+            # Handle PDF files
+            if url.endswith('.pdf') or 'application/pdf' in content_type:
+                try:
+                    from pypdf import PdfReader
+                    from io import BytesIO
+                    
+                    pdf_file = BytesIO(response.content)
+                    pdf_reader = PdfReader(pdf_file)
+                    
+                    text_parts = []
+                    for page in pdf_reader.pages[:10]:  # Max 10 pages
+                        text_parts.append(page.extract_text())
+                    
+                    extracted_text = '\n\n'.join(text_parts)
+                    logger.info(f"Extracted {len(extracted_text)} chars from PDF: {url}")
+                    
+                except Exception as pdf_error:
+                    logger.error(f"PDF extraction failed for {url}: {str(pdf_error)}")
+                    return None
+            
+            # Handle HTML pages
+            else:
+                try:
+                    from bs4 import BeautifulSoup
+                    
+                    soup = BeautifulSoup(response.text, 'html.parser')
+                    
+                    # Remove script and style elements
+                    for script in soup(["script", "style", "nav", "footer", "header"]):
+                        script.decompose()
+                    
+                    # Extract text from relevant tags
+                    text_parts = []
+                    
+                    # Get title
+                    if soup.title:
+                        text_parts.append(f"Title: {soup.title.string}")
+                    
+                    # Get headings and paragraphs
+                    for tag in soup.find_all(['h1', 'h2', 'h3', 'p', 'article', 'main']):
+                        text = tag.get_text(strip=True)
+                        if text and len(text) > 20:  # Skip very short texts
+                            text_parts.append(text)
+                    
+                    extracted_text = '\n\n'.join(text_parts)
+                    logger.info(f"Extracted {len(extracted_text)} chars from HTML: {url}")
+                    
+                except Exception as html_error:
+                    logger.error(f"HTML extraction failed for {url}: {str(html_error)}")
+                    return None
+            
+            # Truncate to 8000 chars
+            if extracted_text:
+                return extracted_text[:8000]
+            
+            return None
+            
+    except Exception as e:
+        logger.error(f"URL fetch error for {url}: {str(e)}")
+        return None
+
+
 def extract_urls_from_text(text: str) -> List[str]:
     """Extract unique URLs from text"""
     urls = URL_PATTERN.findall(text)
