@@ -136,6 +136,7 @@ const ChatPage = () => {
   const nameInputRef = useRef(null);
   
   const [sourceMode, setSourceMode] = useState('all');
+  const [currentProjectName, setCurrentProjectName] = useState('');
   
   const [expandedSources, setExpandedSources] = useState({});
   const [viewingSource, setViewingSource] = useState(null);
@@ -182,8 +183,12 @@ const ChatPage = () => {
       setMessages(messagesRes.data.items || messagesRes.data);
       
       if (chatRes.data.projectId) {
-        const sourcesRes = await axios.get(`${API}/projects/${chatRes.data.projectId}/sources`);
+        const [sourcesRes, projRes] = await Promise.all([
+          axios.get(`${API}/projects/${chatRes.data.projectId}/sources`),
+          axios.get(`${API}/projects/${chatRes.data.projectId}`)
+        ]);
         setProjectSources(sourcesRes.data.items || sourcesRes.data);
+        setCurrentProjectName(projRes.data.name || '');
         const imagesRes = await axios.get(`${API}/projects/${chatRes.data.projectId}/images`);
         setGeneratedImages(imagesRes.data.items || imagesRes.data);
       } else {
@@ -1040,7 +1045,15 @@ const ChatPage = () => {
                                     {getFileIcon(source.mimeType, source.kind)}
                                     <div className="flex-1 min-w-0">
                                       <p className="text-sm truncate">{source.originalName || source.url}</p>
-                                      <p className="text-xs text-muted-foreground">{source.sizeBytes ? `${formatFileSize(source.sizeBytes)} • ` : ''}{source.chunkCount} chunks</p>
+                                      <div className="flex items-center gap-1.5 flex-wrap mt-0.5">
+                                        <p className="text-xs text-muted-foreground">{source.sizeBytes ? `${formatFileSize(source.sizeBytes)} • ` : ''}{source.chunkCount} chunks</p>
+                                        {currentProjectName && (
+                                          <span className="inline-flex items-center gap-0.5 text-xs text-indigo-400 bg-indigo-500/10 px-1.5 py-0.5 rounded-full border border-indigo-500/20" data-testid={`source-project-badge-${source.id}`}>
+                                            <FolderOpen className="h-2.5 w-2.5 flex-shrink-0" />
+                                            <span className="truncate max-w-[90px]">{currentProjectName}</span>
+                                          </span>
+                                        )}
+                                      </div>
                                     </div>
                                     <div className="flex items-center gap-1">
                                       <Button variant="ghost" size="icon" className="h-7 w-7" onClick={(e) => { e.stopPropagation(); openPreview(source, e); }} title="Просмотр" data-testid={`preview-source-${source.id}`}><Eye className="h-3.5 w-3.5 text-blue-400" /></Button>

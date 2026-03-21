@@ -132,16 +132,39 @@ def setup_enterprise_source_routes(
     
     @router.get("/api/personal-sources")
     async def list_personal_sources(current_user: dict = Depends(get_current_user)):
-        """List user's personal sources"""
+        """List user's personal sources with info about where they were published"""
         sources = await db.sources.find(
             {"level": "personal", "ownerId": current_user["id"]},
             {"_id": 0}
         ).to_list(100)
         
-        # Add chunk counts
+        # Add chunk counts and publishedTo info
         for source in sources:
             count = await db.source_chunks.count_documents({"sourceId": source["id"]})
             source["chunkCount"] = count
+            
+            # Find all project/department copies of this source
+            published_copies = await db.sources.find(
+                {"publishedFrom": source["id"]},
+                {"_id": 0, "projectId": 1, "departmentId": 1, "level": 1}
+            ).to_list(50)
+            
+            published_to = []
+            for copy in published_copies:
+                if copy.get("projectId"):
+                    project = await db.projects.find_one(
+                        {"id": copy["projectId"]}, {"_id": 0, "name": 1, "id": 1}
+                    )
+                    if project:
+                        published_to.append({"type": "project", "id": project["id"], "name": project["name"]})
+                elif copy.get("departmentId"):
+                    dept = await db.departments.find_one(
+                        {"id": copy["departmentId"]}, {"_id": 0, "name": 1, "id": 1}
+                    )
+                    if dept:
+                        published_to.append({"type": "department", "id": dept["id"], "name": dept["name"]})
+            
+            source["publishedTo"] = published_to
         
         return sources
     
