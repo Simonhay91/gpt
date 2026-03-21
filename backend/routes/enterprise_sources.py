@@ -171,6 +171,12 @@ def setup_enterprise_source_routes(
         await db.source_versions.delete_many({"sourceId": source_id})
         await db.sources.delete_one({"id": source_id})
         
+        # Remove from active sources in all chats
+        await db.chats.update_many(
+            {"activeSourceIds": source_id},
+            {"$pull": {"activeSourceIds": source_id}}
+        )
+        
         return {"message": "Personal source deleted"}
     
     @router.get("/api/personal-sources/{source_id}/preview")
