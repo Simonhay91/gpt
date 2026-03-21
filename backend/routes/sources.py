@@ -319,9 +319,23 @@ async def add_url_source(
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Failed to fetch URL: {str(e)[:100]}")
     
-    content_type = response.headers.get('content-type', '')
-    if 'text/html' not in content_type and 'text/plain' not in content_type:
-        raise HTTPException(status_code=400, detail="URL must return HTML or text content")
+    content_type = response.headers.get('content-type', '').lower()
+    
+    # More flexible content-type check
+    # Allow HTML, plain text, XML, XHTML, or any text/* content
+    allowed_types = ['text/html', 'text/plain', 'application/xhtml+xml', 'text/xml', 'application/xml']
+    is_text_content = any(allowed in content_type for allowed in allowed_types) or content_type.startswith('text/')
+    
+    # Also try to parse if content-type is missing or ambiguous
+    if not is_text_content and not content_type:
+        logger.warning(f"URL {url} has no content-type header, attempting to parse anyway")
+        is_text_content = True  # Try to parse
+    
+    if not is_text_content:
+        raise HTTPException(
+            status_code=400, 
+            detail=f"URL must return HTML or text content (got: {content_type})"
+        )
     
     html_content = response.text
     extracted_text = extract_text_from_html(html_content)
