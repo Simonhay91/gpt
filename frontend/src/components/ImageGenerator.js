@@ -516,7 +516,7 @@ Requirements:
                 )}
               </div>
 
-              <Button onClick={generateImage} disabled={!prompt.trim() || isGenerating} className="w-full" data-testid="confirm-generate-btn">
+              <Button onClick={generateImage} disabled={(!prompt.trim() && !referenceFile) || isGenerating} className="w-full" data-testid="confirm-generate-btn">
                 {isGenerating
                   ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Generating...</>
                   : referenceFile
