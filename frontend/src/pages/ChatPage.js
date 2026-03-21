@@ -159,6 +159,10 @@ const ChatPage = () => {
   const [showInfoBlock, setShowInfoBlock] = useState(true);
   const [isSavingContext, setIsSavingContext] = useState(false);
   const [memoryModalOpen, setMemoryModalOpen] = useState(false);
+  
+  // Edit message state
+  const [editingMessageId, setEditingMessageId] = useState(null);
+  const [editedContent, setEditedContent] = useState("");
 
   useEffect(() => { fetchChatData(); }, [chatId]);
   useEffect(() => { scrollToBottom(); }, [messages]);
