@@ -611,11 +611,17 @@ const ChatPage = () => {
       });
 
       // Remove messages after edited one and update the edited message
+      // Keep all messages BEFORE the edited message (indices 0 to editedIndex-1)
+      // Keep the edited message itself (index editedIndex)
+      // Remove all messages AFTER the edited message (indices editedIndex+1 onwards)
       const editedIndex = messages.findIndex(m => m.id === messageId);
       if (editedIndex !== -1) {
+        // slice(0, editedIndex + 1) keeps messages from index 0 to editedIndex (inclusive)
         const updatedMessages = messages.slice(0, editedIndex + 1);
         updatedMessages[editedIndex] = response.data;
         setMessages(updatedMessages);
+        
+        console.log(`Edit: Kept ${editedIndex} messages before + 1 edited message = ${updatedMessages.length} total`);
       }
 
       setEditingMessageId(null);
