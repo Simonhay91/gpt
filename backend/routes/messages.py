@@ -474,8 +474,6 @@ async def send_message(chat_id: str, message_data: MessageCreate, current_user: 
         CLAUDE_API_KEY = os.environ.get('CLAUDE_API_KEY', '')
         claude_client = anthropic.Anthropic(api_key=CLAUDE_API_KEY)
         
-        from_cache = False
-        
         if cache_hit:
             response_text = cache_hit["answer"]
             response_text += f"\n\n---\n_📦 Ответ из кэша (схожесть: {cache_hit['similarity']:.0%})_"
