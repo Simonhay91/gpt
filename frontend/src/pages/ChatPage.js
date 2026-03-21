@@ -610,12 +610,12 @@ const ChatPage = () => {
         content: editedContent
       });
 
-      // Remove messages after edited one
+      // Remove messages after edited one and update the edited message
       const editedIndex = messages.findIndex(m => m.id === messageId);
       if (editedIndex !== -1) {
-        setMessages(messages.slice(0, editedIndex + 1));
-        // Update the edited message
-        setMessages(prev => prev.map(m => m.id === messageId ? response.data : m));
+        const updatedMessages = messages.slice(0, editedIndex + 1);
+        updatedMessages[editedIndex] = response.data;
+        setMessages(updatedMessages);
       }
 
       setEditingMessageId(null);
@@ -623,10 +623,26 @@ const ChatPage = () => {
       
       toast.success('Сообщение обновлено');
       
-      // Send new message to get AI response
-      setTimeout(() => {
-        sendMessage();
-      }, 500);
+      // Now send the edited message to get AI response
+      setIsSending(true);
+      try {
+        const aiResponse = await axios.post(`${API}/chats/${chatId}/messages`, {
+          content: editedContent
+        });
+        
+        setMessages(prev => [...prev, aiResponse.data]);
+        
+        // Auto-scroll to new message
+        setTimeout(() => {
+          messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+        }, 100);
+        
+      } catch (aiError) {
+        console.error('Failed to get AI response:', aiError);
+        toast.error('Не удалось получить ответ AI');
+      } finally {
+        setIsSending(false);
+      }
 
     } catch (error) {
       const message = error.response?.data?.detail || 'Не удалось обновить сообщение';
