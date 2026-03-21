@@ -478,6 +478,24 @@ async def send_message(chat_id: str, message_data: MessageCreate, current_user: 
             
             document_context = "\n\n---\n\n".join(context_parts)
     
+    # Fetch content from URLs mentioned in user message
+    fetched_url_count = 0
+    if detected_urls:
+        url_context_parts = []
+        for url in detected_urls:
+            fetched_content = await fetch_url_content(url)
+            if fetched_content:
+                url_context_parts.append(f"[URL Content: {url}]\n{fetched_content}")
+                fetched_url_count += 1
+                logger.info(f"Fetched URL content: {url} ({len(fetched_content)} chars)")
+        
+        if url_context_parts:
+            url_fetched_context = "\n\n---\n\n".join(url_context_parts)
+            if document_context:
+                document_context = f"===== FETCHED URL CONTENT =====\n\n{url_fetched_context}\n\n===== DOCUMENT CONTEXT =====\n\n{document_context}"
+            else:
+                document_context = f"===== FETCHED URL CONTENT =====\n\n{url_fetched_context}"
+
     # Check if RAG found relevant results (score > 0.7)
     has_relevant_rag = any(c.get("score", 0) > 0.7 for c in citations)
     
@@ -589,9 +607,16 @@ async def send_message(chat_id: str, message_data: MessageCreate, current_user: 
             if document_context:
                 active_sources_list = ", ".join(active_source_names) if active_source_names else "None"
                 chunks_count = len(citations) if citations else 0
-                context_message = f"SOURCES: {active_sources_list}\nCHUNKS: {chunks_count} (top {MAX_CHUNKS_PER_QUERY} most relevant)\n\n{document_context[:10000]}"
+                # Allow more context if URL content was fetched
+                max_context_chars = 18000 if fetched_url_count > 0 else 10000
+                context_message = f"SOURCES: {active_sources_list}\nCHUNKS: {chunks_count} (top {MAX_CHUNKS_PER_QUERY} most relevant)\n\n{document_context[:max_context_chars]}"
                 system_parts.append(context_message)
             
+            # Add URL content instruction if URLs were fetched
+            if fetched_url_count > 0:
+                url_instruction = "IMPORTANT: Content fetched from URL(s) provided by the user is included above under 'FETCHED URL CONTENT'. Use this content to answer questions about those URLs. When referencing URL content, mention the source URL."
+                system_parts.append(url_instruction)
+
             # Add web search instruction if web results are used
             if web_search_results:
                 web_instruction = "IMPORTANT: Web search results are provided above. When using information from web sources, ALWAYS cite them at the end of your response in the format:\n\nСсылки:\n- [Title](URL)\n- [Title](URL)"

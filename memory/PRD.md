@@ -1074,9 +1074,29 @@ PUT    /api/user/prompt
 
 ---
 
-**Document Version:** 1.6
-**Last Updated:** 2026-03-12
+**Document Version:** 1.7
+**Last Updated:** 2026-02-XX
 **Author:** Planet Knowledge Team
+
+## 18. Session Updates (2026-02)
+
+### Completed: URL Content Fetching Feature
+
+**Feature:** Automatic URL reading in chat messages
+- When user pastes any URL (HTML page or PDF) in chat, the AI automatically reads and uses the content
+- Supports HTML pages (via BeautifulSoup) and PDF files (via pypdf, up to 10 pages)
+- Max 3 URLs per message, max 8000 chars per URL
+- Context limit automatically expands to 18000 chars when URL content is present
+- Gracefully handles inaccessible URLs (404, 403) — AI continues without crashing
+
+**Modified:** `/app/backend/routes/messages.py`
+- Added URL fetch loop after RAG context build
+- Added URL instruction in Claude system prompt
+- Increased context window for URL-enriched queries
+
+**Tests:**
+- HTML test: `https://httpbin.org/html` — AI correctly read Moby Dick excerpt ✅
+- PDF test: `https://filesamples.com/samples/document/pdf/sample1.pdf` — AI correctly read document ✅
 
 ## 17. Session Updates (2026-03-16)
 
