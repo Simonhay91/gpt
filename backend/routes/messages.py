@@ -519,6 +519,31 @@ async def send_message(chat_id: str, message_data: MessageCreate, current_user: 
             response_text = claude_response.content[0].text
             tokens_used = claude_response.usage.input_tokens + claude_response.usage.output_tokens
             
+            # Parse clarifying questions
+            clarifying_question = None
+            clarifying_options = None
+            
+            if "<clarifying>" in response_text and "</clarifying>" in response_text:
+                try:
+                    import re
+                    import json
+                    
+                    # Extract JSON from <clarifying> tags
+                    match = re.search(r'<clarifying>(.*?)</clarifying>', response_text, re.DOTALL)
+                    if match:
+                        clarifying_json = match.group(1).strip()
+                        clarifying_data = json.loads(clarifying_json)
+                        
+                        clarifying_question = clarifying_data.get("question")
+                        clarifying_options = clarifying_data.get("options", [])
+                        
+                        # Remove clarifying block from content
+                        response_text = response_text[:match.start()].strip()
+                        
+                        logger.info(f"Clarifying question extracted: {clarifying_question}")
+                except Exception as e:
+                    logger.error(f"Failed to parse clarifying question: {str(e)}")
+            
             if tokens_used > 0:
                 await db.token_usage.update_one(
                     {"userId": current_user["id"]},
