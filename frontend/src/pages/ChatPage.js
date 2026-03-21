@@ -1306,6 +1306,39 @@ const ChatPage = () => {
                       </div>
                     )}
                     
+                    {/* Clarifying Questions Section */}
+                    {message.role === 'assistant' && message.clarifying_question && message.clarifying_options?.length > 0 && (
+                      <div className="mt-3 px-2">
+                        <div className="p-3 rounded-lg bg-amber-500/10 border border-amber-500/20">
+                          <div className="flex items-start gap-2 mb-3">
+                            <MessageSquare className="h-4 w-4 text-amber-400 flex-shrink-0 mt-0.5" />
+                            <p className="text-sm font-medium text-amber-300">{message.clarifying_question}</p>
+                          </div>
+                          <div className="flex flex-wrap gap-2">
+                            {message.clarifying_options.map((option, idx) => (
+                              <Button
+                                key={idx}
+                                variant="outline"
+                                size="sm"
+                                onClick={async () => {
+                                  // Auto-send the selected option as user message
+                                  setInput(option);
+                                  // Trigger send after a brief delay to ensure input is set
+                                  setTimeout(() => {
+                                    const sendEvent = new Event('submit', { bubbles: true, cancelable: true });
+                                    document.querySelector('form')?.dispatchEvent(sendEvent);
+                                  }, 100);
+                                }}
+                                className="bg-amber-500/20 border-amber-500/30 text-amber-200 hover:bg-amber-500/30 hover:text-amber-100"
+                              >
+                                {option}
+                              </Button>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                    
                     {message.fromCache && (
                       <div className="mt-1 px-2">
                         <span className="inline-flex items-center gap-1 text-xs text-amber-500">
