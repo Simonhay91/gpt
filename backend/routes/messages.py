@@ -589,6 +589,7 @@ async def send_message(chat_id: str, message_data: MessageCreate, current_user: 
         "senderName": "GPT",
         "fromCache": from_cache,
         "cacheInfo": cache_info,
+        "web_sources": web_sources,  # Add web sources
         "createdAt": datetime.now(timezone.utc).isoformat()
     }
     await db.messages.insert_one(assistant_message)
