@@ -1489,25 +1489,6 @@ const ChatPage = () => {
         {/* Input Area */}
         <div className="border-t border-border px-6 py-4 bg-card/50 backdrop-blur">
           <div className="max-w-3xl mx-auto space-y-2">
-            {/* Action buttons row */}
-            <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                className="gap-1.5 h-8 text-xs"
-                onClick={() => {
-                  const q = input.trim();
-                  if (!q) { toast.error('Сначала введи запрос'); return; }
-                  sendMessage(`գտիր ինտերնետում և վերլուծիր: ${q}`);
-                }}
-                disabled={isSending || !input.trim()}
-                data-testid="chat-research-btn"
-              >
-                <Search className="h-3.5 w-3.5" />
-                Research
-              </Button>
-            </div>
-
             {/* Textarea + Send row */}
             <div className="flex gap-3 items-end">
               {/* Plus button inside chat field */}
