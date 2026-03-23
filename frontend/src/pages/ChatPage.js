@@ -167,6 +167,8 @@ const ChatPage = () => {
   const [editedContent, setEditedContent] = useState("");
   const [showScrollBtn, setShowScrollBtn] = useState(false);
   const scrollAreaRef = useRef(null);
+  const [showPlusMenu, setShowPlusMenu] = useState(false);
+  const plusMenuRef = useRef(null);
 
   useEffect(() => { fetchChatData(); }, [chatId]);
   useEffect(() => { scrollToBottom(); }, [messages]);
@@ -181,6 +183,16 @@ const ChatPage = () => {
     scrollContainer.addEventListener('scroll', handleScroll);
     return () => scrollContainer.removeEventListener('scroll', handleScroll);
   }, [isLoading]);
+
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (plusMenuRef.current && !plusMenuRef.current.contains(e.target)) {
+        setShowPlusMenu(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -1480,27 +1492,101 @@ const ChatPage = () => {
             {/* Action buttons row */}
             <div className="flex items-center gap-2">
               {!isQuickChat && (
-                <>
+                <div className="relative" ref={plusMenuRef}>
                   <input
                     type="file"
                     multiple
                     accept=".pdf,.docx,.pptx,.xlsx,.csv,.txt,.md,.png,.jpg,.jpeg"
-                    onChange={handleFileUpload}
+                    onChange={(e) => { handleFileUpload(e); setShowPlusMenu(false); }}
                     className="hidden"
                     id="chat-input-file"
                   />
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="gap-1.5 h-8 text-xs"
-                    onClick={() => document.getElementById('chat-input-file').click()}
+                  <button
+                    onClick={() => setShowPlusMenu(prev => !prev)}
                     disabled={isUploading}
-                    data-testid="chat-add-file-btn"
+                    className="flex items-center justify-center h-9 w-9 rounded-full border border-border bg-background hover:bg-secondary transition-colors disabled:opacity-50"
+                    data-testid="chat-plus-btn"
                   >
-                    {isUploading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}
-                    {isUploading ? 'Uploading...' : 'Add File'}
-                  </Button>
-                </>
+                    {isUploading
+                      ? <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                      : <Plus className="h-4 w-4 text-muted-foreground" />}
+                  </button>
+
+                  {showPlusMenu && (
+                    <div className="absolute bottom-11 left-0 z-50 w-52 rounded-xl border border-border bg-card shadow-xl overflow-hidden animate-slideIn">
+                      <button
+                        className="w-full flex items-center gap-3 px-4 py-3 text-sm hover:bg-secondary transition-colors text-left"
+                        onClick={() => { document.getElementById('chat-input-file').click(); setShowPlusMenu(false); }}
+                      >
+                        <div className="flex items-center justify-center h-8 w-8 rounded-lg bg-indigo-500/15">
+                          <Upload className="h-4 w-4 text-indigo-400" />
+                        </div>
+                        <div>
+                          <p className="font-medium">Upload File</p>
+                          <p className="text-xs text-muted-foreground">PDF, DOCX, XLSX, IMG</p>
+                        </div>
+                      </button>
+
+                      <button
+                        className="w-full flex items-center gap-3 px-4 py-3 text-sm hover:bg-secondary transition-colors text-left"
+                        onClick={() => { setShowSourcePanel(true); setShowPlusMenu(false); }}
+                      >
+                        <div className="flex items-center justify-center h-8 w-8 rounded-lg bg-blue-500/15">
+                          <Link className="h-4 w-4 text-blue-400" />
+                        </div>
+                        <div>
+                          <p className="font-medium">Add URL</p>
+                          <p className="text-xs text-muted-foreground">Web page or article</p>
+                        </div>
+                      </button>
+
+                      {chat?.projectId && (
+                        <button
+                          className="w-full flex items-center gap-3 px-4 py-3 text-sm hover:bg-secondary transition-colors text-left"
+                          onClick={() => { setShowPlusMenu(false); document.querySelector('[data-testid="image-gen-btn"]')?.click(); }}
+                        >
+                          <div className="flex items-center justify-center h-8 w-8 rounded-lg bg-purple-500/15">
+                            <ImageIcon className="h-4 w-4 text-purple-400" />
+                          </div>
+                          <div>
+                            <p className="font-medium">Generate Image</p>
+                            <p className="text-xs text-muted-foreground">AI image generation</p>
+                          </div>
+                        </button>
+                      )}
+
+                      <button
+                        className="w-full flex items-center gap-3 px-4 py-3 text-sm hover:bg-secondary transition-colors text-left"
+                        onClick={() => { saveContext(); setShowPlusMenu(false); }}
+                        disabled={isSavingContext || messages.length === 0}
+                      >
+                        <div className="flex items-center justify-center h-8 w-8 rounded-lg bg-emerald-500/15">
+                          <Save className="h-4 w-4 text-emerald-400" />
+                        </div>
+                        <div>
+                          <p className="font-medium">Save Context</p>
+                          <p className="text-xs text-muted-foreground">Save to AI Profile</p>
+                        </div>
+                      </button>
+
+                      {!isQuickChat && (
+                        <button
+                          className="w-full flex items-center gap-3 px-4 py-3 text-sm hover:bg-secondary transition-colors text-left"
+                          onClick={() => { setMemoryModalOpen(true); setShowPlusMenu(false); }}
+                          disabled={messages.length === 0}
+                        >
+                          <div className="flex items-center justify-center h-8 w-8 rounded-lg bg-violet-500/15">
+                            <Brain className="h-4 w-4 text-violet-400" />
+                          </div>
+                          <div>
+                            <p className="font-medium">Project Memory</p>
+                            <p className="text-xs text-muted-foreground">Save to memory</p>
+                          </div>
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </div>
               )}
               <Button
                 variant="outline"
