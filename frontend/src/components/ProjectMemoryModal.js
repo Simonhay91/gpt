@@ -50,7 +50,8 @@ const extractPoints = async () => {
   try {
     const dialogText = messages
       .slice(-30)
-      .map(m => `${m.role === 'user' ? 'User' : 'AI'}: ${m.content}`)
+      .map(m => `${m.role === 'user' ? 'User' : 'AI'}: ${m.content || ''}`)
+      .filter(line => line.length > 10)
       .join('\n\n');
 
     if (!dialogText || dialogText.length < 20) {
@@ -63,11 +64,13 @@ const extractPoints = async () => {
       dialogText
     });
 
-    setPoints(response.data.points || []);
+    const pts = response.data.points || [];
+    setPoints(pts);
     setStep('selecting');
   } catch (e) {
+    console.error('extractPoints error:', e);
     setPoints([]);
-    setStep('selecting');
+    setStep('error');
   }
 };
 
@@ -123,6 +126,13 @@ const extractPoints = async () => {
           <div className="flex flex-col items-center justify-center py-10 gap-3">
             <Loader2 className="h-8 w-8 animate-spin text-violet-400" />
             <p className="text-sm text-muted-foreground">Извлечение ключевых моментов...</p>
+          </div>
+        ) : step === 'error' ? (
+          <div className="text-center py-6 space-y-3">
+            <p className="text-sm text-red-400">Ошибка при обращении к AI. Проверьте соединение.</p>
+            <Button variant="outline" size="sm" onClick={() => { setStep('extracting'); extractPoints(); }}>
+              Повторить
+            </Button>
           </div>
         ) : (
           <div className="space-y-4">

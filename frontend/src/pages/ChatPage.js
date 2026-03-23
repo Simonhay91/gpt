@@ -194,6 +194,20 @@ const ChatPage = () => {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
+  // Auto-save context every 10 messages (silently)
+  useEffect(() => {
+    const assistantCount = messages.filter(m => m.role === 'assistant').length;
+    if (assistantCount > 0 && assistantCount % 10 === 0 && !isSavingContext) {
+      const dialogText = messages
+        .map(msg => `${msg.role === 'user' ? 'Пользователь' : 'AI'}: ${msg.content || ''}`)
+        .join('\n\n');
+      axios.post(`${API}/chats/${chatId}/save-context`, { dialogText })
+        .then(() => toast.success('Контекст авто-сохранён', { duration: 2000 }))
+        .catch(() => {});
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [messages.length]);
+
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
