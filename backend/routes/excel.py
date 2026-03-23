@@ -151,9 +151,21 @@ async def excel_process(
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to save result: {str(e)[:100]}")
 
-    # Build preview
-    preview_cols = list(result_df.columns)
-    preview_data = result_df.head(5).values.tolist()
+    # Build preview — sanitize NaN/Inf which are not JSON serializable
+    import math
+
+    def sanitize(val):
+        if val is None:
+            return None
+        if isinstance(val, float) and (math.isnan(val) or math.isinf(val)):
+            return None
+        return val
+
+    preview_cols = [str(c) for c in result_df.columns]
+    preview_data = [
+        [sanitize(v) for v in row]
+        for row in result_df.head(5).values.tolist()
+    ]
 
     return {
         "message": claude_resp.get("message", "Processing complete"),
