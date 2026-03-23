@@ -1050,18 +1050,21 @@ async def extract_memory_points(chat_id: str, data: dict, current_user: dict = D
 
     try:
         import anthropic
-        import os
         claude_client = anthropic.Anthropic(api_key=os.environ.get('CLAUDE_API_KEY', ''))
         response = claude_client.messages.create(
             model="claude-sonnet-4-20250514",
             max_tokens=1000,
             system="You are extracting PROJECT KNOWLEDGE from a conversation. Extract only permanent, reusable facts about the project, domain, business rules, decisions, or technical details discussed. DO NOT describe what was asked or answered. DO NOT write meta-descriptions like 'user asked about X'. Instead write the actual fact, e.g. 'Stock Order deposit is 20%'. Return ONLY a JSON array of strings (max 10 items). Each item max 100 chars. Write in the SAME LANGUAGE as the conversation content. No preamble, no markdown, pure JSON array.",
-            messages=[{"role": "user", "content": dialog_text}]
+            messages=[{"role": "user", "content": dialog_text[:8000]}]
         )
-        import json
+        import json as _json
         text = response.content[0].text.strip()
-        points = json.loads(text)
+        if text.startswith("```"):
+            text = text.split("```")[1]
+            if text.startswith("json"):
+                text = text[4:]
+        points = _json.loads(text.strip())
         return {"points": points if isinstance(points, list) else []}
     except Exception as e:
         logger.error(f"Extract memory points error: {str(e)}")
-        return {"points": []}
+        return {"points": []}       
