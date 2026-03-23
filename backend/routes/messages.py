@@ -651,6 +651,9 @@ async def send_message(
                 system_parts.append(web_instruction)
             
             system_prompt = "\n\n".join(system_parts)
+
+            # Prevent Claude from generating fake Excel/file structures
+            system_prompt += "\n\nIMPORTANT: Do NOT generate XML tags, <excel_file>, <file>, or any fake file structures in your response. If the user asks to create, modify or download an Excel/CSV file — the system handles file generation automatically. Just confirm what you will do in plain text."
             
             messages = []
             for msg in history[:-1]:
@@ -732,25 +735,10 @@ async def send_message(
             )
 
             if excel_source:
-
-                EXCEL_KEYWORDS = [
-                    # Russian explicit commands
-                    "сгенерируй", "создай excel", "создай таблицу", "скачать excel",
-                    "скачать таблицу", "экспортируй",
-                    # English explicit commands
-                    "generate excel", "download excel", "export excel",
-                    "create excel", "make excel", "create table", "make table",
-                    "generate table", "export table", "download table",
-                    "generate file", "create file", "make a file",
-                    "generate spreadsheet", "create spreadsheet",
-                    # Armenian explicit commands
-                    "ստեղծիր excel", "ստեղծիր աղյուսակ", "generate արա",
-                    "ներբեռնել excel", "տուր excel", "նոր excel",
-                    "փոխիր excel", "թարգմանիր excel"
-                ]
-                
+                # Always process when Excel source is active — skip only pure questions
+                SKIP_KWORDS = ["?", "что такое", "what is", "объясни", "explain", "как работает", "расскажи"]
                 msg_lower = message_data.content.lower()
-                is_excel_request = any(kw in msg_lower for kw in EXCEL_KEYWORDS)
+                is_excel_request = not any(kw in msg_lower for kw in SKIP_KWORDS)
 
                 if is_excel_request and excel_source.get("storagePath"):
                     file_path = _UPLOAD_DIR / excel_source["storagePath"]
