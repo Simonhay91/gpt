@@ -1,5 +1,5 @@
 """Excel / CSV Assistant route"""
-from fastapi import APIRouter, HTTPException, Depends, UploadFile, File, Form, BackgroundTasks
+from fastapi import APIRouter, HTTPException, Depends, UploadFile, File, Form
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from datetime import datetime, timezone
@@ -318,11 +318,9 @@ async def excel_generate(
 @router.get("/excel/download/{file_id}")
 async def download_excel(
     file_id: str,
-    background_tasks: BackgroundTasks,
     current_user: dict = Depends(get_current_user)
 ):
-    """Download processed Excel file and delete it after serving"""
-    # Sanitize file_id (only allow UUID format)
+    """Download processed Excel file"""
     try:
         uuid.UUID(file_id)
     except ValueError:
@@ -330,15 +328,7 @@ async def download_excel(
 
     result_path = f"/tmp/excel_result_{file_id}.xlsx"
     if not os.path.exists(result_path):
-        raise HTTPException(status_code=404, detail="File not found or already downloaded")
-
-    def _cleanup(path: str):
-        try:
-            os.remove(path)
-        except Exception:
-            pass
-
-    background_tasks.add_task(_cleanup, result_path)
+        raise HTTPException(status_code=404, detail="Файл не найден или уже был удалён. Попросите AI создать файл заново.")
 
     return FileResponse(
         path=result_path,
