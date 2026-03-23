@@ -1558,7 +1558,7 @@ const ChatPage = () => {
                       {chat?.projectId && (
                         <button
                           className="w-full flex items-center gap-3 px-4 py-3 text-sm hover:bg-secondary transition-colors text-left"
-                          onClick={() => { setShowPlusMenu(false); document.querySelector('[data-testid="image-gen-btn"]')?.click(); }}
+                          onClick={() => { setShowPlusMenu(false); document.querySelector('[data-testid="generate-image-btn"]')?.click(); }}
                         >
                           <div className="flex items-center justify-center h-8 w-8 rounded-lg bg-purple-500/15">
                             <ImageIcon className="h-4 w-4 text-purple-400" />
