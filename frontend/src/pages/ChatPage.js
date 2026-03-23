@@ -1353,64 +1353,34 @@ const ChatPage = () => {
 
                     {/* Excel Result Block */}
                     {message.role === 'assistant' && message.excel_preview && message.excel_file_id && (
-                      <div className="mt-3 px-2" data-testid={`excel-result-block-${index}`}>
-                        <div className="rounded-lg border border-green-500/30 bg-green-500/5 overflow-hidden">
-                          <div className="flex items-center justify-between px-3 py-2 bg-green-500/10">
-                            <div className="flex items-center gap-2">
-                              <File className="h-4 w-4 text-green-400" />
-                              <span className="text-sm font-medium text-green-300">
-                                Excel готов — {message.excel_preview.total_rows} строк
-                              </span>
-                            </div>
-                            <button
-                              onClick={async (e) => {
-                                e.stopPropagation();
-                                try {
-                                  const response = await axios.get(
-                                    `${process.env.REACT_APP_BACKEND_URL}/api/excel/download/${message.excel_file_id}`,
-                                    { responseType: 'blob' }
-                                  );
-                                  const url = window.URL.createObjectURL(new Blob([response.data]));
-                                  const link = document.createElement('a');
-                                  link.href = url;
-                                  link.setAttribute('download', 'result.xlsx');
-                                  document.body.appendChild(link);
-                                  link.click();
-                                  link.remove();
-                                  window.URL.revokeObjectURL(url);
-                                } catch (err) {
-                                  toast.error('Не удалось скачать файл');
-                                }
-                              }}
-                              className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-green-500 hover:bg-green-600 text-white text-xs font-medium transition-colors"
-                              title="Скачать можно только один раз — файл удаляется после скачивания"
-                              data-testid={`excel-download-chat-${index}`}
-                            >
-                              <Download className="h-3.5 w-3.5" />
-                              Скачать
-                            </button>
-                          </div>
-                          <div className="overflow-x-auto">
-                            <table className="w-full text-xs" data-testid={`excel-preview-chat-${index}`}>
-                              <thead>
-                                <tr className="border-b border-green-500/20">
-                                  {(message.excel_preview.columns || []).map((col, i) => (
-                                    <th key={i} className="px-3 py-2 text-left font-medium text-green-300 whitespace-nowrap">{col}</th>
-                                  ))}
-                                </tr>
-                              </thead>
-                              <tbody>
-                                {(message.excel_preview.rows || []).map((row, i) => (
-                                  <tr key={i} className="border-b border-green-500/10 hover:bg-green-500/5">
-                                    {row.map((cell, j) => (
-                                      <td key={j} className="px-3 py-2 text-muted-foreground whitespace-nowrap">{cell ?? '—'}</td>
-                                    ))}
-                                  </tr>
-                                ))}
-                              </tbody>
-                            </table>
-                          </div>
-                        </div>
+                      <div className="mt-2 px-2" data-testid={`excel-result-block-${index}`}>
+                        <button
+                          onClick={async (e) => {
+                            e.stopPropagation();
+                            try {
+                              const response = await axios.get(
+                                `${process.env.REACT_APP_BACKEND_URL}/api/excel/download/${message.excel_file_id}`,
+                                { responseType: 'blob' }
+                              );
+                              const url = window.URL.createObjectURL(new Blob([response.data]));
+                              const link = document.createElement('a');
+                              link.href = url;
+                              link.setAttribute('download', 'result.xlsx');
+                              document.body.appendChild(link);
+                              link.click();
+                              link.remove();
+                              window.URL.revokeObjectURL(url);
+                            } catch (err) {
+                              toast.error('Не удалось скачать файл');
+                            }
+                          }}
+                          className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border border-green-500/30 bg-green-500/10 hover:bg-green-500/20 text-green-400 text-xs font-medium transition-colors"
+                          title="Файл удаляется после первого скачивания"
+                          data-testid={`excel-download-chat-${index}`}
+                        >
+                          <Download className="h-3.5 w-3.5" />
+                          Скачать Excel ({message.excel_preview.total_rows} строк)
+                        </button>
                       </div>
                     )}
                     
