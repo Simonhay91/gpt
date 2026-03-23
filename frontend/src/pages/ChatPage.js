@@ -1177,9 +1177,9 @@ const ChatPage = () => {
                         </div>
                       </div>
                     ) : (
-                      <div className="group relative">
+                      <div className={`group relative ${editingMessageId === message.id ? '' : ''}`}>
                         {editingMessageId === message.id ? (
-                          // Edit mode
+                          // Edit mode — match message bubble width
                           <div className="space-y-2">
                             <textarea
                               value={editedContent}
@@ -1189,7 +1189,13 @@ const ChatPage = () => {
                                 e.target.style.height = e.target.scrollHeight + 'px';
                               }}
                               ref={(el) => { if (el) { el.style.height = 'auto'; el.style.height = el.scrollHeight + 'px'; } }}
-                              className="w-full px-4 py-3 rounded-2xl bg-primary/10 text-foreground border border-primary/20 focus:border-primary focus:outline-none resize-none overflow-hidden"
+                              style={{
+                                width: `${Math.min(Math.max(
+                                  Math.max(...editedContent.split('\n').map(l => l.length)) * 8.5 + 40,
+                                  200
+                                ), 560)}px`
+                              }}
+                              className="px-4 py-3 rounded-2xl bg-primary/10 text-foreground border border-primary/20 focus:border-primary focus:outline-none resize-none overflow-hidden block"
                               autoFocus
                             />
                             <div className="flex gap-2 justify-end">
