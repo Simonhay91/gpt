@@ -79,11 +79,12 @@ async def get_relevant_chunks(
 
     query_embedding = await get_embedding(query)
 
-    # Get chunks ONLY from existing sources
+    # Get chunks ONLY from existing sources — project only needed fields
     all_chunks = await db.source_chunks.find(
         {"sourceId": {"$in": existing_source_ids}},
-        {"_id": 0}
-    ).to_list(50000)
+        {"_id": 0, "sourceId": 1, "content": 1, "text": 1, "embedding": 1,
+         "chunkIndex": 1, "sourceName": 1, "sourceType": 1}
+    ).to_list(5000)
 
     if not all_chunks:
         return []

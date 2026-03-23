@@ -320,7 +320,14 @@ async def get_messages(chat_id: str, current_user: dict = Depends(get_current_us
     elif chat.get("ownerId") != current_user["id"]:
         raise HTTPException(status_code=403, detail="Not authorized")
     
-    messages = await db.messages.find({"chatId": chat_id}, {"_id": 0}).sort("createdAt", 1).to_list(1000)
+    messages = await db.messages.find(
+        {"chatId": chat_id},
+        {"_id": 0, "id": 1, "chatId": 1, "role": 1, "content": 1, "createdAt": 1,
+         "citations": 1, "usedSources": 1, "autoIngestedUrls": 1, "senderEmail": 1,
+         "senderName": 1, "fromCache": 1, "cacheInfo": 1, "web_sources": 1,
+         "clarifying_question": 1, "clarifying_options": 1, "fetchedUrls": 1,
+         "excel_file_id": 1, "excel_preview": 1}
+    ).sort("createdAt", 1).to_list(500)
     
     result = []
     for m in messages:
@@ -433,9 +440,12 @@ async def send_message(chat_id: str, message_data: MessageCreate, current_user: 
     # Get GPT config
     config = await ensure_gpt_config(db)
     
-    # Get chat history
-    history = await db.messages.find({"chatId": chat_id}, {"_id": 0}).sort("createdAt", 1).to_list(1000)
-    history = history[-20:]
+    # Get chat history — fetch only last 20 directly from DB
+    history = await db.messages.find(
+        {"chatId": chat_id},
+        {"_id": 0, "role": 1, "content": 1, "createdAt": 1}
+    ).sort("createdAt", -1).to_list(20)
+    history = list(reversed(history))
 
     # Get relevant chunks and build context
     citations = []
