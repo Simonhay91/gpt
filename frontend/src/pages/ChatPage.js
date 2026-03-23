@@ -872,11 +872,6 @@ const ChatPage = () => {
               <ImageGenerator projectId={chat.projectId} onImageGenerated={handleImageGenerated} />
             )}
 
-            {/* Excel Assistant - only for project chats */}
-            {chat && chat.projectId && (
-              <ExcelAssistant chatId={chatId} />
-            )}
-
             {/* Source Panel Toggle - only for project chats */}
             {!isQuickChat && (
               <Button variant="outline" size="sm" onClick={() => setShowSourcePanel(!showSourcePanel)} className="gap-2" data-testid="toggle-source-panel-btn">
