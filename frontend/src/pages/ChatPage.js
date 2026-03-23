@@ -676,6 +676,16 @@ const ChatPage = () => {
         });
         setMessages(prev => [...prev, aiResponse.data]);
         setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
+
+        // Auto-rename chat after first exchange if name is auto-generated
+        const isAutoName = chat?.name?.startsWith('Новый чат') || chat?.name === 'New Chat';
+        const isFirstMessage = messages.filter(m => m.role === 'user').length === 1;
+        if (isAutoName && isFirstMessage) {
+          const shortName = content.trim().slice(0, 40) + (content.trim().length > 40 ? '...' : '');
+          axios.put(`${API}/chats/${chatId}/rename`, { name: shortName })
+            .then(res => setChat(prev => ({ ...prev, name: res.data.name || shortName })))
+            .catch(() => {});
+        }
       } catch (aiError) {
         console.error('Failed to get AI response:', aiError);
         toast.error('Не удалось получить ответ AI');

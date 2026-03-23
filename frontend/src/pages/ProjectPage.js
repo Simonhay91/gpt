@@ -91,15 +91,13 @@ const ProjectPage = () => {
   };
 
   const createChat = async () => {
+    if (isCreating) return;
     setIsCreating(true);
     try {
-      const response = await axios.post(`${API}/projects/${projectId}/chats`, {
-        name: newChatName.trim() || 'New Chat'
-      });
+      const now = new Date();
+      const autoName = `Новый чат ${now.getHours().toString().padStart(2,'0')}:${now.getMinutes().toString().padStart(2,'0')}`;
+      const response = await axios.post(`${API}/projects/${projectId}/chats`, { name: autoName });
       setChats([...chats, response.data]);
-      setNewChatName('');
-      setIsDialogOpen(false);
-      toast.success('Chat created');
       navigate(`/chats/${response.data.id}`);
     } catch (error) {
       toast.error('Failed to create chat');
@@ -467,33 +465,10 @@ const ProjectPage = () => {
               </Dialog>
 
               {/* New Chat Button */}
-              <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-                <DialogTrigger asChild>
-                  <Button className="btn-hover" data-testid="new-chat-btn">
-                    <Plus className="mr-2 h-4 w-4" />
-                    New Chat
-                  </Button>
-                </DialogTrigger>
-                <DialogContent className="sm:max-w-md">
-                  <DialogHeader>
-                    <DialogTitle>Create New Chat</DialogTitle>
-                    <DialogDescription>Start a new conversation in this project.</DialogDescription>
-                  </DialogHeader>
-                  <div className="space-y-4 py-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="chatName">Chat Name (optional)</Label>
-                      <Input id="chatName" placeholder="New Chat" value={newChatName} onChange={(e) => setNewChatName(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && createChat()} data-testid="chat-name-input" />
-                    </div>
-                  </div>
-                  <DialogFooter>
-                    <Button variant="outline" onClick={() => setIsDialogOpen(false)}>Cancel</Button>
-                    <Button onClick={createChat} disabled={isCreating} data-testid="confirm-create-chat-btn">
-                      {isCreating ? <div className="spinner mr-2" /> : null}
-                      Create Chat
-                    </Button>
-                  </DialogFooter>
-                </DialogContent>
-              </Dialog>
+              <Button className="btn-hover" onClick={createChat} disabled={isCreating} data-testid="new-chat-btn">
+                {isCreating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Plus className="mr-2 h-4 w-4" />}
+                New Chat
+              </Button>
 
               {/* Memory Dialog */}
               <Dialog open={memoryDialogOpen} onOpenChange={setMemoryDialogOpen}>
