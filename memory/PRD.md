@@ -1,6 +1,6 @@
 # Planet Knowledge — Product Requirements Document
 
-**Version:** 2.0  
+**Version:** 2.1  
 **Last Updated:** February 2026  
 **Admin credentials:** `admin@ai.planetworkspace.com` / `Admin@123456`
 
@@ -345,11 +345,23 @@ PUT    /api/admin/gpt-config
 
 ## 9. Changelog
 
-### Февраль 2026
+### Февраль 2026 — Текущая сессия
 - ✅ **URL Content Fetching** — авто-чтение HTML/PDF из URL в чате (BeautifulSoup + pypdf)
 - ✅ **URL Indicator UI** — бейдж "🔗 URL прочитан: domain.com" под ответом AI
+- ✅ **ensure_gpt_config fix** — конфиг не перезаписывается при рестарте (`find_one({})` → `return`)
+- ✅ **Clarifying Questions light mode fix** — цвета amber адаптированы для light/dark режимов
+- ✅ **SmartQuestions hidden** — секция "Получить идеи вопросов" скрыта в чате
+- ✅ **PDF as URL source** — `sources.py` теперь принимает `application/pdf` при добавлении URL-источника (pypdf extraction)
+- ✅ **Personal Sources — publishedTo badge** — бейджи "📁 Project" / "🏢 Dept" на карточках личных источников
+- ✅ **Chat sources — project badge** — бейдж имени проекта на каждом источнике в панели чата
+- ✅ **Project Memory fix** — переключён на `anthropic.Anthropic` + добавлен `return {"points": []}` в except
+- ✅ **Image Generator — reference photo** — загрузка фото в таб Generate, кнопка активна без текста если есть фото
+- ✅ **ImageGenerator bug fix** — восстановлен `editFile` state (setEditFile not defined)
+- ✅ **Tab title** — "Planet GPT" → "PLANET KNOWLEDGE", favicon обновлён (fa-globe стиль)
+- ✅ **Auth fix** — `fetchUser()` вызывает `logout()` только при 401, не при сетевых ошибках
+- ✅ **JWT expiry** — увеличен с 24ч до 7 дней
 
-### Март 2026 (предыдущие сессии)
+### Предыдущие сессии (Март 2026)
 - ✅ **Brave Web Search** — веб-поиск через Brave API
 - ✅ **Edit Message** — редактирование сообщений + регенерация AI
 - ✅ **Clarifying Questions** — AI задаёт уточняющие вопросы
@@ -374,4 +386,4 @@ PUT    /api/admin/gpt-config
 
 ---
 
-*Planet Knowledge PRD v2.0 — Confidential*
+*Planet Knowledge PRD v2.1 — Confidential*
