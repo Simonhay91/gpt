@@ -1489,10 +1489,10 @@ const ChatPage = () => {
 
         {/* Scroll to bottom button */}
         {showScrollBtn && (
-          <div className="relative">
+          <div className="fixed bottom-28 left-1/2 -translate-x-1/2 z-50">
             <button
               onClick={() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })}
-              className="absolute bottom-4 left-1/2 -translate-x-1/2 z-10 flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-primary text-primary-foreground text-xs font-medium shadow-lg hover:bg-primary/90 transition-all animate-bounce"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-primary text-primary-foreground text-xs font-medium shadow-lg hover:bg-primary/90 transition-all animate-bounce"
             >
               <ChevronDown className="h-3.5 w-3.5" />
               Scroll down
