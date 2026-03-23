@@ -1383,6 +1383,7 @@ const ChatPage = () => {
                                 }
                               }}
                               className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-green-500 hover:bg-green-600 text-white text-xs font-medium transition-colors"
+                              title="Скачать можно только один раз — файл удаляется после скачивания"
                               data-testid={`excel-download-chat-${index}`}
                             >
                               <Download className="h-3.5 w-3.5" />
