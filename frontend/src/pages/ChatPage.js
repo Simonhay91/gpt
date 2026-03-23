@@ -158,7 +158,7 @@ const ChatPage = () => {
   const [showSearchResults, setShowSearchResults] = useState(false);
   
   const [expandedGroups, setExpandedGroups] = useState({});
-  const [showInfoBlock, setShowInfoBlock] = useState(true);
+  const [showInfoBlock, setShowInfoBlock] = useState(false);
   const [isSavingContext, setIsSavingContext] = useState(false);
   const [memoryModalOpen, setMemoryModalOpen] = useState(false);
   
@@ -1491,8 +1491,28 @@ const ChatPage = () => {
           <div className="max-w-3xl mx-auto space-y-2">
             {/* Action buttons row */}
             <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-1.5 h-8 text-xs"
+                onClick={() => {
+                  const q = input.trim();
+                  if (!q) { toast.error('Сначала введи запрос'); return; }
+                  sendMessage(`գտիր ինտերնետում և վերլուծիր: ${q}`);
+                }}
+                disabled={isSending || !input.trim()}
+                data-testid="chat-research-btn"
+              >
+                <Search className="h-3.5 w-3.5" />
+                Research
+              </Button>
+            </div>
+
+            {/* Textarea + Send row */}
+            <div className="flex gap-3 items-end">
+              {/* Plus button inside chat field */}
               {!isQuickChat && (
-                <div className="relative" ref={plusMenuRef}>
+                <div className="relative flex-shrink-0 self-end mb-0.5" ref={plusMenuRef}>
                   <input
                     type="file"
                     multiple
@@ -1513,7 +1533,7 @@ const ChatPage = () => {
                   </button>
 
                   {showPlusMenu && (
-                    <div className="absolute bottom-11 left-0 z-50 w-52 rounded-xl border border-border bg-card shadow-xl overflow-hidden animate-slideIn">
+                    <div className="absolute bottom-11 left-0 z-50 w-52 rounded-xl border border-border bg-card shadow-xl overflow-hidden">
                       <button
                         className="w-full flex items-center gap-3 px-4 py-3 text-sm hover:bg-secondary transition-colors text-left"
                         onClick={() => { document.getElementById('chat-input-file').click(); setShowPlusMenu(false); }}
@@ -1588,32 +1608,14 @@ const ChatPage = () => {
                   )}
                 </div>
               )}
-              <Button
-                variant="outline"
-                size="sm"
-                className="gap-1.5 h-8 text-xs"
-                onClick={() => {
-                  const q = input.trim();
-                  if (!q) { toast.error('Сначала введи запрос'); return; }
-                  sendMessage(`գտիր ինտերնետում և վերլուծիր: ${q}`);
-                }}
-                disabled={isSending || !input.trim()}
-                data-testid="chat-research-btn"
-              >
-                <Search className="h-3.5 w-3.5" />
-                Research
-              </Button>
-            </div>
 
-            {/* Textarea + Send row */}
-            <div className="flex gap-4">
               <Textarea
                 ref={textareaRef}
                 placeholder={activeSourceIds.length > 0 ? "Ask a question about the selected sources..." : "Type your message... (Enter to send, Shift+Enter for new line)"}
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={handleKeyDown}
-                className="min-h-[60px] max-h-[200px] resize-none bg-background"
+                className="min-h-[60px] max-h-[200px] resize-none bg-background flex-1"
                 disabled={isSending}
                 data-testid="chat-input"
               />
