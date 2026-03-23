@@ -1,26 +1,46 @@
-export const APP_VERSION = "2.1.0";
+export const APP_VERSION = "2.3.0";
 
 export const CHANGELOG = [
   {
-    version: "2.1.0",
-    date: "Февраль 2026",
+    version: "2.3.0",
+    date: "Март 2026",
     badge: "new",
+    changes: [
+      "Excel/CSV Assistant — обработка таблиц через AI прямо в диалоге",
+      "Excel из чата — AI автоматически трансформирует файл и встраивает кнопку скачивания в ответ",
+      "Поддержка NaN/Inf значений в Excel — пустые ячейки больше не ломают обработку",
+      "Новый эндпоинт /api/excel/download/{file_id} с авто-удалением после скачивания",
+    ]
+  },
+  {
+    version: "2.2.0",
+    date: "Февраль 2026",
+    badge: null,
+    changes: [
+      "Changelog модал — история обновлений прямо в интерфейсе",
+      "Версия приложения в футере (v2.x.x)",
+      "Image Generator — загрузка фото-референса в Generate",
+      "Project Memory — исправлена работа извлечения фактов",
+      "Заголовок вкладки: PLANET KNOWLEDGE + новый favicon",
+    ]
+  },
+  {
+    version: "2.1.0",
+    date: "Январь 2026",
+    badge: null,
     changes: [
       "Авто-чтение HTML/PDF из URL прямо в чате",
       "Бейдж «URL прочитан» под ответом AI",
       "Добавление PDF по ссылке как источника",
       "Личные источники — показывает в каких проектах опубликован файл",
       "Источники в чате — бейдж с именем проекта",
-      "Project Memory — исправлена работа извлечения фактов",
-      "Image Generator — загрузка фото-референса в Generate",
-      "Заголовок вкладки: PLANET KNOWLEDGE + новый favicon",
       "Авторизация — токен действует 7 дней",
       "Логика GPT config — промпт не перезаписывается при рестарте",
     ]
   },
   {
     version: "2.0.0",
-    date: "Январь 2026",
+    date: "Декабрь 2025",
     badge: null,
     changes: [
       "Brave Web Search — веб-поиск прямо из чата",
@@ -35,7 +55,7 @@ export const CHANGELOG = [
   },
   {
     version: "1.5.0",
-    date: "Декабрь 2025",
+    date: "Ноябрь 2025",
     badge: null,
     changes: [
       "RAG Pipeline — Voyage AI semantic search",
@@ -48,7 +68,7 @@ export const CHANGELOG = [
   },
   {
     version: "1.0.0",
-    date: "Ноябрь 2025",
+    date: "Октябрь 2025",
     badge: null,
     changes: [
       "Аутентификация и роли (Admin, Manager, Editor, Viewer)",
