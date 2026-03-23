@@ -655,39 +655,27 @@ const ChatPage = () => {
         content: editedContent
       });
 
-      // Remove messages after edited one and update the edited message
-      // Keep all messages BEFORE the edited message (indices 0 to editedIndex-1)
-      // Keep the edited message itself (index editedIndex)
-      // Remove all messages AFTER the edited message (indices editedIndex+1 onwards)
-      const editedIndex = messages.findIndex(m => m.id === messageId);
-      if (editedIndex !== -1) {
-        // slice(0, editedIndex + 1) keeps messages from index 0 to editedIndex (inclusive)
-        const updatedMessages = messages.slice(0, editedIndex + 1);
-        updatedMessages[editedIndex] = response.data;
-        setMessages(updatedMessages);
-        
-        console.log(`Edit: Kept ${editedIndex} messages before + 1 edited message = ${updatedMessages.length} total`);
-      }
+      // Use functional update to avoid stale closure — only remove NEXT messages
+      setMessages(prev => {
+        const idx = prev.findIndex(m => m.id === messageId);
+        if (idx === -1) return prev;
+        const updated = prev.slice(0, idx + 1);   // keep 0..idx (previous + edited)
+        updated[idx] = response.data;              // replace edited with server response
+        return updated;
+      });
 
       setEditingMessageId(null);
       setEditedContent("");
-      
       toast.success('Сообщение обновлено');
-      
-      // Now send the edited message to get AI response
+
+      // Get new AI response
       setIsSending(true);
       try {
         const aiResponse = await axios.post(`${API}/chats/${chatId}/messages`, {
           content: editedContent
         });
-        
         setMessages(prev => [...prev, aiResponse.data]);
-        
-        // Auto-scroll to new message
-        setTimeout(() => {
-          messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-        }, 100);
-        
+        setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
       } catch (aiError) {
         console.error('Failed to get AI response:', aiError);
         toast.error('Не удалось получить ответ AI');
@@ -1195,8 +1183,13 @@ const ChatPage = () => {
                           <div className="space-y-2">
                             <textarea
                               value={editedContent}
-                              onChange={(e) => setEditedContent(e.target.value)}
-                              className="w-full px-4 py-3 rounded-2xl bg-primary/10 text-foreground border border-primary/20 focus:border-primary focus:outline-none resize-none min-h-[80px]"
+                              onChange={(e) => {
+                                setEditedContent(e.target.value);
+                                e.target.style.height = 'auto';
+                                e.target.style.height = e.target.scrollHeight + 'px';
+                              }}
+                              ref={(el) => { if (el) { el.style.height = 'auto'; el.style.height = el.scrollHeight + 'px'; } }}
+                              className="w-full px-4 py-3 rounded-2xl bg-primary/10 text-foreground border border-primary/20 focus:border-primary focus:outline-none resize-none overflow-hidden"
                               autoFocus
                             />
                             <div className="flex gap-2 justify-end">
