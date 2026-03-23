@@ -165,9 +165,22 @@ const ChatPage = () => {
   // Edit message state
   const [editingMessageId, setEditingMessageId] = useState(null);
   const [editedContent, setEditedContent] = useState("");
+  const [showScrollBtn, setShowScrollBtn] = useState(false);
+  const scrollAreaRef = useRef(null);
 
   useEffect(() => { fetchChatData(); }, [chatId]);
   useEffect(() => { scrollToBottom(); }, [messages]);
+
+  useEffect(() => {
+    const scrollContainer = scrollAreaRef.current?.querySelector('[data-radix-scroll-area-viewport]');
+    if (!scrollContainer) return;
+    const handleScroll = () => {
+      const { scrollTop, scrollHeight, clientHeight } = scrollContainer;
+      setShowScrollBtn(scrollHeight - scrollTop - clientHeight > 200);
+    };
+    scrollContainer.addEventListener('scroll', handleScroll);
+    return () => scrollContainer.removeEventListener('scroll', handleScroll);
+  }, [isLoading]);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -1115,7 +1128,7 @@ const ChatPage = () => {
         </Dialog>
 
         {/* Messages Area */}
-        <ScrollArea className="flex-1 px-6 py-4">
+        <ScrollArea className="flex-1 px-6 py-4" ref={scrollAreaRef}>
           {messages.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full text-center">
               <div className="rounded-full bg-secondary p-4 mb-4"><Bot className="h-8 w-8 text-indigo-400" /></div>
@@ -1448,22 +1461,80 @@ const ChatPage = () => {
           }}
         /> */}
 
+        {/* Scroll to bottom button */}
+        {showScrollBtn && (
+          <div className="relative">
+            <button
+              onClick={() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })}
+              className="absolute bottom-4 left-1/2 -translate-x-1/2 z-10 flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-primary text-primary-foreground text-xs font-medium shadow-lg hover:bg-primary/90 transition-all animate-bounce"
+            >
+              <ChevronDown className="h-3.5 w-3.5" />
+              Scroll down
+            </button>
+          </div>
+        )}
+
         {/* Input Area */}
         <div className="border-t border-border px-6 py-4 bg-card/50 backdrop-blur">
-          <div className="max-w-3xl mx-auto flex gap-4">
-            <Textarea
-              ref={textareaRef}
-              placeholder={activeSourceIds.length > 0 ? "Ask a question about the selected sources..." : "Type your message... (Enter to send, Shift+Enter for new line)"}
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={handleKeyDown}
-              className="min-h-[60px] max-h-[200px] resize-none bg-background"
-              disabled={isSending}
-              data-testid="chat-input"
-            />
-            <Button onClick={sendMessage} disabled={!input.trim() || isSending} className="btn-hover self-end" data-testid="send-message-btn">
-              {isSending ? <Loader2 className="h-5 w-5 animate-spin" /> : <Send className="h-5 w-5" />}
-            </Button>
+          <div className="max-w-3xl mx-auto space-y-2">
+            {/* Action buttons row */}
+            <div className="flex items-center gap-2">
+              {!isQuickChat && (
+                <>
+                  <input
+                    type="file"
+                    multiple
+                    accept=".pdf,.docx,.pptx,.xlsx,.csv,.txt,.md,.png,.jpg,.jpeg"
+                    onChange={handleFileUpload}
+                    className="hidden"
+                    id="chat-input-file"
+                  />
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="gap-1.5 h-8 text-xs"
+                    onClick={() => document.getElementById('chat-input-file').click()}
+                    disabled={isUploading}
+                    data-testid="chat-add-file-btn"
+                  >
+                    {isUploading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}
+                    {isUploading ? 'Uploading...' : 'Add File'}
+                  </Button>
+                </>
+              )}
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-1.5 h-8 text-xs"
+                onClick={() => {
+                  const q = input.trim();
+                  if (!q) { toast.error('Сначала введи запрос'); return; }
+                  sendMessage(`գտիր ինտերնետում և վերլուծիր: ${q}`);
+                }}
+                disabled={isSending || !input.trim()}
+                data-testid="chat-research-btn"
+              >
+                <Search className="h-3.5 w-3.5" />
+                Research
+              </Button>
+            </div>
+
+            {/* Textarea + Send row */}
+            <div className="flex gap-4">
+              <Textarea
+                ref={textareaRef}
+                placeholder={activeSourceIds.length > 0 ? "Ask a question about the selected sources..." : "Type your message... (Enter to send, Shift+Enter for new line)"}
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={handleKeyDown}
+                className="min-h-[60px] max-h-[200px] resize-none bg-background"
+                disabled={isSending}
+                data-testid="chat-input"
+              />
+              <Button onClick={() => sendMessage()} disabled={!input.trim() || isSending} className="btn-hover self-end" data-testid="send-message-btn">
+                {isSending ? <Loader2 className="h-5 w-5 animate-spin" /> : <Send className="h-5 w-5" />}
+              </Button>
+            </div>
           </div>
         </div>
       </div>
