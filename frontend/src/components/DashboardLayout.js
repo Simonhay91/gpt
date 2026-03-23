@@ -5,6 +5,8 @@ import { useTheme } from '../contexts/ThemeContext';
 import { useLanguage } from '../contexts/LanguageContext';
 import ChangelogModal from './ChangelogModal';
 import { APP_VERSION } from '../data/changelog';
+import { Button } from './ui/button';
+import axios from 'axios';
 import { 
   LayoutDashboard, 
   Settings, 
