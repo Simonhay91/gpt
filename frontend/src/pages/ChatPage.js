@@ -680,14 +680,14 @@ const ChatPage = () => {
       setEditedContent("");
       toast.success('Сообщение обновлено');
 
-      // Get new AI response
+      // Get new AI response — regen=true prevents duplicate user message in DB
       setIsSending(true);
       try {
-        const aiResponse = await axios.post(`${API}/chats/${chatId}/messages`, {
+        const aiResponse = await axios.post(`${API}/chats/${chatId}/messages?regen=true`, {
           content: editedContent
         });
-        const { user_message: editedUserMsg, assistant_message: newAssistantMsg } = aiResponse.data;
-        setMessages(prev => [...prev, { ...editedUserMsg, content: editedContent }, newAssistantMsg]);
+        const { assistant_message: newAssistantMsg } = aiResponse.data;
+        setMessages(prev => [...prev, newAssistantMsg]);
         setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
 
         // Auto-rename chat after first exchange if name is auto-generated

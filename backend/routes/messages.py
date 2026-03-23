@@ -345,7 +345,12 @@ async def get_messages(chat_id: str, current_user: dict = Depends(get_current_us
 
 
 @router.post("/chats/{chat_id}/messages")
-async def send_message(chat_id: str, message_data: MessageCreate, current_user: dict = Depends(get_current_user)):
+async def send_message(
+    chat_id: str,
+    message_data: MessageCreate,
+    regen: bool = False,
+    current_user: dict = Depends(get_current_user)
+):
     db = get_db()
     chat = await db.chats.find_one({"id": chat_id}, {"_id": 0})
     if not chat:
@@ -435,7 +440,8 @@ async def send_message(chat_id: str, message_data: MessageCreate, current_user: 
         "senderName": sender_name,
         "createdAt": datetime.now(timezone.utc).isoformat()
     }
-    await db.messages.insert_one(user_message)
+    if not regen:
+        await db.messages.insert_one(user_message)
     
     # Get GPT config
     config = await ensure_gpt_config(db)
