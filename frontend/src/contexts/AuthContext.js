@@ -26,7 +26,10 @@ export const AuthProvider = ({ children }) => {
       localStorage.setItem('userEmail', response.data.email);
     } catch (error) {
       console.error('Failed to fetch user:', error);
-      logout();
+      // Only logout on 401 (token invalid/expired), not on network errors
+      if (error.response?.status === 401) {
+        logout();
+      }
     } finally {
       setLoading(false);
     }
