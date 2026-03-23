@@ -484,8 +484,8 @@ const ChatPage = () => {
     return text.replace(regex, '<mark class="bg-yellow-300 dark:bg-yellow-600 px-0.5 rounded">$1</mark>');
   };
 
-  const sendMessage = async () => {
-    const content = input.trim();
+  const sendMessage = async (contentOverride) => {
+    const content = (contentOverride ?? input).trim();
     if (!content || isSending) return;
 
     const tempUserMsg = { id: `temp-${Date.now()}`, chatId, role: 'user', content, createdAt: new Date().toISOString() };
@@ -1398,13 +1398,7 @@ const ChatPage = () => {
                                 key={idx}
                                 variant="outline"
                                 size="sm"
-                                onClick={async () => {
-                                  setInput(option);
-                                  setTimeout(() => {
-                                    const sendEvent = new Event('submit', { bubbles: true, cancelable: true });
-                                    document.querySelector('form')?.dispatchEvent(sendEvent);
-                                  }, 100);
-                                }}
+                                onClick={() => sendMessage(option)}
                                 className="bg-amber-100 dark:bg-amber-500/20 border-amber-400 dark:border-amber-500/30 text-amber-800 dark:text-amber-200 hover:bg-amber-200 dark:hover:bg-amber-500/30 hover:text-amber-900 dark:hover:text-amber-100"
                               >
                                 {option}

@@ -265,6 +265,7 @@ async def auto_ingest_url(db, url: str, project_id: str) -> Optional[dict]:
     except Exception as e:
         logger.error(f"Error auto-ingesting URL {url}: {str(e)}")
         return None
+        
 
 
 async def ensure_gpt_config(db):
@@ -292,7 +293,15 @@ CLARIFYING QUESTIONS:
 <clarifying>
 {"question": "текст вопроса", "options": ["вариант 1", "вариант 2", "вариант 3"]}
 </clarifying>
-Не задавай более одного вопроса за раз. Если информации достаточно — отвечай сразу без уточнений.""",
+Не задавай более одного вопроса за раз. Если информации достаточно — отвечай сразу без уточнений.
+
+EXCEL / CSV SOURCES:
+When the user has Excel or CSV files as active sources, behave like an analyst, not a robot:
+- First understand what the user needs — ask clarifying questions if the request is vague
+- Analyze and discuss the data naturally before doing anything
+- Only generate/modify an Excel file when the user explicitly asks (e.g. "generate", "create new excel", "download", "փոխիր excel", "ստեղծիր", "сгенерируй")
+- When generating, confirm what you are about to do before doing it
+- Never auto-generate Excel just because the user mentioned columns or data""",
         "updatedAt": datetime.now(timezone.utc).isoformat()
     }
     await db.gpt_config.insert_one(default_config)
@@ -707,13 +716,23 @@ async def send_message(chat_id: str, message_data: MessageCreate, current_user: 
             )
 
             if excel_source:
+
                 EXCEL_KEYWORDS = [
-                    "excel", "xlsx", "csv", "таблиц", "колонк", "строк", "данн",
-                    "переведи", "translate", "добавь столбец", "измени", "отфильтруй",
-                    "generate", "создай", "сгенерируй", "скачать", "download",
-                    "rename", "переименуй", "sort", "отсортируй", "filter",
-                    "աղյուսակ", "սյունակ", "թարգմանիր", "փոխիր", "ներբեռնել",
+                    # Russian explicit commands
+                    "сгенерируй", "создай excel", "создай таблицу", "скачать excel",
+                    "скачать таблицу", "экспортируй",
+                    # English explicit commands
+                    "generate excel", "download excel", "export excel",
+                    "create excel", "make excel", "create table", "make table",
+                    "generate table", "export table", "download table",
+                    "generate file", "create file", "make a file",
+                    "generate spreadsheet", "create spreadsheet",
+                    # Armenian explicit commands
+                    "ստեղծիր excel", "ստեղծիր աղյուսակ", "generate արա",
+                    "ներբեռնել excel", "տուր excel", "նոր excel",
+                    "փոխիր excel", "թարգմանիր excel"
                 ]
+                
                 msg_lower = message_data.content.lower()
                 is_excel_request = any(kw in msg_lower for kw in EXCEL_KEYWORDS)
 
