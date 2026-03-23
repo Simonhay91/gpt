@@ -53,6 +53,7 @@ import { Label } from '../components/ui/label';
 import { Checkbox } from '../components/ui/checkbox';
 import DashboardLayout from '../components/DashboardLayout';
 import ImageGenerator from '../components/ImageGenerator';
+import ExcelAssistant from '../components/ExcelAssistant';
 import AuthImage from '../components/AuthImage';
 import SmartQuestions from '../components/SmartQuestions';
 
@@ -830,6 +831,11 @@ const ChatPage = () => {
             {/* Image Generator - only for project chats */}
             {chat && chat.projectId && (
               <ImageGenerator projectId={chat.projectId} onImageGenerated={handleImageGenerated} />
+            )}
+
+            {/* Excel Assistant - only for project chats */}
+            {chat && chat.projectId && (
+              <ExcelAssistant chatId={chatId} />
             )}
 
             {/* Source Panel Toggle - only for project chats */}

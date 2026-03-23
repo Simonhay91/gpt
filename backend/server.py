@@ -52,6 +52,7 @@ from routes.product_catalog import router as product_catalog_router
 from routes.departments import setup_department_routes, router as departments_router
 from routes.enterprise_sources import setup_enterprise_source_routes, router as enterprise_sources_router
 from routes.news import router as news_router
+from routes.excel import router as excel_router
 
 # Import services and dependencies needed for enterprise route setup
 from services.enterprise import AuditService, VersionService
@@ -164,6 +165,7 @@ app.include_router(product_catalog_router)
 app.include_router(departments_router)
 app.include_router(enterprise_sources_router)
 app.include_router(news_router, prefix="/api")
+app.include_router(excel_router, prefix="/api")
 
 # ==================== MIDDLEWARE ====================
 
