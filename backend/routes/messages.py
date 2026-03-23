@@ -1190,13 +1190,22 @@ async def extract_memory_points(chat_id: str, data: dict, current_user: dict = D
             messages=[{"role": "user", "content": dialog_text[:8000]}]
         )
         import json as _json
+        import re as _re
         text = response.content[0].text.strip()
+        # Strip markdown code blocks
         if text.startswith("```"):
             text = text.split("```")[1]
             if text.startswith("json"):
                 text = text[4:]
+            text = text.strip()
+        # Find JSON array anywhere in the text
+        if not text.startswith("["):
+            match = _re.search(r'\[.*\]', text, _re.DOTALL)
+            text = match.group(0) if match else "[]"
+        if not text:
+            return {"points": []}
         points = _json.loads(text.strip())
         return {"points": points if isinstance(points, list) else []}
     except Exception as e:
         logger.error(f"Extract memory points error: {str(e)}")
-        return {"points": []}       
+        return {"points": []}
