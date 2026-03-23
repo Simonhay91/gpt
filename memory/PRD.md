@@ -1,7 +1,7 @@
 # Planet Knowledge — Product Requirements Document
 
-**Version:** 2.1  
-**Last Updated:** February 2026  
+**Version:** 2.2  
+**Last Updated:** March 2026  
 **Admin credentials:** `admin@ai.planetworkspace.com` / `Admin@123456`
 
 ---
@@ -361,7 +361,10 @@ PUT    /api/admin/gpt-config
 - ✅ **Auth fix** — `fetchUser()` вызывает `logout()` только при 401, не при сетевых ошибках
 - ✅ **JWT expiry** — увеличен с 24ч до 7 дней
 
-### Предыдущие сессии (Март 2026)
+### Текущая сессия (Март 2026 — продолжение)
+- ✅ **Excel/CSV Assistant** — новый компонент `ExcelAssistant.js` с drag-and-drop загрузкой, AI-обработкой (Claude + pandas), preview таблицей и скачиванием результата. Только для project-based чатов. Backend: `routes/excel.py` с двумя эндпоинтами.
+
+### Предыдущая сессия (Март 2026 — часть 1)
 - ✅ **Brave Web Search** — веб-поиск через Brave API
 - ✅ **Edit Message** — редактирование сообщений + регенерация AI
 - ✅ **Clarifying Questions** — AI задаёт уточняющие вопросы
@@ -386,4 +389,4 @@ PUT    /api/admin/gpt-config
 
 ---
 
-*Planet Knowledge PRD v2.1 — Confidential*
+*Planet Knowledge PRD v2.2 — Confidential*

@@ -181,7 +181,7 @@ export default function ExcelAssistant({ chatId }) {
                     variant="ghost"
                     size="icon"
                     className="h-8 w-8 ml-auto"
-                    onClick={(e) => { e.stopPropagation(); setFile(null); setResult(null); }}
+                    onClick={(e) => { e.stopPropagation(); setFile(null); setResult(null); if (fileInputRef.current) fileInputRef.current.value = ''; }}
                     data-testid="excel-remove-file"
                   >
                     <X className="h-4 w-4" />
