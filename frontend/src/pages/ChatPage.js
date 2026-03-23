@@ -534,17 +534,29 @@ const ChatPage = () => {
 
     try {
       const response = await axios.post(`${API}/chats/${chatId}/messages`, { content });
-      if (response.data.autoIngestedUrls && response.data.autoIngestedUrls.length > 0) {
+      const { user_message: userMsg, assistant_message: assistantMsg } = response.data;
+      if (assistantMsg.autoIngestedUrls && assistantMsg.autoIngestedUrls.length > 0) {
         const sourcesRes = await axios.get(`${API}/projects/${chat.projectId}/sources`);
         setProjectSources(sourcesRes.data);
         const chatRes = await axios.get(`${API}/chats/${chatId}`);
         setActiveSourceIds(chatRes.data.activeSourceIds || []);
-        toast.success(`Auto-ingested ${response.data.autoIngestedUrls.length} URL(s) from your message`);
+        toast.success(`Auto-ingested ${assistantMsg.autoIngestedUrls.length} URL(s) from your message`);
       }
       setMessages(prev => {
         const withoutTemp = prev.filter(m => m.id !== tempUserMsg.id);
-        return [...withoutTemp, { ...tempUserMsg, id: `user-${Date.now()}`, autoIngestedUrls: response.data.autoIngestedUrls }, response.data];
+        const realUserMsg = { ...tempUserMsg, id: userMsg.id, autoIngestedUrls: userMsg.autoIngestedUrls || null };
+        return [...withoutTemp, realUserMsg, assistantMsg];
       });
+
+      // Auto-rename chat after first message if name is auto-generated
+      const isAutoName = chat?.name?.startsWith('Новый чат') || chat?.name === 'New Chat';
+      const isFirst = messages.filter(m => m.role === 'user').length === 0;
+      if (isAutoName && isFirst) {
+        const shortName = content.trim().slice(0, 40) + (content.trim().length > 40 ? '...' : '');
+        axios.put(`${API}/chats/${chatId}/rename`, { name: shortName })
+          .then(res => setChat(prev => ({ ...prev, name: res.data.name || shortName })))
+          .catch(() => {});
+      }
     } catch (error) {
       setMessages(prev => prev.filter(m => m.id !== tempUserMsg.id));
       setInput(content);
@@ -674,7 +686,8 @@ const ChatPage = () => {
         const aiResponse = await axios.post(`${API}/chats/${chatId}/messages`, {
           content: editedContent
         });
-        setMessages(prev => [...prev, aiResponse.data]);
+        const { user_message: editedUserMsg, assistant_message: newAssistantMsg } = aiResponse.data;
+        setMessages(prev => [...prev, { ...editedUserMsg, content: editedContent }, newAssistantMsg]);
         setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
 
         // Auto-rename chat after first exchange if name is auto-generated

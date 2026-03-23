@@ -344,7 +344,7 @@ async def get_messages(chat_id: str, current_user: dict = Depends(get_current_us
     return result
 
 
-@router.post("/chats/{chat_id}/messages", response_model=MessageResponse)
+@router.post("/chats/{chat_id}/messages")
 async def send_message(chat_id: str, message_data: MessageCreate, current_user: dict = Depends(get_current_user)):
     db = get_db()
     chat = await db.chats.find_one({"id": chat_id}, {"_id": 0})
@@ -911,7 +911,10 @@ async def send_message(chat_id: str, message_data: MessageCreate, current_user: 
                 upsert=True
             )
     
-    return MessageResponse(**assistant_message)
+    return {
+        "user_message": {k: v for k, v in user_message.items() if k != "_id"},
+        "assistant_message": {k: v for k, v in assistant_message.items() if k != "_id"}
+    }
 
 
 # ==================== EDIT MESSAGE ====================
