@@ -679,7 +679,118 @@ async def send_message(chat_id: str, message_data: MessageCreate, current_user: 
         response_text = f"Error: {str(e)[:100]}"
         citations = []
         from_cache = False
-    
+
+    # ==================== EXCEL GENERATION DETECTION ====================
+    excel_file_id = None
+    excel_preview = None
+
+    if project_id and active_source_ids and not response_text.startswith("Error:"):
+        try:
+            import json as _json
+            import math as _math
+            import pandas as _pd
+            from pathlib import Path as _Path
+            import uuid as _uuid
+
+            _UPLOAD_DIR = _Path(__file__).parent.parent / "uploads"
+
+            EXCEL_MIME_TYPES = [
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                "application/vnd.ms-excel",
+                "text/csv",
+                "application/csv",
+            ]
+
+            excel_source = await db.sources.find_one(
+                {"id": {"$in": active_source_ids}, "mimeType": {"$in": EXCEL_MIME_TYPES}},
+                {"_id": 0}
+            )
+
+            if excel_source:
+                EXCEL_KEYWORDS = [
+                    "excel", "xlsx", "csv", "таблиц", "колонк", "строк", "данн",
+                    "переведи", "translate", "добавь столбец", "измени", "отфильтруй",
+                    "generate", "создай", "сгенерируй", "скачать", "download",
+                    "rename", "переименуй", "sort", "отсортируй", "filter",
+                    "աղյուսակ", "սյունակ", "թարգմանիր", "փոխիր", "ներբեռնել",
+                ]
+                msg_lower = message_data.content.lower()
+                is_excel_request = any(kw in msg_lower for kw in EXCEL_KEYWORDS)
+
+                if is_excel_request and excel_source.get("storagePath"):
+                    file_path = _UPLOAD_DIR / excel_source["storagePath"]
+                    if file_path.exists():
+                        ext = excel_source["storagePath"].rsplit(".", 1)[-1].lower()
+                        df = _pd.read_excel(file_path) if ext in ("xlsx", "xls") else _pd.read_csv(file_path)
+
+                        structure = (
+                            f"File: {excel_source.get('originalName', 'file')}\n"
+                            f"Rows: {len(df)}, Columns: {len(df.columns)}\n"
+                            f"Columns: {list(df.columns)}\n"
+                            f"Data (max 200 rows):\n{df.head(200).to_string(index=False)}"
+                        )
+
+                        excel_system = (
+                            "You are a data transformation assistant. "
+                            "The spreadsheet data is provided directly below — do not fetch anything externally.\n"
+                            "Apply the user's instruction to the data and return ONLY a valid JSON object:\n"
+                            '{"column_mapping": {"old": "new"}, "new_data": [[col1, col2, ...], [val1, val2, ...], ...], "message": "what was done"}\n'
+                            "- new_data: first array = column names, remaining arrays = ALL data rows with transformations applied\n"
+                            "- column_mapping: rename map (can be empty {})\n"
+                            "- message: brief explanation in same language as instruction\n"
+                            "- NEVER say you cannot do something — work only with the provided data\n"
+                            "Return ONLY JSON, no markdown, no extra text."
+                        )
+
+                        excel_client = anthropic.Anthropic(api_key=os.environ.get("CLAUDE_API_KEY", ""))
+                        excel_response = excel_client.messages.create(
+                            model="claude-sonnet-4-20250514",
+                            max_tokens=4096,
+                            system=excel_system,
+                            messages=[{"role": "user", "content": f"Instruction: {message_data.content}\n\n{structure}"}]
+                        )
+
+                        raw = excel_response.content[0].text.strip()
+                        if raw.startswith("```"):
+                            raw = raw.split("```")[1]
+                            if raw.startswith("json"):
+                                raw = raw[4:]
+
+                        result_data = _json.loads(raw.strip())
+                        new_data = result_data.get("new_data", [])
+
+                        if new_data and len(new_data) > 1:
+                            cols = new_data[0]
+                            result_df = _pd.DataFrame(new_data[1:], columns=cols)
+                        else:
+                            col_map = result_data.get("column_mapping", {})
+                            result_df = df.rename(columns={k: v for k, v in col_map.items() if k in df.columns})
+
+                        file_id = str(_uuid.uuid4())
+                        result_path = f"/tmp/excel_result_{file_id}.xlsx"
+                        result_df.to_excel(result_path, index=False)
+
+                        def _sanitize(v):
+                            if v is None:
+                                return None
+                            if isinstance(v, float) and (_math.isnan(v) or _math.isinf(v)):
+                                return None
+                            return v
+
+                        excel_file_id = file_id
+                        excel_preview = {
+                            "columns": [str(c) for c in result_df.columns],
+                            "rows": [[_sanitize(v) for v in row] for row in result_df.head(5).values.tolist()],
+                            "total_rows": len(result_df),
+                            "message": result_data.get("message", ""),
+                        }
+
+                        response_text = result_data.get("message", response_text)
+        except Exception as excel_err:
+            logger.error(f"Excel generation error: {excel_err}")
+
+    # ==================== END EXCEL DETECTION ====================
+
     # Deduplicate citations
     unique_citations = {}
     used_sources = []
@@ -738,6 +849,8 @@ async def send_message(chat_id: str, message_data: MessageCreate, current_user: 
         "clarifying_question": clarifying_question,
         "clarifying_options": clarifying_options,
         "fetchedUrls": fetched_urls_list if fetched_urls_list else None,
+        "excel_file_id": excel_file_id,
+        "excel_preview": excel_preview,
         "createdAt": datetime.now(timezone.utc).isoformat()
     }
     await db.messages.insert_one(assistant_message)

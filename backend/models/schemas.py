@@ -145,6 +145,8 @@ class MessageResponse(BaseModel):
     clarifying_question: Optional[str] = None  # Clarifying question text
     clarifying_options: Optional[List[str]] = None  # Options for clarifying question
     fetchedUrls: Optional[List[str]] = None  # URLs whose content was fetched and used as context
+    excel_file_id: Optional[str] = None      # ID of generated Excel file in /tmp/
+    excel_preview: Optional[dict] = None     # Preview data for inline table display
 
 
 # ==================== SOURCE MODELS ====================
