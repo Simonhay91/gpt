@@ -1,10 +1,23 @@
-export const APP_VERSION = "2.5.2";
+export const APP_VERSION = "2.5.3";
 
 export const CHANGELOG = [
   {
-    version: "2.5.2",
+    version: "2.5.3",
     date: "Март 2026",
     badge: "new",
+    changes: [
+      "Product Catalog — AI поиск по каталогу, inject в контекст чата",
+      "Web search — не запускается если есть Project Memory",
+      "Web search — ускорение: fetch только 2 страницы по 500 символов вместо 3×1000",
+      "Excel auto-generation — расширен список стоп-слов, проверка на знак вопроса",
+      "Admin — сброс пароля пользователя из панели управления",
+      "Исправлено: выделение текста в light mode",
+    ]
+  },
+  {
+    version: "2.5.2",
+    date: "Март 2026",
+    badge: null,
     changes: [
       "Исправлено: текст при выделении/копировании больше не сливается с фоном в dark/light режиме",
       "Sources панель — кнопка X для закрытия, клик на область чата скрывает панель",
