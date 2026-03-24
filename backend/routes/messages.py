@@ -949,6 +949,14 @@ async def send_message(
                 # Question marks (Latin and Armenian) always skip Excel processing
                 has_question_mark = "?" in message_data.content or "՞" in message_data.content
                 is_excel_request = not has_question_mark and not any(kw in msg_lower for kw in SKIP_KWORDS)
+                # Override: only trigger Excel generation via explicit phrases
+                excel_trigger_phrases = [
+                    "generate excel", "create excel", "make excel",
+                    "ստեղծիр excel", "փоխир excel", "գеներацрու",
+                    "сгенерируй excel", "создай excel", "сделай excel",
+                    "download excel", "скачать excel", "беռнел excel"
+                ]
+                is_excel_request = any(phrase in message_data.content.lower() for phrase in excel_trigger_phrases)
 
                 if is_excel_request and excel_source.get("storagePath"):
                     file_path = _UPLOAD_DIR / excel_source["storagePath"]
