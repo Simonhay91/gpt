@@ -92,6 +92,52 @@ async def brave_web_search(query: str) -> Optional[List[dict]]:
         return None
 
 
+async def fetch_page_texts(results: list, top_n: int = 3, per_page: int = 1000, total_limit: int = 3000) -> list:
+    """Fetch actual page content for top-N Brave results. Never raises — always returns list."""
+    enriched = []
+    total_chars = 0
+
+    try:
+        from bs4 import BeautifulSoup
+
+        async with httpx.AsyncClient(timeout=5.0, follow_redirects=True) as client:
+            for result in results[:top_n]:
+                if total_chars >= total_limit:
+                    break
+                url = result.get("url", "")
+                if not url:
+                    enriched.append(result)
+                    continue
+                try:
+                    resp = await client.get(
+                        url,
+                        headers={"User-Agent": "Mozilla/5.0 (compatible; PlanetBot/1.0)"},
+                    )
+                    if resp.status_code == 200 and "text/html" in resp.headers.get("content-type", ""):
+                        soup = BeautifulSoup(resp.text, "html.parser")
+                        # Remove noise tags
+                        for tag in soup(["script", "style", "nav", "footer", "header", "aside"]):
+                            tag.decompose()
+                        text = soup.get_text(separator=" ", strip=True)
+                        text = " ".join(text.split())[:per_page]
+                        total_chars += len(text)
+                        enriched.append({**result, "page_text": text})
+                    else:
+                        enriched.append(result)
+                except Exception:
+                    enriched.append(result)
+
+        # Fill remaining results without page content
+        for result in results[len(enriched):]:
+            enriched.append(result)
+
+    except Exception as e:
+        logger.warning(f"Page fetch enrichment failed: {e}")
+        return results  # fallback: return originals untouched
+
+    return enriched
+
+
 def should_use_web_search(user_message: str, has_relevant_rag: bool) -> bool:
     """
     Determine if web search should be used
@@ -537,12 +583,17 @@ async def send_message(
         
         if web_search_results:
             web_sources = [{"title": r["title"], "url": r["url"]} for r in web_search_results]
-            
-            # Add web results to context
+
+            # Enrich top-3 results with actual page content
+            enriched_results = await fetch_page_texts(web_search_results, top_n=3, per_page=1000, total_limit=3000)
+
+            # Build context: prefer page_text, fallback to description
             web_context_parts = []
-            for idx, result in enumerate(web_search_results, 1):
+            for idx, result in enumerate(enriched_results[:5], 1):
+                page_text = result.get("page_text", "").strip()
+                snippet = page_text if page_text else result.get("description", "")
                 web_context_parts.append(
-                    f"[Web Result {idx}: {result['title']}]\nURL: {result['url']}\n{result['description']}"
+                    f"[Web Result {idx}: {result['title']}]\nURL: {result['url']}\n{snippet}"
                 )
             
             web_context = "\n\n---\n\n".join(web_context_parts)
