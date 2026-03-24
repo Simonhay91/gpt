@@ -848,7 +848,11 @@ async def send_message(
             for msg in history[:-1]:
                 messages.append({"role": msg["role"], "content": msg["content"]})
             messages.append({"role": "user", "content": message_data.content})
-            
+
+            print(f"[TIMING] System prompt length: {len(system_prompt)} chars")
+            print(f"[TIMING] Messages count: {len(messages)}")
+            print(f"[TIMING] Total context chars: {sum(len(str(m)) for m in messages)}")
+
             claude_response = claude_client.messages.create(
                 model="claude-sonnet-4-20250514",
                 max_tokens=4096,
