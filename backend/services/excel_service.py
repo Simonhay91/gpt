@@ -127,6 +127,9 @@ async def maybe_generate_excel(
             system=(
                 "You are a data transformation assistant. "
                 "The spreadsheet data is provided directly below — do not fetch anything externally.\n"
+                "The user's instruction may be in Armenian, Russian, or English — understand it regardless of language.\n"
+                "Common operations: \"poxi/փոխիր/замени\" = replace/rename, \"gri/գրիր/напиши\" = write/set value,\n"
+                "\"avelacru/ավելացրու/добавь\" = add, \"jnjel/ջնջել/удали\" = delete.\n"
                 "Apply the user's instruction to the data and return ONLY a valid JSON object:\n"
                 '{"column_mapping": {"old": "new"}, "new_data": [[col1, col2, ...], [val1, val2, ...], ...], "message": "what was done"}\n'
                 "- new_data: first array = column names, remaining arrays = ALL data rows with transformations applied\n"
