@@ -41,6 +41,25 @@ WEB_SEARCH_KEYWORDS = [
 ]
 
 
+
+async def search_product_catalog(query: str, db, limit: int = 5) -> list:
+    try:
+        results = await db.product_catalog.find({
+            "is_active": True,
+            "$or": [
+                {"title_en": {"$regex": query, "$options": "i"}},
+                {"article_number": {"$regex": query, "$options": "i"}},
+                {"vendor": {"$regex": query, "$options": "i"}},
+                {"product_model": {"$regex": query, "$options": "i"}},
+                {"description": {"$regex": query, "$options": "i"}},
+                {"aliases": {"$elemMatch": {"$regex": query, "$options": "i"}}}
+            ]
+        }, {"_id": 0}).limit(limit).to_list(limit)
+        return results
+    except Exception:
+        return []
+
+
 async def brave_web_search(query: str) -> Optional[List[dict]]:
     """
     Search the web using Brave Search API
@@ -587,6 +606,29 @@ async def send_message(
     has_relevant_rag = any(c.get("score", 0) > 0.7 for c in citations)
     has_rag_context = bool(citations)  # True if ANY RAG chunks were found (regardless of score)
 
+    # Product Catalog search
+    catalog_results = await search_product_catalog(message_data.content, db, limit=5)
+    catalog_context = ""
+    if catalog_results:
+        catalog_parts = []
+        for p in catalog_results:
+            relations_count = len(p.get("relations", []))
+            part = (
+                f"[Product: {p.get('title_en')}]\n"
+                f"Article: {p.get('article_number')} | Vendor: {p.get('vendor')} | Model: {p.get('product_model', '')}\n"
+                f"Category: {p.get('root_category', '')} > {p.get('lvl1_subcategory', '')}\n"
+                f"Price: {p.get('price', 'N/A')} | Related products: {relations_count}\n"
+                f"Description: {str(p.get('description', ''))[:300]}"
+            )
+            catalog_parts.append(part)
+        catalog_context = "===== PRODUCT CATALOG =====\n\n" + "\n\n---\n\n".join(catalog_parts)
+
+    if catalog_context:
+        if document_context:
+            document_context = f"{catalog_context}\n\n{document_context}"
+        else:
+            document_context = catalog_context
+
     # Brave Web Search integration
     web_search_results = None
     web_sources = None
@@ -754,6 +796,18 @@ async def send_message(
                     "- [Title](URL)"
                 )
                 system_parts.append(web_instruction)
+
+            # Add product catalog instruction if catalog results found
+            if catalog_results:
+                catalog_instruction = (
+                    "PRODUCT CATALOG: You have been provided with matching products from the company's "
+                    "product catalog above (under '===== PRODUCT CATALOG =====').\n"
+                    "- Use this data to answer product-related questions accurately\n"
+                    "- Mention article numbers and vendors when relevant\n"
+                    "- If the user asks about related/compatible products, note that relation data is available\n"
+                    "- Do not invent prices or specs not present in the catalog data"
+                )
+                system_parts.append(catalog_instruction)
 
             # Context-type specific final instruction (highest priority — overrides general rules)
             if context_type == "rag":
