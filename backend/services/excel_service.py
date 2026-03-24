@@ -79,6 +79,10 @@ async def targeted_excel_edit(source_file_path: str, instruction: str, claude_cl
             "Rules:\n"
             "- Only edit cells that need to change based on the instruction\n"
             "- Do not touch formulas, only static text/values\n"
+            "- Formulas start with \"=\" — write them as-is as the \"value\" field\n"
+            "- Example: {\"sheet\": \"Industry_Data\", \"cell\": \"E5\", \"value\": \"=D5/C5*100\"}\n"
+            "- If user asks to add a formula or calculation — write the Excel formula directly\n"
+            "- Armenian: \"formula tar/տուր\" or \"hashvarka/հաշվարկ\" = add formula\n"
             "- Return [] if instruction is unclear or no edits are needed"
         ),
         messages=[{"role": "user", "content": f"Instruction: {instruction}"}]
