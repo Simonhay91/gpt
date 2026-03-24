@@ -1,396 +1,182 @@
 <analysis>**original_problem_statement:**
-The user's goal is to build Planet Knowledge, a production-ready, full-stack SaaS web app for multi-user collaboration using React, FastAPI, and MongoDB.
+The user's initial goal from the previous session was to build a new **Excel/CSV Assistant** feature integrated into the chat UI. This session began with that task and expanded to include numerous UI/UX enhancements, critical bug fixes, and further feature development based on user feedback.
 
-In this extensive session, the agent implemented the Product Catalog feature, performed a major backend refactoring, and fixed numerous critical bugs and dependency issues. Key requests included:
-1.  **Backend Refactor:** Modularize the monolithic .
-2.  **New Feature: Product Catalog:** Implement a comprehensive catalog with a new database collection, full CRUD APIs, CSV import functionality, product relationship management, and corresponding frontend pages with pagination and role-based access.
-3.  **Security Feature:** Implement a forced password change for new users upon their first login.
-4.  **Data Management:** Create a mechanism to clean all test data from the database and implement cascade deletion for users.
-5.  **Branding:** Change all instances of Planet GPT to PLANET KNOWLEDGE.
-6.  **Bug Fixes:** Address a series of critical issues, including dependency conflicts (, ), UI bugs (flickering buttons, missing buttons for admins), and backend errors ().
-7.  **Deployment Issues:** Resolve recurring deployment failures related to missing Python dependencies () and logic for initializing the admin user in a clean production database.
+The latest user requests are:
+1.  **Improve Web Search:** After getting search results from the Brave API, fetch the actual content of the top 3 pages using  and , and use this richer text as context for the LLM. If fetching fails, fall back to Brave's snippets.
+2.  **Update Web Search System Prompt:** Modify the system prompt for Claude to explicitly instruct it on how to use the web search results, preventing it from saying it cannot access the internet.
 
 **User's preferred language**: Russian
 
 **what currently exists?**
-The application is a feature-rich, full-stack SaaS platform. Core functionalities like authentication, user/department management, AI chat, a competitor tracker, and a new product catalog are implemented. The backend has been significantly improved by refactoring the monolithic  into a modular structure. Several critical bugs, including a show-stopping frontend crash from the previous session ( error), dependency conflicts, and deployment blockers, have been resolved. The application now includes robust user management features like cascade delete and forced password changes.
+The Planet Knowledge application is a full-stack AI chat platform. In this session, the agent successfully built and integrated the **Excel/CSV Assistant** feature, first as a standalone dialog and then as a more powerful, automatic in-chat tool. When a user sends a message about an active Excel/CSV source, the backend now automatically processes the file based on the instruction and returns a downloadable result directly in the chat.
 
-However, the application's stability is compromised by two key issues: a broken file upload feature and a persistent, unverified problem with admin user creation during production deployment.
+The chat UI has been significantly overhauled:
+- The input area now features a central  menu for actions like file upload, adding URLs, generating images, and saving memory/context.
+- A scroll-to-bottom button was added for better navigation.
+- The process for creating new chats has been streamlined, removing the need to name them upfront; they are now auto-named after the first message.
+- A series of critical bugs related to message editing, component interactions, and file downloads have been resolved.
+- Query performance has been optimized based on a deployment-readiness check.
 
 **Last working item**:
-- Last item agent was working: The agent was investigating a  error that occurs when a user tries to upload a document via the  endpoint. After confirming the file size limit is 50MB, the agent began inspecting the  file to diagnose if the error is due to an unsupported file type, excessive file size, or a failure to extract text.
+- Last item agent was working: Improving the web search functionality. The agent first implemented the backend logic in  to fetch and parse the content of search result URLs using  and . The user's final request was to update the main system prompt to better instruct the LLM on how to use these new, richer web search results.
 - Status: **IN PROGRESS**
 - Agent Testing Done: N
-- Which testing method agent to use? Manual testing by curl. The next agent should first ask the user for the type and size of the file they are attempting to upload. Then, craft a  command to replicate the file upload and inspect the backend logs for a precise error message.
-- User Testing Done: N (User reported the issue)
+- Which testing method agent to use? backend testing agent. The agent should create a test that triggers the web search flow and asserts that the final system prompt sent to the LLM contains the new instructional text.
+- User Testing Done: N
 
 **All Pending/In progress Issue list**:
-  - Issue 1:  on file upload (P0)
-  - Issue 2: Admin user not updating on production re-deploy (P1)
-  - Issue 3: Incomplete Internationalization (i18n) (P2)
-  - Issue 4:  has a missing dependency warning (P3)
+  - Issue 1: Login page slogan change pending user input (P2)
+  - Issue 2: Intermittent Failed to generate image error (P1)
+  - Issue 3: Admin user not updating on production re-deploy (P1)
+  - Issue 4: Incomplete Internationalization (i18n) (P2)
+  - Issue 5:  has a missing dependency warning (P3)
 
 **Issues Detail:**
-  - **Issue 1:  on file upload**
-     - **Attempted fixes:** None. The agent was in the initial investigation phase.
-     - **Next debug checklist:**
-        1.  Ask the user for the file's type (e.g., , ) and size.
-        2.  Check the  list in  against the user's file type.
-        3.  Examine the logic within the  function in .
-        4.  Reproduce the failed upload and immediately check backend logs (==> /var/log/supervisor/backend.err.log <==
-INFO:     Started server process [2888]
-INFO:     Waiting for application startup.
-INFO:server:✓ Found 1 existing users
-INFO:apscheduler.scheduler:Adding job tentatively -- it will be properly scheduled when the scheduler starts
-INFO:apscheduler.scheduler:Added job "auto_refresh_competitor_products" to job store "default"
-INFO:apscheduler.scheduler:Scheduler started
-INFO:server:✓ Planet Knowledge API started
-INFO:server:✓ Scheduler started - Auto-refresh will run daily at 2:00 AM
-INFO:     Application startup complete.
-WARNING:  WatchFiles detected changes in 'server.py'. Reloading...
-INFO:     Shutting down
-INFO:     Waiting for application shutdown.
-INFO:server:✓ Planet Knowledge API shutdown complete
-INFO:apscheduler.scheduler:Scheduler has been shut down
-INFO:     Application shutdown complete.
-INFO:     Finished server process [2888]
-INFO:     Started server process [2935]
-INFO:     Waiting for application startup.
-INFO:server:✓ Found 1 existing users
-INFO:apscheduler.scheduler:Adding job tentatively -- it will be properly scheduled when the scheduler starts
-INFO:apscheduler.scheduler:Added job "auto_refresh_competitor_products" to job store "default"
-INFO:apscheduler.scheduler:Scheduler started
-INFO:server:✓ Planet Knowledge API started
-INFO:server:✓ Scheduler started - Auto-refresh will run daily at 2:00 AM
-INFO:     Application startup complete.
-WARNING:  WatchFiles detected changes in 'server.py'. Reloading...
-INFO:     Shutting down
-INFO:     Waiting for application shutdown.
-INFO:server:✓ Planet Knowledge API shutdown complete
-INFO:apscheduler.scheduler:Scheduler has been shut down
-INFO:     Application shutdown complete.
-INFO:     Finished server process [2935]
-INFO:     Started server process [3171]
-INFO:     Waiting for application startup.
-INFO:server:✓ Admin user already exists: admin@ai.planetworkspace.com
-INFO:apscheduler.scheduler:Adding job tentatively -- it will be properly scheduled when the scheduler starts
-INFO:apscheduler.scheduler:Added job "auto_refresh_competitor_products" to job store "default"
-INFO:apscheduler.scheduler:Scheduler started
-INFO:server:✓ Planet Knowledge API started
-INFO:server:✓ Scheduler started - Auto-refresh will run daily at 2:00 AM
-INFO:     Application startup complete.
-INFO:     Shutting down
-INFO:     Waiting for application shutdown.
-INFO:server:✓ Planet Knowledge API shutdown complete
-INFO:apscheduler.scheduler:Scheduler has been shut down
-INFO:     Application shutdown complete.
-INFO:     Finished server process [3171]
-INFO:     Stopping reloader process [2485]
-INFO:     Will watch for changes in these directories: ['/app/backend']
-INFO:     Uvicorn running on http://0.0.0.0:8001 (Press CTRL+C to quit)
-INFO:     Started reloader process [3210] using WatchFiles
-INFO:     Started server process [3212]
-INFO:     Waiting for application startup.
-INFO:server:✓ Admin user already exists: admin@ai.planetworkspace.com
-INFO:apscheduler.scheduler:Adding job tentatively -- it will be properly scheduled when the scheduler starts
-INFO:apscheduler.scheduler:Added job "auto_refresh_competitor_products" to job store "default"
-INFO:apscheduler.scheduler:Scheduler started
-INFO:server:✓ Planet Knowledge API started
-INFO:server:✓ Scheduler started - Auto-refresh will run daily at 2:00 AM
-INFO:     Application startup complete.
-WARNING:  WatchFiles detected changes in 'server.py'. Reloading...
-INFO:     Shutting down
-INFO:     Waiting for application shutdown.
-INFO:server:✓ Planet Knowledge API shutdown complete
-INFO:apscheduler.scheduler:Scheduler has been shut down
-INFO:     Application shutdown complete.
-INFO:     Finished server process [3212]
-INFO:     Started server process [3587]
-INFO:     Waiting for application startup.
-INFO:server:✓ Admin user already exists: admin@ai.planetworkspace.com
-INFO:apscheduler.scheduler:Adding job tentatively -- it will be properly scheduled when the scheduler starts
-INFO:apscheduler.scheduler:Added job "auto_refresh_competitor_products" to job store "default"
-INFO:apscheduler.scheduler:Scheduler started
-INFO:server:✓ Planet Knowledge API started
-INFO:server:✓ Scheduler started - Auto-refresh will run daily at 2:00 AM
-INFO:     Application startup complete.
-INFO:     Will watch for changes in these directories: ['/app/backend']
-INFO:     Uvicorn running on http://0.0.0.0:8001 (Press CTRL+C to quit)
-INFO:     Started reloader process [47] using WatchFiles
-INFO:     Started server process [85]
-INFO:     Waiting for application startup.
-INFO:server:✓ Admin user already exists: admin@ai.planetworkspace.com
-INFO:apscheduler.scheduler:Adding job tentatively -- it will be properly scheduled when the scheduler starts
-INFO:apscheduler.scheduler:Added job "auto_refresh_competitor_products" to job store "default"
-INFO:apscheduler.scheduler:Scheduler started
-INFO:server:✓ Planet Knowledge API started
-INFO:server:✓ Scheduler started - Auto-refresh will run daily at 2:00 AM
-INFO:     Application startup complete.
-INFO:     Will watch for changes in these directories: ['/app/backend']
-INFO:     Uvicorn running on http://0.0.0.0:8001 (Press CTRL+C to quit)
-INFO:     Started reloader process [42] using WatchFiles
-INFO:     Started server process [91]
-INFO:     Waiting for application startup.
-INFO:server:✓ Admin user already exists: admin@ai.planetworkspace.com
-INFO:apscheduler.scheduler:Adding job tentatively -- it will be properly scheduled when the scheduler starts
-INFO:apscheduler.scheduler:Added job "auto_refresh_competitor_products" to job store "default"
-INFO:apscheduler.scheduler:Scheduler started
-INFO:server:✓ Planet Knowledge API started
-INFO:server:✓ Scheduler started - Auto-refresh will run daily at 2:00 AM
-INFO:     Application startup complete.
-
-==> /var/log/supervisor/backend.out.log <==
-INFO:     10.208.159.130:46968 - "GET /api/departments HTTP/1.1" 200 OK
-INFO:     10.208.159.130:46968 - "GET /api/departments/pending-count HTTP/1.1" 200 OK
-INFO:     10.208.159.130:46968 - "GET /api/departments HTTP/1.1" 200 OK
-INFO:     10.208.138.74:41830 - "GET /api/departments HTTP/1.1" 200 OK
-INFO:     10.208.138.74:41830 - "GET /api/departments/pending-count HTTP/1.1" 200 OK
-INFO:     10.208.138.74:41830 - "GET /api/product-catalog?is_active=true&limit=20&offset=0 HTTP/1.1" 200 OK
-INFO:     10.208.159.130:46968 - "GET /api/departments/pending-count HTTP/1.1" 200 OK
-INFO:     10.208.159.130:46956 - "GET /api/product-catalog/categories HTTP/1.1" 200 OK
-INFO:     10.208.138.74:41818 - "GET /api/product-catalog/stats HTTP/1.1" 200 OK
-INFO:     10.208.159.130:46956 - "GET /api/departments/pending-count HTTP/1.1" 200 OK
-INFO:     10.208.159.130:46968 - "GET /api/product-catalog?is_active=true&limit=20&offset=0 HTTP/1.1" 200 OK
-INFO:     10.208.159.130:46956 - "GET /api/product-catalog/categories HTTP/1.1" 200 OK
-INFO:     10.208.138.74:41818 - "GET /api/product-catalog/stats HTTP/1.1" 200 OK
-INFO:     10.208.138.74:41830 - "GET /api/departments HTTP/1.1" 200 OK
-INFO:     10.208.138.74:41830 - "GET /api/product-catalog?is_active=true&limit=20&offset=0 HTTP/1.1" 200 OK
-INFO:     10.208.138.74:41818 - "GET /api/departments HTTP/1.1" 200 OK
-INFO:     10.208.138.74:41818 - "GET /api/departments/pending-count HTTP/1.1" 200 OK
-INFO:     10.208.138.74:41818 - "GET /api/competitors HTTP/1.1" 200 OK
-INFO:     10.208.138.74:41830 - "GET /api/sources HTTP/1.1" 200 OK
-INFO:     10.208.159.130:46956 - "GET /api/departments/pending-count HTTP/1.1" 200 OK
-INFO:     10.208.138.74:41830 - "GET /api/sources HTTP/1.1" 200 OK
-INFO:     10.208.159.130:46956 - "GET /api/competitors HTTP/1.1" 200 OK
-INFO:     10.208.159.130:46956 - "GET /api/departments/pending-count HTTP/1.1" 200 OK
-INFO:     10.208.138.74:41830 - "GET /api/departments HTTP/1.1" 200 OK
-INFO:     10.208.159.130:46956 - "GET /api/departments HTTP/1.1" 200 OK
-INFO:     10.208.159.130:46956 - "GET /api/departments/pending-count HTTP/1.1" 200 OK
-INFO:     10.208.159.130:46956 - "GET /api/departments/pending-count HTTP/1.1" 200 OK
-INFO:     10.208.159.130:46968 - "GET /api/product-catalog?is_active=true&limit=20&offset=0 HTTP/1.1" 200 OK
-INFO:     10.208.138.74:41830 - "GET /api/product-catalog/categories HTTP/1.1" 200 OK
-INFO:     10.208.159.130:49342 - "GET /api/product-catalog/stats HTTP/1.1" 200 OK
-INFO:     10.208.159.130:46968 - "GET /api/product-catalog?is_active=true&limit=20&offset=0 HTTP/1.1" 200 OK
-INFO:     10.208.138.74:41818 - "GET /api/departments/pending-count HTTP/1.1" 200 OK
-INFO:     10.208.138.74:41830 - "GET /api/product-catalog/stats HTTP/1.1" 200 OK
-INFO:     10.208.159.130:46968 - "GET /api/product-catalog/categories HTTP/1.1" 200 OK
-INFO:     10.208.159.130:46956 - "GET /api/departments HTTP/1.1" 200 OK
-INFO:     10.208.159.130:46968 - "GET /api/product-catalog?is_active=true&limit=20&offset=0 HTTP/1.1" 200 OK
-INFO:     10.208.159.130:46968 - "GET /api/departments HTTP/1.1" 200 OK
-INFO:     10.208.159.130:46968 - "GET /api/departments/pending-count HTTP/1.1" 200 OK
-INFO:     10.208.138.76:35012 - "POST /api/auth/login HTTP/1.1" 200 OK
-INFO:     10.208.138.75:46626 - "GET /api/auth/me HTTP/1.1" 200 OK
-INFO:     10.208.138.75:46626 - "GET /api/auth/me HTTP/1.1" 200 OK
-INFO:     10.208.138.75:46628 - "GET /api/projects HTTP/1.1" 200 OK
-INFO:     10.208.138.75:46638 - "GET /api/quick-chats HTTP/1.1" 200 OK
-INFO:     10.208.138.75:46626 - "GET /api/departments/pending-count HTTP/1.1" 200 OK
-INFO:     10.208.138.76:55246 - "GET /api/projects HTTP/1.1" 200 OK
-INFO:     10.208.138.76:55246 - "GET /api/departments/pending-count HTTP/1.1" 200 OK
-INFO:     10.208.138.75:46638 - "GET /api/quick-chats HTTP/1.1" 200 OK
-INFO:     10.208.138.75:46638 - "GET /api/departments HTTP/1.1" 200 OK
-INFO:     10.208.138.76:55246 - "GET /api/departments HTTP/1.1" 200 OK
-INFO:     10.208.138.75:46638 - "GET /api/departments/pending-count HTTP/1.1" 200 OK
-INFO:     10.208.138.75:46638 - "GET /api/departments/pending-count HTTP/1.1" 200 OK
-INFO:     10.208.138.76:55246 - "GET /api/departments HTTP/1.1" 200 OK
-INFO:     10.208.138.75:33578 - "POST /api/auth/login HTTP/1.1" 200 OK
-INFO:     10.208.138.75:33578 - "POST /api/admin/users HTTP/1.1" 200 OK
-INFO:     10.208.138.75:33578 - "POST /api/auth/login HTTP/1.1" 200 OK
-INFO:     10.208.138.76:33578 - "POST /api/auth/login HTTP/1.1" 200 OK
-INFO:     10.208.138.75:51522 - "GET /api/auth/me HTTP/1.1" 200 OK
-INFO:     10.208.138.75:51522 - "GET /api/departments/pending-count HTTP/1.1" 200 OK
-INFO:     10.208.138.75:51522 - "GET /api/projects HTTP/1.1" 200 OK
-INFO:     10.208.138.75:51528 - "GET /api/quick-chats HTTP/1.1" 200 OK
-INFO:     10.208.138.76:33578 - "GET /api/departments/pending-count HTTP/1.1" 200 OK
-INFO:     10.208.138.75:51522 - "GET /api/quick-chats HTTP/1.1" 200 OK
-INFO:     10.208.138.75:51528 - "GET /api/departments HTTP/1.1" 200 OK
-INFO:     10.208.138.76:33578 - "GET /api/projects HTTP/1.1" 200 OK
-INFO:     10.208.138.75:51528 - "GET /api/departments/pending-count HTTP/1.1" 200 OK
-INFO:     10.208.138.76:33578 - "GET /api/departments HTTP/1.1" 200 OK
-INFO:     10.208.138.75:51528 - "GET /api/departments/pending-count HTTP/1.1" 200 OK
-INFO:     10.208.138.76:33578 - "GET /api/departments HTTP/1.1" 200 OK
-INFO:     10.208.138.75:48440 - "POST /api/auth/login HTTP/1.1" 200 OK
-INFO:     10.208.138.75:48440 - "GET /api/admin/users HTTP/1.1" 200 OK
-INFO:     10.208.138.75:48440 - "DELETE /api/admin/users/5ea96004-84ed-46b9-bd30-cab847b56ab5 HTTP/1.1" 200 OK
-INFO:     10.208.138.76:41210 - "POST /api/auth/login HTTP/1.1" 200 OK
-INFO:     10.208.138.75:49230 - "POST /api/auth/login HTTP/1.1" 200 OK
-INFO:     10.208.138.76:58066 - "GET /api/auth/me HTTP/1.1" 200 OK
-INFO:     10.208.138.76:58066 - "GET /api/departments/pending-count HTTP/1.1" 200 OK
-INFO:     10.208.138.76:58066 - "GET /api/quick-chats HTTP/1.1" 200 OK
-INFO:     10.208.138.76:58068 - "GET /api/projects HTTP/1.1" 200 OK
-INFO:     10.208.138.75:49230 - "GET /api/departments/pending-count HTTP/1.1" 200 OK
-INFO:     10.208.138.75:49238 - "GET /api/departments HTTP/1.1" 200 OK
-INFO:     10.208.138.76:58066 - "GET /api/projects HTTP/1.1" 200 OK
-INFO:     10.208.138.75:49238 - "GET /api/quick-chats HTTP/1.1" 200 OK
-INFO:     10.208.138.76:58066 - "GET /api/departments HTTP/1.1" 200 OK
-INFO:     10.208.138.75:49230 - "GET /api/departments/pending-count HTTP/1.1" 200 OK
-INFO:     10.208.138.76:58066 - "GET /api/departments/pending-count HTTP/1.1" 200 OK
-INFO:     10.208.138.76:58068 - "GET /api/departments HTTP/1.1" 200 OK
-INFO:     10.208.138.75:55782 - "GET /api/auth/me HTTP/1.1" 200 OK
-INFO:     10.208.138.76:48152 - "GET /api/auth/me HTTP/1.1" 200 OK
-INFO:     10.208.138.75:55782 - "GET /api/projects HTTP/1.1" 200 OK
-INFO:     10.208.138.75:55790 - "GET /api/quick-chats HTTP/1.1" 200 OK
-INFO:     10.208.138.75:55792 - "GET /api/departments/pending-count HTTP/1.1" 200 OK
-INFO:     10.208.138.76:48152 - "GET /api/projects HTTP/1.1" 200 OK
-INFO:     10.208.138.75:55790 - "GET /api/quick-chats HTTP/1.1" 200 OK
-INFO:     10.208.138.76:48152 - "GET /api/departments/pending-count HTTP/1.1" 200 OK
-INFO:     10.208.138.75:55790 - "GET /api/departments HTTP/1.1" 200 OK
-INFO:     10.208.138.76:48166 - "GET /api/departments HTTP/1.1" 200 OK
-INFO:     10.208.138.76:48152 - "GET /api/departments/pending-count HTTP/1.1" 200 OK
-INFO:     10.208.138.75:55790 - "GET /api/departments/pending-count HTTP/1.1" 200 OK
-INFO:     10.208.138.75:55790 - "GET /api/departments HTTP/1.1" 200 OK
-INFO:     10.208.138.75:49160 - "POST /api/auth/login HTTP/1.1" 200 OK
-INFO:     10.208.138.75:36860 - "POST /api/auth/login HTTP/1.1" 200 OK) for specific errors like Unsupported file type, File too large, or No text extracted.
-     - **Why fix this issue and what will be achieved with the fix?** File upload is a core feature for adding knowledge sources to the application. Fixing it is essential for user workflows.
-     - **Status:** IN PROGRESS
+  - **Issue 1: Login page slogan change pending user input**
+     - **Why fix this issue and what will be achieved with the fix?** The user asked to change the text on the login page but hasn't provided the replacement text.
+     - **Status:** BLOCKED (User Input Needed)
      - **Is recurring issue?** N
-     - **Should Test frontend/backend/both after fix?** Backend first with , then confirm via the frontend.
-     - **Blocked on other issue:** None.
-  - **Issue 2: Admin user not updating on production re-deploy**
-     - **Attempted fixes:** The agent modified the  function in  multiple times. The last attempt involved finding the old admin user by exact email match () and then updating the document using its . This fix has not been verified by the user.
-     - **Next debug checklist:**
-        1.  Instruct the user to re-deploy the application.
-        2.  Ask the user to check the production logs for the success message: .
-        3.  If it fails, re-examine the  function in  for potential issues with how it connects to and queries the production Atlas DB.
-     - **Why fix this issue and what will be achieved with the fix?** This is a critical blocker for successful deployment and application setup in a new environment.
+     - **Should Test frontend/backend/both after fix?** Frontend.
+  - **Issue 2: Intermittent Failed to generate image error**
+     - **Attempted fixes:** The agent identified the DALL-E 2 endpoint as unstable. A more reliable Pillow-based, non-AI solution was proposed in the previous fork but not implemented. The agent in this session fixed a  preventing the modal from opening, but the core unreliability remains.
+     - **Next debug checklist:** Implement the Pillow-based image processing endpoint in  to replace the unreliable DALL-E edit call for the Apply Planet Standards feature.
+     - **Why fix this issue and what will be achieved with the fix?** This will make the Apply Planet Standards feature reliable and fast.
+     - **Status:** NOT STARTED
+     - **Is recurring issue?** Y
+     - **Should Test frontend/backend/both after fix?** Both.
+  - **Issue 3: Admin user not updating on production re-deploy**
      - **Status:** USER VERIFICATION PENDING
      - **Is recurring issue?** Y
-     - **Should Test frontend/backend/both after fix?** Deployment verification.
-     - **Blocked on other issue:** None.
+  - **Issue 4: Incomplete Internationalization (i18n)**
+     - **Status:** NOT STARTED
+     - **Is recurring issue?** N
+  - **Issue 5:  has a missing dependency warning**
+     - **Status:** NOT STARTED
+     - **Is recurring issue?** Y
 
 **In progress Task List**:
-- None.
+  - **Task 1: Complete Web Search Enhancement (P0)**
+     - **Where to resume:** In , modify the logic that constructs the  for the Claude API. It should now include (or replace if existing) the new instructional text about web search capabilities, as requested by the user.
+     - **What will be achieved with this?** The LLM will be explicitly aware of its ability to use real-time web search results, leading to more accurate and confident answers for relevant queries.
+     - **Status:** IN PROGRESS
+     - **Should Test frontend/backend/both after fix?** Backend.
+     - **Blocked on something:** None.
 
 **Upcoming and Future Tasks**
 - **Upcoming Tasks:**
-    - (P1) **Product Catalog - AI Integration (Phase 3):** Implement AI-powered product search within the chat, AI suggestions based on product relations, and the Tender Analysis feature.
-    - (P2) **Refactor :** Break down the large component (~1780 lines) into smaller, manageable sub-components.
-    - (P2) **Complete Internationalization (i18n):** Translate all remaining hardcoded English UI strings into Russian.
+    - (P1) Refactor  and . Both files have become extremely large and complex.
+    - (P1) Apply query optimizations suggested by the  that were not addressed (related to database projections and limits).
+    - (P2) Product Catalog - AI Integration (Phase 3).
 - **Future Tasks:**
-    - Implement a weekly background job () for Product Catalog synchronization.
-    - Add API rate limiting.
-    - Implement Question Templates.
-    - Create a usage/cost dashboard.
-    - Add a global search feature.
-    - Add chat export functionality.
+    - Weekly background job for Product Catalog synchronization.
+    - API rate limiting & usage/cost dashboard.
+    - Question Templates & Global search.
+    - Chat export functionality.
+    - Persist generated Excel files in object storage instead of  so they are not lost on server restart.
 
 **Completed work in this session**
-- **Critical Bug Fix:** Resolved the  crash that made the app unusable.
-- **Backend Refactor:** Successfully modularized the monolithic  (from ~4800 to ~220 lines), moving all endpoints into the  directory.
-- **Feature: Product Catalog:** Fully implemented backend (CRUD, CSV import using , relationship management) and frontend (catalog page, detail page, pagination, role-based controls).
-- **Feature: Security & User Management:**
-    - Implemented a forced password change modal for new users on first login.
-    - Implemented a comprehensive cascade delete for users, removing all their associated data.
-    - Created a script and endpoint to clean all test data from the database.
-- **Deployment & Bug Fixes:**
-    - Added missing dependencies (, , etc.) to  to fix deployment failures.
-    - Created an  function in  to automatically create/update the admin user in clean production databases.
-    - Fixed  and  dependency conflicts.
-    - Fixed multiple UI/API bugs, including the non-visibility of admin buttons and a flickering sidebar link.
-- **Branding:** Replaced all Planet GPT references with PLANET KNOWLEDGE.
-
-**Earlier issues found/mentioned but not fixed**
-   - **Issue 1:  has a missing dependency warning**
-     - **Debug checklist:** Check frontend compilation logs. This is a low-priority warning.
-     - **Why to solve this issue and what will be achieved with this?** Prevents potential bugs related to stale state in React components.
-     - **Should Test frontend/backend/both after fix:** Frontend
-     - **Is recurring issue?** Y
+- **Feature: Excel/CSV Assistant.** A full-stack feature allowing users to upload a spreadsheet, provide natural language instructions, and receive a transformed, downloadable file.
+- **Feature: In-Chat Excel Auto-Processing.** The chat now automatically detects Excel-related queries, processes the active source file via an LLM, and embeds a download link in the AI's response.
+- **Feature: New Chat Input UI.** Redesigned the chat input area with a  button that opens a menu for actions (Upload File, Add URL, Generate Image, Save Context, Project Memory).
+- **Feature: Streamlined New Chat Creation.** New chats are now created instantly without a naming dialog and are auto-named based on the user's first message.
+- **Feature: Auto-Save Chat Context.** The chat context is now automatically saved to the user's AI Profile every 10 messages.
+- **Feature: Enhanced Web Search.** Implemented backend logic to fetch and parse content from search result URLs, providing richer context to the LLM.
+- **Bug Fix (CRITICAL): Message not found after edit.** Reworked the message sending flow to use real database IDs on the frontend, resolving a major bug caused by optimistic UI updates with temporary IDs.
+- **Bug Fix (CRITICAL): Duplicate user messages after edit.** Resolved a follow-up bug where editing a message would create a duplicate user entry in the database.
+- **Bug Fix: Project Memory Not Working.** Fixed a JSON parsing error and improved frontend error handling.
+- **Bug Fix: Excel File Download Failures.** Removed the auto-cleanup task that was deleting temporary Excel files immediately after the first download attempt.
+- **Bug Fix: Incorrect Excel Generation.** Fixed an issue where the LLM would hallucinate a fake XML response instead of processing the data.
+- **UX Improvement:** Implemented over a dozen UI/UX tweaks based on direct user feedback, including making clarifying question options clickable, compacting UI elements, and adjusting component layouts.
+- **Optimization:** Applied several database query optimizations flagged by the deployment agent to improve performance.
+- **Maintenance:** Diligently updated the  file after every feature addition as requested by the user.
 
 **Known issue recurrence from previous fork**
-  - **Issue recurrence in previous fork:** .
-  - **Recurrence count:** 5+ times in the previous session.
-  - **Status:** **RESOLVED**.
+  - **Admin user not updating on production re-deploy:** Status remains .
+  - ** has a missing dependency warning:** Still present in frontend logs, not addressed.
 
 **Code Architecture**
 
 
 **Key Technical Concepts**
-- **Backend Refactoring:** Converted a monolithic FastAPI application into a modular structure using  for improved maintainability.
-- **Database Seeding on Startup:** Implemented a function () that runs on application startup to create or update the primary admin user, ensuring the app can initialize in a clean production environment.
-- **Forced Password Change Flow:** Used a  flag in the database and JWT payload to trigger a mandatory password reset UI for new users.
-- **Cascade Deletion:** Implemented a robust data cleanup function in the backend to ensure all of a user's associated data across multiple collections is deleted when the user is removed.
-- **CSV Data Import:** Used  and  on the backend to parse uploaded CSV files, validate columns, and perform create/update operations in the Product Catalog.
+- **In-Chat Tool Use:** A sophisticated pattern where user intent is detected from natural language in a chat message, triggering a specific backend tool-use flow (LLM-driven data transformation) and returning a structured result (downloadable file) into the UI.
+- **System Prompt Engineering:** Dynamically building and modifying system prompts sent to the LLM to guide its behavior for specific tasks like web search or data transformation, including adding negative constraints (e.g., Do not generate XML).
+- **Fixing Optimistic UI Bugs:** Resolved a critical Message not found bug by refactoring the message-sending flow. The backend now persists the user message and returns both the user's and the AI's messages with their real database IDs, which the frontend then uses to update its state, eliminating reliance on temporary frontend IDs.
+- **Complex State Management:**  has become a very complex component with numerous states, effects, and refs to manage modals, menus, optimistic UI updates, background tasks (auto-save), and user interactions.
 
 **key DB schema**
-  - : Added a  field.
-  - : A new collection to store product data, including  (unique), , , and .
-
-**changes in tech stack**
-- Dependencies added to backend: , .
+  - **messages:** Added two new optional fields to assistant messages:
+    - 
+    - 
 
 **All files of reference**
-- **New Files:**
-    - 
-    - 
-    - 
-    - 
-    - 
+- **New/Created:**
+  - 
+  - 
 - **Heavily Modified:**
-    -  (Refactored into an entrypoint)
-    -  (Added ProductCatalog models)
-    -  (Added cascade delete and user creation logic)
-    -  (Added password change logic)
-    -  (Added missing dependencies)
-    -  (Added new routes and password change modal)
-    -  (Updated to handle password change state)
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
 
 **Areas that need refactoring**:
-- ** (CRITICAL):** This ~1780-line component remains a monolith and is a prime candidate for being broken down into smaller, reusable components to improve maintainability.
+- ** (CRITICAL):** This component's size and complexity have grown significantly. It handles message display, all input actions, multiple modals, menus, and side effects. It urgently needs to be broken down into smaller, manageable custom hooks and components.
+- ** (CRITICAL):** This single file now contains logic for sending messages, RAG, web search, Excel detection/processing, memory extraction, and more. It should be modularized, with business logic extracted into a  layer.
 
 **key api endpoints**
-- **Product Catalog:**
-    - 
-    - Full CRUD at  and 
-    - 
-- **Auth:**
-    - 
-- **Sources:**
-    -  (Currently returning )
+- : The endpoint for the standalone Excel Assistant dialog.
+- : Serves the generated Excel files. The auto-delete functionality was removed to fix a bug.
+- : The response payload was changed from  to  to support real-time ID updates on the frontend. It also now accepts a  flag to prevent creating duplicate user messages.
+- : The Message not found bug related to this endpoint was a major focus and has been resolved.
 
 **Critical Info for New Agent**
-- **User Language:** The user communicates primarily in **Russian**. All responses should be in Russian.
-- **TOP PRIORITY:** The  on file uploads is the most immediate bug to fix.
-- **Deployment Focus:** The user is actively trying to deploy to production. The logic in  in  is critical for this and may require further debugging if the last fix was insufficient. The application must successfully initialize in a clean Atlas MongoDB environment.
-- **Credentials:** The target admin credentials for a fresh deployment are  / .
+- **User Language:** The user communicates in **Russian**. All responses must be in Russian.
+- **Top Priority (P0):** Complete the web search enhancement by updating the system prompt in  as per the user's last request.
+- **Message Sending Flow:** Be aware of the critical changes to the  endpoint. It now returns both the user's and the AI's messages with their real database IDs. The frontend relies on this structure to prevent bugs.
+- **Refactoring is Urgent:** The  and  files are now major sources of technical debt. Propose refactoring them into smaller, more maintainable modules as a high-priority next step after completing the current task.
 
 **documents and test reports created in this job**
--  was updated with progress on the Product Catalog feature and bug fixes.
+- 
+- 
+-  (Updated to v2.3+)
 
 **Last 10 User Messages and any pending HUMAN messages**
-10. **User:** Asks about the file upload size limit. (Status: Answered)
-9. **User:** Reports a  on file upload. (Status: IN PROGRESS)
-8. **User:** Clarifies they should log in as an admin. (Status: Answered)
-7. **User:** Reports that the admin email in the production DB is still the old one (). (Status: ATTEMPTED FIX)
-6. **User:** Provides a screenshot of the old admin document from the production DB. (Status: ATTEMPTED FIX)
-5. **User:** Confirms the new admin domain should be . (Status: IMPLEMENTED)
-4. **User:** Asks if a re-deploy is needed. (Status: Answered)
-3. **User:** Reports Invalid credentials after deployment. (Status: ATTEMPTED FIX)
-2. **User:** Asks to delete and recreate the admin user in the sandbox to test. (Status: DONE)
-1. **User:** Reports they cannot access the admin panel. (Status: ATTEMPTED FIX)
+10. **User:** Reports that after editing a message, subsequent messages disappear. (Status: **Fixed**)
+9. **User:** Requests that creating a New Chat should not require a name and should open immediately. Also requested changelog update. (Status: **Implemented**)
+8. **User:** Reports Message not found after editing a message. (Status: **Fixed** via major backend/frontend refactor)
+7. **User:** Asks if there are any critical issues before deployment. (Status: Answered, and optimizations were applied)
+6. **User:** Reports not being able to download the generated Excel file. (Status: **Fixed** by removing  that deleted the file)
+5. **User:** Reports that the Excel generation is not working and the AI returns a fake XML block. (Status: **Fixed** by improving detection logic and system prompt)
+4. **User:** Asks if there are any changes to the MongoDB structure. (Status: Answered)
+3. **User:** Asks for UI tweaks to the scroll down button. (Status: **Implemented**)
+2. **User:** Asks to improve the web search logic by fetching page content. (Status: **Implemented**)
+1. **User:** Asks to update the system prompt for web search to better instruct the LLM. (Status: **IN PROGRESS**)
 
 **Project Health Check:**
-- **Broken:**
-    - File upload () is non-functional.
-    - Production deployment is likely unstable due to unverified admin creation logic.
+- **Broken:** None. All reported critical bugs have been addressed. The image generator's reliability is still a known issue but not a hard blocker.
 - **Mocked:** None.
 - **Technical Debt / Needs Refactoring:**
-    - **CRITICAL:**  is a large monolithic component.
+    - **CRITICAL:**  (god component).
+    - **CRITICAL:**  (monolithic route file).
+    - **HIGH:**  (complex multi-tab component).
 
 **3rd Party Integrations**
-- **apscheduler:** Used for background jobs (Competitor refresh, planned for Product Catalog sync).
-- **beautifulsoup4:** Used for web scraping in the Competitor Tracker.
-- **OpenAI:** Used for core AI chat functionality.
-- **pandas, openpyxl:** Used for CSV/Excel file processing during Product Catalog import.
+- **pandas, openpyxl:** Used for the Excel/CSV Assistant feature.
+- **Anthropic (Claude):** Used for chat, summarization, and data transformation.
+- **Brave Search API:** Used for web search.
+- **Voyage AI:** Used for embeddings.
+- **BeautifulSoup4:** Added to parse HTML content for the enhanced web search feature.
 
 **Testing status**
-  - Testing agent used after significant changes: NO (Agent performed extensive self-testing via  and screenshots).
+  - Testing agent used after significant changes: **YES** (Used after implementing Excel Assistant)
   - Troubleshoot agent used after agent stuck in loop: NO
-  - Test files created: None
-  - Known regressions: File upload is broken.
+  - Test files created: None.
+  - Known regressions: The Apply Planet Standards feature remains unstable.
 
 **Credentials to test flow:**
 - **Admin:**  / 
-- **Note:** The  function in  will create a user with a default password of  in a new production environment, which must be changed on first login.
 
 **What agent forgot to execute**
-- The agent did not run regression tests on the file upload feature after the major backend refactoring, which likely led to the  bug being discovered late by the user.
-- The iterative fixes for the deployment admin-creation issue were not robustly tested in a simulated clean environment, causing a prolonged back-and-forth with the user.</analysis>
+- The agent has consistently pushed off the task of replacing the unreliable DALL-E endpoint in the Apply Planet Standards feature with a more robust, local Pillow-based solution, despite it being a known issue from the previous session.</analysis>
