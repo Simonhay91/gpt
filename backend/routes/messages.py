@@ -698,7 +698,22 @@ async def send_message(
 
             # Add web search instruction if web results are used
             if web_search_results:
-                web_instruction = "IMPORTANT: Web search results are provided above. When using information from web sources, ALWAYS cite them at the end of your response in the format:\n\nСсылки:\n- [Title](URL)\n- [Title](URL)"
+                web_instruction = (
+                    "WEB SEARCH ACCESS: You have been provided with real-time web search results above "
+                    "(under '===== WEB SEARCH RESULTS ====='). This means you DO have access to current "
+                    "internet information for this query — it has been fetched for you automatically.\n\n"
+                    "RULES FOR USING WEB RESULTS:\n"
+                    "1. NEVER say 'I cannot access the internet', 'I don't have internet access', "
+                    "or 'I cannot browse websites' — you HAVE been given the search results already.\n"
+                    "2. Use the provided web content as your primary source for this query.\n"
+                    "3. If page content (full article text) is available in a result, use it — "
+                    "it is more reliable than the short snippet.\n"
+                    "4. Synthesize information from multiple results when relevant.\n"
+                    "5. ALWAYS cite your web sources at the end of your response in this format:\n\n"
+                    "Источники:\n"
+                    "- [Title](URL)\n"
+                    "- [Title](URL)"
+                )
                 system_parts.append(web_instruction)
             
             system_prompt = "\n\n".join(system_parts)
