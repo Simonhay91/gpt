@@ -99,8 +99,15 @@ code, pre, .font-mono {
 
 /* Selection */
 ::selection {
-    background: hsl(var(--primary) / 0.2);
-    color: hsl(var(--foreground));
+    background: #3b82f6;
+    color: #ffffff;
+}
+
+/* User message bubbles (bg-primary) — selection needs inverted contrast */
+.bg-primary ::selection,
+.text-primary-foreground ::selection {
+    background: rgba(255, 255, 255, 0.35);
+    color: #ffffff;
 }
 
 @layer base {
