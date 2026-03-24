@@ -11,7 +11,7 @@ from datetime import datetime
 from typing import Dict, Any, Optional
 
 class BraveSearchTester:
-    def __init__(self, base_url: str = "https://planet-knowledge-ai.preview.emergentagent.com"):
+    def __init__(self, base_url: str = "https://knowledge-fallback.preview.emergentagent.com"):
         self.base_url = base_url
         self.api_url = f"{base_url}/api"
         self.admin_token = None
