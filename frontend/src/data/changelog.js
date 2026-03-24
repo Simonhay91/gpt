@@ -1,10 +1,21 @@
-export const APP_VERSION = "2.5.0";
+export const APP_VERSION = "2.5.1";
 
 export const CHANGELOG = [
   {
-    version: "2.5.0",
+    version: "2.5.1",
     date: "Март 2026",
     badge: "new",
+    changes: [
+      "Save dropdown на сообщениях — кнопка сохранения теперь открывает меню",
+      "Project Memory — прямое сохранение без модала, добавляется к существующей памяти",
+      "My Sources — сохранение как личный источник (прежнее поведение)",
+      "Dropdown открывается вверх если сообщение внизу экрана",
+    ]
+  },
+  {
+    version: "2.5.0",
+    date: "Март 2026",
+    badge: null,
     changes: [
       "Web Search — автоматический fallback на Brave если RAG нерелевантен (score < 0.7)",
       "Web Search — реальный контент страниц вместо сниппетов (BeautifulSoup fetch)",
