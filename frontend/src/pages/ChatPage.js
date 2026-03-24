@@ -417,6 +417,10 @@ const ChatPage = () => {
         const errors = response.data.errors || [];
         if (uploaded.length > 0) {
           toast.success(`Uploaded ${uploaded.length} file(s)`);
+          // Activate all uploaded sources before auto-analyze
+          const newMultiIds = [...new Set([...activeSourceIds, ...uploaded.map(s => s.id)])];
+          await axios.post(`${API}/chats/${chatId}/active-sources`, { sourceIds: newMultiIds });
+          setActiveSourceIds(newMultiIds);
           const badge = { name: validFiles.map(f => f.name).join(', '), fileType: 'file', multi: true };
           await sendMessage('Analyze this file and summarize the key points.', badge);
         }
@@ -430,8 +434,13 @@ const ChatPage = () => {
       formData.append('file', file);
       try {
         const response = await axios.post(`${API}/projects/${chat.projectId}/sources/upload`, formData, { headers: { 'Content-Type': 'multipart/form-data' } });
-        setProjectSources(prev => [...prev, response.data]);
+        const uploadedSource = response.data;
+        setProjectSources(prev => [...prev, uploadedSource]);
         toast.success(`Uploaded ${file.name} (${response.data.chunkCount} chunks extracted)`);
+        // Activate source before sending auto-analyze
+        const newSingleIds = [...activeSourceIds, uploadedSource.id];
+        await axios.post(`${API}/chats/${chatId}/active-sources`, { sourceIds: newSingleIds });
+        setActiveSourceIds(newSingleIds);
         await sendMessage('Analyze this file and summarize the key points.', getFileBadge(file));
       } catch (error) {
         toast.error(error.response?.data?.detail || 'Failed to upload file');
