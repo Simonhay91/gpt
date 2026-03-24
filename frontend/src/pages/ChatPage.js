@@ -400,6 +400,12 @@ const ChatPage = () => {
     if (validFiles.length === 0) return;
     setIsUploading(true);
 
+    const getFileBadge = (file) => {
+      const ext = file.name.split('.').pop().toLowerCase();
+      const typeMap = { pdf: 'pdf', docx: 'doc', doc: 'doc', pptx: 'ppt', ppt: 'ppt', xlsx: 'excel', xls: 'excel', csv: 'excel', png: 'image', jpg: 'image', jpeg: 'image', txt: 'text', md: 'text' };
+      return { name: file.name, fileType: typeMap[ext] || 'file' };
+    };
+
     if (validFiles.length > 1) {
       const formData = new FormData();
       validFiles.forEach(file => formData.append('files', file));
@@ -409,7 +415,11 @@ const ChatPage = () => {
         setProjectSources(sourcesRes.data);
         const uploaded = response.data.uploaded || [];
         const errors = response.data.errors || [];
-        if (uploaded.length > 0) toast.success(`Uploaded ${uploaded.length} file(s)`);
+        if (uploaded.length > 0) {
+          toast.success(`Uploaded ${uploaded.length} file(s)`);
+          const badge = { name: validFiles.map(f => f.name).join(', '), fileType: 'file', multi: true };
+          await sendMessage('Վերлուծիր այս ֆայլը և ամփոփիր հիմնական կետերը։', badge);
+        }
         errors.forEach(err => toast.error(`${err.filename}: ${err.error}`));
       } catch (error) {
         toast.error(error.response?.data?.detail || 'Failed to upload files');
@@ -422,6 +432,7 @@ const ChatPage = () => {
         const response = await axios.post(`${API}/projects/${chat.projectId}/sources/upload`, formData, { headers: { 'Content-Type': 'multipart/form-data' } });
         setProjectSources(prev => [...prev, response.data]);
         toast.success(`Uploaded ${file.name} (${response.data.chunkCount} chunks extracted)`);
+        await sendMessage('Վերlուծիр այс ֆайль и амфофир химнакан кетерь։', getFileBadge(file));
       } catch (error) {
         toast.error(error.response?.data?.detail || 'Failed to upload file');
       }
@@ -532,11 +543,11 @@ const ChatPage = () => {
     return text.replace(regex, '<mark class="bg-yellow-300 dark:bg-yellow-600 px-0.5 rounded">$1</mark>');
   };
 
-  const sendMessage = async (contentOverride) => {
+  const sendMessage = async (contentOverride, fileBadge = null) => {
     const content = (contentOverride ?? input).trim();
     if (!content || isSending) return;
 
-    const tempUserMsg = { id: `temp-${Date.now()}`, chatId, role: 'user', content, createdAt: new Date().toISOString() };
+    const tempUserMsg = { id: `temp-${Date.now()}`, chatId, role: 'user', content, createdAt: new Date().toISOString(), ...(fileBadge ? { uploadedFile: fileBadge } : {}) };
     setMessages(prev => [...prev, tempUserMsg]);
     setInput('');
     setIsSending(true);
@@ -1299,6 +1310,15 @@ const ChatPage = () => {
                           </div>
                         ) : (
                           <>
+                            {/* File upload badge — shown above user message */}
+                            {message.role === 'user' && message.uploadedFile && (
+                              <div className="flex justify-end mb-1">
+                                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-muted border border-border text-xs text-muted-foreground max-w-[260px]" data-testid={`file-badge-${index}`}>
+                                  <span>{message.uploadedFile.fileType === 'pdf' ? '📄' : message.uploadedFile.fileType === 'excel' ? '📊' : message.uploadedFile.fileType === 'image' ? '🖼️' : message.uploadedFile.fileType === 'doc' ? '📝' : '📎'}</span>
+                                  <span className="truncate">{message.uploadedFile.name}</span>
+                                </span>
+                              </div>
+                            )}
                             <div className={`px-4 py-3 rounded-2xl ${message.role === 'user' ? 'bg-primary text-primary-foreground rounded-br-sm' : 'bg-secondary text-secondary-foreground rounded-bl-sm'}`}>
                               <p className="whitespace-pre-wrap text-sm leading-relaxed">{renderTextWithLinks(message.content)}</p>
                             </div>
