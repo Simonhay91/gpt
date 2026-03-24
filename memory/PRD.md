@@ -38,6 +38,12 @@ Web Search:   Brave Search API
 URL Parsing:  BeautifulSoup4 + pypdf
 Auth:         JWT (PyJWT)
 Scheduler:    APScheduler
+
+Services (refactored Mar 2026):
+  services/web_search.py    — Brave search, URL fetching, auto-ingest
+  services/catalog_service.py — Product catalog search
+  services/excel_service.py  — Excel generation pipeline
+  routes/messages.py         — Route handlers only (889 lines, was 1485)
 ```
 
 ### Frontend
@@ -48,6 +54,13 @@ Components:   Shadcn/UI
 Icons:        Lucide React
 HTTP:         Axios
 Routing:      React Router v6
+
+Chat Components (refactored Mar 2026):
+  pages/ChatPage.js                    — Orchestrator (896 lines, was 1791)
+  components/chat/MessageBubble.js     — Single message rendering
+  components/chat/SourcePanel.js       — Sources panel UI
+  components/chat/ChatInput.js         — Input area + plus menu
+```
 ```
 
 ### Структура проекта

@@ -1,6 +1,16 @@
-export const APP_VERSION = "2.5.3";
+export const APP_VERSION = "2.6.0";
 
 export const CHANGELOG = [
+  {
+    version: "2.6.0",
+    date: "Март 2026",
+    badge: "new",
+    changes: [
+      "Рефакторинг: messages.py разбит на 4 файла (web_search.py, catalog_service.py, excel_service.py + routes)",
+      "Рефакторинг: ChatPage.js разбит на компоненты MessageBubble, SourcePanel, ChatInput",
+      "Улучшена поддерживаемость кода, снижен технический долг",
+    ]
+  },
   {
     version: "2.5.3",
     date: "Март 2026",
