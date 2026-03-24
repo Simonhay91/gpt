@@ -531,6 +531,9 @@ async def send_message(
     ).sort("createdAt", -1).to_list(20)
     history = list(reversed(history))
 
+    import time
+    t0 = time.time()
+
     # Get relevant chunks and build context
     citations = []
     document_context = ""
@@ -605,6 +608,7 @@ async def send_message(
     # Check if RAG found relevant results (score > 0.7)
     has_relevant_rag = any(c.get("score", 0) > 0.7 for c in citations)
     has_rag_context = bool(citations)  # True if ANY RAG chunks were found (regardless of score)
+    print(f"[TIMING] RAG+URL fetch: {time.time()-t0:.2f}s"); t0 = time.time()
 
     # Product Catalog search
     catalog_results = await search_product_catalog(message_data.content, db, limit=5)
@@ -628,21 +632,28 @@ async def send_message(
             document_context = f"{catalog_context}\n\n{document_context}"
         else:
             document_context = catalog_context
+    print(f"[TIMING] Catalog: {time.time()-t0:.2f}s"); t0 = time.time()
 
     # Brave Web Search integration
     web_search_results = None
     web_sources = None
 
+    # Fetch project memory early to decide if web search fallback is needed
+    _project_memory_text = ""
+    if project_id:
+        _proj = await db.projects.find_one({"id": project_id}, {"_id": 0, "project_memory": 1})
+        _project_memory_text = (_proj or {}).get("project_memory", "") or ""
+    has_project_memory = bool(_project_memory_text and len(_project_memory_text.strip()) > 50)
+
     brave_api_key_exists = bool(os.environ.get('BRAVE_API_KEY', ''))
     use_web_search = should_use_web_search(message_data.content, has_relevant_rag)
-    # Fallback: auto-trigger web search when RAG has no results, no URL context, and Brave key is set
-    # Skip fallback for short/trivial messages (same rules as should_use_web_search)
+    # Fallback: auto-trigger when no RAG, no URL, Brave key set, not trivial, no project memory
     _words = message_data.content.strip().split()
     _msg_lower = message_data.content.lower()
     _STOP_WORDS = ["barev", "բարև", "привет", "hello", "hi", "salam",
                    "vonc es", "inch ka", "mersi", "shnorhakalutyun"]
     _is_trivial = len(_words) <= 4 or any(w in _msg_lower for w in _STOP_WORDS)
-    if not use_web_search and not has_relevant_rag and not fetched_url_count and brave_api_key_exists and not _is_trivial:
+    if not use_web_search and not has_relevant_rag and not fetched_url_count and brave_api_key_exists and not _is_trivial and not has_project_memory:
         use_web_search = True
         logger.info("Fallback web search: no RAG results found, auto-triggering search")
 
@@ -674,6 +685,7 @@ async def send_message(
                 document_context = f"===== WEB SEARCH RESULTS =====\n\n{web_context}"
 
     # Determine context type for targeted system prompt instruction
+    print(f"[TIMING] Web search+fetch: {time.time()-t0:.2f}s"); t0 = time.time()
     # Priority: relevant RAG > web results > any RAG (low score) > URL > none
     if has_relevant_rag:
         context_type = "rag"
@@ -846,6 +858,7 @@ async def send_message(
             
             response_text = claude_response.content[0].text
             tokens_used = claude_response.usage.input_tokens + claude_response.usage.output_tokens
+            print(f"[TIMING] Claude API: {time.time()-t0:.2f}s"); t0 = time.time()
             
             # Parse clarifying questions
             if "<clarifying>" in response_text and "</clarifying>" in response_text:
