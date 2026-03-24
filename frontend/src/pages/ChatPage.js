@@ -612,6 +612,27 @@ const ChatPage = () => {
 
   const closeSourceModal = () => { setViewingSource(null); setSourceContent(null); };
 
+  const saveToProjectMemory = async (messageContent) => {
+    if (!chat?.projectId) {
+      toast.error('Этот чат не привязан к проекту');
+      return;
+    }
+    try {
+      const memRes = await axios.get(`${API}/projects/${chat.projectId}/memory`);
+      const existing = memRes.data.project_memory || '';
+      const separator = existing ? '\n\n---\n' : '';
+      const updated = existing + separator + messageContent.trim();
+      if (updated.length > 6000) {
+        toast.error('Project Memory переполнена (макс. 6000 символов)');
+        return;
+      }
+      await axios.put(`${API}/projects/${chat.projectId}/memory`, { project_memory: updated });
+      toast.success('Сохранено в Project Memory ✅');
+    } catch (e) {
+      toast.error(e.response?.data?.detail || 'Не удалось сохранить');
+    }
+  };
+
   const saveContext = async () => {
     if (messages.length === 0) {
       toast.error('Нет сообщений для сохранения');
@@ -1284,7 +1305,7 @@ const ChatPage = () => {
                                       <button
                                         className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-muted transition-colors text-left"
                                         data-testid={`save-to-memory-${index}`}
-                                        onClick={() => { setSaveDropdownIdx(null); setMemoryModalOpen(true); }}
+                                        onClick={() => { setSaveDropdownIdx(null); saveToProjectMemory(message.content); }}
                                       >
                                         <span>💾</span>
                                         <span>Project Memory</span>
