@@ -47,7 +47,6 @@ async def brave_web_search(query: str) -> Optional[List[dict]]:
     Returns list of {"title": str, "url": str, "description": str}
     """
     brave_api_key = os.environ.get('BRAVE_API_KEY', '')
-    print(f"[BRAVE DEBUG] Calling Brave API with query: {query}")
     if not brave_api_key:
         logger.warning("BRAVE_API_KEY not set, skipping web search")
         return None
@@ -86,7 +85,6 @@ async def brave_web_search(query: str) -> Optional[List[dict]]:
                 })
             
             logger.info(f"Brave Search returned {len(formatted_results)} results")
-            print(f"[BRAVE DEBUG] Results count: {len(formatted_results)}")
             return formatted_results
             
     except Exception as e:
@@ -595,7 +593,6 @@ async def send_message(
 
     brave_api_key_exists = bool(os.environ.get('BRAVE_API_KEY', ''))
     use_web_search = should_use_web_search(message_data.content, has_relevant_rag)
-    print(f"[WEB SEARCH DEBUG] use_web_search={use_web_search}, has_relevant_rag={has_relevant_rag}, fetched_url_count={fetched_url_count}, brave_api_key_exists={brave_api_key_exists}")
     # Fallback: auto-trigger web search when RAG has no results, no URL context, and Brave key is set
     # Skip fallback for short/trivial messages (same rules as should_use_web_search)
     _words = message_data.content.strip().split()
@@ -606,8 +603,6 @@ async def send_message(
     if not use_web_search and not has_relevant_rag and not fetched_url_count and brave_api_key_exists and not _is_trivial:
         use_web_search = True
         logger.info("Fallback web search: no RAG results found, auto-triggering search")
-    print(f"[WEB SEARCH DEBUG] use_web_search={use_web_search}, has_relevant_rag={has_relevant_rag}, fetched_url_count={fetched_url_count}, brave_api_key_exists={brave_api_key_exists}")
-    print(f"[DEBUG FINAL] use_web_search={use_web_search}, has_relevant_rag={has_relevant_rag}, has_rag_context={has_rag_context}, fetched_url_count={fetched_url_count}, brave_api_key_exists={brave_api_key_exists}, active_sources_count={len(active_source_ids)}")
 
     if use_web_search:
         logger.info("Triggering Brave Web Search...")
@@ -788,10 +783,6 @@ async def send_message(
                 messages.append({"role": msg["role"], "content": msg["content"]})
             messages.append({"role": "user", "content": message_data.content})
             
-            print(f"[SYSTEM PROMPT DEBUG] Length: {len(system_prompt)} chars")
-            print(f"[SYSTEM PROMPT DEBUG] Contains WEB SEARCH RESULTS: {'WEB SEARCH RESULTS' in system_prompt}")
-            print(f"[SYSTEM PROMPT DEBUG] context_type: {context_type}")
-            print(f"[SYSTEM PROMPT DEBUG] context_type={context_type}, contains_web={'WEB SEARCH RESULTS' in system_prompt}, contains_rag={'DOCUMENT CONTEXT' in system_prompt}")
             claude_response = claude_client.messages.create(
                 model="claude-sonnet-4-20250514",
                 max_tokens=4096,
