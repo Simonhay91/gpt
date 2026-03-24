@@ -731,7 +731,7 @@ async def send_message(
                 chunks_count = len(citations) if citations else 0
                 # Allow more context if URL content was fetched
                 max_context_chars = 18000 if fetched_url_count > 0 else 10000
-                context_message = f"SOURCES: {active_sources_list}\nCHUNKS: {chunks_count} (top {MAX_CHUNKS_PER_QUERY} most relevant)\n\n{document_context[:max_context_chars]}"
+                context_message = f"[SYS_META sources={active_sources_list} chunks={chunks_count}]\n\n{document_context[:max_context_chars]}"
                 system_parts.append(context_message)
             
             # Add URL content instruction if URLs were fetched
