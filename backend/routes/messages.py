@@ -958,6 +958,53 @@ async def send_message(
                 ]
                 is_excel_request = any(phrase in message_data.content.lower() for phrase in excel_trigger_phrases)
 
+                # Two-step flow: check if AI already asked clarifying questions
+                if is_excel_request:
+                    recent_messages = await db.messages.find(
+                        {"chatId": chat_id},
+                        {"_id": 0, "role": 1, "content": 1}
+                    ).sort("createdAt", -1).limit(3).to_list(3)
+
+                    has_clarification = any(
+                        "excel" in str(m.get("content", "")).lower() and
+                        m.get("role") == "assistant"
+                        for m in recent_messages
+                    )
+
+                    if not has_clarification:
+                        # First request — ask clarifying questions instead of generating
+                        is_excel_request = False
+                        # Override Claude's generic response with targeted clarification
+                        response_text = (
+                            "Նախ ուզում եմ հասկանալ ճիշт, ինč es apes ստանال:\n\n"
+                            "1. **Ի՞նч твیалнер** петк е линен — ColumBs/rows, ес կонкрет ТАМАЛики\n"
+                            "2. **Քани՞ тох** моТаваРАС к линен файлумО\n"
+                            "3. **Ի՞нch нпАТАКИ** нахАТЕСТВА є файлый — экспорт, ЧЕМ, ОТчет\n\n"
+                            "АнМЕТС ПЕТАКАНОТЮН ТАЛА — ГЕНЕРИРУЙ Excel."
+                        )
+                        # Make a proper Claude call for clarification
+                        try:
+                            clarif_client = claude_client
+                            clarif_messages = [{"role": "user", "content": message_data.content}]
+                            clarif_system = (
+                                "EXCEL CLARIFICATION REQUIRED: The user wants to generate an Excel file. "
+                                "DO NOT generate Excel yet. Ask these 3 clarifying questions in the user's language "
+                                "(Armenian, Russian, or English based on their message):\n"
+                                "1. What data/columns should be included\n"
+                                "2. Approximately how many rows\n"
+                                "3. What is the purpose of the file\n"
+                                "Keep it short and friendly. Do not generate any file or code."
+                            )
+                            clarif_resp = clarif_client.messages.create(
+                                model="claude-sonnet-4-20250514",
+                                max_tokens=512,
+                                system=clarif_system,
+                                messages=clarif_messages
+                            )
+                            response_text = clarif_resp.content[0].text
+                        except Exception as clarif_err:
+                            logger.warning(f"Clarification call failed: {clarif_err}")
+
                 if is_excel_request and excel_source.get("storagePath"):
                     file_path = _UPLOAD_DIR / excel_source["storagePath"]
                     if file_path.exists():
