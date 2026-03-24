@@ -1021,6 +1021,12 @@ const ChatPage = () => {
         {!isQuickChat && showSourcePanel && (
           <div className="border-b border-border bg-card/30 px-6 py-4" data-testid="source-panel">
             <div className="max-w-3xl mx-auto">
+              {/* Close button */}
+              <div className="flex justify-end mb-2">
+                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setShowSourcePanel(false)} data-testid="close-source-panel-btn" title="Close">
+                  <X className="h-4 w-4 text-muted-foreground" />
+                </Button>
+              </div>
               <div className="flex flex-wrap items-center gap-3 mb-4">
                 <input
                   ref={fileInputRef}
@@ -1212,7 +1218,7 @@ const ChatPage = () => {
         </Dialog>
 
         {/* Messages Area */}
-        <ScrollArea className="flex-1 px-6 py-4" ref={scrollAreaRef}>
+        <ScrollArea className="flex-1 px-6 py-4" ref={scrollAreaRef} onClick={() => showSourcePanel && setShowSourcePanel(false)}>
           {messages.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full text-center">
               <div className="rounded-full bg-secondary p-4 mb-4"><Bot className="h-8 w-8 text-indigo-400" /></div>
