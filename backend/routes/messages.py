@@ -617,10 +617,13 @@ async def send_message(
                 document_context = f"===== WEB SEARCH RESULTS =====\n\n{web_context}"
 
     # Determine context type for targeted system prompt instruction
-    if has_rag_context:
+    # Priority: relevant RAG > web results > any RAG (low score) > URL > none
+    if has_relevant_rag:
         context_type = "rag"
     elif web_search_results:
         context_type = "web"
+    elif has_rag_context:
+        context_type = "rag"
     elif fetched_url_count > 0:
         context_type = "url"
     else:
