@@ -65,6 +65,23 @@ async def targeted_excel_edit(source_file_path: str, instruction: str, claude_cl
     if not source_file_path.endswith(('.xlsx', '.xlsm', '.xls')):
         return None, None, "Edit is only supported for Excel files (.xlsx). CSV files cannot be edited this way."
 
+    # Build file structure so Claude knows what sheets/cells exist
+    _wb_preview = openpyxl.load_workbook(source_file_path, read_only=True, data_only=True)
+    file_structure = {}
+    for _sheet_name in _wb_preview.sheetnames:
+        _ws = _wb_preview[_sheet_name]
+        _rows_preview = []
+        for i, _row in enumerate(_ws.iter_rows(values_only=True)):
+            if i >= 10:
+                break
+            _rows_preview.append(list(_row))
+        file_structure[_sheet_name] = {"rows": _rows_preview, "max_row": _ws.max_row, "max_col": _ws.max_column}
+    _wb_preview.close()
+
+    print(f"[EXCEL EDIT DEBUG] Instruction: {instruction}")
+    print(f"[EXCEL EDIT DEBUG] File structure sent to Claude: {json.dumps(file_structure, ensure_ascii=False)[:500]}")
+
+
     # 1. Ask Claude which cells to change
     analysis_response = claude_client.messages.create(
         model="claude-sonnet-4-20250514",
@@ -85,8 +102,11 @@ async def targeted_excel_edit(source_file_path: str, instruction: str, claude_cl
             "- Armenian: \"formula tar/տուր\" or \"hashvarka/հաշվարկ\" = add formula\n"
             "- Return [] if instruction is unclear or no edits are needed"
         ),
-        messages=[{"role": "user", "content": f"Instruction: {instruction}"}]
+        messages=[{"role": "user", "content": f"Instruction: {instruction}\n\nFile structure:\n{json.dumps(file_structure, ensure_ascii=False)}"}]
     )
+
+    print(f"[EXCEL EDIT DEBUG] Claude raw response: {analysis_response.content[0].text}")
+
 
     raw = analysis_response.content[0].text.strip()
     if raw.startswith("```"):
