@@ -80,7 +80,10 @@ const AdminUsersPage = () => {
       setCreatedUser({ email: newUserEmail, password: newUserPassword });
       toast.success('User created successfully');
     } catch (error) {
-      const message = error.response?.data?.detail || 'Failed to create user';
+      const detail = error.response?.data?.detail;
+      const message = Array.isArray(detail)
+        ? detail.map(e => e.msg || String(e)).join(', ')
+        : (detail || 'Failed to create user');
       toast.error(message);
     } finally {
       setIsCreating(false);
@@ -97,7 +100,8 @@ const AdminUsersPage = () => {
       setUsers(users.filter(u => u.id !== userId));
       toast.success('User deleted');
     } catch (error) {
-      const message = error.response?.data?.detail || 'Failed to delete user';
+      const detail = error.response?.data?.detail;
+      const message = Array.isArray(detail) ? detail.map(e => e.msg || String(e)).join(', ') : (detail || 'Failed to delete user');
       toast.error(message);
     }
   };
@@ -123,7 +127,9 @@ const AdminUsersPage = () => {
       const res = await axios.post(`${API}/admin/users/${userId}/reset-password`);
       setResetPasswordUser(res.data); // { email, new_password }
     } catch (e) {
-      toast.error(e.response?.data?.detail || 'Failed to reset password');
+      const detail = e.response?.data?.detail;
+      const message = Array.isArray(detail) ? detail.map(x => x.msg || String(x)).join(', ') : (detail || 'Failed to reset password');
+      toast.error(message);
     } finally {
       setIsResetting(false);
     }
