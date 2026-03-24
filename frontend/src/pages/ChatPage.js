@@ -161,6 +161,7 @@ const ChatPage = () => {
   const [showInfoBlock, setShowInfoBlock] = useState(false);
   const [isSavingContext, setIsSavingContext] = useState(false);
   const [memoryModalOpen, setMemoryModalOpen] = useState(false);
+  const [saveDropdownIdx, setSaveDropdownIdx] = useState(null);
   
   // Edit message state
   const [editingMessageId, setEditingMessageId] = useState(null);
@@ -211,6 +212,14 @@ const ChatPage = () => {
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
+
+  // Close save dropdown on outside click
+  useEffect(() => {
+    if (saveDropdownIdx === null) return;
+    const handler = () => setSaveDropdownIdx(null);
+    document.addEventListener('click', handler);
+    return () => document.removeEventListener('click', handler);
+  }, [saveDropdownIdx]);
 
   const fetchChatData = async () => {
     try {
@@ -1259,16 +1268,44 @@ const ChatPage = () => {
                             )}
                             {message.role === 'assistant' && (
                               <div className="absolute -bottom-1 -right-1 flex gap-1">
-                                <Button variant="ghost" size="icon" className="h-7 w-7 bg-background border border-border shadow-sm"
-                                  onClick={async () => {
-                                    try {
-                                      await axios.post(`${API}/save-to-knowledge`, { content: message.content, chatId });
-                                      toast.success('Saved to Knowledge ✅');
-                                    } catch (err) { toast.error('Failed to save'); }
-                                  }}
-                                  title="Save to Knowledge" data-testid={`save-message-${index}`}>
-                                  <Save className="h-3.5 w-3.5 text-green-500" />
-                                </Button>
+                                {/* Save dropdown */}
+                                <div className="relative">
+                                  <Button variant="ghost" size="icon" className="h-7 w-7 bg-background border border-border shadow-sm"
+                                    onClick={(e) => { e.stopPropagation(); setSaveDropdownIdx(saveDropdownIdx === index ? null : index); }}
+                                    title="Save" data-testid={`save-message-${index}`}>
+                                    <Save className="h-3.5 w-3.5 text-green-500" />
+                                  </Button>
+                                  {saveDropdownIdx === index && (
+                                    <div
+                                      className="absolute z-50 min-w-[160px] rounded-md border border-border bg-background shadow-lg py-1"
+                                      style={{ [index >= messages.length * 0.6 ? 'bottom' : 'top']: '110%', right: 0 }}
+                                      onClick={(e) => e.stopPropagation()}
+                                    >
+                                      <button
+                                        className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-muted transition-colors text-left"
+                                        data-testid={`save-to-memory-${index}`}
+                                        onClick={() => { setSaveDropdownIdx(null); setMemoryModalOpen(true); }}
+                                      >
+                                        <span>💾</span>
+                                        <span>Project Memory</span>
+                                      </button>
+                                      <button
+                                        className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-muted transition-colors text-left"
+                                        data-testid={`save-to-sources-${index}`}
+                                        onClick={async () => {
+                                          setSaveDropdownIdx(null);
+                                          try {
+                                            await axios.post(`${API}/save-to-knowledge`, { content: message.content, chatId });
+                                            toast.success('Saved to My Sources ✅');
+                                          } catch (err) { toast.error('Failed to save'); }
+                                        }}
+                                      >
+                                        <span>📎</span>
+                                        <span>My Sources</span>
+                                      </button>
+                                    </div>
+                                  )}
+                                </div>
                                 <Button variant="ghost" size="icon" className="h-7 w-7 bg-background border border-border shadow-sm"
                                   onClick={async () => {
                                     try {
