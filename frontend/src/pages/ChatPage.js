@@ -846,7 +846,29 @@ const ChatPage = () => {
                       </Button>
                     </>
                   ) : (
-                    'Chat'
+                    <>
+                      {currentProjectName && (
+                        <button
+                          className="text-muted-foreground hover:text-foreground transition-colors text-sm font-normal"
+                          onClick={() => navigate(`/projects/${chat.projectId}`)}
+                          data-testid="breadcrumb-project-name"
+                        >
+                          {currentProjectName}
+                        </button>
+                      )}
+                      {currentProjectName && <span className="text-muted-foreground mx-1">/</span>}
+                      <span
+                        className="cursor-pointer hover:text-emerald-400 transition-colors"
+                        onClick={startEditingName}
+                        title="Click to rename"
+                        data-testid="chat-name-display"
+                      >
+                        {chat?.name || 'Untitled Chat'}
+                      </span>
+                      <Button variant="ghost" size="icon" className="h-6 w-6 opacity-50 hover:opacity-100" onClick={startEditingName} data-testid="edit-chat-name-btn">
+                        <Pencil className="h-3 w-3" />
+                      </Button>
+                    </>
                   )}
                 </h1>
               )}
