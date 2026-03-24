@@ -606,8 +606,10 @@ async def send_message(
                 document_context = f"===== FETCHED URL CONTENT =====\n\n{url_fetched_context}"
 
     # Check if RAG found relevant results (score > 0.7)
+    # Filter out low-score chunks (score <= 0.6) — remove noise from context
+    citations = [c for c in citations if c.get("score", 0) > 0.6]
     has_relevant_rag = any(c.get("score", 0) > 0.7 for c in citations)
-    has_rag_context = bool(citations)  # True if ANY RAG chunks were found (regardless of score)
+    has_rag_context = bool(citations)
     print(f"[TIMING] RAG+URL fetch: {time.time()-t0:.2f}s"); t0 = time.time()
 
     # Product Catalog search
