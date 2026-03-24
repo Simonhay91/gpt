@@ -674,8 +674,7 @@ async def send_message(
     
     try:
         import anthropic
-        import os
-        
+
         CLAUDE_API_KEY = os.environ.get('CLAUDE_API_KEY', '')
         claude_client = anthropic.Anthropic(api_key=CLAUDE_API_KEY)
         
@@ -1206,8 +1205,7 @@ async def save_chat_context(chat_id: str, data: dict, current_user: dict = Depen
     try:
         # Send to Claude for summarization
         import anthropic
-        import os
-        
+
         CLAUDE_API_KEY = os.environ.get('CLAUDE_API_KEY', '')
         if not CLAUDE_API_KEY:
             raise HTTPException(status_code=500, detail="AI service not configured")
