@@ -607,6 +607,7 @@ async def send_message(
         use_web_search = True
         logger.info("Fallback web search: no RAG results found, auto-triggering search")
     print(f"[WEB SEARCH DEBUG] use_web_search={use_web_search}, has_relevant_rag={has_relevant_rag}, fetched_url_count={fetched_url_count}, brave_api_key_exists={brave_api_key_exists}")
+    print(f"[DEBUG FINAL] use_web_search={use_web_search}, has_relevant_rag={has_relevant_rag}, has_rag_context={has_rag_context}, fetched_url_count={fetched_url_count}, brave_api_key_exists={brave_api_key_exists}, active_sources_count={len(active_source_ids)}")
 
     if use_web_search:
         logger.info("Triggering Brave Web Search...")
