@@ -418,7 +418,7 @@ const ChatPage = () => {
         if (uploaded.length > 0) {
           toast.success(`Uploaded ${uploaded.length} file(s)`);
           const badge = { name: validFiles.map(f => f.name).join(', '), fileType: 'file', multi: true };
-          await sendMessage('Վերлուծիր այս ֆայլը և ամփոփիր հիմնական կետերը։', badge);
+          await sendMessage('Analyze this file and summarize the key points.', badge);
         }
         errors.forEach(err => toast.error(`${err.filename}: ${err.error}`));
       } catch (error) {
@@ -432,7 +432,7 @@ const ChatPage = () => {
         const response = await axios.post(`${API}/projects/${chat.projectId}/sources/upload`, formData, { headers: { 'Content-Type': 'multipart/form-data' } });
         setProjectSources(prev => [...prev, response.data]);
         toast.success(`Uploaded ${file.name} (${response.data.chunkCount} chunks extracted)`);
-        await sendMessage('Վերlուծիр այс ֆайль и амфофир химнакан кетерь։', getFileBadge(file));
+        await sendMessage('Analyze this file and summarize the key points.', getFileBadge(file));
       } catch (error) {
         toast.error(error.response?.data?.detail || 'Failed to upload file');
       }
