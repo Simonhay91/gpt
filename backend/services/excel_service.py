@@ -62,6 +62,9 @@ async def targeted_excel_edit(source_file_path: str, instruction: str, claude_cl
     """Edit specific cells in Excel without destroying formulas and structure."""
     import openpyxl
 
+    if not source_file_path.endswith(('.xlsx', '.xlsm', '.xls')):
+        return None, None, "Edit is only supported for Excel files (.xlsx). CSV files cannot be edited this way."
+
     # 1. Ask Claude which cells to change
     analysis_response = claude_client.messages.create(
         model="claude-sonnet-4-20250514",
@@ -148,10 +151,23 @@ async def maybe_generate_excel(
         return None, None, current_response_text
 
     try:
+        # Prefer XLSX/XLS over CSV — find XLSX first
         excel_source = await db.sources.find_one(
-            {"id": {"$in": active_source_ids}, "mimeType": {"$in": EXCEL_MIME_TYPES}},
+            {
+                "id": {"$in": active_source_ids},
+                "mimeType": {"$in": [
+                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    "application/vnd.ms-excel"
+                ]}
+            },
             {"_id": 0}
         )
+        # Fall back to CSV only if no XLSX found
+        if not excel_source:
+            excel_source = await db.sources.find_one(
+                {"id": {"$in": active_source_ids}, "mimeType": {"$in": ["text/csv", "application/csv"]}},
+                {"_id": 0}
+            )
         if not excel_source:
             return None, None, current_response_text
 
