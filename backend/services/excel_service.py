@@ -21,6 +21,11 @@ EXCEL_TRIGGER_PHRASES = [
     "generate excel", "create excel", "make excel",
     "сгенерируй excel", "создай excel", "сделай excel",
     "download excel", "скачать excel",
+    # edit / modify phrases
+    "edit", "modify", "update", "change", "fix",
+    "edit ara", "poxi", "փոխիր", "խմբագրիր", "թարմացրու",
+    "редактируй", "измени", "обнови", "исправь",
+    "readme", "sheet", "arajin togh", "առաջին տող",
 ]
 
 UPLOAD_DIR = Path(__file__).parent.parent / "uploads"
