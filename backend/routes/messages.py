@@ -111,7 +111,7 @@ async def brave_web_search(query: str) -> Optional[List[dict]]:
         return None
 
 
-async def fetch_page_texts(results: list, top_n: int = 3, per_page: int = 1000, total_limit: int = 3000) -> list:
+async def fetch_page_texts(results: list, top_n: int = 2, per_page: int = 500, total_limit: int = 1000) -> list:
     """Fetch actual page content for top-N Brave results. Never raises — always returns list."""
     enriched = []
     total_chars = 0
@@ -665,7 +665,7 @@ async def send_message(
             web_sources = [{"title": r["title"], "url": r["url"]} for r in web_search_results]
 
             # Enrich top-3 results with actual page content
-            enriched_results = await fetch_page_texts(web_search_results, top_n=3, per_page=1000, total_limit=3000)
+            enriched_results = await fetch_page_texts(web_search_results, top_n=2, per_page=500, total_limit=1000)
 
             # Build context: prefer page_text, fallback to description
             web_context_parts = []
