@@ -9,7 +9,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Label } from '../components/ui/label';
 import { Checkbox } from '../components/ui/checkbox';
 import { toast } from 'sonner';
-import { Plus, MessageSquare, Trash2, Clock, ArrowRight, ArrowLeft, FolderOpen, Share2, Users, X, Shield, Eye, Edit, Settings, Search, Brain, Loader2, Sparkles } from 'lucide-react';
+import { Plus, MessageSquare, Trash2, Clock, ArrowRight, ArrowLeft, FolderOpen, Share2, Users, X, Shield, Eye, Edit, Settings, Search, Brain, Loader2, Sparkles, Pencil } from 'lucide-react';
 import DashboardLayout from '../components/DashboardLayout';
 import { useAuth } from '../contexts/AuthContext';
 import SourceInsightsModal from '../components/SourceInsightsModal';
@@ -57,6 +57,30 @@ const ProjectPage = () => {
   const [projectMemory, setProjectMemory] = useState('');
   const [isLoadingMemory, setIsLoadingMemory] = useState(false);
   const [isSavingMemory, setIsSavingMemory] = useState(false);
+
+  // Rename chat state
+  const [renamingChatId, setRenamingChatId] = useState(null);
+  const [renameValue, setRenameValue] = useState('');
+
+  const startRename = (e, chat) => {
+    e.stopPropagation();
+    setRenamingChatId(chat.id);
+    setRenameValue(chat.name || '');
+  };
+
+  const commitRename = async (chatId) => {
+    const trimmed = renameValue.trim();
+    if (!trimmed) { setRenamingChatId(null); return; }
+    try {
+      await axios.put(`${API}/chats/${chatId}/rename`, { name: trimmed });
+      setChats(prev => prev.map(c => c.id === chatId ? { ...c, name: trimmed } : c));
+      toast.success('Chat renamed');
+    } catch {
+      toast.error('Failed to rename');
+    } finally {
+      setRenamingChatId(null);
+    }
+  };
 
   useEffect(() => {
     fetchProjectAndChats();
@@ -553,22 +577,38 @@ const ProjectPage = () => {
           ) : (
             <div className="space-y-3">
               {chats.map((chat, index) => (
-                <Card key={chat.id} className="card-hover cursor-pointer group" onClick={() => navigate(`/chats/${chat.id}`)} style={{ animationDelay: `${index * 50}ms` }} data-testid={`chat-card-${chat.id}`}>
+                <Card key={chat.id} className="card-hover cursor-pointer group" onClick={() => renamingChatId !== chat.id && navigate(`/chats/${chat.id}`)} style={{ animationDelay: `${index * 50}ms` }} data-testid={`chat-card-${chat.id}`}>
                   <CardContent className="py-4">
                     <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-4">
-                        <div className="rounded-lg bg-emerald-500/20 p-2">
+                      <div className="flex items-center gap-4 flex-1 min-w-0">
+                        <div className="rounded-lg bg-emerald-500/20 p-2 flex-shrink-0">
                           <MessageSquare className="h-5 w-5 text-emerald-400" />
                         </div>
-                        <div>
-                          <h3 className="font-semibold">{chat.name || 'Untitled Chat'}</h3>
+                        <div className="flex-1 min-w-0">
+                          {renamingChatId === chat.id ? (
+                            <input
+                              autoFocus
+                              value={renameValue}
+                              onChange={e => setRenameValue(e.target.value)}
+                              onKeyDown={e => { if (e.key === 'Enter') commitRename(chat.id); if (e.key === 'Escape') setRenamingChatId(null); }}
+                              onBlur={() => commitRename(chat.id)}
+                              onClick={e => e.stopPropagation()}
+                              className="w-full text-sm font-semibold bg-transparent border-b border-primary outline-none py-0.5"
+                              data-testid={`rename-input-${chat.id}`}
+                            />
+                          ) : (
+                            <h3 className="font-semibold truncate">{chat.name || 'Untitled Chat'}</h3>
+                          )}
                           <div className="flex items-center gap-1 text-sm text-muted-foreground mt-1">
                             <Clock className="h-3 w-3" />
                             <span>{formatDate(chat.createdAt)}</span>
                           </div>
                         </div>
                       </div>
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-1">
+                        <Button variant="ghost" size="icon" className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity" onClick={e => startRename(e, chat)} data-testid={`rename-chat-${chat.id}`}>
+                          <Pencil className="h-3.5 w-3.5 text-muted-foreground" />
+                        </Button>
                         <Button variant="ghost" size="icon" className="h-8 w-8" onClick={(e) => deleteChat(chat.id, e)} data-testid={`delete-chat-${chat.id}`}>
                           <Trash2 className="h-4 w-4 text-destructive" />
                         </Button>
