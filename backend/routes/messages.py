@@ -47,6 +47,7 @@ async def brave_web_search(query: str) -> Optional[List[dict]]:
     Returns list of {"title": str, "url": str, "description": str}
     """
     brave_api_key = os.environ.get('BRAVE_API_KEY', '')
+    print(f"[BRAVE DEBUG] Calling Brave API with query: {query}")
     if not brave_api_key:
         logger.warning("BRAVE_API_KEY not set, skipping web search")
         return None
@@ -85,6 +86,7 @@ async def brave_web_search(query: str) -> Optional[List[dict]]:
                 })
             
             logger.info(f"Brave Search returned {len(formatted_results)} results")
+            print(f"[BRAVE DEBUG] Results count: {len(formatted_results)}")
             return formatted_results
             
     except Exception as e:
@@ -580,10 +582,12 @@ async def send_message(
 
     brave_api_key_exists = bool(os.environ.get('BRAVE_API_KEY', ''))
     use_web_search = should_use_web_search(message_data.content, has_relevant_rag)
+    print(f"[WEB SEARCH DEBUG] use_web_search={use_web_search}, has_relevant_rag={has_relevant_rag}, fetched_url_count={fetched_url_count}, brave_api_key_exists={brave_api_key_exists}")
     # Fallback: auto-trigger web search when RAG has no results, no URL context, and Brave key is set
     if not use_web_search and not has_relevant_rag and not fetched_url_count and brave_api_key_exists:
         use_web_search = True
         logger.info("Fallback web search: no RAG results found, auto-triggering search")
+    print(f"[WEB SEARCH DEBUG] use_web_search={use_web_search}, has_relevant_rag={has_relevant_rag}, fetched_url_count={fetched_url_count}, brave_api_key_exists={brave_api_key_exists}")
 
     if use_web_search:
         logger.info("Triggering Brave Web Search...")
