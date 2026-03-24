@@ -581,7 +581,7 @@ async def send_message(
     brave_api_key_exists = bool(os.environ.get('BRAVE_API_KEY', ''))
     use_web_search = should_use_web_search(message_data.content, has_relevant_rag)
     # Fallback: auto-trigger web search when RAG has no results, no URL context, and Brave key is set
-    if not use_web_search and not has_rag_context and not fetched_url_count and brave_api_key_exists:
+    if not use_web_search and not has_relevant_rag and not fetched_url_count and brave_api_key_exists:
         use_web_search = True
         logger.info("Fallback web search: no RAG results found, auto-triggering search")
 
