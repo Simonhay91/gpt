@@ -116,6 +116,7 @@ async def targeted_excel_edit(source_file_path: str, instruction: str, claude_cl
     file_id = str(uuid.uuid4())
     output_path = f"/tmp/excel_result_{file_id}.xlsx"
     wb.save(output_path)
+    print(f"[EXCEL EDIT DEBUG] file_id={file_id}, output_path={output_path}, edits={edits}")
 
     preview = {
         "columns": ["sheet", "cell", "value"],

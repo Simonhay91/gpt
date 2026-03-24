@@ -541,6 +541,7 @@ async def send_message(
                 claude_client=excel_claude_client,
                 current_response_text=response_text
             )
+            print(f"[EXCEL RESULT DEBUG] excel_file_id={excel_file_id}, excel_preview={excel_preview}")
         except Exception as e:
             logger.error(f"Excel service error: {str(e)}")
 
