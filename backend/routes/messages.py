@@ -762,6 +762,9 @@ async def send_message(
                 messages.append({"role": msg["role"], "content": msg["content"]})
             messages.append({"role": "user", "content": message_data.content})
             
+            print(f"[SYSTEM PROMPT DEBUG] Length: {len(system_prompt)} chars")
+            print(f"[SYSTEM PROMPT DEBUG] Contains WEB SEARCH RESULTS: {'WEB SEARCH RESULTS' in system_prompt}")
+            print(f"[SYSTEM PROMPT DEBUG] context_type: {context_type}")
             claude_response = claude_client.messages.create(
                 model="claude-sonnet-4-20250514",
                 max_tokens=4096,
