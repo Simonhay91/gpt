@@ -1288,9 +1288,9 @@ const ChatPage = () => {
                               </div>
                             )}
                             {message.role === 'assistant' && (
-                              <div className="absolute -bottom-1 -right-1 flex gap-1">
+                              <div className="absolute -bottom-1 -right-1 flex gap-1" style={{transition:'none'}}>
                                 {/* Save dropdown */}
-                                <div className="relative">
+                                <div className="relative" style={{transition:'none'}}>
                                   <Button variant="ghost" size="icon" className="h-7 w-7 bg-background border border-border shadow-sm"
                                     onClick={(e) => { e.stopPropagation(); setSaveDropdownIdx(saveDropdownIdx === index ? null : index); }}
                                     title="Save" data-testid={`save-message-${index}`}>
@@ -1299,7 +1299,7 @@ const ChatPage = () => {
                                   {saveDropdownIdx === index && (
                                     <div
                                       className="absolute z-50 min-w-[160px] rounded-md border border-border bg-background shadow-lg py-1"
-                                      style={{ [index >= messages.length * 0.6 ? 'bottom' : 'top']: '110%', right: 0 }}
+                                      style={{ [index >= messages.length * 0.6 ? 'bottom' : 'top']: '110%', right: 0, transition: 'none' }}
                                       onClick={(e) => e.stopPropagation()}
                                     >
                                       <button
@@ -1415,24 +1415,18 @@ const ChatPage = () => {
                     {/* Web Sources Section */}
                     {message.role === 'assistant' && message.web_sources?.length > 0 && (
                       <div className="mt-2 px-2">
-                        <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground mb-2">
-                          <Globe2 className="h-3 w-3" />
-                          <span>🌐 Web Sources</span>
-                        </div>
-                        <div className="flex flex-col gap-1.5">
+                        <div className="flex flex-wrap gap-1.5">
                           {message.web_sources.map((webSource, idx) => (
                             <a
                               key={idx}
                               href={webSource.url}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="inline-flex items-start gap-2 px-3 py-2 rounded-md bg-blue-500/10 text-blue-400 text-xs border border-blue-500/20 hover:bg-blue-500/20 transition-colors"
+                              title={webSource.url}
+                              className="inline-flex items-center gap-1.5 px-2 py-1 rounded-full bg-blue-500/10 text-blue-400 text-xs border border-blue-500/20 hover:bg-blue-500/20 transition-colors max-w-[220px]"
                             >
-                              <Link className="h-3 w-3 flex-shrink-0 mt-0.5" />
-                              <div className="flex-1">
-                                <div className="font-medium">{webSource.title}</div>
-                                <div className="text-xs opacity-70 truncate">{webSource.url}</div>
-                              </div>
+                              <Globe2 className="h-3 w-3 flex-shrink-0" />
+                              <span className="truncate">{webSource.title || new URL(webSource.url).hostname}</span>
                             </a>
                           ))}
                         </div>
