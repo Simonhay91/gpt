@@ -80,6 +80,9 @@ async def targeted_excel_edit(source_file_path: str, instruction: str, claude_cl
 
     print(f"[EXCEL EDIT DEBUG] Instruction: {instruction}")
     print(f"[EXCEL EDIT DEBUG] File structure sent to Claude: {json.dumps(file_structure, ensure_ascii=False)[:500]}")
+    if "Industry_Data" in file_structure:
+        print(f"[INDUSTRY DATA STRUCTURE] {json.dumps(file_structure['Industry_Data'], ensure_ascii=False)}")
+
 
 
     # 1. Ask Claude which cells to change
