@@ -460,9 +460,36 @@ async def update_user_gpt_model(user_id: str, data: UpdateUserModelRequest, curr
     return {"message": "Model updated", "model": data.model}
 
 
+@router.post("/admin/users/{user_id}/reset-password")
+async def admin_reset_password(user_id: str, current_user: dict = Depends(get_current_user)):
+    """Admin generates a new random password for a user"""
+    import random, string
+    db = get_db()
+    if not is_admin(current_user["email"]):
+        raise HTTPException(status_code=403, detail="Admin access required")
+
+    user = await db.users.find_one({"id": user_id}, {"_id": 0, "email": 1, "isAdmin": 1})
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    # Generate a secure random password: 12 chars, letters + digits + symbols
+    chars = string.ascii_letters + string.digits + "!@#$%"
+    new_password = ''.join(random.choices(chars, k=12))
+
+    await db.users.update_one(
+        {"id": user_id},
+        {"$set": {
+            "passwordHash": hash_password(new_password),
+            "mustChangePassword": True,
+            "passwordResetAt": datetime.now(timezone.utc).isoformat(),
+            "passwordResetBy": current_user["email"]
+        }}
+    )
+    return {"new_password": new_password, "email": user["email"]}
+
+
 @router.put("/admin/users/{user_id}/global-permission")
-async def update_user_global_permission(
-    user_id: str, 
+async def update_user_global_permission(    user_id: str, 
     data: UpdateUserGlobalPermissionRequest,
     current_user: dict = Depends(get_current_user)
 ):

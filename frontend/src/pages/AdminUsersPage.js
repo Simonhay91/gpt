@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '../components/ui/dialog';
 import { Label } from '../components/ui/label';
 import { toast } from 'sonner';
-import { Plus, Users, Trash2, Copy, Eye, EyeOff, ArrowLeft, Coins, MessageSquare, Shield, HardDrive, FileText } from 'lucide-react';
+import { Plus, Users, Trash2, Copy, Eye, EyeOff, ArrowLeft, Coins, MessageSquare, Shield, HardDrive, FileText, KeyRound } from 'lucide-react';
 import DashboardLayout from '../components/DashboardLayout';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
@@ -22,6 +22,8 @@ const AdminUsersPage = () => {
   const [newUserPassword, setNewUserPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [createdUser, setCreatedUser] = useState(null);
+  const [resetPasswordUser, setResetPasswordUser] = useState(null); // { email, new_password }
+  const [isResetting, setIsResetting] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -113,6 +115,18 @@ const AdminUsersPage = () => {
     setNewUserPassword('');
     setCreatedUser(null);
     setShowPassword(false);
+  };
+
+  const handleResetPassword = async (userId) => {
+    setIsResetting(true);
+    try {
+      const res = await axios.post(`${API}/admin/users/${userId}/reset-password`);
+      setResetPasswordUser(res.data); // { email, new_password }
+    } catch (e) {
+      toast.error(e.response?.data?.detail || 'Failed to reset password');
+    } finally {
+      setIsResetting(false);
+    }
   };
 
   const formatDate = (dateString) => {
@@ -381,6 +395,22 @@ const AdminUsersPage = () => {
                         )}
                       </div>
                       
+                      {/* Reset Password Button */}
+                      {!user.isAdmin && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="gap-1"
+                          onClick={() => handleResetPassword(user.id)}
+                          disabled={isResetting}
+                          title="Generate new password"
+                          data-testid={`reset-password-${user.id}`}
+                        >
+                          <KeyRound className="h-3.5 w-3.5" />
+                          Reset
+                        </Button>
+                      )}
+
                       {/* View Details Button */}
                       <Button
                         variant="outline"
@@ -412,6 +442,33 @@ const AdminUsersPage = () => {
           </div>
         )}
       </div>
+
+      {/* Reset Password Result Dialog */}
+      {resetPasswordUser && (
+        <Dialog open={!!resetPasswordUser} onOpenChange={() => setResetPasswordUser(null)}>
+          <DialogContent data-testid="reset-password-dialog">
+            <DialogHeader>
+              <DialogTitle>New Password Generated</DialogTitle>
+              <DialogDescription>
+                Share this password with <strong>{resetPasswordUser.email}</strong>. They will be prompted to change it on next login.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-3 py-2">
+              <div className="flex items-center gap-2 rounded-md border border-border bg-muted px-3 py-2">
+                <span className="font-mono text-sm flex-1" data-testid="generated-password">{resetPasswordUser.new_password}</span>
+                <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0"
+                  onClick={() => { navigator.clipboard.writeText(resetPasswordUser.new_password); toast.success('Copied!'); }}
+                  data-testid="copy-new-password-btn">
+                  <Copy className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+            <DialogFooter>
+              <Button onClick={() => setResetPasswordUser(null)} data-testid="close-reset-dialog-btn">Done</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
     </DashboardLayout>
   );
 };
