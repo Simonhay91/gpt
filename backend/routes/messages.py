@@ -147,8 +147,21 @@ def should_use_web_search(user_message: str, has_relevant_rag: bool) -> bool:
     - If user explicitly requests research → Yes web search
     - Otherwise → No web search
     """
+    content = user_message.strip()
+    message_lower = content.lower()
+
+    # Skip web search for short messages (greetings, etc.)
+    words = content.split()
+    if len(words) <= 4:
+        return False
+
+    # Skip web search for greetings and social phrases
+    STOP_WORDS = ["barev", "բարև", "привет", "hello", "hi", "salam",
+                  "vonc es", "inch ka", "mersi", "shnorhakalutyun"]
+    if any(word in message_lower for word in STOP_WORDS):
+        return False
+
     # Check for explicit research keywords
-    message_lower = user_message.lower()
     for keyword in WEB_SEARCH_KEYWORDS:
         if keyword in message_lower:
             return True
@@ -584,7 +597,13 @@ async def send_message(
     use_web_search = should_use_web_search(message_data.content, has_relevant_rag)
     print(f"[WEB SEARCH DEBUG] use_web_search={use_web_search}, has_relevant_rag={has_relevant_rag}, fetched_url_count={fetched_url_count}, brave_api_key_exists={brave_api_key_exists}")
     # Fallback: auto-trigger web search when RAG has no results, no URL context, and Brave key is set
-    if not use_web_search and not has_relevant_rag and not fetched_url_count and brave_api_key_exists:
+    # Skip fallback for short/trivial messages (same rules as should_use_web_search)
+    _words = message_data.content.strip().split()
+    _msg_lower = message_data.content.lower()
+    _STOP_WORDS = ["barev", "բարև", "привет", "hello", "hi", "salam",
+                   "vonc es", "inch ka", "mersi", "shnorhakalutyun"]
+    _is_trivial = len(_words) <= 4 or any(w in _msg_lower for w in _STOP_WORDS)
+    if not use_web_search and not has_relevant_rag and not fetched_url_count and brave_api_key_exists and not _is_trivial:
         use_web_search = True
         logger.info("Fallback web search: no RAG results found, auto-triggering search")
     print(f"[WEB SEARCH DEBUG] use_web_search={use_web_search}, has_relevant_rag={has_relevant_rag}, fetched_url_count={fetched_url_count}, brave_api_key_exists={brave_api_key_exists}")
@@ -759,6 +778,9 @@ async def send_message(
 
             # Prevent Claude from generating fake Excel/file structures
             system_prompt += "\n\nIMPORTANT: Do NOT generate XML tags, <excel_file>, <file>, or any fake file structures in your response. If the user asks to create, modify or download an Excel/CSV file — the system handles file generation automatically. Just confirm what you will do in plain text."
+
+            # Strict Excel generation rule
+            system_prompt += "\n\nSTRICT RULE: Never generate, create, or offer to download Excel/CSV files on your own initiative. Only work with Excel files that the user has explicitly uploaded as sources. Never use any Excel generation tools unless the user explicitly asks: \"создай Excel\", \"сделай таблицу для скачивания\", \"generate excel\", \"create spreadsheet\"."
             
             messages = []
             for msg in history[:-1]:
