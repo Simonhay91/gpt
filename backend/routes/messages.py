@@ -572,12 +572,20 @@ async def send_message(
 
     # Check if RAG found relevant results (score > 0.7)
     has_relevant_rag = any(c.get("score", 0) > 0.7 for c in citations)
-    
+    has_rag_context = bool(citations)  # True if ANY RAG chunks were found (regardless of score)
+
     # Brave Web Search integration
     web_search_results = None
     web_sources = None
-    
-    if should_use_web_search(message_data.content, has_relevant_rag):
+
+    brave_api_key_exists = bool(os.environ.get('BRAVE_API_KEY', ''))
+    use_web_search = should_use_web_search(message_data.content, has_relevant_rag)
+    # Fallback: auto-trigger web search when RAG has no results, no URL context, and Brave key is set
+    if not use_web_search and not has_rag_context and not fetched_url_count and brave_api_key_exists:
+        use_web_search = True
+        logger.info("Fallback web search: no RAG results found, auto-triggering search")
+
+    if use_web_search:
         logger.info("Triggering Brave Web Search...")
         web_search_results = await brave_web_search(message_data.content)
         
@@ -603,7 +611,17 @@ async def send_message(
                 document_context = f"{document_context}\n\n===== WEB SEARCH RESULTS =====\n\n{web_context}"
             else:
                 document_context = f"===== WEB SEARCH RESULTS =====\n\n{web_context}"
-    
+
+    # Determine context type for targeted system prompt instruction
+    if has_rag_context:
+        context_type = "rag"
+    elif web_search_results:
+        context_type = "web"
+    elif fetched_url_count > 0:
+        context_type = "url"
+    else:
+        context_type = "none"
+
     # Get user's custom prompt
     user_prompt_doc = await db.user_prompts.find_one({"userId": current_user["id"]}, {"_id": 0})
     user_custom_prompt = user_prompt_doc.get("customPrompt") if user_prompt_doc else None
@@ -715,7 +733,22 @@ async def send_message(
                     "- [Title](URL)"
                 )
                 system_parts.append(web_instruction)
-            
+
+            # Context-type specific final instruction (highest priority — overrides general rules)
+            if context_type == "rag":
+                system_parts.append(
+                    "FINAL INSTRUCTION: Answer based on the provided document sources above. "
+                    "Cite relevant sources using [Source: name] format."
+                )
+            elif context_type == "none":
+                system_parts.append(
+                    "FINAL INSTRUCTION: No document sources or web results are available for this query. "
+                    "Answer from your own knowledge directly and helpfully. "
+                    "Do NOT say 'there are no sources', 'I cannot find information in the sources', "
+                    "'no information available in the uploaded files', or any similar phrase about missing sources. "
+                    "Simply answer the question as a knowledgeable assistant would."
+                )
+
             system_prompt = "\n\n".join(system_parts)
 
             # Prevent Claude from generating fake Excel/file structures
