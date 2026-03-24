@@ -28,12 +28,26 @@ EXCEL_TRIGGER_PHRASES = [
     "readme", "sheet", "arajin togh", "առաջին տող",
 ]
 
+# Subset of EXCEL_TRIGGER_PHRASES that indicate targeted cell editing
+# (not full regeneration). Checked first — these bypass the clarification flow.
+EXCEL_EDIT_PHRASES = [
+    "edit", "modify", "update", "change", "fix",
+    "edit ara", "poxi", "փոխիր", "խմբագրիր", "թարմացրու",
+    "редактируй", "измени", "обнови", "исправь",
+    "readme", "sheet", "arajin togh", "առաջին տող",
+]
+
 UPLOAD_DIR = Path(__file__).parent.parent / "uploads"
 
 
 def is_excel_trigger(message_content: str) -> bool:
-    """Check if message explicitly requests Excel generation."""
+    """Check if message explicitly requests Excel generation or editing."""
     return any(phrase in message_content.lower() for phrase in EXCEL_TRIGGER_PHRASES)
+
+
+def is_edit_trigger(message_content: str) -> bool:
+    """Check if message requests targeted cell editing (not full regeneration)."""
+    return any(phrase in message_content.lower() for phrase in EXCEL_EDIT_PHRASES)
 
 
 def _sanitize_value(v):
@@ -42,6 +56,74 @@ def _sanitize_value(v):
     if isinstance(v, float) and (math.isnan(v) or math.isinf(v)):
         return None
     return v
+
+
+async def targeted_excel_edit(source_file_path: str, instruction: str, claude_client) -> tuple:
+    """Edit specific cells in Excel without destroying formulas and structure."""
+    import openpyxl
+
+    # 1. Ask Claude which cells to change
+    analysis_response = claude_client.messages.create(
+        model="claude-sonnet-4-20250514",
+        max_tokens=512,
+        system=(
+            "You are an Excel cell editor. "
+            "The user's instruction may be in Armenian, Russian, or English — understand it regardless of language.\n"
+            "Common operations: \"poxi/փոխիր/замени\" = replace, \"gri/գրիր/напиши\" = write/set, "
+            "\"avelacru/ավելացրու/добавь\" = add, \"jnjel/ջնջել/удали\" = delete/clear.\n"
+            "Return ONLY a JSON array of cell edits — no markdown, no explanation:\n"
+            "[{\"sheet\": \"README\", \"cell\": \"A4\", \"value\": \"New Value\"}, ...]\n"
+            "Rules:\n"
+            "- Only edit cells that need to change based on the instruction\n"
+            "- Do not touch formulas, only static text/values\n"
+            "- Return [] if instruction is unclear or no edits are needed"
+        ),
+        messages=[{"role": "user", "content": f"Instruction: {instruction}"}]
+    )
+
+    raw = analysis_response.content[0].text.strip()
+    if raw.startswith("```"):
+        raw = raw.split("```")[1]
+        if raw.startswith("json"):
+            raw = raw[4:]
+
+    try:
+        edits = json.loads(raw.strip())
+    except json.JSONDecodeError:
+        logger.warning(f"targeted_excel_edit: Claude returned invalid JSON: {raw[:200]}")
+        return None, None, "Could not determine what to edit."
+
+    if not edits:
+        return None, None, "Could not determine what to edit."
+
+    # 2. Apply edits via openpyxl (preserves formulas and structure)
+    wb = openpyxl.load_workbook(source_file_path)
+    applied = []
+    for edit in edits:
+        sheet_name = edit.get("sheet")
+        cell = edit.get("cell")
+        value = edit.get("value")
+        if sheet_name and cell and sheet_name in wb.sheetnames:
+            wb[sheet_name][cell] = value
+            applied.append(edit)
+        else:
+            logger.warning(f"targeted_excel_edit: skipped invalid edit {edit}")
+
+    if not applied:
+        return None, None, "No valid edits could be applied."
+
+    # 3. Save to /tmp/
+    file_id = str(uuid.uuid4())
+    output_path = f"/tmp/excel_result_{file_id}.xlsx"
+    wb.save(output_path)
+
+    preview = {
+        "columns": ["sheet", "cell", "value"],
+        "rows": [[e.get("sheet"), e.get("cell"), e.get("value")] for e in applied],
+        "total_rows": len(applied),
+        "message": f"Edited {len(applied)} cell(s).",
+    }
+    return file_id, preview, f"Done. Edited {len(applied)} cell(s)."
 
 
 async def maybe_generate_excel(
@@ -72,7 +154,20 @@ async def maybe_generate_excel(
         if not excel_source:
             return None, None, current_response_text
 
-        # Two-step flow: first time → ask clarifying questions
+        # ── Targeted edit path (skips clarification flow) ──
+        if is_edit_trigger(message_content):
+            if not excel_source.get("storagePath"):
+                return None, None, current_response_text
+            edit_file_path = UPLOAD_DIR / excel_source["storagePath"]
+            if not edit_file_path.exists():
+                return None, None, current_response_text
+            try:
+                return await targeted_excel_edit(str(edit_file_path), message_content, claude_client)
+            except Exception as edit_err:
+                logger.error(f"targeted_excel_edit error: {edit_err}")
+                return None, None, current_response_text
+
+        # ── Full generation path: two-step flow with clarification ──
         recent_messages = await db.messages.find(
             {"chatId": chat_id},
             {"_id": 0, "role": 1, "content": 1}
