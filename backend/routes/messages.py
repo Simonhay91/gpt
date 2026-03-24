@@ -913,9 +913,25 @@ async def send_message(
 
             if excel_source:
                 # Always process when Excel source is active — skip only pure questions
-                SKIP_KWORDS = ["?", "что такое", "what is", "объясни", "explain", "как работает", "расскажи"]
+                SKIP_KWORDS = [
+                    "что такое", "what is", "объясни", "explain", "как работает", "расскажи",
+                    # Armenian
+                    "ի՞նչ", "ինչ", "կարո", "բացատր", "ցույց տուր", "նկարագր",
+                    # English questions
+                    "what", "who", "where", "when", "why", "how", "tell me", "describe", "show me",
+                    # Russian questions
+                    "что", "кто", "где", "когда", "почему", "как", "покажи",
+                    # Greetings
+                    "barev", "բарев", "привет",
+                    # About/topic words
+                    "masin", "մасин", "about",
+                    # Armenian question words
+                    "inch", "ինч", "vortegh", "երб",
+                ]
                 msg_lower = message_data.content.lower()
-                is_excel_request = not any(kw in msg_lower for kw in SKIP_KWORDS)
+                # Question marks (Latin and Armenian) always skip Excel processing
+                has_question_mark = "?" in message_data.content or "՞" in message_data.content
+                is_excel_request = not has_question_mark and not any(kw in msg_lower for kw in SKIP_KWORDS)
 
                 if is_excel_request and excel_source.get("storagePath"):
                     file_path = _UPLOAD_DIR / excel_source["storagePath"]
