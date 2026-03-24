@@ -94,16 +94,17 @@ async def targeted_excel_edit(source_file_path: str, instruction: str, claude_cl
             "The user's instruction may be in Armenian, Russian, or English — understand it regardless of language.\n"
             "Common operations: \"poxi/փոխիր/замени\" = replace, \"gri/գրիր/напиши\" = write/set, "
             "\"avelacru/ավելացրու/добавь\" = add, \"jnjel/ջնջել/удали\" = delete/clear.\n"
-            "Return ONLY a JSON array of cell edits — no markdown, no explanation:\n"
-            "[{\"sheet\": \"README\", \"cell\": \"A4\", \"value\": \"New Value\"}, ...]\n"
+            "Return ONLY a JSON array of cell edits — no markdown, no explanation.\n"
             "Rules:\n"
-            "- Only edit cells that need to change based on the instruction\n"
-            "- Do not touch formulas, only static text/values\n"
-            "- Formulas start with \"=\" — write them as-is as the \"value\" field\n"
-            "- Example: {\"sheet\": \"Industry_Data\", \"cell\": \"E5\", \"value\": \"=D5/C5*100\"}\n"
-            "- If user asks to add a formula or calculation — write the Excel formula directly\n"
-            "- Armenian: \"formula tar/տուր\" or \"hashvarka/հաշվարկ\" = add formula\n"
-            "- Return [] if instruction is unclear or no edits are needed"
+            "- Return JSON array of cell edits\n"
+            '- Each edit: {\"sheet\": \"...\", \"cell\": \"...\", \"value\": \"...\", \"color\": \"...\"}\n'
+            "- \"value\" is optional — omit if only changing color\n"
+            "- \"color\" is optional — hex code without #. Red=\"FF0000\", Yellow=\"FFFF00\", Green=\"00FF00\"\n"
+            "- To color entire row, add one edit per cell (e.g. A5, B5, C5... up to last column)\n"
+            "- Armenian: \"karmir/\u056f\u0561\u0580\u0574\u056b\u0580\"=\"FF0000\", \"deghin/\u564f\u0565\u0572\u056b\u576e\"=\"FFFF00\", \"kanahaguyn/\u056f\u0561\u576b\u0561\u563a\u0561\u563c\u0582\u0575\u576e\"=\"00FF00\"\n"
+            "- Formulas start with \"=\" — write as value field\n"
+            "- Return [] only if truly impossible\n"
+            "Return ONLY JSON array, no explanation text."
         ),
         messages=[{"role": "user", "content": f"Instruction: {instruction}\n\nFile structure:\n{json.dumps(file_structure, ensure_ascii=False)}"}]
     )
@@ -127,14 +128,20 @@ async def targeted_excel_edit(source_file_path: str, instruction: str, claude_cl
         return None, None, "Could not determine what to edit."
 
     # 2. Apply edits via openpyxl (preserves formulas and structure)
+    from openpyxl.styles import PatternFill
     wb = openpyxl.load_workbook(source_file_path)
     applied = []
     for edit in edits:
         sheet_name = edit.get("sheet")
         cell = edit.get("cell")
         value = edit.get("value")
+        color = edit.get("color")
         if sheet_name and cell and sheet_name in wb.sheetnames:
-            wb[sheet_name][cell] = value
+            ws = wb[sheet_name]
+            if value is not None:
+                ws[cell] = value
+            if color:
+                ws[cell].fill = PatternFill(start_color=color, end_color=color, fill_type="solid")
             applied.append(edit)
         else:
             logger.warning(f"targeted_excel_edit: skipped invalid edit {edit}")
