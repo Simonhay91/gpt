@@ -27,7 +27,7 @@ const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 const ChatPage = () => {
   const { chatId } = useParams();
   const navigate = useNavigate();
-  const { currentUser } = useAuth();
+  const { user } = useAuth();
 
   // ── Core state ──
   const [messages, setMessages] = useState([]);
@@ -271,9 +271,9 @@ const ChatPage = () => {
 
   const saveToDepartment = async (source, e) => {
     e.stopPropagation();
-    if (!currentUser?.departments?.length) { toast.error('У вас нет департаментов для сохранения'); return; }
+    if (!user?.departments?.length) { toast.error('У вас нет департаментов для сохранения'); return; }
     try {
-      const departmentId = currentUser.departments[0];
+      const departmentId = user.departments[0];
       await axios.post(`${API}/department-sources/copy-from-project`, { sourceId: source.id, projectId: chat.projectId, departmentId });
       toast.success('Файл сохранен в источники департамента');
     } catch (error) { toast.error(error.response?.data?.detail || 'Failed to save to department'); }
@@ -712,7 +712,7 @@ const ChatPage = () => {
             projectSources={projectSources}
             activeSourceIds={activeSourceIds}
             currentProjectName={currentProjectName}
-            currentUser={currentUser}
+            currentUser={user}
             chat={chat}
             isUploading={isUploading}
             isAddingUrl={isAddingUrl}
