@@ -31,6 +31,18 @@ router = APIRouter(prefix="/api", tags=["messages"])
 GLOBAL_PROJECT_ID = "__global__"
 MAX_CHUNKS_PER_QUERY = 5
 
+# RAG score thresholds
+RAG_SCORE_MIN = 0.6          # Default minimum chunk score
+RAG_SCORE_MIN_EXCEL = 0.45   # Lower threshold for xlsx/csv sources
+RAG_SCORE_RELEVANT = 0.7     # Threshold to consider RAG "relevant" (skip web search)
+
+EXCEL_MIME_TYPES = {
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    "application/vnd.ms-excel",
+    "text/csv",
+    "application/csv",
+}
+
 
 async def ensure_gpt_config(db):
     """Ensure GPT config singleton exists. Never overwrites existing config."""
@@ -211,10 +223,14 @@ async def send_message(
     document_context = ""
     active_source_names = []
     source_types = {}
+    xlsx_sheet_info = []
+    has_excel_source = False
 
     if active_source_ids:
         sources = await db.sources.find({"id": {"$in": active_source_ids}}, {"_id": 0}).to_list(1000)
         source_names = {}
+        excel_source_ids = set()
+
         for s in sources:
             name = s.get("originalName") or s.get("url") or "Unknown"
             source_names[s["id"]] = name
@@ -226,6 +242,19 @@ async def send_message(
                 source_types[s["id"]] = "global"
             else:
                 source_types[s["id"]] = "project"
+
+            # Track excel sources for lower threshold
+            if s.get("mimeType") in EXCEL_MIME_TYPES:
+                excel_source_ids.add(s["id"])
+                has_excel_source = True
+
+            # Collect sheet names for xlsx sources
+            sheet_names = s.get("sheetNames", [])
+            if sheet_names and s.get("mimeType") in (
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                "application/vnd.ms-excel",
+            ):
+                xlsx_sheet_info.append(f"- {name}: {', '.join(sheet_names)}")
 
         relevant_chunks = await get_relevant_chunks(
             db, active_source_ids, project_id, message_data.content, user_department_ids
@@ -241,18 +270,25 @@ async def send_message(
 
             context_parts = []
             for chunk in relevant_chunks:
-                source_name = source_names.get(chunk["sourceId"], "Unknown")
-                source_type = source_types.get(chunk["sourceId"], "global")
+                score = chunk.get("score", 0)
+                source_id = chunk["sourceId"]
+                # Use lower threshold for excel sources
+                min_score = RAG_SCORE_MIN_EXCEL if source_id in excel_source_ids else RAG_SCORE_MIN
+                if score <= min_score:
+                    continue
+
+                source_name = source_names.get(source_id, "Unknown")
+                source_type = source_types.get(source_id, "global")
                 chunk_marker = f"[Source: {source_name} ({source_type.upper()}), Chunk {chunk['chunkIndex']+1}]"
                 context_parts.append(f"{chunk_marker}\n{chunk['content']}")
                 citations.append({
                     "sourceName": source_name,
-                    "sourceId": chunk["sourceId"],
+                    "sourceId": source_id,
                     "sourceType": source_type,
                     "chunkId": chunk.get("id", ""),
                     "chunkIndex": chunk["chunkIndex"],
                     "textFragment": chunk["content"][:200] + "..." if len(chunk["content"]) > 200 else chunk["content"],
-                    "score": chunk.get("score", 0)
+                    "score": score
                 })
 
             document_context = "\n\n---\n\n".join(context_parts)
@@ -276,9 +312,7 @@ async def send_message(
             else:
                 document_context = f"===== FETCHED URL CONTENT =====\n\n{url_fetched_context}"
 
-    # Filter out low-score chunks (score <= 0.6) — remove noise
-    citations = [c for c in citations if c.get("score", 0) > 0.6]
-    has_relevant_rag = any(c.get("score", 0) > 0.7 for c in citations)
+    has_relevant_rag = any(c.get("score", 0) > RAG_SCORE_RELEVANT for c in citations)
     has_rag_context = bool(citations)
 
     # ── 7. Product catalog search ──
@@ -304,7 +338,6 @@ async def send_message(
     web_search_results = None
     web_sources = None
 
-    # Load project memory to decide if web fallback is needed
     _project_memory_text = ""
     if project_id:
         _proj = await db.projects.find_one({"id": project_id}, {"_id": 0, "project_memory": 1})
@@ -314,12 +347,15 @@ async def send_message(
     brave_key_exists = bool(os.environ.get('BRAVE_API_KEY', ''))
     use_web_search = should_use_web_search(message_data.content, has_relevant_rag)
 
-    # Auto-trigger web search when no context, not trivial, no project memory
     _words = message_data.content.strip().split()
     _msg_lower = message_data.content.lower()
     _TRIVIAL_STOP = ["barev", "բарев", "привет", "hello", "hi", "salam",
                      "vonc es", "inch ka", "mersi", "shnorhakalutyun"]
     _is_trivial = len(_words) <= 4 or any(w in _msg_lower for w in _TRIVIAL_STOP)
+
+    # Don't web search if user is asking about excel source content
+    if has_excel_source and has_rag_context:
+        use_web_search = False
 
     if not use_web_search and not has_relevant_rag and not fetched_url_count \
             and brave_key_exists and not _is_trivial and not has_project_memory:
@@ -407,7 +443,7 @@ async def send_message(
         else:
             system_parts = [config["developerPrompt"]]
 
-            # Project memory as background context
+            # Project memory
             if project_id:
                 project_doc = await db.projects.find_one({"id": project_id}, {"_id": 0})
                 if project_doc and project_doc.get("project_memory"):
@@ -418,6 +454,13 @@ async def send_message(
 
             if user_custom_prompt:
                 system_parts.append(f"USER INSTRUCTIONS:\n{user_custom_prompt}")
+
+            # Inject real sheet names
+            if xlsx_sheet_info:
+                system_parts.append(
+                    "EXCEL FILE SHEETS (real data from uploaded files — use ONLY these, never invent sheet names):\n"
+                    + "\n".join(xlsx_sheet_info)
+                )
 
             if document_context:
                 active_sources_list = ", ".join(active_source_names) if active_source_names else "None"
@@ -496,7 +539,6 @@ async def send_message(
             response_text = claude_response.content[0].text
             tokens_used = claude_response.usage.input_tokens + claude_response.usage.output_tokens
 
-            # Parse clarifying questions
             if "<clarifying>" in response_text and "</clarifying>" in response_text:
                 try:
                     match = re.search(r'<clarifying>(.*?)</clarifying>', response_text, re.DOTALL)

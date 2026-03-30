@@ -18,36 +18,99 @@ EXCEL_MIME_TYPES = [
 ]
 
 EXCEL_TRIGGER_PHRASES = [
-    "generate excel", "create excel", "make excel",
-    "сгенерируй excel", "создай excel", "сделай excel",
-    "download excel", "скачать excel",
-    # edit / modify phrases
+    # English
+    "generate excel", "create excel", "make excel", "create spreadsheet",
+    "make spreadsheet", "download excel", "export excel", "export to excel",
+    # Russian
+    "сгенерируй excel", "создай excel", "сделай excel", "скачать excel",
+    "сгенерируй таблицу", "создай таблицу", "сделай таблицу",
+    # Armenian romanized
+    "excel generacru", "excel sarcru", "excel beri", "excel download ara",
+    "avelacru excel", "excel poxi", "kercru excel",
+    # Armenian unicode
+    "excel ստեղծիր", "excel բեր", "excel ներբեռնիր",
+    # edit / modify — English
     "edit", "modify", "update", "change", "fix",
-    "edit ara", "poxi", "փոխիր", "խմբագրիր", "թարմացրու",
+    # edit / modify — Armenian romanized
+    "edit ara", "poxi", "kpoxes", "popoxir",
+    # edit / modify — Armenian unicode
+    "փոխիր", "խմբագրիր", "թարմացրու", "ուղղիր",
+    # edit / modify — Russian
     "редактируй", "измени", "обнови", "исправь",
-    "readme", "sheet", "arajin togh", "առաջին տող",
+    # Excel-specific row/column operations
+    "arajin togh", "առաջին տող", "readme",
 ]
 
-# Subset of EXCEL_TRIGGER_PHRASES that indicate targeted cell editing
-# (not full regeneration). Checked first — these bypass the clarification flow.
+# Subset that indicates targeted cell editing (not full regeneration).
 EXCEL_EDIT_PHRASES = [
+    # English
     "edit", "modify", "update", "change", "fix",
-    "edit ara", "poxi", "փոխիր", "խմբագրիր", "թարմացրու",
+    # Armenian romanized
+    "edit ara", "poxi", "kpoxes", "popoxir",
+    # Armenian unicode
+    "փոխիր", "խմբագրիր", "թարմացրու", "ուղղիր",
+    # Russian
     "редактируй", "измени", "обнови", "исправь",
-    "readme", "sheet", "arajin togh", "առաջին տող",
+    # Excel-specific
+    "arajin togh", "առաջին տող", "readme",
 ]
+
+# Messages matching these patterns must NEVER trigger Excel edit or generation.
+EXCEL_EDIT_SKIP_WORDS = [
+    # Sheet info queries — English
+    "what sheets", "list sheets", "show sheets", "which sheet", "how many sheets",
+    # Sheet info queries — Armenian romanized
+    "inch sheeter", "inch sheet", "inch sheter", "sheeter ka", "sheet ka",
+    "inch sheeter ka", "qani sheet", "qani sheeter", "sheeter uni", "sheet uni",
+    "inch sheeter es tesnum", "inch sheet es tesnum",
+    # Sheet info queries — Armenian unicode
+    "ինչ sheet", "քանի sheet", "ինչ շիտ", "sheet-եր",
+    # Sheet info queries — Russian
+    "какие листы", "список листов", "сколько листов", "какие вкладки",
+    # General question/info words — Armenian romanized
+    "anhaskacox", "inch ka", "inch uni", "inch pes", "vonc",
+    "asa indz", "tur indz", "cuyc tur", "cuic tur", "tesnem",
+    # Russian question indicators
+    "что такое", "что это", "как называется", "расскажи",
+    # English info indicators
+    "what is", "show me", "tell me", "list all",
+]
+
+# Minimum word count for edit trigger — short questions never trigger edit.
+EXCEL_EDIT_MIN_WORDS = 4
 
 UPLOAD_DIR = Path(__file__).parent.parent / "uploads"
 
 
 def is_excel_trigger(message_content: str) -> bool:
     """Check if message explicitly requests Excel generation or editing."""
-    return any(phrase in message_content.lower() for phrase in EXCEL_TRIGGER_PHRASES)
+    content_lower = message_content.lower()
+    # Never trigger if skip words present
+    if any(skip in content_lower for skip in EXCEL_EDIT_SKIP_WORDS):
+        return False
+    return any(phrase in content_lower for phrase in EXCEL_TRIGGER_PHRASES)
 
 
 def is_edit_trigger(message_content: str) -> bool:
-    """Check if message requests targeted cell editing (not full regeneration)."""
-    return any(phrase in message_content.lower() for phrase in EXCEL_EDIT_PHRASES)
+    """Check if message requests targeted cell editing (not full regeneration).
+
+    Guards:
+    1. Skip if message contains any EXCEL_EDIT_SKIP_WORDS.
+    2. Skip if message is too short (< EXCEL_EDIT_MIN_WORDS words).
+    3. Only trigger if an EXCEL_EDIT_PHRASES keyword is present.
+    """
+    content_lower = message_content.strip().lower()
+
+    # Guard 1: explicit skip words
+    if any(skip in content_lower for skip in EXCEL_EDIT_SKIP_WORDS):
+        return False
+
+    # Guard 2: too short — "anhaskacox es?" and similar must not edit
+    if len(content_lower.split()) < EXCEL_EDIT_MIN_WORDS:
+        return False
+
+    # Guard 3: must contain an actual edit keyword
+    return any(phrase in content_lower for phrase in EXCEL_EDIT_PHRASES)
 
 
 def _sanitize_value(v):
@@ -80,10 +143,6 @@ async def targeted_excel_edit(source_file_path: str, instruction: str, claude_cl
 
     print(f"[EXCEL EDIT DEBUG] Instruction: {instruction}")
     print(f"[EXCEL EDIT DEBUG] File structure sent to Claude: {json.dumps(file_structure, ensure_ascii=False)[:500]}")
-    if "Industry_Data" in file_structure:
-        print(f"[INDUSTRY DATA STRUCTURE] {json.dumps(file_structure['Industry_Data'], ensure_ascii=False)}")
-
-
 
     # 1. Ask Claude which cells to change
     analysis_response = claude_client.messages.create(
@@ -91,26 +150,28 @@ async def targeted_excel_edit(source_file_path: str, instruction: str, claude_cl
         max_tokens=512,
         system=(
             "You are an Excel cell editor. "
-            "The user's instruction may be in Armenian, Russian, or English — understand it regardless of language.\n"
-            "Common operations: \"poxi/փոխիր/замени\" = replace, \"gri/գրիր/напиши\" = write/set, "
-            "\"avelacru/ավելացրու/добавь\" = add, \"jnjel/ջնջել/удали\" = delete/clear.\n"
+            "The user's instruction may be in Armenian, Russian, or English — understand all three languages.\n"
+            "Common operations by language:\n"
+            "- Armenian: poxi/փոխիր = replace | gri/գրիր = write | avelacru/ավելացրու = add | jnjel/ջնջել = delete\n"
+            "- Russian: замени = replace | напиши = write | добавь = add | удали = delete\n"
+            "- English: change/replace = replace | write/set = write | add = add | delete/clear = delete\n"
             "Return ONLY a JSON array of cell edits — no markdown, no explanation.\n"
             "Rules:\n"
             "- Return JSON array of cell edits\n"
-            '- Each edit: {\"sheet\": \"...\", \"cell\": \"...\", \"value\": \"...\", \"color\": \"...\"}\n'
-            "- \"value\" is optional — omit if only changing color\n"
-            "- \"color\" is optional — hex code without #. Red=\"FF0000\", Yellow=\"FFFF00\", Green=\"00FF00\"\n"
-            "- To color entire row, add one edit per cell (e.g. A5, B5, C5... up to last column)\n"
-            "- Armenian: \"karmir/\u056f\u0561\u0580\u0574\u056b\u0580\"=\"FF0000\", \"deghin/\u564f\u0565\u0572\u056b\u576e\"=\"FFFF00\", \"kanahaguyn/\u056f\u0561\u576b\u0561\u563a\u0561\u563c\u0582\u0575\u576e\"=\"00FF00\"\n"
-            "- Formulas start with \"=\" — write as value field\n"
+            '- Each edit: {"sheet": "...", "cell": "...", "value": "...", "color": "..."}\n'
+            "- value is optional — omit if only changing color\n"
+            "- color is optional — hex without #: Red=FF0000, Yellow=FFFF00, Green=00FF00\n"
+            "- To color entire row: one edit per cell (A5, B5, C5 ... up to last column)\n"
+            "- Armenian colors: karmir/կարմիր=FF0000, deghin/դեղին=FFFF00, kanahaguyn/կանաչագույն=00FF00\n"
+            "- Russian colors: красный=FF0000, жёлтый=FFFF00, зелёный=00FF00\n"
+            "- Formulas start with = and go in value field\n"
             "- Return [] only if truly impossible\n"
-            "Return ONLY JSON array, no explanation text."
+            "Return ONLY JSON array, no explanation."
         ),
         messages=[{"role": "user", "content": f"Instruction: {instruction}\n\nFile structure:\n{json.dumps(file_structure, ensure_ascii=False)}"}]
     )
 
     print(f"[EXCEL EDIT DEBUG] Claude raw response: {analysis_response.content[0].text}")
-
 
     raw = analysis_response.content[0].text.strip()
     if raw.startswith("```"):
@@ -235,12 +296,16 @@ async def maybe_generate_excel(
                     model="claude-sonnet-4-20250514",
                     max_tokens=512,
                     system=(
-                        "EXCEL CLARIFICATION REQUIRED: The user wants to generate an Excel file. "
-                        "DO NOT generate Excel yet. Ask these 3 clarifying questions in the user's language "
-                        "(Armenian, Russian, or English based on their message):\n"
+                        "EXCEL CLARIFICATION REQUIRED: The user wants to generate an Excel file.\n"
+                        "DO NOT generate Excel yet.\n"
+                        "IMPORTANT: Detect the language of the user's message:\n"
+                        "- If Armenian (հայերեն script or romanized like 'inch', 'vor', 'barev') → respond in Armenian\n"
+                        "- If Russian (кириллица) → respond in Russian\n"
+                        "- If English → respond in English\n\n"
+                        "Ask these 3 clarifying questions in the SAME language as the user's message:\n"
                         "1. What data/columns should be included\n"
                         "2. Approximately how many rows\n"
-                        "3. What is the purpose of the file\n"
+                        "3. What is the purpose of the file\n\n"
                         "Keep it short and friendly. Do not generate any file or code."
                     ),
                     messages=[{"role": "user", "content": message_content}]
@@ -273,14 +338,16 @@ async def maybe_generate_excel(
             system=(
                 "You are a data transformation assistant. "
                 "The spreadsheet data is provided directly below — do not fetch anything externally.\n"
-                "The user's instruction may be in Armenian, Russian, or English — understand it regardless of language.\n"
-                "Common operations: \"poxi/փոխիր/замени\" = replace/rename, \"gri/գրիր/напиши\" = write/set value,\n"
-                "\"avelacru/ավելացրու/добавь\" = add, \"jnjel/ջնջել/удали\" = delete.\n"
+                "The user's instruction may be in Armenian, Russian, or English — understand all three.\n"
+                "Common operations by language:\n"
+                "- Armenian: poxi/փոխիր = replace/rename | gri/գրիր = write | avelacru/ավելացրու = add | jnjel/ջնջել = delete\n"
+                "- Russian: замени = replace | напиши = write | добавь = add | удали = delete\n"
+                "- English: rename/change/update/add/remove\n"
                 "Apply the user's instruction to the data and return ONLY a valid JSON object:\n"
                 '{"column_mapping": {"old": "new"}, "new_data": [[col1, col2, ...], [val1, val2, ...], ...], "message": "what was done"}\n'
-                "- new_data: first array = column names, remaining arrays = ALL data rows with transformations applied\n"
+                "- new_data: first array = column names, remaining = ALL data rows with transformations applied\n"
                 "- column_mapping: rename map (can be empty {})\n"
-                "- message: brief explanation in same language as instruction\n"
+                "- message: brief explanation in SAME language as the user's instruction\n"
                 "- NEVER say you cannot do something — work only with the provided data\n"
                 "Return ONLY JSON, no markdown, no extra text."
             ),

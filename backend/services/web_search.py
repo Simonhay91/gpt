@@ -23,11 +23,121 @@ _STOP_WORDS = [
     "vonc es", "inch ka", "mersi", "shnorhakalutyun"
 ]
 
+# Armenian case suffixes — words ending with these are likely Armenian romanized
+_ARMENIAN_SUFFIXES = (
+    "um", "ic", "ov", "en", "uc", "it", "in", "ner", "neri",
+    "nerum", "neric", "nerov", "ners", "nersy",
+)
+
+# Romanized Armenian core words
+_ARMENIAN_ROMANIZED_WORDS = {
+    # Հարցական / conversational
+    "inch", "inchka", "vonc", "ov", "erb", "urtegh",
+    "inchi", "inchu", "minchev",
+    "harc", "harcy", "harcel", "harcum", "harcnov",
+    "amen", "amenain", "amenayn",
+    # Պատմել / նկարագրել
+    "patmi", "patmir", "patmec", "patmum", "patmelu",
+    "nkaragri", "nkaragrec", "describe", "nkarec",
+    "ases", "asa", "asac", "asem", "asel",
+    "baci", "bacatrel", "bacatrec", "bacatrelu",
+    "explain", "explainic",
+    # Վերլուծել
+    "verlucel", "verlucum", "analyze", "analyzei",
+    "kareli", "karas", "karanq",
+    # Ժամանակ
+    "jamanak", "zham", "chas", "orer", "shapat", "tari",
+    "aysor", "verchin", "arajin", "heto", "arraj", "hima",
+    "verjin", "hercum",
+    # Sheet / թերթ
+    "sheeter", "sheter", "sheet",
+    # Հասկանալ
+    "anhaskacox", "haskanum", "haskacir",
+    "lser", "lsum", "lur", "lurem", "asem", "asac",
+    # Ֆայլ / tech
+    "fail", "fayl", "excel", "word", "file", "list",
+    "avelacru", "avelacir", "avelacnel",
+    "pokhokhuthyun", "popoxuthyun", "popoxutyun",
+    "kpopoxes", "kases", "source", "sources",
+    # Ցույց տալ
+    "cuyc", "cuic", "tur", "tura", "tures",
+    "tesnem", "tesnum", "ktes", "ktam", "tesy", "tesnuma",
+    "tesnuma", "tesnum", "tes",
+    # Կա / ունի
+    "ka", "chka", "uni", "chuny", "unenq", "chunenq",
+    "uren", "churen", "kay", "chkay",
+    # Ընդհանուր
+    "canky", "cank", "uzum", "uzem", "kam", "ev", "bayc",
+    "ban", "baner", "mia", "miain", "parc",
+    "sax", "lav", "lavn", "normal",
+    "indz", "qez", "masin", "hamar", "het", "mej", "vra", "tak",
+    "sksem", "sksel", "dra", "masina", "vorpes", "vorpisi",
+    "sra", "nra", "dranq", "nranq",
+    # Պատասխան
+    "ayo", "che", "inch pes", "inch vor",
+    "petqa", "petk",
+    # Ֆայլ operations
+    "upload", "download", "bac", "bats",
+    # Ներս / բովանդակություն
+    "meju", "mejy", "mej", "bovanandakutyun", "lines", "toghi",
+    "togh", "toghery", "stri", "sյunaky", "syunaky",
+    "chisht", "sxal", "lriv", "amboghj",
+    # Analyze / report
+    "report", "reporty", "amfopum", "amfophum", "amfop",
+    "analyze", "analysis", "summary", "summaryy",
+}
+
+# Multi-word Armenian phrases — 1 match is enough
+_ARMENIAN_PHRASES = [
+    "inch sheeter", "inch sheet", "dra masina", "inch ka",
+    "inch uni", "vonc es", "inch anes", "tur indz", "asa indz",
+    "cuyc tur", "inch vor", "inch pes", "harc ka",
+    "inch harcy", "excelum inch", "excelum ka", "sourcenum ka",
+    "inch sheeter ka", "sheeter ka", "sheet ka",
+    "patmi sra", "patmi dra", "patmi nra", "patmi et",
+    "ases inchpes", "ases inch", "karas anes", "karas asek",
+    "inches tesnum", "inch ka mejy", "inch ka mej",
+    "lriv ases", "amboghj ases", "describe anes",
+]
+
+
+def _is_armenian_romanized(message: str) -> bool:
+    """Return True if message appears to be romanized Armenian."""
+    msg_lower = message.lower()
+
+    # 1. Multi-word phrases
+    if any(phrase in msg_lower for phrase in _ARMENIAN_PHRASES):
+        return True
+
+    words = re.findall(r"[a-zA-Z']+", msg_lower)
+
+    # 2. Exact token matches
+    exact_matches = sum(1 for w in words if w in _ARMENIAN_ROMANIZED_WORDS)
+    if exact_matches >= 2:
+        return True
+
+    # 3. Suffix-based detection
+    _ENGLISH_EXCEPTIONS = {
+        "forum", "random", "system", "problem", "custom",
+        "minimum", "maximum", "medium", "premium", "spectrum",
+        "item", "victim", "algorithm", "quantum", "museum",
+    }
+    suffix_matches = sum(
+        1 for w in words
+        if len(w) >= 4
+        and w.endswith(_ARMENIAN_SUFFIXES)
+        and w not in _ENGLISH_EXCEPTIONS
+    )
+    if exact_matches >= 1 and suffix_matches >= 1:
+        return True
+    if suffix_matches >= 3:
+        return True
+
+    return False
+
 
 async def brave_web_search(query: str) -> Optional[List[dict]]:
-    """Search the web using Brave Search API.
-    Returns list of {"title": str, "url": str, "description": str}
-    """
+    """Search the web using Brave Search API."""
     brave_api_key = os.environ.get('BRAVE_API_KEY', '')
     if not brave_api_key:
         logger.warning("BRAVE_API_KEY not set, skipping web search")
@@ -113,11 +223,7 @@ async def fetch_page_texts(
 
 
 def should_use_web_search(user_message: str, has_relevant_rag: bool) -> bool:
-    """Determine if web search should be triggered.
-    - Explicit research keywords → always yes
-    - Short/greeting messages → always no
-    - RAG has relevant results → no
-    """
+    """Determine if web search should be triggered."""
     content = user_message.strip()
     message_lower = content.lower()
 
@@ -125,6 +231,9 @@ def should_use_web_search(user_message: str, has_relevant_rag: bool) -> bool:
         return False
 
     if any(word in message_lower for word in _STOP_WORDS):
+        return False
+
+    if _is_armenian_romanized(message_lower):
         return False
 
     for keyword in WEB_SEARCH_KEYWORDS:
@@ -157,7 +266,6 @@ async def fetch_url_content(url: str) -> Optional[str]:
                     extracted_text = '\n\n'.join(
                         page.extract_text() for page in pdf_reader.pages[:10]
                     )
-                    logger.info(f"Extracted {len(extracted_text)} chars from PDF: {url}")
                 except Exception as pdf_error:
                     logger.error(f"PDF extraction failed for {url}: {str(pdf_error)}")
                     return None
@@ -167,7 +275,6 @@ async def fetch_url_content(url: str) -> Optional[str]:
                     soup = BeautifulSoup(response.text, 'html.parser')
                     for tag in soup(["script", "style", "nav", "footer", "header"]):
                         tag.decompose()
-
                     text_parts = []
                     if soup.title:
                         text_parts.append(f"Title: {soup.title.string}")
@@ -176,7 +283,6 @@ async def fetch_url_content(url: str) -> Optional[str]:
                         if text and len(text) > 20:
                             text_parts.append(text)
                     extracted_text = '\n\n'.join(text_parts)
-                    logger.info(f"Extracted {len(extracted_text)} chars from HTML: {url}")
                 except Exception as html_error:
                     logger.error(f"HTML extraction failed for {url}: {str(html_error)}")
                     return None

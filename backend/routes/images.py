@@ -47,6 +47,16 @@ def get_openai_client():
     return OpenAI(api_key=OPENAI_API_KEY)
 
 
+def get_image_generator():
+    """Return OpenAIImageGeneration client using EMERGENT_LLM_KEY."""
+    import os
+    from emergentintegrations.llm.openai.image_generation import OpenAIImageGeneration
+    api_key = os.environ.get('EMERGENT_LLM_KEY', '')
+    if not api_key:
+        raise HTTPException(status_code=500, detail="EMERGENT_LLM_KEY not configured")
+    return OpenAIImageGeneration(api_key=api_key)
+
+
 @router.post("/projects/{project_id}/generate-image", response_model=GeneratedImageResponse)
 async def generate_image(
     project_id: str,
@@ -73,27 +83,17 @@ async def generate_image(
             detail=f"Rate limit exceeded. Maximum {IMAGE_RATE_LIMIT_PER_HOUR} images per hour."
         )
     
-    openai_client = get_openai_client()
-    
+    image_gen = get_image_generator()
+
     try:
-        response = openai_client.images.generate(
-            model="dall-e-3",
+        images = await image_gen.generate_images(
             prompt=request.prompt,
-            size=size,
-            n=1
+            model="gpt-image-1",
+            number_of_images=1
         )
-        
-        image_data = response.data[0]
-        
-        if hasattr(image_data, 'b64_json') and image_data.b64_json:
-            import base64
-            image_bytes = base64.b64decode(image_data.b64_json)
-        elif hasattr(image_data, 'url') and image_data.url:
-            async with httpx.AsyncClient(timeout=60.0, verify=False) as http_client:
-                img_response = await http_client.get(image_data.url)
-                image_bytes = img_response.content
-        else:
-            raise HTTPException(status_code=500, detail="No image data returned from OpenAI")
+        if not images:
+            raise HTTPException(status_code=500, detail="No image data returned")
+        image_bytes = images[0]
         
         image_id = str(uuid.uuid4())
         image_filename = f"{image_id}.png"
@@ -199,40 +199,19 @@ async def edit_image(
     if not prompt or len(prompt.strip()) < 3:
         raise HTTPException(status_code=400, detail="Prompt must be at least 3 characters")
 
-    openai_client = get_openai_client()
+    image_gen = get_image_generator()
 
     try:
         contents = await file.read()
 
-        # DALL-E 2 edit requires square 1024x1024 PNG with RGBA
-        img = PILImage.open(io.BytesIO(contents)).convert("RGBA")
-        min_side = min(img.size)
-        img = img.crop((0, 0, min_side, min_side))
-        img = img.resize((1024, 1024), PILImage.LANCZOS)
-
-        img_bytes = io.BytesIO()
-        img.save(img_bytes, format="PNG")
-        img_bytes.seek(0)
-
-        response = openai_client.images.edit(
-            model="dall-e-2",
-            image=("image.png", img_bytes, "image/png"),
+        images = await image_gen.generate_images(
             prompt=prompt,
-            n=1,
-            size="1024x1024"
+            model="gpt-image-1",
+            number_of_images=1
         )
-
-        image_data = response.data[0]
-
-        if hasattr(image_data, 'b64_json') and image_data.b64_json:
-            import base64
-            image_bytes_out = base64.b64decode(image_data.b64_json)
-        elif hasattr(image_data, 'url') and image_data.url:
-            async with httpx.AsyncClient(timeout=60.0, verify=False) as http_client:
-                img_response = await http_client.get(image_data.url)
-                image_bytes_out = img_response.content
-        else:
-            raise HTTPException(status_code=500, detail="No image data returned from OpenAI")
+        if not images:
+            raise HTTPException(status_code=500, detail="No image data returned")
+        image_bytes_out = images[0]
 
         image_id = str(uuid.uuid4())
         image_filename = f"{image_id}.png"

@@ -8,6 +8,8 @@ import uuid
 import logging
 import aiofiles
 import httpx
+from openpyxl import load_workbook
+from io import BytesIO
 
 logger = logging.getLogger(__name__)
 
@@ -153,6 +155,16 @@ async def upload_source(
         chunks = chunk_tabular_text(extracted_text)
     else:
         chunks = chunk_text(extracted_text)
+
+    # Extract sheet names for xlsx
+    sheet_names = []
+    if file_type == "xlsx":
+        try:
+            wb = load_workbook(BytesIO(content), read_only=True, data_only=True)
+            sheet_names = wb.sheetnames
+            wb.close()
+        except Exception as e:
+            logger.warning(f"Could not extract sheet names: {e}")
     
     source_doc = {
         "id": source_id,
@@ -163,6 +175,7 @@ async def upload_source(
         "mimeType": file.content_type,
         "sizeBytes": len(content),
         "storagePath": storage_filename,
+        "sheetNames": sheet_names,
         "createdAt": datetime.now(timezone.utc).isoformat()
     }
     await db.sources.insert_one(source_doc)
@@ -255,6 +268,16 @@ async def upload_multiple_sources(
                 chunks = chunk_tabular_text(extracted_text)
             else:
                 chunks = chunk_text(extracted_text)
+
+            # Extract sheet names for xlsx
+            sheet_names = []
+            if file_type == "xlsx":
+                try:
+                    wb = load_workbook(BytesIO(content), read_only=True, data_only=True)
+                    sheet_names = wb.sheetnames
+                    wb.close()
+                except Exception as e:
+                    logger.warning(f"Could not extract sheet names: {e}")
             
             source_doc = {
                 "id": source_id,
@@ -265,6 +288,7 @@ async def upload_multiple_sources(
                 "mimeType": file.content_type,
                 "sizeBytes": len(content),
                 "storagePath": storage_filename,
+                "sheetNames": sheet_names,
                 "createdAt": datetime.now(timezone.utc).isoformat()
             }
             await db.sources.insert_one(source_doc)
@@ -587,7 +611,6 @@ async def preview_source(project_id: str, source_id: str, current_user: dict = D
 async def download_all_sources(project_id: str, current_user: dict = Depends(get_current_user)):
     """Download all file sources as a ZIP archive"""
     import zipfile
-    from io import BytesIO
     
     db = get_db()
     await verify_project_access(project_id, current_user["id"])
