@@ -9,7 +9,7 @@ from datetime import datetime
 
 def test_save_context_focused():
     """Test the save-context endpoint focusing on the review requirements"""
-    base_url = "https://knowledge-fallback.preview.emergentagent.com"
+    base_url = "https://pk-image-gen.preview.emergentagent.com"
     api_url = f"{base_url}/api"
     
     print("🔍 Testing Save Context Endpoint - Focused Test")
