@@ -103,7 +103,8 @@ async def get_messages(chat_id: str, current_user: dict = Depends(get_current_us
          "citations": 1, "usedSources": 1, "autoIngestedUrls": 1, "senderEmail": 1,
          "senderName": 1, "fromCache": 1, "cacheInfo": 1, "web_sources": 1,
          "clarifying_question": 1, "clarifying_options": 1, "fetchedUrls": 1,
-         "excel_file_id": 1, "excel_preview": 1, "is_excel_clarification": 1}
+         "excel_file_id": 1, "excel_preview": 1, "is_excel_clarification": 1,
+         "uploadedFile": 1}
     ).sort("createdAt", 1).to_list(500)
 
     return [
@@ -196,6 +197,51 @@ async def send_message(
     sender_email = current_user["email"]
     sender_name = sender_email.split("@")[0] if sender_email else "User"
     user_msg_id = str(uuid.uuid4())
+
+    # Load temp file content if provided
+    temp_file_content_text = ""
+    temp_file_image_b64 = None
+    temp_file_mime = None
+    temp_file_info = None
+    if message_data.temp_file_id:
+        from pathlib import Path as _Path
+        _TEMP_DIR = _Path("/tmp/planet_temp_files")
+        _matches = list(_TEMP_DIR.glob(f"{message_data.temp_file_id}_*"))
+        if _matches:
+            _temp_path = _matches[0]
+            _filename = _temp_path.name.split("_", 1)[-1]  # strip UUID prefix
+            _ext = _filename.rsplit(".", 1)[-1].lower() if "." in _filename else ""
+            _content = _temp_path.read_bytes()
+            _image_exts = {"jpg", "jpeg", "png"}
+            try:
+                if _ext in _image_exts:
+                    import base64 as _b64
+                    temp_file_image_b64 = _b64.b64encode(_content).decode()
+                    temp_file_mime = "image/jpeg" if _ext in ("jpg", "jpeg") else "image/png"
+                    temp_file_content_text = "[Изображение прикреплено]"
+                elif _ext == "pdf":
+                    import pdfplumber as _plumber
+                    from io import BytesIO as _BIO
+                    _parts = []
+                    with _plumber.open(_BIO(_content)) as _pdf:
+                        for _pg in _pdf.pages:
+                            _t = _pg.extract_text() or ""
+                            if _t.strip():
+                                _parts.append(_t)
+                    temp_file_content_text = "\n\n".join(_parts)
+                elif _ext in ("xlsx", "xls"):
+                    from services.file_processor import extract_text_from_xlsx as _xread
+                    temp_file_content_text = _xread(_content)
+                elif _ext == "csv":
+                    from services.file_processor import extract_text_from_csv as _cread
+                    temp_file_content_text = _cread(_content)
+                elif _ext == "docx":
+                    from services.file_processor import extract_text_from_docx as _dread
+                    temp_file_content_text = _dread(_content)
+            except Exception as _te:
+                logger.error(f"Temp file read error: {_te}")
+            temp_file_info = {"name": _filename, "fileType": _ext if _ext not in _image_exts else "image"}
+
     user_message = {
         "id": user_msg_id,
         "chatId": chat_id,
@@ -205,6 +251,7 @@ async def send_message(
         "autoIngestedUrls": [s["id"] for s in auto_ingested_sources] if auto_ingested_sources else None,
         "senderEmail": sender_email,
         "senderName": sender_name,
+        "uploadedFile": temp_file_info,
         "createdAt": datetime.now(timezone.utc).isoformat()
     }
     if not regen:
@@ -524,10 +571,36 @@ async def send_message(
                 "Only when user explicitly asks: \"создай Excel\", \"сделай таблицу\", \"generate excel\", \"create spreadsheet\"."
             )
 
+            # ── Inject temp file content ──
+            if temp_file_content_text and not temp_file_image_b64:
+                _fname = temp_file_info.get("name", "файл") if temp_file_info else "файл"
+                system_prompt += (
+                    f"\n\n===== ПРИКРЕПЛЁННЫЙ ФАЙЛ: {_fname} =====\n"
+                    f"{temp_file_content_text[:8000]}\n"
+                    "===== КОНЕЦ ФАЙЛА =====\n"
+                    "Используй содержимое этого файла для ответа на вопрос пользователя."
+                )
+
             messages = []
             for msg in history[:-1]:
                 messages.append({"role": msg["role"], "content": msg["content"]})
-            messages.append({"role": "user", "content": message_data.content})
+
+            # Build last user message — vision block for images, plain text otherwise
+            if temp_file_image_b64 and temp_file_mime:
+                user_content = [
+                    {
+                        "type": "image",
+                        "source": {
+                            "type": "base64",
+                            "media_type": temp_file_mime,
+                            "data": temp_file_image_b64,
+                        },
+                    },
+                    {"type": "text", "text": message_data.content or "Что на этом изображении?"},
+                ]
+            else:
+                user_content = message_data.content
+            messages.append({"role": "user", "content": user_content})
 
             claude_response = claude_client.messages.create(
                 model="claude-sonnet-4-20250514",

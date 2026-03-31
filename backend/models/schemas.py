@@ -111,6 +111,7 @@ class SourceModeUpdate(BaseModel):
 
 class MessageCreate(BaseModel):
     content: str
+    temp_file_id: Optional[str] = None  # ID of a temp file uploaded via /api/chat/upload-temp
 
 
 class MessageEditRequest(BaseModel):
@@ -148,6 +149,7 @@ class MessageResponse(BaseModel):
     excel_file_id: Optional[str] = None      # ID of generated Excel file in /tmp/
     excel_preview: Optional[dict] = None     # Preview data for inline table display
     is_excel_clarification: Optional[bool] = False  # True when AI asked clarifying questions before Excel generation
+    uploadedFile: Optional[dict] = None      # { name, fileType } for temp file badge in UI
 
 
 # ==================== SOURCE MODELS ====================

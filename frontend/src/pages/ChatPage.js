@@ -46,6 +46,12 @@ const ChatPage = () => {
   const [isAddingUrl, setIsAddingUrl] = useState(false);
   const [urlInput, setUrlInput] = useState('');
 
+  // ── Temp file (one-shot AI attachment) ──
+  const [tempFile, setTempFile] = useState(null);        // { id, filename, fileType }
+  const [isTempUploading, setIsTempUploading] = useState(false);
+  const [pendingTempFile, setPendingTempFile] = useState(null); // shown after AI response for "save?" prompt
+  const [isSavingTempFile, setIsSavingTempFile] = useState(false);
+
   // ── UI state ──
   const [showSourcePanel, setShowSourcePanel] = useState(false);
   const [showInfoBlock, setShowInfoBlock] = useState(false);
@@ -378,19 +384,23 @@ const ChatPage = () => {
   // ── Send message ──
   const sendMessage = async (contentOverride = null, fileBadge = null) => {
     const content = (contentOverride ?? input).trim();
-    if (!content || isSending) return;
+    if (!content && !tempFile || isSending) return;
 
+    const activeTempFile = tempFile;
     const tempUserMsg = {
-      id: `temp-${Date.now()}`, chatId, role: 'user', content,
+      id: `temp-${Date.now()}`, chatId, role: 'user', content: content || ' ',
       createdAt: new Date().toISOString(),
-      ...(fileBadge ? { uploadedFile: fileBadge } : {})
+      ...(fileBadge ? { uploadedFile: fileBadge } : activeTempFile ? { uploadedFile: { name: activeTempFile.filename, fileType: activeTempFile.fileType } } : {})
     };
     setMessages(prev => [...prev, tempUserMsg]);
     setInput('');
+    setTempFile(null);
     setIsSending(true);
 
     try {
-      const response = await axios.post(`${API}/chats/${chatId}/messages`, { content });
+      const payload = { content: content || ' ' };
+      if (activeTempFile) payload.temp_file_id = activeTempFile.id;
+      const response = await axios.post(`${API}/chats/${chatId}/messages`, payload);
       const { user_message: userMsg, assistant_message: assistantMsg } = response.data;
 
       if (assistantMsg.autoIngestedUrls?.length > 0) {
@@ -407,6 +417,11 @@ const ChatPage = () => {
         return [...withoutTemp, realUserMsg, assistantMsg];
       });
 
+      // Show "save to sources?" prompt after AI responds (only for project chats)
+      if (activeTempFile && chat?.projectId) {
+        setPendingTempFile({ ...activeTempFile, projectId: chat.projectId });
+      }
+
       // Auto-rename on first message
       const isAutoName = chat?.name?.startsWith('Новый чат') || chat?.name === 'New Chat';
       const isFirst = messages.filter(m => m.role === 'user').length === 0;
@@ -421,6 +436,50 @@ const ChatPage = () => {
       setInput(content);
       toast.error('Failed to send message');
     } finally { setIsSending(false); }
+  };
+
+  // ── Temp file: paperclip upload handler ──
+  const handlePaperclipChange = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    e.target.value = '';
+    setIsTempUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('chat_id', chatId);
+      const res = await axios.post(`${API}/chat/upload-temp`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
+      setTempFile({ id: res.data.temp_file_id, filename: res.data.filename, fileType: res.data.file_type });
+    } catch (err) {
+      toast.error(err.response?.data?.detail || 'Не удалось загрузить файл');
+    } finally {
+      setIsTempUploading(false);
+    }
+  };
+
+  const saveTempFileToSource = async () => {
+    if (!pendingTempFile) return;
+    setIsSavingTempFile(true);
+    try {
+      await axios.post(`${API}/chat/save-temp-to-source`, {
+        temp_file_id: pendingTempFile.id,
+        filename: pendingTempFile.filename,
+        file_type: pendingTempFile.fileType,
+        chat_id: chatId,
+        project_id: pendingTempFile.projectId,
+      });
+      toast.success(`"${pendingTempFile.filename}" сохранён в источники проекта`);
+      // Refresh sources
+      const sourcesRes = await axios.get(`${API}/projects/${pendingTempFile.projectId}/sources`);
+      setProjectSources(sourcesRes.data);
+    } catch (err) {
+      toast.error(err.response?.data?.detail || 'Не удалось сохранить в источники');
+    } finally {
+      setIsSavingTempFile(false);
+      setPendingTempFile(null);
+    }
   };
 
   // ── Message editing ──
@@ -855,7 +914,47 @@ const ChatPage = () => {
           plusMenuRef={plusMenuRef}
           showPlusMenu={showPlusMenu}
           onTogglePlusMenu={(val) => setShowPlusMenu(typeof val === 'function' ? val(showPlusMenu) : val)}
+          tempFile={tempFile}
+          isTempUploading={isTempUploading}
+          onPaperclipChange={handlePaperclipChange}
+          onRemoveTempFile={() => setTempFile(null)}
         />
+
+        {/* ── Save temp file to sources prompt ── */}
+        {pendingTempFile && (
+          <div className="px-6 pb-3" data-testid="save-temp-file-prompt">
+            <div className="max-w-3xl mx-auto">
+              <div className="flex items-center justify-between gap-3 px-4 py-3 rounded-xl bg-amber-500/10 border border-amber-500/25">
+                <div className="flex items-center gap-2 text-sm text-amber-200 min-w-0">
+                  <span className="flex-shrink-0">💾</span>
+                  <span className="truncate">Сохранить <strong className="text-amber-100">"{pendingTempFile.filename}"</strong> в источники проекта?</span>
+                </div>
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={saveTempFileToSource}
+                    disabled={isSavingTempFile}
+                    className="border-amber-500/40 text-amber-200 hover:bg-amber-500/20 text-xs h-7"
+                    data-testid="save-temp-file-btn"
+                  >
+                    {isSavingTempFile ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : null}
+                    Сохранить
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setPendingTempFile(null)}
+                    className="text-muted-foreground hover:text-foreground text-xs h-7"
+                    data-testid="dismiss-save-temp-file-btn"
+                  >
+                    Нет
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* ── Source content viewer modal ── */}
