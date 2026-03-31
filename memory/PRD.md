@@ -376,6 +376,7 @@ PUT    /api/admin/gpt-config
 
 ### Текущая сессия (Март 2026 — продолжение)
 - ✅ **P0 Crash fix** — `ChatPage.js` использовал `currentUser` вместо `user` из `useAuth()`. Исправлено в 4 местах. Приложение восстановлено.
+- ✅ **Excel confirmation flow** — `has_clarification` больше не ищет слово "excel" в истории. Теперь: кнопка "Да, генерируй Excel" в ответе AI → фронтенд отправляет `__CONFIRM_EXCEL__ <запрос>` → бэкенд видит префикс и сразу генерирует. Новое поле `is_excel_clarification` в MessageResponse.
 - ✅ **Excel/CSV Assistant** — новый компонент `ExcelAssistant.js` с drag-and-drop загрузкой, AI-обработкой (Claude + pandas), preview таблицей и скачиванием результата. Только для project-based чатов.
 - ✅ **Excel generation from chat** — автодетекция Excel-запросов в чате: если активен Excel/CSV источник и сообщение содержит ключевые слова (переведи, создай, excel, csv, etc.), AI обрабатывает файл и встраивает кнопку скачивания + preview прямо в ответное сообщение. Backend: `POST /api/chats/{id}/excel-generate`, поля `excel_file_id`/`excel_preview` в MessageResponse.
 
