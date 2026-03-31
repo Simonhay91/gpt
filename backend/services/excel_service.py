@@ -233,17 +233,18 @@ async def maybe_generate_excel(
     message_content: str,
     claude_client,
     current_response_text: str
-) -> Tuple[Optional[str], Optional[dict], str]:
+) -> Tuple[Optional[str], Optional[dict], str, bool]:
     """
     Attempt to generate an Excel file if conditions are met.
     Returns (excel_file_id, excel_preview, response_text).
-    If no Excel should be generated, returns (None, None, current_response_text).
+    If no Excel should be generated, returns (None, None, current_response_text, False).
+    When a clarification question is asked, returns (None, None, clarif_text, True).
     """
     if not project_id or not active_source_ids:
-        return None, None, current_response_text
+        return None, None, current_response_text, False
 
     if not is_excel_trigger(message_content):
-        return None, None, current_response_text
+        return None, None, current_response_text, False
 
     try:
         # Prefer XLSX/XLS over CSV — find XLSX first
@@ -264,31 +265,28 @@ async def maybe_generate_excel(
                 {"_id": 0}
             )
         if not excel_source:
-            return None, None, current_response_text
+            return None, None, current_response_text, False
 
         # ── Targeted edit path (skips clarification flow) ──
         if is_edit_trigger(message_content):
             if not excel_source.get("storagePath"):
-                return None, None, current_response_text
+                return None, None, current_response_text, False
             edit_file_path = UPLOAD_DIR / excel_source["storagePath"]
             if not edit_file_path.exists():
-                return None, None, current_response_text
+                return None, None, current_response_text, False
             try:
-                return await targeted_excel_edit(str(edit_file_path), message_content, claude_client)
+                file_id, preview, text = await targeted_excel_edit(str(edit_file_path), message_content, claude_client)
+                return file_id, preview, text, False
             except Exception as edit_err:
                 logger.error(f"targeted_excel_edit error: {edit_err}")
-                return None, None, current_response_text
+                return None, None, current_response_text, False
 
         # ── Full generation path: two-step flow with clarification ──
-        recent_messages = await db.messages.find(
-            {"chatId": chat_id},
-            {"_id": 0, "role": 1, "content": 1}
-        ).sort("createdAt", -1).limit(3).to_list(3)
-
-        has_clarification = any(
-            "excel" in str(m.get("content", "")).lower() and m.get("role") == "assistant"
-            for m in recent_messages
-        )
+        # Confirmation via explicit keyword sent from frontend
+        has_clarification = message_content.strip().startswith("__CONFIRM_EXCEL__")
+        if has_clarification:
+            # Strip the prefix so the actual instruction is used
+            message_content = message_content[len("__CONFIRM_EXCEL__"):].strip()
 
         if not has_clarification:
             try:
@@ -310,17 +308,17 @@ async def maybe_generate_excel(
                     ),
                     messages=[{"role": "user", "content": message_content}]
                 )
-                return None, None, clarif_resp.content[0].text
+                return None, None, clarif_resp.content[0].text, True
             except Exception as clarif_err:
                 logger.warning(f"Excel clarification call failed: {clarif_err}")
-                return None, None, current_response_text
+                return None, None, current_response_text, False
 
         if not excel_source.get("storagePath"):
-            return None, None, current_response_text
+            return None, None, current_response_text, False
 
         file_path = UPLOAD_DIR / excel_source["storagePath"]
         if not file_path.exists():
-            return None, None, current_response_text
+            return None, None, current_response_text, False
 
         ext = excel_source["storagePath"].rsplit(".", 1)[-1].lower()
         df = pd.read_excel(file_path) if ext in ("xlsx", "xls") else pd.read_csv(file_path)
@@ -382,8 +380,8 @@ async def maybe_generate_excel(
         }
 
         response_text = result_data.get("message", current_response_text)
-        return file_id, excel_preview, response_text
+        return file_id, excel_preview, response_text, False
 
     except Exception as excel_err:
         logger.error(f"Excel generation error: {excel_err}")
-        return None, None, current_response_text
+        return None, None, current_response_text, False

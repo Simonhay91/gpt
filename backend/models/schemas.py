@@ -147,6 +147,7 @@ class MessageResponse(BaseModel):
     fetchedUrls: Optional[List[str]] = None  # URLs whose content was fetched and used as context
     excel_file_id: Optional[str] = None      # ID of generated Excel file in /tmp/
     excel_preview: Optional[dict] = None     # Preview data for inline table display
+    is_excel_clarification: Optional[bool] = False  # True when AI asked clarifying questions before Excel generation
 
 
 # ==================== SOURCE MODELS ====================

@@ -53,6 +53,7 @@ export const MessageBubble = ({
   expandedSources,
   onToggleSourceExpansion,
   chatId,
+  originalUserMessage,
 }) => {
   const [saveDropdownOpen, setSaveDropdownOpen] = useState(false);
   const dropdownRef = useRef(null);
@@ -368,6 +369,29 @@ export const MessageBubble = ({
               <Download className="h-3.5 w-3.5" />
               Скачать Excel ({message.excel_preview.total_rows} строк)
             </button>
+          </div>
+        )}
+
+        {/* Excel confirmation button — shown when AI asked clarifying questions before generating */}
+        {message.role === 'assistant' && message.is_excel_clarification && !message.excel_file_id && originalUserMessage && (
+          <div className="mt-3 px-2" data-testid={`excel-confirm-block-${index}`}>
+            <div className="p-3 rounded-lg bg-green-50 dark:bg-green-500/10 border border-green-300 dark:border-green-500/20">
+              <div className="flex items-start gap-2 mb-3">
+                <MessageSquare className="h-4 w-4 text-green-600 dark:text-green-400 flex-shrink-0 mt-0.5" />
+                <p className="text-sm font-medium text-green-800 dark:text-green-300">
+                  Ответьте на вопросы выше или нажмите кнопку для генерации сразу
+                </p>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => onSendMessage(`__CONFIRM_EXCEL__ ${originalUserMessage}`)}
+                className="bg-green-100 dark:bg-green-500/20 border-green-400 dark:border-green-500/30 text-green-800 dark:text-green-200 hover:bg-green-200 dark:hover:bg-green-500/30"
+                data-testid={`excel-confirm-btn-${index}`}
+              >
+                Да, генерируй Excel
+              </Button>
+            </div>
           </div>
         )}
 

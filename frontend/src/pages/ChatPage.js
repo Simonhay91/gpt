@@ -808,6 +808,7 @@ const ChatPage = () => {
                   expandedSources={expandedSources}
                   onToggleSourceExpansion={(id) => setExpandedSources(prev => ({ ...prev, [id]: !prev[id] }))}
                   chatId={chatId}
+                  originalUserMessage={message.role === 'assistant' ? messages[index - 1]?.content : undefined}
                 />
               ))}
               {isSending && (

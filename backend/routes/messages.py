@@ -103,7 +103,7 @@ async def get_messages(chat_id: str, current_user: dict = Depends(get_current_us
          "citations": 1, "usedSources": 1, "autoIngestedUrls": 1, "senderEmail": 1,
          "senderName": 1, "fromCache": 1, "cacheInfo": 1, "web_sources": 1,
          "clarifying_question": 1, "clarifying_options": 1, "fetchedUrls": 1,
-         "excel_file_id": 1, "excel_preview": 1}
+         "excel_file_id": 1, "excel_preview": 1, "is_excel_clarification": 1}
     ).sort("createdAt", 1).to_list(500)
 
     return [
@@ -569,12 +569,13 @@ async def send_message(
     # ── 12. Excel generation ──
     excel_file_id = None
     excel_preview = None
+    is_excel_clarification = False
 
     if not response_text.startswith("Error:"):
         try:
             CLAUDE_API_KEY = os.environ.get('CLAUDE_API_KEY', '')
             excel_claude_client = anthropic.Anthropic(api_key=CLAUDE_API_KEY)
-            excel_file_id, excel_preview, response_text = await maybe_generate_excel(
+            excel_file_id, excel_preview, response_text, is_excel_clarification = await maybe_generate_excel(
                 db=db,
                 chat_id=chat_id,
                 project_id=project_id,
@@ -583,7 +584,7 @@ async def send_message(
                 claude_client=excel_claude_client,
                 current_response_text=response_text
             )
-            print(f"[EXCEL RESULT DEBUG] excel_file_id={excel_file_id}, excel_preview={excel_preview}")
+            print(f"[EXCEL RESULT DEBUG] excel_file_id={excel_file_id}, excel_preview={excel_preview}, is_clarification={is_excel_clarification}")
         except Exception as e:
             logger.error(f"Excel service error: {str(e)}")
 
@@ -647,6 +648,7 @@ async def send_message(
         "fetchedUrls": fetched_urls_list if fetched_urls_list else None,
         "excel_file_id": excel_file_id,
         "excel_preview": excel_preview,
+        "is_excel_clarification": is_excel_clarification,
         "createdAt": datetime.now(timezone.utc).isoformat()
     }
     await db.messages.insert_one(assistant_message)
