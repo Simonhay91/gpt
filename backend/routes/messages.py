@@ -399,11 +399,19 @@ async def send_message(
     _words = message_data.content.strip().split()
     _msg_lower = message_data.content.lower()
     _TRIVIAL_STOP = ["barev", "բарев", "привет", "hello", "hi", "salam",
-                     "vonc es", "inch ka", "mersi", "shnorhakalutyun"]
+                     "vonc es", "inch ka", "mersi", "shnorhakalutyun",
+                     "poxi", "popoxir", "kpoxes", "popoxeq", "gri", "grep", "greq",
+                     "avel", "aveli", "hanel", "jnjel", "poxel", "khmbagrel",
+                     "փոխիր", "գրիր", "ջնջիր", "ավելացրու"]
     _is_trivial = len(_words) <= 4 or any(w in _msg_lower for w in _TRIVIAL_STOP)
 
     # Don't web search if user is asking about excel source content
     if has_excel_source and has_rag_context:
+        use_web_search = False
+
+    # Don't web search for Armenian edit commands
+    _ARMENIAN_EDIT_WORDS = ["poxi", "popoxir", "kpoxes", "gri", "avel", "jnjel", "poxel", "փոխիր", "գրիր", "ջնջիր"]
+    if any(w in _msg_lower for w in _ARMENIAN_EDIT_WORDS):
         use_web_search = False
 
     if not use_web_search and not has_relevant_rag and not fetched_url_count \
