@@ -24,6 +24,8 @@ from services.web_search import (
 )
 from services.catalog_service import search_product_catalog
 from services.excel_service import maybe_generate_excel
+from services.agent_router import route_to_agent
+from services.agents import get_agent
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api", tags=["messages"])
@@ -104,7 +106,7 @@ async def get_messages(chat_id: str, current_user: dict = Depends(get_current_us
          "senderName": 1, "fromCache": 1, "cacheInfo": 1, "web_sources": 1,
          "clarifying_question": 1, "clarifying_options": 1, "fetchedUrls": 1,
          "excel_file_id": 1, "excel_preview": 1, "is_excel_clarification": 1,
-         "uploadedFile": 1}
+         "uploadedFile": 1, "agent_type": 1, "agent_name": 1}
     ).sort("createdAt", 1).to_list(500)
 
     return [
@@ -472,6 +474,8 @@ async def send_message(
     cache_info = None
     clarifying_question = None
     clarifying_options = None
+    selected_agent_type = "general"
+    selected_agent = get_agent("general")
 
     try:
         CLAUDE_API_KEY = os.environ.get('CLAUDE_API_KEY', '')
@@ -488,7 +492,17 @@ async def send_message(
                 "cacheId": cache_hit['cacheId']
             }
         else:
-            system_parts = [config["developerPrompt"]]
+            # ── Agent routing ──
+            selected_agent_type = await route_to_agent(
+                message=message_data.content,
+                has_excel_source=has_excel_source,
+                has_rag_context=has_rag_context,
+                use_web_search=use_web_search,
+            )
+            selected_agent = get_agent(selected_agent_type)
+            logger.info(f"Agent selected: {selected_agent['name']}")
+
+            system_parts = [config["developerPrompt"], selected_agent["system_prompt"]]
 
             # Project memory
             if project_id:
@@ -722,6 +736,8 @@ async def send_message(
         "excel_file_id": excel_file_id,
         "excel_preview": excel_preview,
         "is_excel_clarification": is_excel_clarification,
+        "agent_type": selected_agent_type,
+        "agent_name": selected_agent["name"],
         "createdAt": datetime.now(timezone.utc).isoformat()
     }
     await db.messages.insert_one(assistant_message)

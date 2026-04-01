@@ -150,6 +150,8 @@ class MessageResponse(BaseModel):
     excel_preview: Optional[dict] = None     # Preview data for inline table display
     is_excel_clarification: Optional[bool] = False  # True when AI asked clarifying questions before Excel generation
     uploadedFile: Optional[dict] = None      # { name, fileType } for temp file badge in UI
+    agent_type: Optional[str] = None         # Selected agent: excel | research | rag | general
+    agent_name: Optional[str] = None         # Human-readable agent name
 
 
 # ==================== SOURCE MODELS ====================
