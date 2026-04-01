@@ -361,10 +361,18 @@ export const MessageBubble = ({
                   link.click();
                   link.remove();
                   window.URL.revokeObjectURL(url);
-                } catch { toast.error('Не удалось скачать файл'); }
+                } catch (err) {
+                  const status = err?.response?.status;
+                  if (status === 404) {
+                    toast.error('Файл больше не доступен — попросите AI создать его заново', { duration: 5000 });
+                  } else {
+                    toast.error('Не удалось скачать файл');
+                  }
+                }
               }}
               className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border border-green-500/30 bg-green-500/10 hover:bg-green-500/20 text-green-400 text-xs font-medium transition-colors"
               data-testid={`excel-download-chat-${index}`}
+              title="Файл доступен только до перезапуска сервера"
             >
               <Download className="h-3.5 w-3.5" />
               Скачать Excel ({message.excel_preview.total_rows} строк)
