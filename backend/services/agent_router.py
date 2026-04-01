@@ -46,8 +46,8 @@ async def route_to_agent(
         if not CLAUDE_API_KEY:
             return "general"
 
-        client = anthropic.Anthropic(api_key=CLAUDE_API_KEY)
-        response = client.messages.create(
+        client = anthropic.AsyncAnthropic(api_key=CLAUDE_API_KEY)
+        response = await client.messages.create(
             model="claude-haiku-4-5-20251001",
             max_tokens=10,
             system="""Classify the user message into exactly one category. Reply with only the category word.
