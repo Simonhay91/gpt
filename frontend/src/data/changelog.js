@@ -1,10 +1,57 @@
-export const APP_VERSION = "2.6.0";
+export const APP_VERSION = "2.9.0";
 
 export const CHANGELOG = [
   {
+    version: "2.9.0",
+    date: "Апрель 2026",
+    badge: "new",
+    changes: [
+      "Система агентов — автоматический роутинг на Excel Agent / Research Agent / Knowledge Agent / Assistant",
+      "Каждый агент получает специализированный system prompt для точных ответов",
+      "Agent Router: правила + Claude Haiku для неоднозначных запросов, fallback на general",
+      "agent_type и agent_name сохраняются в каждом сообщении",
+    ]
+  },
+  {
+    version: "2.8.0",
+    date: "Апрель 2026",
+    badge: "new",
+    changes: [
+      "Временная загрузка файлов в чат — скрепка рядом с полем ввода",
+      "Поддержка JPG, PNG, PDF, XLSX, XLS, CSV, DOCX (до 20 МБ)",
+      "AI читает содержимое файла и отвечает на его основе",
+      "Изображения передаются как vision blocks (Claude Sonnet)",
+      "После ответа AI — предложение сохранить файл в источники проекта",
+      "Файл НЕ сохраняется автоматически — только по явному нажатию",
+    ]
+  },
+  {
+    version: "2.7.0",
+    date: "Апрель 2026",
+    badge: null,
+    changes: [
+      "Excel confirmation flow — надёжный механизм подтверждения через __CONFIRM_EXCEL__ префикс",
+      "Кнопка «Да, генерируй Excel» появляется под уточняющим ответом AI",
+      "Устранена ненадёжная проверка слова «excel» в истории чата",
+      "Новое поле is_excel_clarification в сообщениях",
+      "Исправлен критический краш: ChatPage использовал currentUser вместо user из AuthContext",
+      "Tooltip и улучшенная обработка 404 на кнопке скачивания Excel",
+    ]
+  },
+  {
+    version: "2.6.1",
+    date: "Апрель 2026",
+    badge: null,
+    changes: [
+      "Web search — армянские команды редактирования (poxi, popoxir, gri, avel, jnjel) не триггерят поиск",
+      "Расширен список _TRIVIAL_STOP: 12 новых romanized армянских слов",
+      "Двойная защита: _TRIVIAL_STOP + отдельное условие _ARMENIAN_EDIT_WORDS",
+    ]
+  },
+  {
     version: "2.6.0",
     date: "Март 2026",
-    badge: "new",
+    badge: null,
     changes: [
       "Рефакторинг: messages.py разбит на 4 файла (web_search.py, catalog_service.py, excel_service.py + routes)",
       "Рефакторинг: ChatPage.js разбит на компоненты MessageBubble, SourcePanel, ChatInput",
