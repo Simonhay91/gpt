@@ -1,7 +1,7 @@
 # Planet Knowledge — Product Requirements Document
 
-**Version:** 2.2  
-**Last Updated:** March 2026  
+**Version:** 2.9  
+**Last Updated:** Апрель 2026  
 **Admin credentials:** `admin@ai.planetworkspace.com` / `Admin@123456`
 
 ---
@@ -35,15 +35,18 @@ Database:     MongoDB (motor async driver)
 AI:           Claude claude-sonnet-4-20250514 (via emergentintegrations)
 Embeddings:   Voyage AI (voyage-3)
 Web Search:   Brave Search API
-URL Parsing:  BeautifulSoup4 + pypdf
+URL Parsing:  BeautifulSoup4 + pypdf + pdfplumber
 Auth:         JWT (PyJWT)
 Scheduler:    APScheduler
 
-Services (refactored Mar 2026):
-  services/web_search.py    — Brave search, URL fetching, auto-ingest
+Services:
+  services/web_search.py      — Brave search, URL fetching, auto-ingest
   services/catalog_service.py — Product catalog search
-  services/excel_service.py  — Excel generation pipeline
-  routes/messages.py         — Route handlers only (889 lines, was 1485)
+  services/excel_service.py   — Excel generation + targeted edits (openpyxl/pandas)
+  services/agents.py          — Agent definitions (excel/research/rag/general)
+  services/agent_router.py    — Rule-based + Claude Haiku routing
+  routes/messages.py          — RAG + Chat AI + agent routing (~1061 lines)
+  routes/temp_files.py        — Temp file upload/save endpoints
 ```
 
 ### Frontend
@@ -55,65 +58,58 @@ Icons:        Lucide React
 HTTP:         Axios
 Routing:      React Router v6
 
-Chat Components (refactored Mar 2026):
-  pages/ChatPage.js                    — Orchestrator (896 lines, was 1791)
-  components/chat/MessageBubble.js     — Single message rendering
+Chat Components:
+  pages/ChatPage.js                    — Orchestrator (~940 lines)
+  components/chat/MessageBubble.js     — Single message rendering + Excel/confirm buttons
   components/chat/SourcePanel.js       — Sources panel UI
-  components/chat/ChatInput.js         — Input area + plus menu
-```
+  components/chat/ChatInput.js         — Input area + plus menu + paperclip
+  data/changelog.js                    — App version + changelog (v2.9.0)
 ```
 
 ### Структура проекта
 ```
 /app/
 ├── backend/
-│   ├── db/connection.py             # MongoDB connection
-│   ├── middleware/auth.py           # JWT auth middleware
-│   ├── models/schemas.py            # Pydantic models
+│   ├── db/connection.py
+│   ├── middleware/auth.py
+│   ├── models/schemas.py            # Pydantic models (MessageCreate, MessageResponse)
 │   ├── services/
-│   │   ├── rag.py                   # RAG pipeline (Voyage AI embeddings)
-│   │   ├── cache.py                 # Semantic cache
-│   │   └── file_processor.py        # File text extraction
+│   │   ├── rag.py
+│   │   ├── cache.py
+│   │   ├── file_processor.py
+│   │   ├── web_search.py
+│   │   ├── catalog_service.py
+│   │   ├── excel_service.py
+│   │   ├── agents.py                # NEW: Agent definitions
+│   │   └── agent_router.py          # NEW: Agent routing logic
 │   ├── routes/
-│   │   ├── admin.py                 # Admin panel (~429 lines)
-│   │   ├── auth.py                  # Authentication (~50 lines)
-│   │   ├── chats.py                 # Chat CRUD (~217 lines)
-│   │   ├── competitors.py           # Competitor tracker (~418 lines)
-│   │   ├── departments.py           # Departments (~430 lines)
-│   │   ├── enterprise_sources.py    # Corporate sources (~802 lines)
-│   │   ├── global_sources.py        # Global sources (~369 lines)
-│   │   ├── images.py                # Image generation (~189 lines)
-│   │   ├── insights.py              # AI analytics (~288 lines)
-│   │   ├── messages.py              # RAG + Chat AI (~1061 lines) ⚠️ needs refactor
-│   │   ├── news.py                  # Tech news (~108 lines)
-│   │   ├── product_catalog.py       # Product catalog
-│   │   ├── projects.py              # Projects (~336 lines)
-│   │   ├── sources.py               # Sources upload (~647 lines)
-│   │   └── user_settings.py         # AI Profile, prompts (~232 lines)
-│   └── server.py                    # Entry point (~177 lines) ✅ refactored
+│   │   ├── messages.py
+│   │   ├── temp_files.py            # NEW: /api/chat/upload-temp, /api/chat/save-temp-to-source
+│   │   ├── sources.py
+│   │   ├── projects.py
+│   │   ├── auth.py
+│   │   ├── chats.py
+│   │   ├── images.py
+│   │   ├── admin.py
+│   │   ├── excel.py
+│   │   └── ...
+│   └── server.py
 │
 └── frontend/src/
-    ├── components/
-    │   ├── ui/                      # Shadcn components
-    │   ├── DashboardLayout.js
-    │   ├── ImageGenerator.js
-    │   ├── ProjectMemoryModal.js
-    │   └── SmartQuestions.js
+    ├── components/chat/
+    │   ├── MessageBubble.js
+    │   ├── SourcePanel.js
+    │   └── ChatInput.js
     ├── contexts/
-    │   ├── AuthContext.js
+    │   ├── AuthContext.js           # exports: user (not currentUser)
     │   └── LanguageContext.js
+    ├── data/changelog.js            # APP_VERSION = "2.9.0"
     ├── i18n/translations.js
     └── pages/
-        ├── ChatPage.js              # ~1441 lines ⚠️ needs refactor
+        ├── ChatPage.js
         ├── DashboardPage.js
         ├── ProjectPage.js
-        ├── PersonalSourcesPage.js
-        ├── DepartmentSourcesPage.js
-        ├── AdminUsersPage.js
-        ├── AdminAuditLogsPage.js
-        ├── AdminGptConfigPage.js
-        ├── AdminGlobalSourcesPage.js
-        └── ProductCatalogPage.js
+        └── ...
 ```
 
 ### MongoDB Collections
@@ -121,16 +117,17 @@ Chat Components (refactored Mar 2026):
 users            # Пользователи (roles, ai_profile, departments)
 projects         # Проекты (project_memory)
 chats            # Чаты (quick + project, sourceMode)
-messages         # Сообщения (citations, web_sources, fetchedUrls, clarifying_*)
+messages         # Сообщения (citations, web_sources, excel_file_id,
+                 #   is_excel_clarification, agent_type, agent_name, uploadedFile)
 sources          # Все источники (personal/project/department/global)
 source_chunks    # Векторные chunks (embedding via Voyage AI)
 departments      # Отделы
 gpt_config       # Настройки AI (developer prompt, model)
-audit_logs       # Аудит логи (с пагинацией)
-semantic_cache   # Кэш ответов (cosine similarity)
-token_usage      # Статистика использования токенов
+audit_logs       # Аудит логи
+semantic_cache   # Кэш ответов
+token_usage      # Статистика токенов
 user_prompts     # Пользовательские промпты
-source_usage     # Статистика использования источников
+source_usage     # Статистика источников
 product_catalog  # Каталог продуктов
 competitors      # Конкурентный трекер
 ```
@@ -151,119 +148,71 @@ competitors      # Конкурентный трекер
 | Department Sources | ✅ | Workflow одобрения, manager controls |
 | Global Sources | ✅ | Admin only |
 | Source Insights | ✅ | AI summary + 5 вопросов по источнику |
-| Brave Web Search | ✅ | При ключевых словах "найди в интернете" |
+| Brave Web Search | ✅ | Авто-триггер + стоп-слова (RU/EN/AM) |
 | URL Content Fetch | ✅ | Авто-чтение HTML/PDF из URL в сообщении |
 | Edit Message | ✅ | Редактирование + регенерация AI ответа |
 | Clarifying Questions | ✅ | AI задаёт уточняющие вопросы с кнопками |
 | Save Context | ✅ | Суммаризация чата → AI Profile |
 | Project Memory | ✅ | Ключевые факты → фон для AI |
-| Image Generation | ✅ | Внутри project chat |
+| Image Generation | ✅ | gpt-image-1 via Emergent LLM Key |
+| Excel Generation | ✅ | Полный pipeline: pandas + openpyxl targeted edits |
+| Excel Confirmation | ✅ | __CONFIRM_EXCEL__ prefix flow, кнопка в UI |
+| Temp File Upload | ✅ | Скрепка в чате, /api/chat/upload-temp, vision + text |
+| Agent Routing | ✅ | 4 агента: excel/research/rag/general, rule + Haiku |
 | Competitor Tracker | ✅ | Отслеживание конкурентов |
 | Product Catalog | ✅ | Фазы 1-2: CRUD, CSV import, relations |
 | Tech News | ✅ | Hacker News |
 | Admin Audit Logs | ✅ | Фильтрация + пагинация |
 | i18n (RU/EN) | 🔄 | ~80% переведено |
-| Server.py | ✅ | Рефакторинг завершён (177 строк) |
+| Changelog UI | ✅ | История обновлений в интерфейсе (v2.9.0) |
 
 ---
 
-## 5. Приоритизированный бэклог
+## 5. Схема ключевых полей
 
-### 🔴 P0 — Критично (технический долг)
+### Message (в БД) — актуальная
+```python
+{
+  "id": str,
+  "chatId": str,
+  "role": "user" | "assistant",
+  "content": str,
+  "citations": [{sourceId, sourceName, sourceType, chunks}],
+  "usedSources": [{sourceId, sourceName, sourceType}],
+  "web_sources": [{"title": str, "url": str}],
+  "fetchedUrls": [str],
+  "clarifying_question": str,
+  "clarifying_options": [str],
+  "fromCache": bool,
+  "autoIngestedUrls": [str],
+  "excel_file_id": str | None,          # ID в /tmp/excel_result_{uuid}.xlsx
+  "excel_preview": dict | None,         # {columns, rows, total_rows, message}
+  "is_excel_clarification": bool,       # True = AI задал уточн. вопросы перед генерацией
+  "uploadedFile": dict | None,          # {name, fileType} — temp file badge
+  "agent_type": str | None,             # "excel"|"research"|"rag"|"general"
+  "agent_name": str | None,             # "Excel Agent" | "Research Agent" | ...
+  "createdAt": ISO datetime
+}
+```
 
-#### Рефакторинг ChatPage.js
-- **Что:** `ChatPage.js` = ~1441 строк, god-компонент
-- **Как:** Вынести в отдельные хуки и компоненты:
-  - `useMessages.js` — логика отправки/редактирования сообщений
-  - `useSources.js` — управление источниками
-  - `SourcePanel.js` — панель источников
-  - `MessageBubble.js` — рендер одного сообщения
-  - `ChatInput.js` — поле ввода
-- **Почему:** Сложность поддержки, частые регрессии
-
----
-
-### 🟡 P1 — Высокий приоритет
-
-#### Product Catalog AI Integration (Фаза 3)
-- **Что:** Поиск продуктов через AI-чат
-  - Пользователь пишет: "Найди маршрутизаторы Cisco" → AI ищет в каталоге
-  - AI предлагает похожие/совместимые продукты на основе relations
-  - Тендерный анализ: загрузить список → AI сопоставляет с каталогом
-- **Эндпоинты:** `POST /api/product-catalog/chat-search`, `POST /api/product-catalog/tender-analyze`
-- **Где:** `routes/product_catalog.py` + `routes/messages.py` (интеграция в RAG)
-
-#### Product Catalog Weekly Sync
-- **Что:** APScheduler job для автообновления каталога
-- **Как:** Каждое воскресенье в 3:00 — повторный импорт из источника
-- **Где:** `server.py` scheduler + `routes/product_catalog.py`
-
-#### Полная интернационализация (i18n)
-- **Что:** Оставшиеся ~20% хардкод-строк в UI
-- **Файлы:** `ChatPage.js`, `ProjectPage.js`, модальные окна, toast-уведомления
-- **Где:** `i18n/translations.js` + замена строк в компонентах
-
----
-
-### 🔵 P2 — Средний приоритет
-
-#### API Rate Limiting
-- **Что:** Ограничение запросов per-user per-minute
-- **Как:** FastAPI middleware + Redis или in-memory counter
-- **Зачем:** Защита от злоупотреблений
-
-#### Шаблоны вопросов (Question Templates)
-- **Что:** Сохранённые шаблоны вопросов для быстрого ввода
-- **UI:** Кнопки под полем ввода чата
-- **DB:** `question_templates` collection
-
-#### Dashboard использования / затрат
-- **Что:** Для Admin — сколько токенов потратил каждый пользователь, топ источников
-- **API:** `GET /api/admin/usage-stats`
-- **UI:** Новая страница `/admin/usage`
-
-#### Глобальный поиск
-- **Что:** Поиск по всем источникам, чатам, проектам из одного места
-- **API:** `GET /api/search?q=...`
-- **UI:** Строка поиска в хедере
-
-#### Экспорт чата
-- **Что:** Скачать историю чата в PDF или Markdown
-- **API:** `GET /api/chats/{id}/export?format=pdf|md`
-
-#### Индикатор прогресса загрузки файла
-- **Что:** Progress bar при загрузке больших файлов
-- **UI:** Заменить spinner на реальный прогресс в `ChatPage.js` и `PersonalSourcesPage.js`
-
----
-
-### ⚪ P3 — Низкий приоритет / Будущее
-
-#### Mobile responsive
-- Адаптивный дизайн для мобильных устройств
-- Сейчас приложение не оптимизировано для экранов < 768px
-
-#### SSO / SAML
-- Корпоративная аутентификация (SAML 2.0, OIDC)
-- Актуально при масштабировании на крупные компании
-
-#### Real-time уведомления
-- WebSocket для уведомлений: "Источник одобрен", "Новое сообщение в чате"
-- `FastAPI WebSocket` + React context
-
-#### @mentions в чатах
-- Упоминание коллег в project chat
-- Уведомления при упоминании
-
-#### Комментарии к источникам
-- Обсуждение документов прямо в карточке источника
-
-#### Мульти-модельный UI
-- Дать пользователю выбирать модель AI: Claude / GPT-4o / Gemini
-- Уже есть `gptModel` поле в users collection
-
-#### Error Tracking (Sentry)
-- Интеграция Sentry для production-мониторинга ошибок
+### User (в БД)
+```python
+{
+  "id": str,
+  "email": str,
+  "isAdmin": bool,
+  "role": str,
+  "departments": [str],
+  "ai_profile": {
+    "display_name": str,
+    "position": str,
+    "preferred_language": "ru" | "en",
+    "response_style": str,
+    "custom_instruction": str
+  },
+  "gptModel": str
+}
+```
 
 ---
 
@@ -277,10 +226,17 @@ GET    /api/auth/me
 # Chats & Messages
 POST   /api/quick-chats
 POST   /api/projects/{id}/chats
-POST   /api/chats/{id}/messages              # RAG + Brave + URL fetch + Claude
+POST   /api/chats/{id}/messages              # RAG + Brave + Claude + Agent routing
 PUT    /api/chats/{id}/messages/{msg_id}/edit
 POST   /api/chats/{id}/save-context
 POST   /api/chats/{id}/extract-memory-points
+
+# Temp File Upload (NEW)
+POST   /api/chat/upload-temp                 # multipart: file + chat_id
+POST   /api/chat/save-temp-to-source         # JSON: temp_file_id, project_id, ...
+
+# Excel
+GET    /api/excel/download/{file_id}
 
 # Sources
 POST   /api/projects/{id}/sources/upload
@@ -302,45 +258,43 @@ PUT    /api/admin/gpt-config
 
 ---
 
-## 7. Схема ключевых полей
+## 7. Приоритизированный бэклог
 
-### Message (в БД)
-```python
-{
-  "id": str,
-  "chatId": str,
-  "role": "user" | "assistant",
-  "content": str,
-  "citations": [{sourceId, sourceName, sourceType, chunks}],
-  "usedSources": [{sourceId, sourceName, sourceType}],
-  "web_sources": [{"title": str, "url": str}],       # Brave Search
-  "fetchedUrls": [str],                                # URL Content Fetch
-  "clarifying_question": str,
-  "clarifying_options": [str],
-  "fromCache": bool,
-  "autoIngestedUrls": [str],
-  "createdAt": ISO datetime
-}
-```
+### 🟠 P1 — Высокий приоритет
 
-### User (в БД)
-```python
-{
-  "id": str,
-  "email": str,
-  "isAdmin": bool,
-  "role": str,
-  "departments": [str],
-  "ai_profile": {
-    "display_name": str,
-    "position": str,
-    "preferred_language": "ru" | "en",
-    "response_style": str,
-    "custom_instruction": str    # хранит Save Context суммаризации
-  },
-  "gptModel": str                # per-user AI model override
-}
-```
+#### Fix init_admin_user (продакшен)
+- **Что:** При создании нового admin в `server.py` не добавляются `isAdmin: True` и `role: "admin"`
+- **Где:** `server.py` → функция `init_admin_user`
+- **Эффект:** На чистой БД (продакшен) admin логинится, но не имеет прав
+- **Статус:** НЕ ИСПРАВЛЕНО ⚠️
+
+#### Excel файлы → Object Storage
+- **Что:** Сейчас Excel сохраняется в `/tmp/excel_result_{uuid}.xlsx` — теряется при перезапуске
+- **Как:** Мигрировать на persistent object storage через `integration_playbook_expert_v2`
+- **Затронуто:** `excel_service.py`, `routes/excel.py`, `MessageBubble.js` (download URL)
+- **Статус:** НЕ РЕАЛИЗОВАНО ⚠️
+
+#### Product Catalog AI Integration (Фаза 3)
+- `POST /api/product-catalog/chat-search` — AI ищет в каталоге по запросу из чата
+- Тендерный анализ: загрузить список → AI сопоставляет с каталогом
+
+### 🟡 P2 — Средний приоритет
+
+- **i18n** — оставшиеся ~20% строк (`ChatPage.js`, модали, toasts)
+- **Agent badge в UI** — показывать `agent_name` под ответом AI в `MessageBubble`
+- **Product Catalog Weekly Sync** — APScheduler job каждое воскресенье
+
+### 🔵 P3 — Низкий приоритет
+
+- **useEffect dependency warnings** — не критично, нет рантайм-эффекта
+- **API Rate Limiting** — FastAPI middleware + counter
+- **Question Templates** — сохранённые шаблоны вопросов
+- **Dashboard использования** — токены per-user, топ источников
+- **Глобальный поиск** — `GET /api/search?q=...`
+- **Экспорт чата** — PDF/Markdown
+- **Mobile responsive** — адаптив для < 768px
+- **SSO / SAML** — корпоративная аутентификация
+- **Sentry** — production error tracking
 
 ---
 
@@ -348,53 +302,42 @@ PUT    /api/admin/gpt-config
 
 | Файл | Проблема | Приоритет |
 |------|----------|-----------|
-| `ChatPage.js` | ~1441 строк, god-component | P0 |
-| `messages.py` | ~1061 строк, смешана бизнес-логика | P1 |
-| `enterprise_sources.py` | ~802 строк | P2 |
-| i18n | ~20% строк не переведено | P1 |
-| `useEffect` warnings | Отсутствующие зависимости в dep-array | P3 |
+| `server.py` → `init_admin_user` | Не проставляет `isAdmin`/`role` | P1 |
+| `excel_service.py` | Excel в `/tmp` — теряется при рестарте | P1 |
+| `messages.py` | ~1061 строк, смешана бизнес-логика | P2 |
+| `enterprise_sources.py` | ~802 строк | P3 |
+| i18n | ~20% строк не переведено | P2 |
+| `useEffect` warnings | Отсутствующие зависимости | P3 |
 
 ---
 
-## 9. Changelog
+## 9. Changelog — сессии
 
-### Февраль 2026 — Текущая сессия
-- ✅ **URL Content Fetching** — авто-чтение HTML/PDF из URL в чате (BeautifulSoup + pypdf)
-- ✅ **URL Indicator UI** — бейдж "🔗 URL прочитан: domain.com" под ответом AI
-- ✅ **ensure_gpt_config fix** — конфиг не перезаписывается при рестарте (`find_one({})` → `return`)
-- ✅ **Clarifying Questions light mode fix** — цвета amber адаптированы для light/dark режимов
-- ✅ **SmartQuestions hidden** — секция "Получить идеи вопросов" скрыта в чате
-- ✅ **PDF as URL source** — `sources.py` теперь принимает `application/pdf` при добавлении URL-источника (pypdf extraction)
-- ✅ **Personal Sources — publishedTo badge** — бейджи "📁 Project" / "🏢 Dept" на карточках личных источников
-- ✅ **Chat sources — project badge** — бейдж имени проекта на каждом источнике в панели чата
-- ✅ **Project Memory fix** — переключён на `anthropic.Anthropic` + добавлен `return {"points": []}` в except
-- ✅ **Image Generator — reference photo** — загрузка фото в таб Generate, кнопка активна без текста если есть фото
-- ✅ **ImageGenerator bug fix** — восстановлен `editFile` state (setEditFile not defined)
-- ✅ **Tab title** — "Planet GPT" → "PLANET KNOWLEDGE", favicon обновлён (fa-globe стиль)
-- ✅ **Auth fix** — `fetchUser()` вызывает `logout()` только при 401, не при сетевых ошибках
-- ✅ **JWT expiry** — увеличен с 24ч до 7 дней
+### Апрель 2026 (текущая сессия)
+- ✅ **P0 Crash fix** — `ChatPage.js` использовал `currentUser` вместо `user` из `useAuth()`. Исправлено в 4 местах.
+- ✅ **Excel confirmation flow** — `__CONFIRM_EXCEL__` prefix вместо ненадёжного поиска "excel" в истории. Кнопка «Да, генерируй Excel» в UI. Поле `is_excel_clarification` в MessageResponse.
+- ✅ **Temp File Upload** — POST /api/chat/upload-temp (JPG/PNG/PDF/XLSX/CSV/DOCX ≤20MB). Скрепка в ChatInput. Vision для изображений. Prompt «Сохранить в источники?» после ответа AI. POST /api/chat/save-temp-to-source с индексацией через Voyage AI.
+- ✅ **Agent Routing System** — `services/agents.py` (4 агента) + `services/agent_router.py` (rule-based + Claude Haiku). Поля `agent_type`/`agent_name` в каждом assistant message. AsyncAnthropic для non-blocking routing.
+- ✅ **Excel download UX** — tooltip "Файл доступен до перезапуска", 404-specific error toast.
+- ✅ **Web Search bug fix** — армянские romanized команды (`poxi`, `popoxir`, `gri`, `avel`, `jnjel`) добавлены в `_TRIVIAL_STOP` и `_ARMENIAN_EDIT_WORDS` — больше не триггерят web search.
+- ✅ **Changelog обновлён** — v2.9.0, 4 новые записи.
 
-### Текущая сессия (Март 2026 — продолжение)
-- ✅ **P0 Crash fix** — `ChatPage.js` использовал `currentUser` вместо `user` из `useAuth()`. Исправлено в 4 местах. Приложение восстановлено.
-- ✅ **Excel confirmation flow** — `has_clarification` больше не ищет слово "excel" в истории. Теперь: кнопка "Да, генерируй Excel" в ответе AI → фронтенд отправляет `__CONFIRM_EXCEL__ <запрос>` → бэкенд видит префикс и сразу генерирует. Новое поле `is_excel_clarification` в MessageResponse.
-- ✅ **Временная загрузка файлов в чат** — POST /api/chat/upload-temp (PDF/XLSX/CSV/DOCX/img), контент инжектируется в Claude, кнопка-скрепка в ChatInput, badge-превью файла, prompt "Сохранить в источники?" после ответа AI.
-- ✅ **Excel/CSV Assistant** — новый компонент `ExcelAssistant.js` с drag-and-drop загрузкой, AI-обработкой (Claude + pandas), preview таблицей и скачиванием результата. Только для project-based чатов.
-- ✅ **Excel generation from chat** — автодетекция Excel-запросов в чате: если активен Excel/CSV источник и сообщение содержит ключевые слова (переведи, создай, excel, csv, etc.), AI обрабатывает файл и встраивает кнопку скачивания + preview прямо в ответное сообщение. Backend: `POST /api/chats/{id}/excel-generate`, поля `excel_file_id`/`excel_preview` в MessageResponse.
+### Март 2026 (рефакторинг + Excel)
+- ✅ **messages.py рефакторинг** — разбит на `web_search.py`, `catalog_service.py`, `excel_service.py`
+- ✅ **ChatPage.js рефакторинг** — `MessageBubble.js`, `SourcePanel.js`, `ChatInput.js`
+- ✅ **Excel targeted edits** — `openpyxl` для точечного редактирования ячеек, формулы, цвета (HEX PatternFill)
+- ✅ **Image generation** — мигрирован на `emergentintegrations` + `gpt-image-1`
+- ✅ **Product Catalog** — Фазы 1-2: CRUD, CSV import, relations
+- ✅ **Brave Web Search** — авто-fallback, стоп-слова, BeautifulSoup fetch
 
-### Предыдущая сессия (Март 2026 — часть 1)
-- ✅ **Brave Web Search** — веб-поиск через Brave API
-- ✅ **Edit Message** — редактирование сообщений + регенерация AI
-- ✅ **Clarifying Questions** — AI задаёт уточняющие вопросы
-- ✅ **Save Context** — суммаризация диалога → AI Profile
-- ✅ **Project Memory** — ключевые факты как фон для AI
-- ✅ **Product Catalog Phase 1-2** — CRUD, CSV import, relations, tender matching
-- ✅ **Server.py refactoring** — 4791 → 177 строк
-- ✅ **Source Insights** — AI анализ источников + вопросы
-- ✅ **Semantic RAG** — Voyage AI embeddings, cosine similarity
-- ✅ **Competitor Tracker** — отслеживание конкурентов
-- ✅ **Audit Logs pagination** — limit/offset
-- ✅ **File upload fix** — 400 Bad Request устранён
-- ✅ **Favicon** — добавлен
+### Февраль 2026
+- ✅ URL Content Fetching, Clarifying Questions, Save Context, Project Memory
+- ✅ Image Generator reference photo, JWT 7 days, Auth fix
+- ✅ Source Insights, Competitor Tracker, Audit Logs pagination
+
+### Октябрь–Январь 2026
+- ✅ RAG Pipeline (Voyage AI), Semantic Cache, Admin panel
+- ✅ Аутентификация + роли, Проекты, Quick Chats, i18n foundation
 
 ---
 
@@ -406,4 +349,4 @@ PUT    /api/admin/gpt-config
 
 ---
 
-*Planet Knowledge PRD v2.2 — Confidential*
+*Planet Knowledge PRD v2.9 — Confidential*
