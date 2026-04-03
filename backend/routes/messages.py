@@ -205,6 +205,7 @@ async def send_message(
     temp_file_image_b64 = None
     temp_file_mime = None
     temp_file_info = None
+    temp_excel_path = None  # path to temp Excel/CSV — passed to maybe_generate_excel
     if message_data.temp_file_id:
         from pathlib import Path as _Path
         _TEMP_DIR = _Path("/tmp/planet_temp_files")
@@ -215,6 +216,9 @@ async def send_message(
             _ext = _filename.rsplit(".", 1)[-1].lower() if "." in _filename else ""
             _content = _temp_path.read_bytes()
             _image_exts = {"jpg", "jpeg", "png"}
+            # Capture Excel/CSV path for generation/editing
+            if _ext in ("xlsx", "xls", "csv"):
+                temp_excel_path = str(_temp_path)
             try:
                 if _ext in _image_exts:
                     import base64 as _b64
@@ -677,7 +681,8 @@ async def send_message(
                 active_source_ids=active_source_ids,
                 message_content=message_data.content,
                 claude_client=excel_claude_client,
-                current_response_text=response_text
+                current_response_text=response_text,
+                temp_file_path=temp_excel_path,
             )
             print(f"[EXCEL RESULT DEBUG] excel_file_id={excel_file_id}, excel_preview={excel_preview}, is_clarification={is_excel_clarification}")
         except Exception as e:

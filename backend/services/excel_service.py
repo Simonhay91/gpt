@@ -232,60 +232,70 @@ async def maybe_generate_excel(
     active_source_ids: list,
     message_content: str,
     claude_client,
-    current_response_text: str
+    current_response_text: str,
+    temp_file_path: Optional[str] = None,
 ) -> Tuple[Optional[str], Optional[dict], str, bool]:
     """
     Attempt to generate an Excel file if conditions are met.
-    Returns (excel_file_id, excel_preview, response_text).
+    If temp_file_path is provided, uses that file instead of looking up project sources.
+    Returns (excel_file_id, excel_preview, response_text, is_clarification).
     If no Excel should be generated, returns (None, None, current_response_text, False).
     When a clarification question is asked, returns (None, None, clarif_text, True).
     """
-    if not project_id or not active_source_ids:
+    # If no temp file, require project + active sources
+    if not temp_file_path and (not project_id or not active_source_ids):
         return None, None, current_response_text, False
 
     if not is_excel_trigger(message_content):
         return None, None, current_response_text, False
 
     try:
-        # Prefer XLSX/XLS over CSV — find XLSX first
-        excel_source = await db.sources.find_one(
-            {
-                "id": {"$in": active_source_ids},
-                "mimeType": {"$in": [
-                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                    "application/vnd.ms-excel"
-                ]}
-            },
-            {"_id": 0}
-        )
-        # Fall back to CSV only if no XLSX found
-        if not excel_source:
+        # ── Resolve the actual file to operate on ──
+        if temp_file_path and Path(temp_file_path).exists():
+            actual_file_path = Path(temp_file_path)
+            actual_ext = actual_file_path.suffix.lstrip(".").lower()
+            source_name = actual_file_path.name.split("_", 1)[-1]  # strip UUID prefix
+            logger.info(f"Excel service using temp file: {source_name}")
+        else:
+            # Prefer XLSX/XLS over CSV
             excel_source = await db.sources.find_one(
-                {"id": {"$in": active_source_ids}, "mimeType": {"$in": ["text/csv", "application/csv"]}},
+                {
+                    "id": {"$in": active_source_ids},
+                    "mimeType": {"$in": [
+                        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                        "application/vnd.ms-excel"
+                    ]}
+                },
                 {"_id": 0}
             )
-        if not excel_source:
+            if not excel_source:
+                excel_source = await db.sources.find_one(
+                    {"id": {"$in": active_source_ids}, "mimeType": {"$in": ["text/csv", "application/csv"]}},
+                    {"_id": 0}
+                )
+            if not excel_source:
+                return None, None, current_response_text, False
+            if not excel_source.get("storagePath"):
+                return None, None, current_response_text, False
+            actual_file_path = UPLOAD_DIR / excel_source["storagePath"]
+            actual_ext = excel_source["storagePath"].rsplit(".", 1)[-1].lower()
+            source_name = excel_source.get("originalName", "file")
+
+        if not actual_file_path.exists():
             return None, None, current_response_text, False
 
         # ── Targeted edit path (skips clarification flow) ──
         if is_edit_trigger(message_content):
-            if not excel_source.get("storagePath"):
-                return None, None, current_response_text, False
-            edit_file_path = UPLOAD_DIR / excel_source["storagePath"]
-            if not edit_file_path.exists():
-                return None, None, current_response_text, False
             try:
-                file_id, preview, text = await targeted_excel_edit(str(edit_file_path), message_content, claude_client)
+                file_id, preview, text = await targeted_excel_edit(str(actual_file_path), message_content, claude_client)
                 return file_id, preview, text, False
             except Exception as edit_err:
                 logger.error(f"targeted_excel_edit error: {edit_err}")
                 return None, None, current_response_text, False
 
         # ── Full generation path: two-step flow with clarification ──
-        # Confirmation via explicit keyword sent from frontend
         has_clarification = message_content.strip().startswith("__CONFIRM_EXCEL__")
         if has_clarification:
-            # Strip the prefix so the actual instruction is used
             message_content = message_content[len("__CONFIRM_EXCEL__"):].strip()
 
         if not has_clarification:
@@ -297,8 +307,8 @@ async def maybe_generate_excel(
                         "EXCEL CLARIFICATION REQUIRED: The user wants to generate an Excel file.\n"
                         "DO NOT generate Excel yet.\n"
                         "IMPORTANT: Detect the language of the user's message:\n"
-                        "- If Armenian (հայերեն script or romanized like 'inch', 'vor', 'barev') → respond in Armenian\n"
-                        "- If Russian (кириллица) → respond in Russian\n"
+                        "- If Armenian (հայerен script or romanized like 'inch', 'vor', 'barev') → respond in Armenian\n"
+                        "- If Russian (\u043a\u0438\u0440\u0438\u043b\u043b\u0438\u0446\u0430) → respond in Russian\n"
                         "- If English → respond in English\n\n"
                         "Ask these 3 clarifying questions in the SAME language as the user's message:\n"
                         "1. What data/columns should be included\n"
@@ -313,18 +323,10 @@ async def maybe_generate_excel(
                 logger.warning(f"Excel clarification call failed: {clarif_err}")
                 return None, None, current_response_text, False
 
-        if not excel_source.get("storagePath"):
-            return None, None, current_response_text, False
-
-        file_path = UPLOAD_DIR / excel_source["storagePath"]
-        if not file_path.exists():
-            return None, None, current_response_text, False
-
-        ext = excel_source["storagePath"].rsplit(".", 1)[-1].lower()
-        df = pd.read_excel(file_path) if ext in ("xlsx", "xls") else pd.read_csv(file_path)
+        df = pd.read_excel(actual_file_path) if actual_ext in ("xlsx", "xls") else pd.read_csv(actual_file_path)
 
         structure = (
-            f"File: {excel_source.get('originalName', 'file')}\n"
+            f"File: {source_name}\n"
             f"Rows: {len(df)}, Columns: {len(df.columns)}\n"
             f"Columns: {list(df.columns)}\n"
             f"Data (max 200 rows):\n{df.head(200).to_string(index=False)}"
@@ -338,8 +340,8 @@ async def maybe_generate_excel(
                 "The spreadsheet data is provided directly below — do not fetch anything externally.\n"
                 "The user's instruction may be in Armenian, Russian, or English — understand all three.\n"
                 "Common operations by language:\n"
-                "- Armenian: poxi/փոխիր = replace/rename | gri/գրիր = write | avelacru/ավելացրու = add | jnjel/ջնջել = delete\n"
-                "- Russian: замени = replace | напиши = write | добавь = add | удали = delete\n"
+                "- Armenian: poxi/\u0583\u0578\u056d\u056b\u0580 = replace | gri/\u0563\u0580\u056b\u0580 = write | avel = add | jnjel = delete\n"
+                "- Russian: \u0437\u0430\u043c\u0435\u043d\u0438 = replace | \u043d\u0430\u043f\u0438\u0448\u0438 = write | \u0434\u043e\u0431\u0430\u0432\u044c = add | \u0443\u0434\u0430\u043b\u0438 = delete\n"
                 "- English: rename/change/update/add/remove\n"
                 "Apply the user's instruction to the data and return ONLY a valid JSON object:\n"
                 '{"column_mapping": {"old": "new"}, "new_data": [[col1, col2, ...], [val1, val2, ...], ...], "message": "what was done"}\n'
@@ -385,3 +387,4 @@ async def maybe_generate_excel(
     except Exception as excel_err:
         logger.error(f"Excel generation error: {excel_err}")
         return None, None, current_response_text, False
+
