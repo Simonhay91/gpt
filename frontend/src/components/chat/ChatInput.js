@@ -2,7 +2,7 @@ import React from 'react';
 import { Button } from '../ui/button';
 import { Textarea } from '../ui/textarea';
 import {
-  Loader2, Send, Plus, Upload, Link, ImageIcon, Save, Brain, Paperclip, X,
+  Loader2, Send, Plus, Upload, Link, ImageIcon, Save, Brain, X,
   FileText, FileSpreadsheet, File
 } from 'lucide-react';
 
@@ -35,7 +35,6 @@ export const ChatInput = ({
   plusMenuRef,
   showPlusMenu,
   onTogglePlusMenu,
-  // ── Temp file props ──
   tempFile,
   isTempUploading,
   onPaperclipChange,
@@ -47,7 +46,7 @@ export const ChatInput = ({
     <div className="border-t border-border px-6 py-4 bg-card/50 backdrop-blur">
       <div className="max-w-3xl mx-auto space-y-2">
 
-        {/* ── Temp file preview badge ── */}
+        {/* Temp file preview badge */}
         {(tempFile || isTempUploading) && (
           <div className="flex items-center gap-2 px-1">
             {isTempUploading ? (
@@ -81,19 +80,18 @@ export const ChatInput = ({
             <div className="relative flex-shrink-0 self-end mb-0.5" ref={plusMenuRef}>
               <input
                 type="file"
-                multiple
-                accept=".pdf,.docx,.pptx,.xlsx,.csv,.txt,.md,.png,.jpg,.jpeg"
-                onChange={(e) => { onFileUpload(e); onTogglePlusMenu(false); }}
+                accept=".jpg,.jpeg,.png,.pdf,.xlsx,.xls,.csv,.docx"
+                onChange={(e) => { onPaperclipChange(e); onTogglePlusMenu(false); }}
                 className="hidden"
-                id="chat-input-file"
+                id="chat-plus-file-input"
               />
               <button
                 onClick={() => onTogglePlusMenu(prev => !prev)}
-                disabled={isUploading}
+                disabled={isTempUploading}
                 className="flex items-center justify-center h-9 w-9 rounded-full border border-border bg-background hover:bg-secondary transition-colors disabled:opacity-50"
                 data-testid="chat-plus-btn"
               >
-                {isUploading
+                {isTempUploading
                   ? <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
                   : <Plus className="h-4 w-4 text-muted-foreground" />}
               </button>
@@ -102,7 +100,7 @@ export const ChatInput = ({
                 <div className="absolute bottom-11 left-0 z-50 w-52 rounded-xl border border-border bg-card shadow-xl overflow-hidden">
                   <button
                     className="w-full flex items-center gap-3 px-4 py-3 text-sm hover:bg-secondary transition-colors text-left"
-                    onClick={() => { document.getElementById('chat-input-file').click(); onTogglePlusMenu(false); }}
+                    onClick={() => { document.getElementById('chat-plus-file-input').click(); onTogglePlusMenu(false); }}
                   >
                     <div className="flex items-center justify-center h-8 w-8 rounded-lg bg-indigo-500/15">
                       <Upload className="h-4 w-4 text-indigo-400" />
@@ -191,31 +189,6 @@ export const ChatInput = ({
             disabled={isSending}
             data-testid="chat-input"
           />
-
-          {/* Paperclip button — temp file attach (always visible) */}
-          <div className="flex-shrink-0 self-end mb-0.5">
-            <input
-              type="file"
-              accept=".jpg,.jpeg,.png,.pdf,.xlsx,.xls,.csv,.docx"
-              onChange={onPaperclipChange}
-              className="hidden"
-              id="chat-temp-file-input"
-            />
-            <button
-              onClick={() => document.getElementById('chat-temp-file-input').click()}
-              disabled={isTempUploading || isSending}
-              className={`flex items-center justify-center h-9 w-9 rounded-full border transition-colors disabled:opacity-50
-                ${tempFile
-                  ? 'border-amber-500/50 bg-amber-500/10 hover:bg-amber-500/20 text-amber-400'
-                  : 'border-border bg-background hover:bg-secondary text-muted-foreground'}`}
-              title="Прикрепить файл (временно, только для этого сообщения)"
-              data-testid="chat-paperclip-btn"
-            >
-              {isTempUploading
-                ? <Loader2 className="h-4 w-4 animate-spin" />
-                : <Paperclip className="h-4 w-4" />}
-            </button>
-          </div>
 
           <Button
             onClick={onSend}

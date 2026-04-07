@@ -693,6 +693,9 @@ const ChatPage = () => {
               <Button variant={sourceMode === 'all' ? 'default' : 'ghost'} size="sm" onClick={() => updateSourceMode('all')} className={`gap-1.5 h-8 ${sourceMode === 'all' ? 'bg-emerald-600 hover:bg-emerald-700' : ''}`} data-testid="source-mode-all">
                 <Globe2 className="h-3.5 w-3.5" /><span className="hidden sm:inline">All Sources</span>
               </Button>
+              <Button variant={sourceMode === 'ai_only' ? 'default' : 'ghost'} size="sm" onClick={() => updateSourceMode('ai_only')} className={`gap-1.5 h-8 ${sourceMode === 'ai_only' ? 'bg-orange-600 hover:bg-orange-700' : ''}`} data-testid="source-mode-ai-only">
+                <Bot className="h-3.5 w-3.5" /><span className="hidden sm:inline">AI Only</span>
+              </Button>
             </div>
             <Button variant="outline" size="sm" onClick={openMoveDialog} className="gap-2" data-testid="move-chat-btn"><MoveRight className="h-4 w-4" />Move</Button>
             {!isQuickChat && (

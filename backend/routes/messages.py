@@ -34,9 +34,9 @@ GLOBAL_PROJECT_ID = "__global__"
 MAX_CHUNKS_PER_QUERY = 5
 
 # RAG score thresholds
-RAG_SCORE_MIN = 0.6          # Default minimum chunk score
-RAG_SCORE_MIN_EXCEL = 0.45   # Lower threshold for xlsx/csv sources
-RAG_SCORE_RELEVANT = 0.7     # Threshold to consider RAG "relevant" (skip web search)
+RAG_SCORE_MIN = 0.35          # Default minimum chunk score
+RAG_SCORE_MIN_EXCEL = 0.25   # Lower threshold for xlsx/csv sources
+RAG_SCORE_RELEVANT = 0.45     # Threshold to consider RAG "relevant" (skip web search)
 
 EXCEL_MIME_TYPES = {
     "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -194,6 +194,14 @@ async def send_message(
 
     active_source_ids = personal_source_ids + project_source_ids + department_source_ids + global_source_ids
     user_accessible_source_ids = active_source_ids.copy()
+
+    # AI Only mode — bypass all sources and web search
+    if source_mode == 'ai_only':
+        active_source_ids = []
+        personal_source_ids = []
+        project_source_ids = []
+        department_source_ids = []
+        global_source_ids = []
 
     # ── 3. Save user message ──
     sender_email = current_user["email"]
@@ -399,6 +407,8 @@ async def send_message(
 
     brave_key_exists = bool(os.environ.get('BRAVE_API_KEY', ''))
     use_web_search = should_use_web_search(message_data.content, has_relevant_rag)
+    if source_mode == 'ai_only':
+        use_web_search = False
 
     _words = message_data.content.strip().split()
     _msg_lower = message_data.content.lower()
@@ -419,7 +429,8 @@ async def send_message(
         use_web_search = False
 
     if not use_web_search and not has_relevant_rag and not fetched_url_count \
-            and brave_key_exists and not _is_trivial and not has_project_memory:
+            and brave_key_exists and not _is_trivial and not has_project_memory \
+            and not active_source_ids and source_mode != 'ai_only':
         use_web_search = True
         logger.info("Fallback web search: no RAG results, auto-triggering")
 
