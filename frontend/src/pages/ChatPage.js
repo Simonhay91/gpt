@@ -35,7 +35,6 @@ import {
 import DashboardLayout from '../components/DashboardLayout';
 import ImageGenerator from '../components/ImageGenerator';
 import AuthImage from '../components/AuthImage';
-import SmartQuestions from '../components/SmartQuestions';
 import { SourcePanel } from '../components/chat/SourcePanel';
 import { MoveDialog } from '../components/chat/MoveDialog';
 
@@ -717,20 +716,6 @@ const ChatPage = () => {
             </div>
           )}
         </ScrollArea>
-
-        {/* Smart question suggestions */}
-        <SmartQuestions
-          chatId={chatId}
-          token={localStorage.getItem('token') || axios.defaults.headers.common['Authorization']?.replace('Bearer ', '')}
-          hasActiveSources={true}
-          onQuestionClick={(question) => {
-            setInput(question);
-            setTimeout(() => {
-              const btn = document.querySelector('[data-testid="send-message-btn"]');
-              if (btn && !btn.disabled) btn.click();
-            }, 100);
-          }}
-        />
 
         {/* Input area */}
         <div className="border-t border-border px-6 py-4 bg-card/50 backdrop-blur">
