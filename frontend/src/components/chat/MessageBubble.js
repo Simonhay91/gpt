@@ -137,10 +137,28 @@ export const MessageBubble = ({
                 {/* File upload badge */}
                 {message.role === 'user' && message.uploadedFile && (
                   <div className="flex justify-end mb-1">
-                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-muted border border-border text-xs text-muted-foreground max-w-[260px]" data-testid={`file-badge-${index}`}>
-                      <span>{message.uploadedFile.fileType === 'pdf' ? '📄' : message.uploadedFile.fileType === 'excel' ? '📊' : message.uploadedFile.fileType === 'image' ? '🖼️' : message.uploadedFile.fileType === 'doc' ? '📝' : '📎'}</span>
-                      <span className="truncate">{message.uploadedFile.name}</span>
-                    </span>
+                    {message.uploadedFile.fileType === 'image' && message.uploadedFile.previewUrl ? (
+                      <div className="rounded-xl overflow-hidden border border-border max-w-[260px]">
+                        <img
+                          src={message.uploadedFile.previewUrl}
+                          alt={message.uploadedFile.name}
+                          className="max-h-48 w-auto object-contain cursor-pointer hover:opacity-90 transition-opacity"
+                          onClick={() => window.open(message.uploadedFile.previewUrl, '_blank')}
+                        />
+                        <div className="px-2 py-1 bg-muted text-xs text-muted-foreground truncate">
+                          {message.uploadedFile.name}
+                        </div>
+                      </div>
+                    ) : (
+                      <span
+                        className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-muted border border-border text-xs text-muted-foreground max-w-[260px] cursor-pointer hover:bg-secondary transition-colors"
+                        data-testid={`file-badge-${index}`}
+                        onClick={() => message.uploadedFile.previewUrl && window.open(message.uploadedFile.previewUrl, '_blank')}
+                      >
+                        <span>{message.uploadedFile.fileType === 'pdf' ? '📄' : message.uploadedFile.fileType === 'excel' || message.uploadedFile.fileType === 'xlsx' || message.uploadedFile.fileType === 'csv' ? '📊' : message.uploadedFile.fileType === 'doc' || message.uploadedFile.fileType === 'docx' ? '📝' : '📎'}</span>
+                        <span className="truncate">{message.uploadedFile.name}</span>
+                      </span>
+                    )}
                   </div>
                 )}
 

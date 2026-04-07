@@ -390,7 +390,7 @@ const ChatPage = () => {
     const tempUserMsg = {
       id: `temp-${Date.now()}`, chatId, role: 'user', content: content || ' ',
       createdAt: new Date().toISOString(),
-      ...(fileBadge ? { uploadedFile: fileBadge } : activeTempFile ? { uploadedFile: { name: activeTempFile.filename, fileType: activeTempFile.fileType } } : {})
+      ...(fileBadge ? { uploadedFile: fileBadge } : activeTempFile ? { uploadedFile: { name: activeTempFile.filename, fileType: activeTempFile.fileType, previewUrl: activeTempFile.previewUrl } } : {})
     };
     setMessages(prev => [...prev, tempUserMsg]);
     setInput('');
@@ -443,6 +443,13 @@ const ChatPage = () => {
     const file = e.target.files?.[0];
     if (!file) return;
     e.target.value = '';
+
+    let localPreviewUrl = null;
+    const isImage = file.type.startsWith('image/');
+    if (isImage) {
+      localPreviewUrl = URL.createObjectURL(file);
+    }
+
     setIsTempUploading(true);
     try {
       const formData = new FormData();
@@ -451,8 +458,14 @@ const ChatPage = () => {
       const res = await axios.post(`${API}/chat/upload-temp`, formData, {
         headers: { 'Content-Type': 'multipart/form-data' }
       });
-      setTempFile({ id: res.data.temp_file_id, filename: res.data.filename, fileType: res.data.file_type });
+      setTempFile({
+        id: res.data.temp_file_id,
+        filename: res.data.filename,
+        fileType: res.data.file_type,
+        previewUrl: localPreviewUrl,
+      });
     } catch (err) {
+      if (localPreviewUrl) URL.revokeObjectURL(localPreviewUrl);
       toast.error(err.response?.data?.detail || 'Не удалось загрузить файл');
     } finally {
       setIsTempUploading(false);
