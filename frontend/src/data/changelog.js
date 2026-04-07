@@ -1,6 +1,16 @@
-export const APP_VERSION = "2.9.0";
+export const APP_VERSION = "2.9.1";
 
 export const CHANGELOG = [
+  {
+    version: "2.9.1",
+    date: "Апрель 2026",
+    badge: "fix",
+    changes: [
+      "Исправлен баг: при загрузке Excel через скрепку AI редактировал файл из Sources проекта вместо прикреплённого файла",
+      "Temp файл теперь передаётся напрямую в excel_service — как для редактирования (openpyxl), так и для генерации (pandas)",
+      "excel_service.py: добавлен параметр temp_file_path с приоритетом над Sources из БД",
+    ]
+  },
   {
     version: "2.9.0",
     date: "Апрель 2026",
