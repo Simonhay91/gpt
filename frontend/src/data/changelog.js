@@ -1,6 +1,21 @@
-export const APP_VERSION = "2.9.1";
+export const APP_VERSION = "2.9.2";
 
 export const CHANGELOG = [
+  {
+    version: "2.9.2",
+    date: "Апрель 2026",
+    badge: "fix",
+    changes: [
+      "Исправлена ошибка «text content blocks must contain non-whitespace text» при отправке файла без текста",
+      "История сообщений: пустые записи пропускаются (не передаются в Claude)",
+      "Vision блоки и plain text: fallback «Analyze this file» если контент пустой",
+      "agent_router.py: фильтрация пустых messages перед вызовом Claude Haiku",
+      "AI Only режим: добавлена третья кнопка в переключатель источников (оранжевая)",
+      "AI Only: web search и RAG отключаются, fallback web search заблокирован",
+      "Preview изображений в чате: прикреплённые фото показываются как превью, клик открывает в новой вкладке",
+      "Кликабельные badge для PDF, XLSX, CSV, DOCX файлов",
+    ]
+  },
   {
     version: "2.9.1",
     date: "Апрель 2026",
