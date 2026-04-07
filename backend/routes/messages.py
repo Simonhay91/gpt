@@ -620,9 +620,17 @@ async def send_message(
 
             messages = []
             for msg in history[:-1]:
-                messages.append({"role": msg["role"], "content": msg["content"]})
+                # Skip whitespace-only content — Claude rejects empty text blocks
+                msg_content = msg["content"]
+                if isinstance(msg_content, str) and not msg_content.strip():
+                    msg_content = "[файл прикреплён]"
+                messages.append({"role": msg["role"], "content": msg_content})
 
             # Build last user message — vision block for images, plain text otherwise
+            _user_text = message_data.content.strip() or (
+                "Что на этом изображении?" if temp_file_image_b64
+                else "Проанализируй прикреплённый файл"
+            )
             if temp_file_image_b64 and temp_file_mime:
                 user_content = [
                     {
@@ -633,10 +641,10 @@ async def send_message(
                             "data": temp_file_image_b64,
                         },
                     },
-                    {"type": "text", "text": message_data.content or "Что на этом изображении?"},
+                    {"type": "text", "text": _user_text},
                 ]
             else:
-                user_content = message_data.content
+                user_content = _user_text
             messages.append({"role": "user", "content": user_content})
 
             claude_response = claude_client.messages.create(

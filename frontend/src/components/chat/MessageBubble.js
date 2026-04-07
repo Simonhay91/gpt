@@ -145,7 +145,7 @@ export const MessageBubble = ({
                           className="max-h-48 w-auto object-contain cursor-pointer hover:opacity-90 transition-opacity"
                           onClick={() => window.open(message.uploadedFile.previewUrl, '_blank')}
                         />
-                        <div className="px-2 py-1 bg-muted text-xs text-muted-foreground truncate">
+                        <div className="px-2 py-1 bg-background/80 text-xs text-muted-foreground truncate">
                           {message.uploadedFile.name}
                         </div>
                       </div>
