@@ -5,65 +5,49 @@ import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Textarea } from '../components/ui/textarea';
 import { ScrollArea } from '../components/ui/scroll-area';
-import { Card, CardContent } from '../components/ui/card';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '../components/ui/dialog';
 import { toast } from 'sonner';
-import { 
-  Send, 
-  ArrowLeft, 
-  Bot, 
-  User, 
-  Loader2, 
-  Upload, 
-  FileText, 
-  Trash2, 
-  ChevronDown, 
+import {
+  Send,
+  ArrowLeft,
+  Bot,
+  User,
+  Loader2,
+  FileText,
+  ChevronDown,
   ChevronUp,
-  ChevronRight,
   Paperclip,
-  Link,
   Globe,
-  File,
   Quote,
   ImageIcon,
   Download,
   MessageSquare,
   MoveRight,
-  FolderOpen,
   Pencil,
   Check,
   X,
   Copy,
-  Search,
-  Plus,
-  Eye,
   Save,
   Target,
   Globe2,
-  Lightbulb,
-  TrendingUp
+  TrendingUp,
 } from 'lucide-react';
-import { Label } from '../components/ui/label';
-import { Checkbox } from '../components/ui/checkbox';
 import DashboardLayout from '../components/DashboardLayout';
 import ImageGenerator from '../components/ImageGenerator';
 import AuthImage from '../components/AuthImage';
 import SmartQuestions from '../components/SmartQuestions';
+import { SourcePanel } from '../components/chat/SourcePanel';
+import { MoveDialog } from '../components/chat/MoveDialog';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
-// URL regex pattern
 const URL_REGEX = /(https?:\/\/[^\s<>"{}|\\^`[\]]+)/g;
 
-// Function to render text with clickable URLs
 const renderTextWithLinks = (text) => {
   if (!text) return null;
-  
   const parts = text.split(URL_REGEX);
-  
   return parts.map((part, index) => {
     if (URL_REGEX.test(part)) {
-      // Reset regex lastIndex
       URL_REGEX.lastIndex = 0;
       return (
         <a
@@ -82,114 +66,62 @@ const renderTextWithLinks = (text) => {
   });
 };
 
-// File type icons
-const getFileIcon = (mimeType, kind) => {
-  if (kind === 'url') return <Globe className="h-5 w-5 text-blue-400" />;
-  if (mimeType?.includes('pdf')) return <FileText className="h-5 w-5 text-red-400" />;
-  if (mimeType?.includes('wordprocessingml')) return <File className="h-5 w-5 text-blue-500" />;
-  if (mimeType?.includes('presentationml')) return <File className="h-5 w-5 text-orange-500" />;
-  if (mimeType?.includes('spreadsheetml')) return <File className="h-5 w-5 text-green-500" />;
-  if (mimeType?.includes('image')) return <ImageIcon className="h-5 w-5 text-purple-400" />;
-  return <FileText className="h-5 w-5 text-gray-400" />;
-};
-
 const ChatPage = () => {
   const { chatId } = useParams();
   const navigate = useNavigate();
+
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
-  const [urlInput, setUrlInput] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [isSending, setIsSending] = useState(false);
   const [chat, setChat] = useState(null);
   const [projectSources, setProjectSources] = useState([]);
   const [activeSourceIds, setActiveSourceIds] = useState([]);
-  const [isUploading, setIsUploading] = useState(false);
   const [generatedImages, setGeneratedImages] = useState([]);
-  const [isAddingUrl, setIsAddingUrl] = useState(false);
   const [showSourcePanel, setShowSourcePanel] = useState(false);
   const [moveDialogOpen, setMoveDialogOpen] = useState(false);
-  const [userProjects, setUserProjects] = useState([]);
-  const [isMovingChat, setIsMovingChat] = useState(false);
-  
-  // Get token from localStorage or axios headers
-  const token = localStorage.getItem('token') || axios.defaults.headers.common['Authorization']?.replace('Bearer ', '');
-  
-  // Create project in move dialog
-  const [isCreatingProject, setIsCreatingProject] = useState(false);
-  const [newProjectName, setNewProjectName] = useState('');
-  const [showCreateProject, setShowCreateProject] = useState(false);
-  
-  // Rename chat state
+
   const [isEditingName, setIsEditingName] = useState(false);
   const [editedName, setEditedName] = useState('');
   const [isSavingName, setIsSavingName] = useState(false);
   const nameInputRef = useRef(null);
-  
-  // Source mode state
-  const [sourceMode, setSourceMode] = useState('all'); // 'all' or 'my'
-  
-  // Collapsible sources state
-  const [expandedSources, setExpandedSources] = useState({}); // Track which message sources are expanded
-  const [viewingSource, setViewingSource] = useState(null); // For source content modal
-  const [sourceContent, setSourceContent] = useState(null); // Content of viewed source
+
+  const [sourceMode, setSourceMode] = useState('all');
+
+  const [expandedSources, setExpandedSources] = useState({});
+  const [viewingSource, setViewingSource] = useState(null);
+  const [sourceContent, setSourceContent] = useState(null);
   const [isLoadingSourceContent, setIsLoadingSourceContent] = useState(false);
-  
-  // Preview dialog state
-  const [previewDialogOpen, setPreviewDialogOpen] = useState(false);
-  const [previewSource, setPreviewSource] = useState(null);
-  const [previewLoading, setPreviewLoading] = useState(false);
-  
+
   const messagesEndRef = useRef(null);
   const textareaRef = useRef(null);
-  const fileInputRef = useRef(null);
-  
-  // Search state
-  const [searchQuery, setSearchQuery] = useState('');
-  const [searchResults, setSearchResults] = useState([]);
-  const [isSearching, setIsSearching] = useState(false);
-  const [showSearchResults, setShowSearchResults] = useState(false);
-  
-  // Expanded source groups state
-  const [expandedGroups, setExpandedGroups] = useState({});
 
-  useEffect(() => {
-    fetchChatData();
-  }, [chatId]);
+  // ─── Data fetching ─────────────────────────────────────────────────────────
 
-  useEffect(() => {
-    scrollToBottom();
-  }, [messages]);
-
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  };
+  useEffect(() => { fetchChatData(); }, [chatId]);
+  useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages]);
 
   const fetchChatData = async () => {
     try {
-      // Get chat details first
       const chatRes = await axios.get(`${API}/chats/${chatId}`);
       setChat(chatRes.data);
       setActiveSourceIds(chatRes.data.activeSourceIds || []);
       setSourceMode(chatRes.data.sourceMode || 'all');
-      
-      // Get messages (handle paginated response)
+
       const messagesRes = await axios.get(`${API}/chats/${chatId}/messages`);
       setMessages(messagesRes.data.items || messagesRes.data);
-      
-      // Only fetch sources and images if chat belongs to a project
+
       if (chatRes.data.projectId) {
         const sourcesRes = await axios.get(`${API}/projects/${chatRes.data.projectId}/sources`);
         setProjectSources(sourcesRes.data.items || sourcesRes.data);
-        
+
         const imagesRes = await axios.get(`${API}/projects/${chatRes.data.projectId}/images`);
         setGeneratedImages(imagesRes.data.items || imagesRes.data);
       } else {
-        // Quick chat - no sources
         setProjectSources([]);
         setGeneratedImages([]);
       }
-    } catch (error) {
+    } catch {
       toast.error('Failed to load chat');
       navigate('/dashboard');
     } finally {
@@ -197,74 +129,35 @@ const ChatPage = () => {
     }
   };
 
-  // Check if this is a quick chat (no project)
   const isQuickChat = chat && !chat.projectId;
+
+  // ─── Active sources sync ───────────────────────────────────────────────────
+
+  useEffect(() => {
+    if (!chatId || isLoading) return;
+    const timeoutId = setTimeout(async () => {
+      try {
+        await axios.put(`${API}/chats/${chatId}/active-sources`, { sourceIds: activeSourceIds });
+      } catch {
+        console.error('Failed to sync active sources');
+      }
+    }, 500);
+    return () => clearTimeout(timeoutId);
+  }, [activeSourceIds, chatId, isLoading]);
+
+  // ─── Source mode ───────────────────────────────────────────────────────────
 
   const updateSourceMode = async (newMode) => {
     try {
       await axios.put(`${API}/chats/${chatId}/source-mode`, { sourceMode: newMode });
       setSourceMode(newMode);
       toast.success(newMode === 'my' ? 'Using your sources only' : 'Using all sources');
-    } catch (error) {
+    } catch {
       toast.error('Failed to update source mode');
     }
   };
 
-  const fetchUserProjects = async () => {
-    try {
-      const response = await axios.get(`${API}/projects`);
-      // Handle paginated response
-      setUserProjects(response.data.items || response.data || []);
-    } catch (error) {
-      console.error('Failed to load projects');
-    }
-  };
-
-  const openMoveDialog = () => {
-    fetchUserProjects();
-    setShowCreateProject(false);
-    setNewProjectName('');
-    setMoveDialogOpen(true);
-  };
-
-  const createProjectAndMove = async () => {
-    if (!newProjectName.trim()) {
-      toast.error('Project name is required');
-      return;
-    }
-    
-    setIsCreatingProject(true);
-    try {
-      // Create project
-      const response = await axios.post(`${API}/projects`, { name: newProjectName.trim() });
-      const newProject = response.data;
-      
-      // Move chat to new project
-      await axios.post(`${API}/chats/${chatId}/move`, { targetProjectId: newProject.id });
-      toast.success('Project created and chat moved');
-      setMoveDialogOpen(false);
-      window.location.reload();
-    } catch (error) {
-      toast.error('Failed to create project');
-    } finally {
-      setIsCreatingProject(false);
-    }
-  };
-
-  const moveChat = async (targetProjectId) => {
-    setIsMovingChat(true);
-    try {
-      await axios.post(`${API}/chats/${chatId}/move`, { targetProjectId });
-      toast.success('Chat moved to project');
-      setMoveDialogOpen(false);
-      // Reload chat data to reflect new project
-      window.location.reload();
-    } catch (error) {
-      toast.error('Failed to move chat');
-    } finally {
-      setIsMovingChat(false);
-    }
-  };
+  // ─── Chat name editing ─────────────────────────────────────────────────────
 
   const startEditingName = () => {
     setEditedName(chat?.name || 'Quick Chat');
@@ -272,24 +165,17 @@ const ChatPage = () => {
     setTimeout(() => nameInputRef.current?.focus(), 100);
   };
 
-  const cancelEditingName = () => {
-    setIsEditingName(false);
-    setEditedName('');
-  };
+  const cancelEditingName = () => { setIsEditingName(false); setEditedName(''); };
 
   const saveNewName = async () => {
-    if (!editedName.trim()) {
-      toast.error('Name cannot be empty');
-      return;
-    }
-    
+    if (!editedName.trim()) { toast.error('Name cannot be empty'); return; }
     setIsSavingName(true);
     try {
       const response = await axios.put(`${API}/chats/${chatId}/rename`, { name: editedName.trim() });
       setChat(response.data);
       setIsEditingName(false);
       toast.success('Chat renamed');
-    } catch (error) {
+    } catch {
       toast.error('Failed to rename chat');
     } finally {
       setIsSavingName(false);
@@ -297,36 +183,28 @@ const ChatPage = () => {
   };
 
   const handleNameKeyDown = (e) => {
-    if (e.key === 'Enter') {
-      e.preventDefault();
-      saveNewName();
-    } else if (e.key === 'Escape') {
-      cancelEditingName();
-    }
+    if (e.key === 'Enter') { e.preventDefault(); saveNewName(); }
+    else if (e.key === 'Escape') { cancelEditingName(); }
   };
 
+  // ─── Images ────────────────────────────────────────────────────────────────
+
   const handleImageGenerated = (newImage) => {
-    setGeneratedImages(prev => [newImage, ...prev]);
-    
-    // Add image as a system message in chat
-    const imageMessage = {
+    setGeneratedImages((prev) => [newImage, ...prev]);
+    setMessages((prev) => [...prev, {
       id: `img-${newImage.id}`,
       chatId,
       role: 'assistant',
       content: `Generated image: "${newImage.prompt}"`,
       isGeneratedImage: true,
       imageData: newImage,
-      createdAt: newImage.createdAt
-    };
-    setMessages(prev => [...prev, imageMessage]);
+      createdAt: newImage.createdAt,
+    }]);
   };
 
   const downloadImage = async (imageId) => {
     try {
-      const response = await axios.get(`${API}/images/${imageId}`, {
-        responseType: 'blob'
-      });
-      
+      const response = await axios.get(`${API}/images/${imageId}`, { responseType: 'blob' });
       const url = window.URL.createObjectURL(new Blob([response.data]));
       const link = document.createElement('a');
       link.href = url;
@@ -335,224 +213,12 @@ const ChatPage = () => {
       link.click();
       link.remove();
       window.URL.revokeObjectURL(url);
-    } catch (error) {
+    } catch {
       toast.error('Failed to download image');
     }
   };
 
-  const handleFileUpload = async (e) => {
-    const files = Array.from(e.target.files || []);
-    if (files.length === 0) return;
-
-    const supportedMimeTypes = [
-      'application/pdf',
-      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-      'application/vnd.openxmlformats-officedocument.presentationml.presentation',
-      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-      'text/plain',
-      'text/markdown',
-      'image/png',
-      'image/jpeg',
-      'image/jpg'
-    ];
-    
-    const supportedExtensions = ['.pdf', '.docx', '.pptx', '.xlsx', '.txt', '.md', '.png', '.jpg', '.jpeg'];
-
-    // Filter valid files - check by extension OR mime type
-    const validFiles = files.filter(file => {
-      const ext = '.' + file.name.split('.').pop().toLowerCase();
-      const isValidExt = supportedExtensions.includes(ext);
-      const isValidMime = supportedMimeTypes.includes(file.type);
-      
-      if (!isValidExt && !isValidMime) {
-        toast.error(`${file.name}: Unsupported file type. Use PDF, DOCX, PPTX, XLSX, TXT, MD, PNG, JPEG`);
-        return false;
-      }
-      if (file.size > 10 * 1024 * 1024) {
-        toast.error(`${file.name}: File size must be less than 10MB`);
-        return false;
-      }
-      return true;
-    });
-
-    if (validFiles.length === 0) return;
-
-    setIsUploading(true);
-    
-    // Use multiple upload endpoint if more than one file
-    if (validFiles.length > 1) {
-      const formData = new FormData();
-      validFiles.forEach(file => formData.append('files', file));
-      
-      try {
-        const response = await axios.post(
-          `${API}/projects/${chat.projectId}/sources/upload-multiple`,
-          formData,
-          { headers: { 'Content-Type': 'multipart/form-data' } }
-        );
-        
-        // Refresh sources list
-        const sourcesRes = await axios.get(`${API}/projects/${chat.projectId}/sources`);
-        setProjectSources(sourcesRes.data);
-        
-        const uploaded = response.data.uploaded || [];
-        const errors = response.data.errors || [];
-        
-        if (uploaded.length > 0) {
-          toast.success(`Uploaded ${uploaded.length} file(s)`);
-        }
-        if (errors.length > 0) {
-          errors.forEach(err => toast.error(`${err.filename}: ${err.error}`));
-        }
-      } catch (error) {
-        const message = error.response?.data?.detail || 'Failed to upload files';
-        toast.error(message);
-      }
-    } else {
-      // Single file upload
-      const file = validFiles[0];
-      const formData = new FormData();
-      formData.append('file', file);
-
-      try {
-        const response = await axios.post(
-          `${API}/projects/${chat.projectId}/sources/upload`,
-          formData,
-          { headers: { 'Content-Type': 'multipart/form-data' } }
-        );
-        
-        setProjectSources(prev => [...prev, response.data]);
-        toast.success(`Uploaded ${file.name} (${response.data.chunkCount} chunks extracted)`);
-      } catch (error) {
-        const message = error.response?.data?.detail || 'Failed to upload file';
-        toast.error(message);
-      }
-    }
-    
-    setIsUploading(false);
-    if (fileInputRef.current) {
-      fileInputRef.current.value = '';
-    }
-  };
-
-  const handleAddUrl = async () => {
-    const url = urlInput.trim();
-    if (!url) {
-      toast.error('Please enter a URL');
-      return;
-    }
-
-    if (!url.startsWith('http://') && !url.startsWith('https://')) {
-      toast.error('URL must start with http:// or https://');
-      return;
-    }
-
-    setIsAddingUrl(true);
-    try {
-      const response = await axios.post(
-        `${API}/projects/${chat.projectId}/sources/url`,
-        { url }
-      );
-      
-      setProjectSources(prev => [...prev, response.data]);
-      setUrlInput('');
-      toast.success(`Added URL (${response.data.chunkCount} chunks extracted)`);
-      
-      // Auto-activate the URL source
-      const newActiveIds = [...activeSourceIds, response.data.id];
-      await updateActiveSources(newActiveIds);
-    } catch (error) {
-      const message = error.response?.data?.detail || 'Failed to add URL';
-      toast.error(message);
-    } finally {
-      setIsAddingUrl(false);
-    }
-  };
-
-  const deleteSource = async (sourceId, e) => {
-    e.stopPropagation();
-    
-    if (!window.confirm('Are you sure you want to delete this source?')) {
-      return;
-    }
-
-    try {
-      await axios.delete(`${API}/projects/${chat.projectId}/sources/${sourceId}`);
-      setProjectSources(prev => prev.filter(s => s.id !== sourceId));
-      setActiveSourceIds(prev => prev.filter(id => id !== sourceId));
-      toast.success('Source deleted');
-    } catch (error) {
-      toast.error('Failed to delete source');
-    }
-  };
-
-  const openPreview = async (source, e) => {
-    e.stopPropagation();
-    setPreviewLoading(true);
-    setPreviewDialogOpen(true);
-    
-    try {
-      const response = await axios.get(`${API}/projects/${chat.projectId}/sources/${source.id}/preview`);
-      setPreviewSource(response.data);
-    } catch (error) {
-      toast.error('Failed to load preview');
-      setPreviewDialogOpen(false);
-    } finally {
-      setPreviewLoading(false);
-    }
-  };
-
-  const downloadSource = async (source, e) => {
-    e.stopPropagation();
-    
-    try {
-      const response = await axios.get(
-        `${API}/projects/${chat.projectId}/sources/${source.id}/download`,
-        { responseType: 'blob' }
-      );
-      
-      const url = window.URL.createObjectURL(new Blob([response.data]));
-      const link = document.createElement('a');
-      link.href = url;
-      link.setAttribute('download', source.originalName || 'file');
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      window.URL.revokeObjectURL(url);
-    } catch (error) {
-      toast.error('Failed to download file');
-    }
-  };
-
-  const searchSources = async () => {
-    if (!searchQuery.trim() || searchQuery.trim().length < 2) {
-      toast.error('Введите минимум 2 символа');
-      return;
-    }
-    
-    setIsSearching(true);
-    setShowSearchResults(true);
-    
-    try {
-      const response = await axios.post(`${API}/projects/${chat.projectId}/sources/search`, {
-        query: searchQuery.trim(),
-        limit: 20
-      });
-      setSearchResults(response.data);
-      if (response.data.length === 0) {
-        toast.info('Ничего не найдено');
-      }
-    } catch (error) {
-      toast.error('Ошибка поиска');
-    } finally {
-      setIsSearching(false);
-    }
-  };
-
-  const highlightMatch = (text, query) => {
-    const regex = new RegExp(`(${query})`, 'gi');
-    return text.replace(regex, '<mark class="bg-yellow-300 dark:bg-yellow-600 px-0.5 rounded">$1</mark>');
-  };
+  // ─── Messaging ─────────────────────────────────────────────────────────────
 
   const sendMessage = async () => {
     const content = input.trim();
@@ -563,35 +229,34 @@ const ChatPage = () => {
       chatId,
       role: 'user',
       content,
-      createdAt: new Date().toISOString()
+      createdAt: new Date().toISOString(),
     };
-    
-    setMessages(prev => [...prev, tempUserMsg]);
+
+    setMessages((prev) => [...prev, tempUserMsg]);
     setInput('');
     setIsSending(true);
 
     try {
       const response = await axios.post(`${API}/chats/${chatId}/messages`, { content });
-      
-      // Check if URLs were auto-ingested
-      if (response.data.autoIngestedUrls && response.data.autoIngestedUrls.length > 0) {
-        // Refresh sources list to show newly ingested URLs
+
+      if (response.data.autoIngestedUrls?.length > 0) {
         const sourcesRes = await axios.get(`${API}/projects/${chat.projectId}/sources`);
-        setProjectSources(sourcesRes.data);
-        
-        // Refresh chat to get updated active source IDs
+        setProjectSources(sourcesRes.data.items || sourcesRes.data);
         const chatRes = await axios.get(`${API}/chats/${chatId}`);
         setActiveSourceIds(chatRes.data.activeSourceIds || []);
-        
         toast.success(`Auto-ingested ${response.data.autoIngestedUrls.length} URL(s) from your message`);
       }
-      
-      setMessages(prev => {
-        const withoutTemp = prev.filter(m => m.id !== tempUserMsg.id);
-        return [...withoutTemp, { ...tempUserMsg, id: `user-${Date.now()}`, autoIngestedUrls: response.data.autoIngestedUrls }, response.data];
+
+      setMessages((prev) => {
+        const withoutTemp = prev.filter((m) => m.id !== tempUserMsg.id);
+        return [
+          ...withoutTemp,
+          { ...tempUserMsg, id: `user-${Date.now()}`, autoIngestedUrls: response.data.autoIngestedUrls },
+          response.data,
+        ];
       });
-    } catch (error) {
-      setMessages(prev => prev.filter(m => m.id !== tempUserMsg.id));
+    } catch {
+      setMessages((prev) => prev.filter((m) => m.id !== tempUserMsg.id));
       setInput(content);
       toast.error('Failed to send message');
     } finally {
@@ -600,62 +265,27 @@ const ChatPage = () => {
   };
 
   const handleKeyDown = (e) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      sendMessage();
-    }
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
   };
 
-  const formatTime = (dateString) => {
-    return new Date(dateString).toLocaleTimeString('en-US', {
-      hour: '2-digit',
-      minute: '2-digit'
-    });
-  };
+  // ─── Citations / source content ────────────────────────────────────────────
 
-  const formatFileSize = (bytes) => {
-    if (!bytes) return '';
-    if (bytes < 1024) return `${bytes} B`;
-    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-  };
-
-  const formatDate = (dateString) => {
-    return new Date(dateString).toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
-  };
-
-  // Toggle source expansion for a message
   const toggleSourceExpansion = (messageId) => {
-    setExpandedSources(prev => ({
-      ...prev,
-      [messageId]: !prev[messageId]
-    }));
+    setExpandedSources((prev) => ({ ...prev, [messageId]: !prev[messageId] }));
   };
 
-  // View source content
   const viewSourceContent = async (sourceId, sourceName) => {
     setIsLoadingSourceContent(true);
     setViewingSource({ id: sourceId, name: sourceName });
     setSourceContent(null);
-    
     try {
       const response = await axios.get(`${API}/sources/${sourceId}/chunks`);
-      const chunks = response.data;
-      
-      // Combine all chunks to show full content
-      const fullContent = chunks
+      const fullContent = response.data
         .sort((a, b) => a.chunkIndex - b.chunkIndex)
-        .map(chunk => chunk.content || chunk.text)
+        .map((chunk) => chunk.content || chunk.text)
         .join('\n\n');
-      
       setSourceContent(fullContent);
-    } catch (error) {
-      console.error('Failed to load source content:', error);
+    } catch {
       toast.error('Не удалось загрузить содержимое');
       setViewingSource(null);
     } finally {
@@ -663,119 +293,14 @@ const ChatPage = () => {
     }
   };
 
-  const closeSourceModal = () => {
-    setViewingSource(null);
-    setSourceContent(null);
-  };
+  const closeSourceModal = () => { setViewingSource(null); setSourceContent(null); };
 
-  const getFileTypeLabel = (mimeType, kind) => {
-    if (kind === 'url') return 'URL';
-    if (mimeType?.includes('pdf')) return 'PDF';
-    if (mimeType?.includes('wordprocessingml')) return 'DOCX';
-    if (mimeType?.includes('presentationml')) return 'PPTX';
-    if (mimeType?.includes('spreadsheetml')) return 'XLSX';
-    if (mimeType?.includes('markdown')) return 'MD';
-    if (mimeType?.includes('plain')) return 'TXT';
-    if (mimeType?.includes('png')) return 'PNG';
-    if (mimeType?.includes('jpeg') || mimeType?.includes('jpg')) return 'JPEG';
-    return 'File';
-  };
+  // ─── Helpers ───────────────────────────────────────────────────────────────
 
-  // Group sources by type for expandable UI
-  const groupedSources = React.useMemo(() => {
-    const groups = {
-      pdf: { label: 'PDF документы', icon: FileText, color: 'text-red-400', sources: [] },
-      doc: { label: 'Документы Word', icon: File, color: 'text-blue-500', sources: [] },
-      excel: { label: 'Таблицы Excel', icon: File, color: 'text-green-500', sources: [] },
-      ppt: { label: 'Презентации', icon: File, color: 'text-orange-500', sources: [] },
-      url: { label: 'Web URLs', icon: Globe, color: 'text-blue-400', sources: [] },
-      image: { label: 'Изображения', icon: ImageIcon, color: 'text-purple-400', sources: [] },
-      other: { label: 'Другие файлы', icon: FileText, color: 'text-gray-400', sources: [] }
-    };
+  const formatTime = (dateString) =>
+    new Date(dateString).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
 
-    projectSources.forEach(source => {
-      if (source.kind === 'url') {
-        groups.url.sources.push(source);
-      } else if (source.mimeType?.includes('pdf')) {
-        groups.pdf.sources.push(source);
-      } else if (source.mimeType?.includes('wordprocessingml')) {
-        groups.doc.sources.push(source);
-      } else if (source.mimeType?.includes('spreadsheetml')) {
-        groups.excel.sources.push(source);
-      } else if (source.mimeType?.includes('presentationml')) {
-        groups.ppt.sources.push(source);
-      } else if (source.mimeType?.includes('image')) {
-        groups.image.sources.push(source);
-      } else {
-        groups.other.sources.push(source);
-      }
-    });
-
-    // Return only groups with sources
-    return Object.entries(groups).filter(([_, group]) => group.sources.length > 0);
-  }, [projectSources]);
-
-  // Toggle group expansion
-  const toggleGroup = (groupKey) => {
-    setExpandedGroups(prev => ({
-      ...prev,
-      [groupKey]: !prev[groupKey]
-    }));
-  };
-
-  // Toggle individual source selection
-  const toggleSourceSelection = (sourceId) => {
-    setActiveSourceIds(prev => {
-      if (prev.includes(sourceId)) {
-        return prev.filter(id => id !== sourceId);
-      } else {
-        return [...prev, sourceId];
-      }
-    });
-  };
-
-  // Toggle all sources in a group
-  const toggleGroupSelection = (sources) => {
-    const sourceIds = sources.map(s => s.id);
-    const allSelected = sourceIds.every(id => activeSourceIds.includes(id));
-    
-    if (allSelected) {
-      // Deselect all in group
-      setActiveSourceIds(prev => prev.filter(id => !sourceIds.includes(id)));
-    } else {
-      // Select all in group
-      setActiveSourceIds(prev => [...new Set([...prev, ...sourceIds])]);
-    }
-  };
-
-  // Select all sources
-  const selectAllSources = () => {
-    setActiveSourceIds(projectSources.map(s => s.id));
-  };
-
-  // Deselect all sources
-  const deselectAllSources = () => {
-    setActiveSourceIds([]);
-  };
-
-  // Sync activeSourceIds with backend when changed
-  useEffect(() => {
-    if (!chatId || isLoading) return;
-    
-    const syncActiveSources = async () => {
-      try {
-        await axios.put(`${API}/chats/${chatId}/active-sources`, {
-          sourceIds: activeSourceIds
-        });
-      } catch (error) {
-        console.error('Failed to sync active sources:', error);
-      }
-    };
-    
-    // Debounce the sync to avoid too many requests
-    const timeoutId = setTimeout(syncActiveSources, 500);
-    return () => clearTimeout(timeoutId);
-  }, [activeSourceIds, chatId, isLoading]);
+  // ─── Loading state ─────────────────────────────────────────────────────────
 
   if (isLoading) {
     return (
@@ -787,30 +312,25 @@ const ChatPage = () => {
     );
   }
 
+  // ─── Render ────────────────────────────────────────────────────────────────
+
   return (
     <DashboardLayout>
       <div className="flex flex-col h-[calc(100vh-4rem)]" data-testid="chat-page">
-        {/* Chat Header */}
+
+        {/* Header */}
         <div className="border-b border-border px-6 py-4 flex items-center justify-between bg-card/50 backdrop-blur">
           <div className="flex items-center gap-4">
             <Button
               variant="ghost"
               size="icon"
-              onClick={() => {
-                // If chat belongs to a project, go to project page
-                // Otherwise go to dashboard
-                if (chat?.projectId) {
-                  navigate(`/projects/${chat.projectId}`);
-                } else {
-                  navigate('/dashboard');
-                }
-              }}
+              onClick={() => navigate(chat?.projectId ? `/projects/${chat.projectId}` : '/dashboard')}
               data-testid="back-from-chat-btn"
             >
               <ArrowLeft className="h-5 w-5" />
             </Button>
+
             <div>
-              {/* Editable Chat Name */}
               {isEditingName ? (
                 <div className="flex items-center gap-2">
                   <MessageSquare className="h-4 w-4 text-emerald-400" />
@@ -823,23 +343,10 @@ const ChatPage = () => {
                     disabled={isSavingName}
                     data-testid="chat-name-input"
                   />
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-7 w-7"
-                    onClick={saveNewName}
-                    disabled={isSavingName}
-                    data-testid="save-chat-name-btn"
-                  >
+                  <Button variant="ghost" size="icon" className="h-7 w-7" onClick={saveNewName} disabled={isSavingName} data-testid="save-chat-name-btn">
                     {isSavingName ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4 text-emerald-400" />}
                   </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-7 w-7"
-                    onClick={cancelEditingName}
-                    disabled={isSavingName}
-                  >
+                  <Button variant="ghost" size="icon" className="h-7 w-7" onClick={cancelEditingName} disabled={isSavingName}>
                     <X className="h-4 w-4 text-muted-foreground" />
                   </Button>
                 </div>
@@ -848,7 +355,7 @@ const ChatPage = () => {
                   {isQuickChat ? (
                     <>
                       <MessageSquare className="h-4 w-4 text-emerald-400" />
-                      <span 
+                      <span
                         className="cursor-pointer hover:text-emerald-400 transition-colors"
                         onClick={startEditingName}
                         title="Click to rename"
@@ -856,13 +363,7 @@ const ChatPage = () => {
                       >
                         {chat.name || 'Quick Chat'}
                       </span>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-6 w-6 opacity-50 hover:opacity-100"
-                        onClick={startEditingName}
-                        data-testid="edit-chat-name-btn"
-                      >
+                      <Button variant="ghost" size="icon" className="h-6 w-6 opacity-50 hover:opacity-100" onClick={startEditingName} data-testid="edit-chat-name-btn">
                         <Pencil className="h-3 w-3" />
                       </Button>
                     </>
@@ -878,14 +379,12 @@ const ChatPage = () => {
                     • {activeSourceIds.length} source{activeSourceIds.length !== 1 ? 's' : ''} active
                   </span>
                 )}
-                {isQuickChat && (
-                  <span className="ml-2 text-emerald-400">• Quick Chat</span>
-                )}
+                {isQuickChat && <span className="ml-2 text-emerald-400">• Quick Chat</span>}
               </p>
             </div>
           </div>
-          
-          {/* Actions */}
+
+          {/* Header actions */}
           <div className="flex items-center gap-2">
             {/* Source Mode Toggle */}
             <div className="flex items-center gap-1 bg-muted/50 rounded-lg p-1">
@@ -911,27 +410,15 @@ const ChatPage = () => {
               </Button>
             </div>
 
-            {/* Move Chat Button */}
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={openMoveDialog}
-              className="gap-2"
-              data-testid="move-chat-btn"
-            >
+            <Button variant="outline" size="sm" onClick={() => setMoveDialogOpen(true)} className="gap-2" data-testid="move-chat-btn">
               <MoveRight className="h-4 w-4" />
               Move
             </Button>
 
-            {/* Image Generator - only for project chats */}
-            {chat && chat.projectId && (
-              <ImageGenerator 
-                projectId={chat.projectId} 
-                onImageGenerated={handleImageGenerated}
-              />
+            {chat?.projectId && (
+              <ImageGenerator projectId={chat.projectId} onImageGenerated={handleImageGenerated} />
             )}
-            
-            {/* Source Panel Toggle - only for project chats */}
+
             {!isQuickChat && (
               <Button
                 variant="outline"
@@ -948,451 +435,27 @@ const ChatPage = () => {
           </div>
         </div>
 
-        {/* Move Chat Dialog */}
-        <Dialog open={moveDialogOpen} onOpenChange={setMoveDialogOpen}>
-          <DialogContent className="sm:max-w-md">
-            <DialogHeader>
-              <DialogTitle>Move Chat to Project</DialogTitle>
-              <DialogDescription>
-                {showCreateProject 
-                  ? "Create a new project and move this chat into it."
-                  : "Select a project to move this chat into."
-                }
-                {chat?.projectId && !showCreateProject && " The chat will be removed from its current project."}
-              </DialogDescription>
-            </DialogHeader>
-            
-            {showCreateProject ? (
-              // Create Project Form
-              <div className="space-y-4 py-4">
-                <div className="space-y-2">
-                  <Label htmlFor="newProjectName">Project Name</Label>
-                  <Input
-                    id="newProjectName"
-                    placeholder="My New Project"
-                    value={newProjectName}
-                    onChange={(e) => setNewProjectName(e.target.value)}
-                    onKeyDown={(e) => e.key === 'Enter' && createProjectAndMove()}
-                    disabled={isCreatingProject}
-                    data-testid="new-project-name-input"
-                  />
-                </div>
-                <div className="flex gap-2">
-                  <Button
-                    variant="outline"
-                    className="flex-1"
-                    onClick={() => setShowCreateProject(false)}
-                    disabled={isCreatingProject}
-                  >
-                    Back
-                  </Button>
-                  <Button
-                    className="flex-1"
-                    onClick={createProjectAndMove}
-                    disabled={isCreatingProject || !newProjectName.trim()}
-                    data-testid="create-and-move-btn"
-                  >
-                    {isCreatingProject ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Plus className="mr-2 h-4 w-4" />}
-                    Create & Move
-                  </Button>
-                </div>
-              </div>
-            ) : (
-              // Project List
-              <div className="space-y-2 py-4 max-h-[300px] overflow-y-auto">
-                {userProjects.length === 0 ? (
-                  <div className="text-center py-4">
-                    <FolderOpen className="h-12 w-12 text-muted-foreground mx-auto mb-3" />
-                    <p className="text-muted-foreground mb-4">No projects yet</p>
-                    <Button 
-                      onClick={() => setShowCreateProject(true)}
-                      data-testid="create-project-in-dialog-btn"
-                    >
-                      <Plus className="mr-2 h-4 w-4" />
-                      Create Project
-                    </Button>
-                  </div>
-                ) : (
-                  <>
-                    {userProjects
-                      .filter(p => p.id !== chat?.projectId)
-                      .map((project) => (
-                        <Card
-                          key={project.id}
-                          className="cursor-pointer hover:border-indigo-500/50 transition-colors"
-                          onClick={() => moveChat(project.id)}
-                          data-testid={`move-to-project-${project.id}`}
-                        >
-                          <CardContent className="py-3 flex items-center gap-3">
-                            <FolderOpen className="h-5 w-5 text-indigo-400" />
-                            <span className="font-medium">{project.name}</span>
-                          </CardContent>
-                        </Card>
-                      ))
-                    }
-                    {userProjects.filter(p => p.id !== chat?.projectId).length === 0 && (
-                      <p className="text-center text-muted-foreground py-4">
-                        No other projects available to move to.
-                      </p>
-                    )}
-                    {/* Create new project option */}
-                    <Card
-                      className="cursor-pointer hover:border-emerald-500/50 transition-colors border-dashed"
-                      onClick={() => setShowCreateProject(true)}
-                      data-testid="create-new-project-option"
-                    >
-                      <CardContent className="py-3 flex items-center gap-3">
-                        <Plus className="h-5 w-5 text-emerald-400" />
-                        <span className="font-medium text-emerald-400">Create New Project</span>
-                      </CardContent>
-                    </Card>
-                  </>
-                )}
-              </div>
-            )}
-            
-            <DialogFooter>
-              <Button
-                variant="outline"
-                onClick={() => setMoveDialogOpen(false)}
-                disabled={isMovingChat || isCreatingProject}
-              >
-                Cancel
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+        {/* Move dialog */}
+        <MoveDialog
+          open={moveDialogOpen}
+          onOpenChange={setMoveDialogOpen}
+          chatId={chatId}
+          currentProjectId={chat?.projectId}
+          onMoved={() => window.location.reload()}
+        />
 
-        {/* Source Panel - only for project chats */}
+        {/* Source Panel */}
         {!isQuickChat && showSourcePanel && (
-          <div className="border-b border-border bg-card/30 px-6 py-4" data-testid="source-panel">
-            <div className="max-w-3xl mx-auto">
-              {/* Upload and URL Input Row */}
-              <div className="flex flex-wrap items-center gap-3 mb-4">
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  multiple
-                  accept=".pdf,.docx,.pptx,.xlsx,.txt,.md,.png,.jpg,.jpeg,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.openxmlformats-officedocument.presentationml.presentation,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/plain,text/markdown,image/png,image/jpeg"
-                  onChange={handleFileUpload}
-                  className="hidden"
-                  data-testid="file-input"
-                />
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => fileInputRef.current?.click()}
-                  disabled={isUploading}
-                  className="gap-2"
-                  data-testid="upload-file-btn"
-                >
-                  {isUploading ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <Upload className="h-4 w-4" />
-                  )}
-                  Upload Files
-                </Button>
-                
-                <div className="flex-1 flex items-center gap-2 min-w-[200px]">
-                  <Input
-                    placeholder="https://example.com/article"
-                    value={urlInput}
-                    onChange={(e) => setUrlInput(e.target.value)}
-                    onKeyDown={(e) => e.key === 'Enter' && handleAddUrl()}
-                    className="h-9 text-sm"
-                    data-testid="url-input"
-                  />
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={handleAddUrl}
-                    disabled={isAddingUrl || !urlInput.trim()}
-                    className="gap-2 whitespace-nowrap"
-                    data-testid="add-url-btn"
-                  >
-                    {isAddingUrl ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <Link className="h-4 w-4" />
-                    )}
-                    Add URL
-                  </Button>
-                </div>
-              </div>
-              
-              {/* Search in sources - NO GPT, NO TOKENS */}
-              <div className="flex items-center gap-2 mb-3">
-                <div className="relative flex-1">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    placeholder="Поиск в документах (0 токенов)..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    onKeyDown={(e) => e.key === 'Enter' && searchSources()}
-                    className="h-9 text-sm pl-9"
-                    data-testid="search-sources-input"
-                  />
-                </div>
-                <Button
-                  variant="default"
-                  size="sm"
-                  onClick={searchSources}
-                  disabled={isSearching || !searchQuery.trim()}
-                  className="gap-2"
-                  data-testid="search-sources-btn"
-                >
-                  {isSearching ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <Search className="h-4 w-4" />
-                  )}
-                  Найти
-                </Button>
-              </div>
-              
-              {/* Search Results */}
-              {showSearchResults && (
-                <div className="mb-4 border border-border rounded-lg p-3 bg-secondary/30">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-sm font-medium">Результаты поиска ({searchResults.length})</span>
-                    <Button variant="ghost" size="sm" onClick={() => { setShowSearchResults(false); setSearchResults([]); setSearchQuery(''); }}>
-                      <X className="h-4 w-4" />
-                    </Button>
-                  </div>
-                  {searchResults.length === 0 ? (
-                    <p className="text-sm text-muted-foreground">Ничего не найдено</p>
-                  ) : (
-                    <div className="space-y-2 max-h-[200px] overflow-y-auto">
-                      {searchResults.map((result, idx) => (
-                        <div key={idx} className="p-2 bg-background rounded border border-border">
-                          <div className="flex items-center gap-2 mb-1">
-                            <FileText className="h-3 w-3 text-muted-foreground" />
-                            <span className="text-xs font-medium truncate">{result.sourceName}</span>
-                            <span className="text-xs text-muted-foreground">({result.matchCount} совпадений)</span>
-                          </div>
-                          <p 
-                            className="text-xs text-muted-foreground"
-                            dangerouslySetInnerHTML={{ __html: highlightMatch(result.content, searchQuery) }}
-                          />
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )}
-
-              <div className="text-xs text-muted-foreground mb-3">
-                Supported: PDF, DOCX, PPTX, XLSX, TXT, MD, PNG, JPEG files and web URLs (multiple files allowed)
-              </div>
-
-              {/* Sources List with Grouping */}
-              {projectSources.length === 0 ? (
-                <div className="text-center py-6 text-muted-foreground">
-                  <FileText className="h-8 w-8 mx-auto mb-2 opacity-50" />
-                  <p className="text-sm">Источники не загружены</p>
-                  <p className="text-xs mt-1">Загрузите файлы или добавьте URL для контекста</p>
-                </div>
-              ) : (
-                <div className="space-y-1">
-                  {/* Select All / Deselect All buttons */}
-                  <div className="flex items-center justify-between mb-2 pb-2 border-b border-border">
-                    <span className="text-xs text-muted-foreground">
-                      Выбрано: {activeSourceIds.length} из {projectSources.length}
-                    </span>
-                    <div className="flex gap-1">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-6 text-xs px-2"
-                        onClick={selectAllSources}
-                        data-testid="select-all-sources"
-                      >
-                        Все
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-6 text-xs px-2"
-                        onClick={deselectAllSources}
-                        data-testid="deselect-all-sources"
-                      >
-                        Сбросить
-                      </Button>
-                    </div>
-                  </div>
-                  
-                  {/* Grouped sources */}
-                  <div className="max-h-[280px] overflow-y-auto space-y-1">
-                    {groupedSources.map(([groupKey, group]) => {
-                      const GroupIcon = group.icon;
-                      const isExpanded = expandedGroups[groupKey];
-                      const groupSourceIds = group.sources.map(s => s.id);
-                      const selectedInGroup = groupSourceIds.filter(id => activeSourceIds.includes(id)).length;
-                      const allSelected = selectedInGroup === group.sources.length;
-                      const someSelected = selectedInGroup > 0 && selectedInGroup < group.sources.length;
-                      
-                      return (
-                        <div key={groupKey} className="rounded-lg border border-border overflow-hidden">
-                          {/* Group Header */}
-                          <div 
-                            className="flex items-center gap-2 p-2 bg-secondary/30 cursor-pointer hover:bg-secondary/50 transition-colors"
-                            onClick={() => toggleGroup(groupKey)}
-                          >
-                            <Checkbox
-                              checked={allSelected}
-                              ref={someSelected ? (el) => { if (el) el.indeterminate = true; } : undefined}
-                              onCheckedChange={() => toggleGroupSelection(group.sources)}
-                              onClick={(e) => e.stopPropagation()}
-                              className="data-[state=checked]:bg-indigo-500"
-                              data-testid={`group-checkbox-${groupKey}`}
-                            />
-                            {isExpanded ? (
-                              <ChevronDown className="h-4 w-4 text-muted-foreground" />
-                            ) : (
-                              <ChevronRight className="h-4 w-4 text-muted-foreground" />
-                            )}
-                            <GroupIcon className={`h-4 w-4 ${group.color}`} />
-                            <span className="text-sm font-medium flex-1">{group.label}</span>
-                            <span className="text-xs text-muted-foreground">
-                              {selectedInGroup}/{group.sources.length}
-                            </span>
-                          </div>
-                          
-                          {/* Expanded Files List */}
-                          {isExpanded && (
-                            <div className="border-t border-border">
-                              {group.sources.map((source) => {
-                                const isSelected = activeSourceIds.includes(source.id);
-                                return (
-                                  <div
-                                    key={source.id}
-                                    className={`flex items-center gap-2 p-2 pl-8 transition-colors ${
-                                      isSelected ? 'bg-indigo-500/10' : 'hover:bg-secondary/20'
-                                    }`}
-                                    data-testid={`source-item-${source.id}`}
-                                  >
-                                    <Checkbox
-                                      checked={isSelected}
-                                      onCheckedChange={() => toggleSourceSelection(source.id)}
-                                      className="data-[state=checked]:bg-indigo-500"
-                                      data-testid={`source-checkbox-${source.id}`}
-                                    />
-                                    {getFileIcon(source.mimeType, source.kind)}
-                                    <div className="flex-1 min-w-0">
-                                      <p className="text-sm truncate">
-                                        {source.originalName || source.url}
-                                      </p>
-                                      <p className="text-xs text-muted-foreground">
-                                        {source.sizeBytes ? `${formatFileSize(source.sizeBytes)} • ` : ''}
-                                        {source.chunkCount} chunks
-                                      </p>
-                                    </div>
-                                    <div className="flex items-center gap-1">
-                                      <Button
-                                        variant="ghost"
-                                        size="icon"
-                                        className="h-7 w-7"
-                                        onClick={(e) => { e.stopPropagation(); openPreview(source, e); }}
-                                        title="Просмотр"
-                                        data-testid={`preview-source-${source.id}`}
-                                      >
-                                        <Eye className="h-3.5 w-3.5 text-blue-400" />
-                                      </Button>
-                                      {source.kind === 'file' && (
-                                        <Button
-                                          variant="ghost"
-                                          size="icon"
-                                          className="h-7 w-7"
-                                          onClick={(e) => { e.stopPropagation(); downloadSource(source, e); }}
-                                          title="Скачать"
-                                          data-testid={`download-source-${source.id}`}
-                                        >
-                                          <Download className="h-3.5 w-3.5 text-green-400" />
-                                        </Button>
-                                      )}
-                                      <Button
-                                        variant="ghost"
-                                        size="icon"
-                                        className="h-7 w-7"
-                                        onClick={(e) => { e.stopPropagation(); deleteSource(source.id, e); }}
-                                        data-testid={`delete-source-${source.id}`}
-                                      >
-                                        <Trash2 className="h-3.5 w-3.5 text-destructive" />
-                                      </Button>
-                                    </div>
-                                  </div>
-                                );
-                              })}
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-              
-              {projectSources.length > 0 && (
-                <p className="text-xs text-muted-foreground mt-3 flex items-center gap-1">
-                  <span className="inline-block w-2 h-2 rounded-full bg-indigo-500"></span>
-                  Выбранные источники используются как контекст для AI ответов
-                </p>
-              )}
-            </div>
-          </div>
+          <SourcePanel
+            projectId={chat?.projectId}
+            sources={projectSources}
+            activeSourceIds={activeSourceIds}
+            onSourcesChange={setProjectSources}
+            onActiveSourcesChange={setActiveSourceIds}
+          />
         )}
 
-        {/* Preview Dialog */}
-        <Dialog open={previewDialogOpen} onOpenChange={setPreviewDialogOpen}>
-          <DialogContent className="sm:max-w-2xl max-h-[80vh]">
-            <DialogHeader>
-              <DialogTitle className="flex items-center gap-2">
-                <FileText className="h-5 w-5" />
-                {previewSource?.name || 'Source Preview'}
-              </DialogTitle>
-              <DialogDescription>
-                {previewSource?.chunkCount} chunks • {previewSource?.wordCount || 0} слов • {previewSource?.kind === 'url' ? 'URL' : previewSource?.mimeType}
-              </DialogDescription>
-            </DialogHeader>
-            {previewLoading ? (
-              <div className="flex items-center justify-center py-12">
-                <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-              </div>
-            ) : (
-              <>
-                {/* Quality indicator */}
-                <div className={`p-3 rounded-lg text-sm flex items-center gap-2 ${
-                  previewSource?.quality === 'good' ? 'bg-green-500/10 text-green-600 dark:text-green-400' :
-                  previewSource?.quality === 'low' ? 'bg-yellow-500/10 text-yellow-600 dark:text-yellow-400' :
-                  previewSource?.quality === 'poor' ? 'bg-red-500/10 text-red-600 dark:text-red-400' :
-                  previewSource?.quality === 'empty' ? 'bg-red-500/10 text-red-600 dark:text-red-400' :
-                  'bg-secondary'
-                }`}>
-                  <span className={`w-2 h-2 rounded-full ${
-                    previewSource?.quality === 'good' ? 'bg-green-500' :
-                    previewSource?.quality === 'low' ? 'bg-yellow-500' :
-                    'bg-red-500'
-                  }`}></span>
-                  {previewSource?.qualityMessage || 'Текст извлечён'}
-                </div>
-                
-                <ScrollArea className="max-h-[45vh] mt-3">
-                  <pre className="text-sm whitespace-pre-wrap font-mono bg-secondary/50 p-4 rounded-lg">
-                    {previewSource?.text || 'No content'}
-                  </pre>
-                </ScrollArea>
-              </>
-            )}
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setPreviewDialogOpen(false)}>
-                Close
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-
-        {/* Messages Area */}
+        {/* Messages */}
         <ScrollArea className="flex-1 px-6 py-4">
           {messages.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full text-center">
@@ -1411,9 +474,7 @@ const ChatPage = () => {
                 ) : (
                   <span>
                     Upload PDFs, DOCX, TXT files or add URLs to use as context.
-                    <span className="block mt-2">
-                      The AI will answer questions based on your sources.
-                    </span>
+                    <span className="block mt-2">The AI will answer questions based on your sources.</span>
                   </span>
                 )}
               </p>
@@ -1423,9 +484,7 @@ const ChatPage = () => {
               {messages.map((message, index) => (
                 <div
                   key={message.id}
-                  className={`flex gap-4 animate-slideIn ${
-                    message.role === 'user' ? 'justify-end' : 'justify-start'
-                  }`}
+                  className={`flex gap-4 animate-slideIn ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
                   style={{ animationDelay: `${index * 30}ms` }}
                   data-testid={`message-${message.role}-${index}`}
                 >
@@ -1434,18 +493,13 @@ const ChatPage = () => {
                       <Bot className="h-5 w-5 text-indigo-400" />
                     </div>
                   )}
-                  
-                  <div className={`flex flex-col gap-1 max-w-[80%] ${
-                    message.role === 'user' ? 'items-end' : 'items-start'
-                  }`}>
-                    {/* Show sender name for user messages in shared projects */}
+
+                  <div className={`flex flex-col gap-1 max-w-[80%] ${message.role === 'user' ? 'items-end' : 'items-start'}`}>
                     {message.role === 'user' && message.senderName && (
-                      <span className="text-xs text-muted-foreground px-2">
-                        {message.senderName}
-                      </span>
+                      <span className="text-xs text-muted-foreground px-2">{message.senderName}</span>
                     )}
-                    
-                    {/* Generated Image Display */}
+
+                    {/* Generated image */}
                     {message.isGeneratedImage && message.imageData ? (
                       <div className="space-y-2">
                         <div className="relative rounded-lg overflow-hidden border border-indigo-500/30 max-w-md">
@@ -1477,30 +531,26 @@ const ChatPage = () => {
                     ) : (
                       <div className="group relative">
                         <div className={`px-4 py-3 rounded-2xl ${
-                          message.role === 'user' 
-                            ? 'bg-primary text-primary-foreground rounded-br-sm' 
+                          message.role === 'user'
+                            ? 'bg-primary text-primary-foreground rounded-br-sm'
                             : 'bg-secondary text-secondary-foreground rounded-bl-sm'
                         }`}>
                           <p className="whitespace-pre-wrap text-sm leading-relaxed">
                             {renderTextWithLinks(message.content)}
                           </p>
                         </div>
-                        
-                        {/* Copy button for assistant messages */}
+
                         {message.role === 'assistant' && (
-                          <div className="absolute -bottom-1 -right-1 flex gap-1 ">
+                          <div className="absolute -bottom-1 -right-1 flex gap-1">
                             <Button
                               variant="ghost"
                               size="icon"
                               className="h-7 w-7 bg-background border border-border shadow-sm"
                               onClick={async () => {
                                 try {
-                                  await axios.post(`${API}/save-to-knowledge`, {
-                                    content: message.content,
-                                    chatId: chatId
-                                  });
+                                  await axios.post(`${API}/save-to-knowledge`, { content: message.content, chatId });
                                   toast.success('Saved to Knowledge ✅');
-                                } catch (err) {
+                                } catch {
                                   toast.error('Failed to save');
                                 }
                               }}
@@ -1517,20 +567,20 @@ const ChatPage = () => {
                                 try {
                                   await navigator.clipboard.writeText(message.content);
                                   toast.success('Copied to clipboard');
-                                } catch (err) {
-                                  const textArea = document.createElement('textarea');
-                                  textArea.value = message.content;
-                                  textArea.style.position = 'fixed';
-                                  textArea.style.left = '-9999px';
-                                  document.body.appendChild(textArea);
-                                  textArea.select();
+                                } catch {
+                                  const ta = document.createElement('textarea');
+                                  ta.value = message.content;
+                                  ta.style.position = 'fixed';
+                                  ta.style.left = '-9999px';
+                                  document.body.appendChild(ta);
+                                  ta.select();
                                   try {
                                     document.execCommand('copy');
                                     toast.success('Copied to clipboard');
-                                  } catch (e) {
+                                  } catch {
                                     toast.error('Failed to copy');
                                   }
-                                  document.body.removeChild(textArea);
+                                  document.body.removeChild(ta);
                                 }
                               }}
                               data-testid={`copy-message-${index}`}
@@ -1541,8 +591,8 @@ const ChatPage = () => {
                         )}
                       </div>
                     )}
-                    
-                    {/* Auto-ingested URLs indicator for user messages */}
+
+                    {/* Auto-ingested URLs indicator */}
                     {message.role === 'user' && message.autoIngestedUrls?.length > 0 && (
                       <div className="mt-1 px-2">
                         <span className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-emerald-500/10 text-emerald-400 text-xs border border-emerald-500/20">
@@ -1551,16 +601,14 @@ const ChatPage = () => {
                         </span>
                       </div>
                     )}
-                    
-                    {/* Competitor Data Indicator */}
+
+                    {/* Competitor data indicator */}
                     {message.role === 'assistant' && message.competitorInfo && (
                       <div className="mt-2 px-2">
                         <div className="flex items-center gap-2 p-2 rounded-lg bg-orange-500/10 border border-orange-500/20">
                           <TrendingUp className="h-4 w-4 text-orange-400" />
                           <div className="flex-1">
-                            <p className="text-xs font-medium text-orange-400">
-                              🔍 Competitor Data Used
-                            </p>
+                            <p className="text-xs font-medium text-orange-400">🔍 Competitor Data Used</p>
                             <p className="text-xs text-muted-foreground">
                               {message.competitorInfo.competitor_name} - {message.competitorInfo.product_title}
                             </p>
@@ -1568,9 +616,10 @@ const ChatPage = () => {
                         </div>
                       </div>
                     )}
-                    
-                    {/* Citations / Used Sources - Collapsible */}
-                    {message.role === 'assistant' && !message.isGeneratedImage && (message.citations?.length > 0 || message.usedSources?.length > 0) && (
+
+                    {/* Citations – collapsible */}
+                    {message.role === 'assistant' && !message.isGeneratedImage &&
+                      (message.citations?.length > 0 || message.usedSources?.length > 0) && (
                       <div className="mt-2 px-2">
                         <button
                           onClick={() => toggleSourceExpansion(message.id)}
@@ -1581,68 +630,43 @@ const ChatPage = () => {
                           <span className="font-medium">
                             Sources ({(message.citations || message.usedSources)?.length})
                           </span>
-                          {expandedSources[message.id] ? (
-                            <ChevronUp className="h-3 w-3 ml-auto" />
-                          ) : (
-                            <ChevronDown className="h-3 w-3 ml-auto" />
-                          )}
+                          {expandedSources[message.id]
+                            ? <ChevronUp className="h-3 w-3 ml-auto" />
+                            : <ChevronDown className="h-3 w-3 ml-auto" />}
                         </button>
-                        
+
                         {expandedSources[message.id] && (
                           <div className="flex flex-wrap gap-2 mt-2 animate-slideIn">
-                            {message.citations ? (
-                              message.citations.map((citation, cidx) => {
-                                const isGlobal = citation.sourceType === 'global';
-                                const bgColor = isGlobal ? 'bg-emerald-500/10' : 'bg-indigo-500/10';
-                                const textColor = isGlobal ? 'text-emerald-400' : 'text-indigo-400';
-                                const borderColor = isGlobal ? 'border-emerald-500/20' : 'border-indigo-500/20';
-                                const Icon = isGlobal ? Globe : FileText;
-                                
-                                return (
-                                  <button
-                                    key={cidx}
-                                    onClick={() => viewSourceContent(citation.sourceId, citation.sourceName)}
-                                    className={`inline-flex items-center gap-1 px-2 py-1 rounded-md ${bgColor} ${textColor} text-xs border ${borderColor} hover:opacity-80 transition-opacity cursor-pointer`}
-                                    data-testid={`citation-${cidx}`}
-                                    title={`Нажмите для просмотра: ${citation.sourceName}`}
-                                  >
-                                    <Icon className="h-3 w-3" />
-                                    <span className="font-medium">
-                                      {isGlobal ? '🌐 ' : '📁 '}
-                                      {citation.sourceName.length > 25 
-                                        ? citation.sourceName.slice(0, 25) + '...' 
-                                        : citation.sourceName}
-                                    </span>
-                                    {citation.chunks && (
-                                      <span className="opacity-70">
-                                        (chunks {Array.isArray(citation.chunks) 
-                                          ? citation.chunks.map(c => c.index || c).join(', ')
-                                          : citation.chunks})
-                                      </span>
-                                    )}
-                                  </button>
-                                );
-                              })
-                            ) : message.usedSources?.map((source, sidx) => {
-                              const isGlobal = source.sourceType === 'global';
-                              const bgColor = isGlobal ? 'bg-emerald-500/10' : 'bg-indigo-500/10';
-                              const textColor = isGlobal ? 'text-emerald-400' : 'text-indigo-400';
-                              const borderColor = isGlobal ? 'border-emerald-500/20' : 'border-indigo-500/20';
-                              const Icon = isGlobal ? Globe : FileText;
-                              
+                            {(message.citations || message.usedSources)?.map((item, cidx) => {
+                              const isGlobal = item.sourceType === 'global';
                               return (
                                 <button
-                                  key={sidx}
-                                  onClick={() => viewSourceContent(source.sourceId, source.sourceName)}
-                                  className={`inline-flex items-center gap-1 px-2 py-1 rounded-md ${bgColor} ${textColor} text-xs border ${borderColor} hover:opacity-80 transition-opacity cursor-pointer`}
-                                  data-testid={`used-source-${sidx}`}
-                                  title={`Нажмите для просмотра: ${source.sourceName}`}
+                                  key={cidx}
+                                  onClick={() => viewSourceContent(item.sourceId, item.sourceName)}
+                                  className={`inline-flex items-center gap-1 px-2 py-1 rounded-md text-xs border hover:opacity-80 transition-opacity cursor-pointer ${
+                                    isGlobal
+                                      ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+                                      : 'bg-indigo-500/10 text-indigo-400 border-indigo-500/20'
+                                  }`}
+                                  data-testid={`citation-${cidx}`}
+                                  title={`Нажмите для просмотра: ${item.sourceName}`}
                                 >
-                                  <Icon className="h-3 w-3" />
-                                  {isGlobal ? '🌐 ' : '📁 '}
-                                  {source.sourceName.length > 25 
-                                    ? source.sourceName.slice(0, 25) + '...' 
-                                    : source.sourceName}
+                                  {isGlobal
+                                    ? <Globe className="h-3 w-3" />
+                                    : <FileText className="h-3 w-3" />}
+                                  <span className="font-medium">
+                                    {isGlobal ? '🌐 ' : '📁 '}
+                                    {item.sourceName?.length > 25
+                                      ? item.sourceName.slice(0, 25) + '...'
+                                      : item.sourceName}
+                                  </span>
+                                  {item.chunks && (
+                                    <span className="opacity-70">
+                                      (chunks {Array.isArray(item.chunks)
+                                        ? item.chunks.map((c) => c.index || c).join(', ')
+                                        : item.chunks})
+                                    </span>
+                                  )}
                                 </button>
                               );
                             })}
@@ -1650,19 +674,21 @@ const ChatPage = () => {
                         )}
                       </div>
                     )}
-                    
+
                     {/* Cache indicator */}
                     {message.fromCache && (
                       <div className="mt-1 px-2">
                         <span className="inline-flex items-center gap-1 text-xs text-amber-500">
-                          📦 Из кэша 
+                          📦 Из кэша
                           {message.cacheInfo?.similarity && (
-                            <span className="opacity-70">({(message.cacheInfo.similarity * 100).toFixed(0)}%)</span>
+                            <span className="opacity-70">
+                              ({(message.cacheInfo.similarity * 100).toFixed(0)}%)
+                            </span>
                           )}
                         </span>
                       </div>
                     )}
-                    
+
                     <span className="text-xs text-muted-foreground px-1">
                       {formatTime(message.createdAt)}
                     </span>
@@ -1675,7 +701,7 @@ const ChatPage = () => {
                   )}
                 </div>
               ))}
-              
+
               {isSending && (
                 <div className="flex gap-4 justify-start animate-slideIn">
                   <div className="flex-shrink-0 rounded-full bg-indigo-500/20 p-2 h-fit">
@@ -1686,20 +712,19 @@ const ChatPage = () => {
                   </div>
                 </div>
               )}
-              
+
               <div ref={messagesEndRef} />
             </div>
           )}
         </ScrollArea>
 
-        {/* Smart Question Suggestions */}
+        {/* Smart question suggestions */}
         <SmartQuestions
           chatId={chatId}
-          token={token}
+          token={localStorage.getItem('token') || axios.defaults.headers.common['Authorization']?.replace('Bearer ', '')}
           hasActiveSources={true}
           onQuestionClick={(question) => {
             setInput(question);
-            // Auto-send the question
             setTimeout(() => {
               const btn = document.querySelector('[data-testid="send-message-btn"]');
               if (btn && !btn.disabled) btn.click();
@@ -1707,15 +732,15 @@ const ChatPage = () => {
           }}
         />
 
-        {/* Input Area */}
+        {/* Input area */}
         <div className="border-t border-border px-6 py-4 bg-card/50 backdrop-blur">
           <div className="max-w-3xl mx-auto flex gap-4">
             <Textarea
               ref={textareaRef}
               placeholder={
-                activeSourceIds.length > 0 
-                  ? "Ask a question about the selected sources..." 
-                  : "Type your message... (Enter to send, Shift+Enter for new line)"
+                activeSourceIds.length > 0
+                  ? 'Ask a question about the selected sources...'
+                  : 'Type your message... (Enter to send, Shift+Enter for new line)'
               }
               value={input}
               onChange={(e) => setInput(e.target.value)}
@@ -1730,17 +755,13 @@ const ChatPage = () => {
               className="btn-hover self-end"
               data-testid="send-message-btn"
             >
-              {isSending ? (
-                <Loader2 className="h-5 w-5 animate-spin" />
-              ) : (
-                <Send className="h-5 w-5" />
-              )}
+              {isSending ? <Loader2 className="h-5 w-5 animate-spin" /> : <Send className="h-5 w-5" />}
             </Button>
           </div>
         </div>
       </div>
-      
-      {/* Source Content Viewer Modal */}
+
+      {/* Source content viewer modal */}
       <Dialog open={!!viewingSource} onOpenChange={closeSourceModal}>
         <DialogContent className="sm:max-w-3xl max-h-[80vh]">
           <DialogHeader>
@@ -1748,35 +769,25 @@ const ChatPage = () => {
               <FileText className="h-5 w-5 text-indigo-400" />
               {viewingSource?.name}
             </DialogTitle>
-            <DialogDescription>
-              Содержимое источника
-            </DialogDescription>
+            <DialogDescription>Содержимое источника</DialogDescription>
           </DialogHeader>
-          
+
           <ScrollArea className="max-h-[60vh] pr-4">
             {isLoadingSourceContent ? (
               <div className="flex items-center justify-center py-12">
                 <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
               </div>
             ) : sourceContent ? (
-              <div className="space-y-4">
-                <div className="p-4 bg-secondary/30 rounded-lg">
-                  <pre className="whitespace-pre-wrap text-sm font-mono leading-relaxed">
-                    {sourceContent}
-                  </pre>
-                </div>
+              <div className="p-4 bg-secondary/30 rounded-lg">
+                <pre className="whitespace-pre-wrap text-sm font-mono leading-relaxed">{sourceContent}</pre>
               </div>
             ) : (
-              <div className="text-center py-8 text-muted-foreground">
-                Не удалось загрузить содержимое
-              </div>
+              <div className="text-center py-8 text-muted-foreground">Не удалось загрузить содержимое</div>
             )}
           </ScrollArea>
-          
+
           <DialogFooter>
-            <Button variant="outline" onClick={closeSourceModal}>
-              Закрыть
-            </Button>
+            <Button variant="outline" onClick={closeSourceModal}>Закрыть</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

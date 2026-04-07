@@ -1001,6 +1001,48 @@ PUT    /api/user/prompt
 
 ---
 
-**Document Version:** 1.4
-**Last Updated:** 2026-03-09
+---
+
+## 16. Session Updates (2026-04-07)
+
+### Completed: ChatPage.js Refactoring (P1)
+**БЫЛО:** `ChatPage.js` = 1787 строк (монолит)
+**СТАЛО:** `ChatPage.js` = 798 строк
+
+Код разбит на новые компоненты:
+| Файл | Строк | Описание |
+|------|-------|----------|
+| `components/chat/SourcePanel.js` | 642 | Управление источниками: upload, URL, search, selection, preview, delete |
+| `components/chat/MoveDialog.js` | 205 | Диалог перемещения чата в другой проект |
+
+### Bug Fix
+- **`updateActiveSources` undefined bug** — в `handleAddUrl` вызывалась несуществующая функция. Исправлено в новом `SourcePanel.js`: при добавлении URL сразу вызывается `onActiveSourcesChange([...activeSourceIds, response.data.id])`.
+
+### Updated Components Index
+- `components/chat/index.js` — добавлены экспорты `SourcePanel` и `MoveDialog`
+
+### Current Refactoring Status
+| Компонент | Статус | Строк |
+|-----------|--------|-------|
+| `server.py` | ✅ Готово | 177 |
+| `ChatPage.js` | ✅ Готово | 798 |
+| `SourcePanel.js` | ✅ Новый | 642 |
+| `MoveDialog.js` | ✅ Новый | 205 |
+| `ChatHeader.js` | ✅ Создан (не интегрирован) | 175 |
+| `Message.js` | ✅ Создан (не интегрирован) | 302 |
+| `MessageList.js` | ✅ Создан (не интегрирован) | 90 |
+| `ChatInput.js` | ✅ Создан (не интегрирован) | 71 |
+
+### Remaining Tasks (P1/P2)
+1. **Integrate ChatHeader.js** into ChatPage.js (optional — header currently inline in ChatPage)
+2. **Integrate Message.js / MessageList.js** into ChatPage.js (optional — inline for now)
+3. **Complete i18n** — ~20% UI strings still untranslated
+4. **Source attribution improvements** — show which file was used for AI response
+5. **Pending approvals page** — for department sources workflow
+6. **Cache settings UI** — admin panel for semantic cache config
+
+---
+
+**Document Version:** 1.5
+**Last Updated:** 2026-04-07
 **Author:** Planet Knowledge Team
