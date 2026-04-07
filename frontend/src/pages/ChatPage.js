@@ -383,12 +383,14 @@ const ChatPage = () => {
 
   // ── Send message ──
   const sendMessage = async (contentOverride = null, fileBadge = null) => {
+
     const content = (contentOverride ?? input).trim();
-    if (!content && !tempFile || isSending) return;
+if ((!content && !tempFile) || isSending) return;
+const finalContent = content || "Analyze this file and summarize the key points.";
 
     const activeTempFile = tempFile;
     const tempUserMsg = {
-      id: `temp-${Date.now()}`, chatId, role: 'user', content: content || ' ',
+      id: `temp-${Date.now()}`, chatId, role: 'user', content: finalContent,
       createdAt: new Date().toISOString(),
       ...(fileBadge ? { uploadedFile: fileBadge } : activeTempFile ? { uploadedFile: { name: activeTempFile.filename, fileType: activeTempFile.fileType, previewUrl: activeTempFile.previewUrl } } : {})
     };
@@ -398,7 +400,7 @@ const ChatPage = () => {
     setIsSending(true);
 
     try {
-      const payload = { content: content || ' ' };
+      const payload = { content: finalContent };
       if (activeTempFile) payload.temp_file_id = activeTempFile.id;
       const response = await axios.post(`${API}/chats/${chatId}/messages`, payload);
       const { user_message: userMsg, assistant_message: assistantMsg } = response.data;

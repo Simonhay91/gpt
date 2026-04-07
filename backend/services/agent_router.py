@@ -47,6 +47,13 @@ async def route_to_agent(
             return "general"
 
         client = anthropic.AsyncAnthropic(api_key=CLAUDE_API_KEY)
+
+        # Filter out messages with empty content
+        _msgs = [{"role": "user", "content": message[:500]}]
+        _msgs = [m for m in _msgs if m.get("content", "").strip()]
+        if not _msgs:
+            return "general"
+
         response = await client.messages.create(
             model="claude-haiku-4-5-20251001",
             max_tokens=10,
@@ -56,7 +63,7 @@ Categories:
 - research (web search, current news, find information online)
 - rag (questions about uploaded documents, knowledge base)
 - general (everything else)""",
-            messages=[{"role": "user", "content": message[:500]}]
+            messages=_msgs
         )
 
         agent_type = response.content[0].text.strip().lower()
