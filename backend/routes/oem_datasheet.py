@@ -511,21 +511,20 @@ Datasheet text:
         for r in p.runs:
             r.text = ""
 
+    from docx.enum.table import WD_CELL_VERTICAL_ALIGNMENT
+
     h_tbl = header.add_table(rows=1, cols=1, width=Inches(6.5))
     _set_table_no_borders(h_tbl._tbl)
     h_row  = h_tbl.rows[0]
     _set_row_exact_height(h_row, header_height_px)
     h_cell = h_row.cells[0]
     _set_cell_bg(h_cell, primary_hex)
-    _set_cell_no_borders = _cell_no_borders
-    _set_cell_no_borders(h_cell)
+    _cell_no_borders(h_cell)
     _set_cell_padding(h_cell, header_padding_px)
+    h_cell.vertical_alignment = WD_CELL_VERTICAL_ALIGNMENT.CENTER
 
     h_cell_para = h_cell.paragraphs[0]
     h_cell_para.alignment = WD_ALIGN_PARAGRAPH.LEFT
-    # Vertical centering
-    from docx.enum.table import WD_CELL_VERTICAL_ALIGNMENT
-    h_cell.vertical_alignment = WD_CELL_VERTICAL_ALIGNMENT.CENTER
 
     logo_added = False
     for logo_fn in (brand.get("approvedLogos") or []):
@@ -543,6 +542,10 @@ Datasheet text:
         r.bold = True
         r.font.size = Pt(14)
         r.font.color.rgb = RGBColor(255, 255, 255)
+
+    # Word requires header/footer body to END with <w:p> — add trailing paragraph
+    trailing_h = OxmlElement("w:p")
+    header._element.append(trailing_h)
 
     # ── Footer: table with colored background, email left | copyright center ─
     footer = section.footer
@@ -578,6 +581,10 @@ Datasheet text:
     r_copy = fr_para.add_run(copyright_text)
     r_copy.font.size = Pt(8)
     r_copy.font.color.rgb = RGBColor(255, 255, 255)
+
+    # Word requires footer body to END with <w:p>
+    trailing_f = OxmlElement("w:p")
+    footer._element.append(trailing_f)
 
     # Document title
     title_text = apply_replacements(structure.get("title", ""))
