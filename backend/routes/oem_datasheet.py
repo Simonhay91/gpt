@@ -502,89 +502,72 @@ Datasheet text:
     section.header_distance = Inches(0.1)
     section.footer_distance = Inches(0.1)
 
-    # ── Header: table with colored background, exact height, logo left ─
+    def _apply_para_band(para, hex_color, height_px):
+        """Color paragraph background + set exact height via XML spacing."""
+        pPr = para._p.get_or_add_pPr()
+        # Background fill
+        shd = OxmlElement("w:shd")
+        shd.set(qn("w:val"), "clear")
+        shd.set(qn("w:color"), "auto")
+        shd.set(qn("w:fill"), hex_color.lstrip("#").upper())
+        pPr.append(shd)
+        # Zero before/after + exact line height
+        spacing = OxmlElement("w:spacing")
+        spacing.set(qn("w:before"), "0")
+        spacing.set(qn("w:after"), "0")
+        spacing.set(qn("w:line"), str(int(height_px * PX_TO_TWIP)))
+        spacing.set(qn("w:lineRule"), "exact")
+        pPr.append(spacing)
+
+    # ── Header: colored band paragraph, logo left ───────────────────────
     header = section.header
     header.is_linked_to_previous = False
 
-    # Clear default empty paragraph content (keep the element, clear runs)
-    for p in header.paragraphs:
-        for r in p.runs:
-            r.text = ""
-
-    from docx.enum.table import WD_CELL_VERTICAL_ALIGNMENT
-
-    h_tbl = header.add_table(rows=1, cols=1, width=Inches(6.5))
-    _set_table_no_borders(h_tbl._tbl)
-    h_row  = h_tbl.rows[0]
-    _set_row_exact_height(h_row, header_height_px)
-    h_cell = h_row.cells[0]
-    _set_cell_bg(h_cell, primary_hex)
-    _cell_no_borders(h_cell)
-    _set_cell_padding(h_cell, header_padding_px)
-    h_cell.vertical_alignment = WD_CELL_VERTICAL_ALIGNMENT.CENTER
-
-    h_cell_para = h_cell.paragraphs[0]
-    h_cell_para.alignment = WD_ALIGN_PARAGRAPH.LEFT
+    h_para = header.paragraphs[0] if header.paragraphs else header.add_paragraph()
+    h_para.alignment = WD_ALIGN_PARAGRAPH.LEFT
+    _apply_para_band(h_para, primary_hex, header_height_px)
 
     logo_added = False
     for logo_fn in (brand.get("approvedLogos") or []):
         lpath = os.path.join(BRAND_LOGOS_DIR, logo_fn)
         if os.path.exists(lpath):
             try:
-                logo_in = max(0.1, logo_size_px * PX_TO_IN)
-                h_cell_para.add_run().add_picture(lpath, height=Inches(logo_in))
+                logo_in = max(0.1, min(logo_size_px, header_height_px - 4) * PX_TO_IN)
+                h_para.add_run().add_picture(lpath, height=Inches(logo_in))
                 logo_added = True
                 break
             except Exception:
                 pass
     if not logo_added:
-        r = h_cell_para.add_run(brand.get("name", ""))
+        r = h_para.add_run(brand.get("name", ""))
         r.bold = True
-        r.font.size = Pt(14)
+        r.font.size = Pt(12)
         r.font.color.rgb = RGBColor(255, 255, 255)
 
-    # Word requires header/footer body to END with <w:p> — add trailing paragraph
-    trailing_h = OxmlElement("w:p")
-    header._element.append(trailing_h)
-
-    # ── Footer: table with colored background, email left | copyright center ─
+    # ── Footer: colored band paragraph, email left | copyright center ──
     footer = section.footer
     footer.is_linked_to_previous = False
 
-    for p in footer.paragraphs:
-        for r in p.runs:
-            r.text = ""
+    f_para = footer.paragraphs[0] if footer.paragraphs else footer.add_paragraph()
+    _apply_para_band(f_para, primary_hex, footer_height_px)
 
-    f_tbl = footer.add_table(rows=1, cols=2, width=Inches(6.5))
-    _set_table_no_borders(f_tbl._tbl)
-    f_row = f_tbl.rows[0]
-    _set_row_exact_height(f_row, footer_height_px)
+    # Center tab stop at ~3.25 inches
+    pPr = f_para._p.get_or_add_pPr()
+    tabs = OxmlElement("w:tabs")
+    ct = OxmlElement("w:tab")
+    ct.set(qn("w:val"), "center")
+    ct.set(qn("w:pos"), "4680")
+    tabs.append(ct)
+    pPr.append(tabs)
 
-    f_left  = f_row.cells[0]
-    f_right = f_row.cells[1]
-    for fc in (f_left, f_right):
-        _set_cell_bg(fc, primary_hex)
-        _cell_no_borders(fc)
-        _set_cell_padding(fc, footer_padding_px)
-        fc.vertical_alignment = WD_CELL_VERTICAL_ALIGNMENT.CENTER
-
-    # Email — left cell
-    fl_para = f_left.paragraphs[0]
-    fl_para.alignment = WD_ALIGN_PARAGRAPH.LEFT
-    r_email = fl_para.add_run(brand.get("email") or brand.get("name") or "")
+    r_email = f_para.add_run(brand.get("email") or brand.get("name") or "")
     r_email.font.size = Pt(8)
     r_email.font.color.rgb = RGBColor(255, 255, 255)
 
-    # Copyright — right cell, centered
-    fr_para = f_right.paragraphs[0]
-    fr_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    r_copy = fr_para.add_run(copyright_text)
+    f_para.add_run("\t")
+    r_copy = f_para.add_run(copyright_text)
     r_copy.font.size = Pt(8)
     r_copy.font.color.rgb = RGBColor(255, 255, 255)
-
-    # Word requires footer body to END with <w:p>
-    trailing_f = OxmlElement("w:p")
-    footer._element.append(trailing_f)
 
     # Document title
     title_text = apply_replacements(structure.get("title", ""))
