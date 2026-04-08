@@ -418,9 +418,18 @@ Datasheet text:
     primary_rgb = hex_to_rgb(primary_hex)
     subtitle_rgb = hex_to_rgb(subtitle_hex)
 
-    # Header height (small=0.3", medium=0.5", large=0.7")
-    header_height_map = {"small": 0.3, "medium": 0.5, "large": 0.7}
-    logo_height_in = header_height_map.get(brand.get("headerHeight", "medium"), 0.5)
+    # px → inches (96dpi) and px → pt (72pt/inch)
+    PX_TO_IN = 1 / 96
+    PX_TO_PT = 72 / 96
+
+    header_height_px  = int(brand.get("headerHeightPx")  or 60)
+    header_padding_px = int(brand.get("headerPaddingPx") or 8)
+    footer_height_px  = int(brand.get("footerHeightPx")  or 36)
+    footer_padding_px = int(brand.get("footerPaddingPx") or 6)
+
+    logo_height_in  = max(0.1, (header_height_px - 2 * header_padding_px) * PX_TO_IN)
+    header_pad_pt   = header_padding_px * PX_TO_PT
+    footer_pad_pt   = footer_padding_px * PX_TO_PT
 
     copyright_text = brand.get("copyrightText") or f"All rights reserved © {datetime.now(timezone.utc).year}"
 
@@ -467,9 +476,7 @@ Datasheet text:
     h_para.alignment = WD_ALIGN_PARAGRAPH.LEFT
     set_para_shading(h_para, primary_hex)
 
-    # Vertical padding via spacing (controls band height)
-    pad_pt = max(4.0, (logo_height_in - 0.25) * 28)   # scale with logo height
-    set_para_spacing(h_para, pad_pt, pad_pt)
+    set_para_spacing(h_para, header_pad_pt, header_pad_pt)
 
     logo_added = False
     for logo_fn in (brand.get("approvedLogos") or []):
@@ -493,7 +500,7 @@ Datasheet text:
 
     f_para = footer.paragraphs[0] if footer.paragraphs else footer.add_paragraph()
     set_para_shading(f_para, primary_hex)
-    set_para_spacing(f_para, 5, 5)
+    set_para_spacing(f_para, footer_pad_pt, footer_pad_pt)
 
     # Tab stop at center of text area (~3.25 inches = 4680 twips)
     pPr = f_para._p.get_or_add_pPr()
@@ -613,7 +620,10 @@ async def create_brand(
     warrantyText: str = Form(""),
     primaryColor: str = Form(""),
     subtitleColor: str = Form(""),
-    headerHeight: str = Form("medium"),
+    headerHeightPx: int = Form(60),
+    headerPaddingPx: int = Form(8),
+    footerHeightPx: int = Form(36),
+    footerPaddingPx: int = Form(6),
     copyrightText: str = Form(""),
     current_user: dict = Depends(get_current_user)
 ):
@@ -630,7 +640,10 @@ async def create_brand(
         "warrantyText": warrantyText,
         "primaryColor": primaryColor,
         "subtitleColor": subtitleColor,
-        "headerHeight": headerHeight,
+        "headerHeightPx": headerHeightPx,
+        "headerPaddingPx": headerPaddingPx,
+        "footerHeightPx": footerHeightPx,
+        "footerPaddingPx": footerPaddingPx,
         "copyrightText": copyrightText,
         "approvedLogos": [],
         "createdAt": datetime.now(timezone.utc).isoformat(),
@@ -651,7 +664,10 @@ async def update_brand(
     warrantyText: str = Form(""),
     primaryColor: str = Form(""),
     subtitleColor: str = Form(""),
-    headerHeight: str = Form("medium"),
+    headerHeightPx: int = Form(60),
+    headerPaddingPx: int = Form(8),
+    footerHeightPx: int = Form(36),
+    footerPaddingPx: int = Form(6),
     copyrightText: str = Form(""),
     current_user: dict = Depends(get_current_user)
 ):
@@ -667,7 +683,10 @@ async def update_brand(
         "warrantyText": warrantyText,
         "primaryColor": primaryColor,
         "subtitleColor": subtitleColor,
-        "headerHeight": headerHeight,
+        "headerHeightPx": headerHeightPx,
+        "headerPaddingPx": headerPaddingPx,
+        "footerHeightPx": footerHeightPx,
+        "footerPaddingPx": footerPaddingPx,
         "copyrightText": copyrightText,
         "updatedAt": datetime.now(timezone.utc).isoformat(),
     }

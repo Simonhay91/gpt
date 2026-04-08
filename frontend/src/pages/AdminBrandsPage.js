@@ -15,7 +15,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 const API = `${process.env.REACT_APP_BACKEND_URL}/api/oem`;
 const BASE_URL = process.env.REACT_APP_BACKEND_URL;
 
-const emptyForm = { name: '', address: '', phone: '', email: '', website: '', warrantyText: '', primaryColor: '#3B82F6', subtitleColor: '', headerHeight: 'medium', copyrightText: '' };
+const emptyForm = { name: '', address: '', phone: '', email: '', website: '', warrantyText: '', primaryColor: '#3B82F6', subtitleColor: '', headerHeightPx: '60', headerPaddingPx: '8', footerHeightPx: '36', footerPaddingPx: '6', copyrightText: '' };
 
 const AdminBrandsPage = () => {
   const [brands, setBrands] = useState([]);
@@ -59,7 +59,10 @@ const AdminBrandsPage = () => {
       warrantyText: brand.warrantyText || '',
       primaryColor: brand.primaryColor || '#3B82F6',
       subtitleColor: brand.subtitleColor || '',
-      headerHeight: brand.headerHeight || 'medium',
+      headerHeightPx: String(brand.headerHeightPx || '60'),
+      headerPaddingPx: String(brand.headerPaddingPx || '8'),
+      footerHeightPx: String(brand.footerHeightPx || '36'),
+      footerPaddingPx: String(brand.footerPaddingPx || '6'),
       copyrightText: brand.copyrightText || '',
     });
     setDialogOpen(true);
@@ -392,30 +395,65 @@ const AdminBrandsPage = () => {
               {/* Header & Footer Settings */}
               <div className="space-y-3 pt-2 border-t border-border">
                 <p className="text-sm font-semibold text-foreground">Header & Footer</p>
+
+                {/* Header row */}
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-1">
-                    <Label>Header Height</Label>
-                    <select
-                      value={form.headerHeight}
-                      onChange={e => setForm(f => ({ ...f, headerHeight: e.target.value }))}
-                      className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-                    >
-                      <option value="small">Small (~0.3&quot;)</option>
-                      <option value="medium">Medium (~0.5&quot;)</option>
-                      <option value="large">Large (~0.7&quot;)</option>
-                    </select>
-                    <p className="text-xs text-muted-foreground">Logo height in header</p>
-                  </div>
-                  <div className="space-y-1">
-                    <Label>Copyright Text</Label>
+                    <Label>Header Height (px)</Label>
                     <Input
-                      placeholder={`All rights reserved © ${new Date().getFullYear()}`}
-                      value={form.copyrightText}
-                      onChange={e => setForm(f => ({ ...f, copyrightText: e.target.value }))}
+                      type="number" min="20" max="200"
+                      value={form.headerHeightPx}
+                      onChange={e => setForm(f => ({ ...f, headerHeightPx: e.target.value }))}
                       className="text-sm"
                     />
-                    <p className="text-xs text-muted-foreground">Centered in footer</p>
+                    <p className="text-xs text-muted-foreground">Total header band height</p>
                   </div>
+                  <div className="space-y-1">
+                    <Label>Header Padding (px)</Label>
+                    <Input
+                      type="number" min="0" max="60"
+                      value={form.headerPaddingPx}
+                      onChange={e => setForm(f => ({ ...f, headerPaddingPx: e.target.value }))}
+                      className="text-sm"
+                    />
+                    <p className="text-xs text-muted-foreground">Top & bottom padding inside header</p>
+                  </div>
+                </div>
+
+                {/* Footer row */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                    <Label>Footer Height (px)</Label>
+                    <Input
+                      type="number" min="20" max="120"
+                      value={form.footerHeightPx}
+                      onChange={e => setForm(f => ({ ...f, footerHeightPx: e.target.value }))}
+                      className="text-sm"
+                    />
+                    <p className="text-xs text-muted-foreground">Total footer band height</p>
+                  </div>
+                  <div className="space-y-1">
+                    <Label>Footer Padding (px)</Label>
+                    <Input
+                      type="number" min="0" max="40"
+                      value={form.footerPaddingPx}
+                      onChange={e => setForm(f => ({ ...f, footerPaddingPx: e.target.value }))}
+                      className="text-sm"
+                    />
+                    <p className="text-xs text-muted-foreground">Top & bottom padding inside footer</p>
+                  </div>
+                </div>
+
+                {/* Copyright */}
+                <div className="space-y-1">
+                  <Label>Copyright Text</Label>
+                  <Input
+                    placeholder={`All rights reserved © ${new Date().getFullYear()}`}
+                    value={form.copyrightText}
+                    onChange={e => setForm(f => ({ ...f, copyrightText: e.target.value }))}
+                    className="text-sm"
+                  />
+                  <p className="text-xs text-muted-foreground">Centered in footer</p>
                 </div>
               </div>
             </div>
