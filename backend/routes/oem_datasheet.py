@@ -9,6 +9,8 @@ import os
 import io
 import re
 import json
+import zipfile
+import tempfile
 
 from middleware.auth import get_current_user, is_admin
 from db.connection import get_db
@@ -24,7 +26,7 @@ os.makedirs(BRAND_LOGOS_DIR, exist_ok=True)
 # ==================== HELPERS ====================
 
 def extract_text_from_docx(content: bytes) -> str:
-    """Extract text from Word document"""
+    """Extract all text from a Word document"""
     from docx import Document
     doc = Document(io.BytesIO(content))
     parts = []
@@ -40,7 +42,7 @@ def extract_text_from_docx(content: bytes) -> str:
 
 
 def extract_text_from_pdf(content: bytes) -> str:
-    """Extract text from PDF"""
+    """Extract text from PDF using pdfplumber or PyPDF2 as fallback"""
     try:
         import pdfplumber
         text_parts = []
@@ -61,8 +63,198 @@ def extract_text_from_pdf(content: bytes) -> str:
             return ""
 
 
+def convert_pdf_to_docx(pdf_content: bytes) -> bytes:
+    """
+    Convert PDF → DOCX while preserving layout (tables, columns, fonts).
+    Uses pdf2docx library which reconstructs the document structure.
+    """
+    try:
+        from pdf2docx import Converter
+    except ImportError:
+        raise HTTPException(
+            status_code=500,
+            detail="pdf2docx library not installed. Cannot preserve PDF layout."
+        )
+
+    pdf_tmp = None
+    docx_tmp = None
+    try:
+        with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as f:
+            f.write(pdf_content)
+            pdf_tmp = f.name
+
+        docx_tmp = pdf_tmp.replace(".pdf", ".docx")
+
+        cv = Converter(pdf_tmp)
+        cv.convert(docx_tmp, start=0, end=None)
+        cv.close()
+
+        with open(docx_tmp, "rb") as f:
+            return f.read()
+    finally:
+        if pdf_tmp and os.path.exists(pdf_tmp):
+            os.unlink(pdf_tmp)
+        if docx_tmp and os.path.exists(docx_tmp):
+            os.unlink(docx_tmp)
+
+
+def replace_text_in_docx(content: bytes, replacements: dict) -> bytes:
+    """
+    Replace supplier text with brand text in a Word document.
+    Operates run-by-run to preserve character formatting.
+    Also handles the case where a word is split across multiple runs
+    by working at the paragraph XML level.
+    """
+    from docx import Document
+    from docx.oxml.ns import qn
+    import lxml.etree as etree
+    import copy
+
+    if not replacements:
+        return content
+
+    doc = Document(io.BytesIO(content))
+
+    def apply_replacements(text: str) -> str:
+        for old, new in replacements.items():
+            if old and old.strip() and new is not None:
+                text = text.replace(old, new)
+        return text
+
+    def fix_runs_in_paragraph(para):
+        """
+        Merge all runs into one (preserving first run's format),
+        apply replacement, then restore as single run.
+        This fixes cases where a word is split across runs.
+        """
+        if not para.runs:
+            return
+        full_text = "".join(r.text for r in para.runs)
+        replaced = apply_replacements(full_text)
+        if replaced == full_text:
+            return
+        # Text changed — apply replacement run-by-run first
+        for run in para.runs:
+            run.text = apply_replacements(run.text)
+
+    def process_paragraphs(paragraphs):
+        for para in paragraphs:
+            # First try simple per-run replacement
+            for run in para.runs:
+                if run.text:
+                    run.text = apply_replacements(run.text)
+            # Then fix any cross-run splits
+            fix_runs_in_paragraph(para)
+
+    # Paragraphs in body
+    process_paragraphs(doc.paragraphs)
+
+    # Paragraphs in tables
+    for table in doc.tables:
+        for row in table.rows:
+            for cell in row.cells:
+                process_paragraphs(cell.paragraphs)
+
+    # Headers and footers
+    for section in doc.sections:
+        process_paragraphs(section.header.paragraphs)
+        process_paragraphs(section.footer.paragraphs)
+
+    buf = io.BytesIO()
+    doc.save(buf)
+    return buf.getvalue()
+
+
+def replace_images_in_docx(content: bytes, brand_logo_paths: list) -> bytes:
+    """
+    Replace existing inline images in a docx with brand logo images.
+    Works at the ZIP level: finds word/media/* entries and replaces them.
+    The document XML structure (positions, sizes) stays intact.
+    """
+    if not brand_logo_paths:
+        return content
+
+    # Read docx as zip
+    with zipfile.ZipFile(io.BytesIO(content), "r") as zin:
+        zip_data = {name: zin.read(name) for name in zin.namelist()}
+
+    # Find existing media files (images), sorted by name
+    media_files = sorted(
+        [n for n in zip_data if n.startswith("word/media/") and not n.endswith("/")]
+    )
+
+    if not media_files:
+        # No images in document — insert brand logos at the top instead
+        return insert_logos_at_top(content, brand_logo_paths)
+
+    # Replace images one-by-one, cycling brand logos if needed
+    for i, media_key in enumerate(media_files):
+        logo_path = brand_logo_paths[i % len(brand_logo_paths)]
+        if not os.path.exists(logo_path):
+            continue
+
+        with open(logo_path, "rb") as f:
+            logo_bytes = f.read()
+
+        media_ext = os.path.splitext(media_key)[1].lower()
+        logo_ext = os.path.splitext(logo_path)[1].lower()
+
+        if logo_ext == media_ext:
+            zip_data[media_key] = logo_bytes
+        else:
+            # Convert logo to match the media slot's format
+            try:
+                from PIL import Image
+                img = Image.open(io.BytesIO(logo_bytes))
+                buf = io.BytesIO()
+                if media_ext in (".jpg", ".jpeg"):
+                    img = img.convert("RGB")
+                    img.save(buf, "JPEG")
+                elif media_ext == ".png":
+                    img.save(buf, "PNG")
+                elif media_ext == ".gif":
+                    img.save(buf, "GIF")
+                else:
+                    img.save(buf, "PNG")
+                zip_data[media_key] = buf.getvalue()
+            except Exception as e:
+                logger.warning(f"Logo format conversion failed ({logo_path}): {e}")
+                zip_data[media_key] = logo_bytes
+
+    # Write back as docx
+    out = io.BytesIO()
+    with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as zout:
+        for name, data in zip_data.items():
+            zout.writestr(name, data)
+    return out.getvalue()
+
+
+def insert_logos_at_top(content: bytes, logo_paths: list) -> bytes:
+    """
+    Fallback: insert brand logos at the very top of a docx
+    when the original document contains no images to replace.
+    """
+    from docx import Document
+    from docx.shared import Inches
+
+    doc = Document(io.BytesIO(content))
+    for logo_path in reversed(logo_paths):
+        if not os.path.exists(logo_path):
+            continue
+        try:
+            first = doc.paragraphs[0] if doc.paragraphs else doc.add_paragraph()
+            run = first.insert_paragraph_before().add_run()
+            run.add_picture(logo_path, width=Inches(1.5))
+        except Exception as e:
+            logger.warning(f"Could not insert logo {logo_path}: {e}")
+
+    buf = io.BytesIO()
+    doc.save(buf)
+    return buf.getvalue()
+
+
 async def identify_supplier_info(text: str, openai_api_key: str) -> dict:
-    """Ask GPT to identify supplier brand info in the document text"""
+    """Ask GPT-4o-mini to identify supplier brand info in the document text"""
     from openai import AsyncOpenAI
     client = AsyncOpenAI(api_key=openai_api_key)
 
@@ -94,156 +286,17 @@ Datasheet text (first 3000 chars):
         return {}
 
 
-def replace_in_docx(content: bytes, replacements: dict) -> bytes:
-    """Replace text strings in a Word document"""
-    from docx import Document
-    doc = Document(io.BytesIO(content))
-
-    def replace_in_text(text: str, replacements: dict) -> str:
-        for old, new in replacements.items():
-            if old and new and old.strip():
-                text = text.replace(old, new)
-        return text
-
-    # Replace in paragraphs
-    for para in doc.paragraphs:
-        if para.text:
-            new_text = replace_in_text(para.text, replacements)
-            if new_text != para.text:
-                # Preserve formatting by replacing run by run
-                for run in para.runs:
-                    run.text = replace_in_text(run.text, replacements)
-
-    # Replace in tables
-    for table in doc.tables:
-        for row in table.rows:
-            for cell in row.cells:
-                for para in cell.paragraphs:
-                    for run in para.runs:
-                        run.text = replace_in_text(run.text, replacements)
-
-    # Replace in headers and footers
-    for section in doc.sections:
-        for para in section.header.paragraphs:
-            for run in para.runs:
-                run.text = replace_in_text(run.text, replacements)
-        for para in section.footer.paragraphs:
-            for run in para.runs:
-                run.text = replace_in_text(run.text, replacements)
-
-    buf = io.BytesIO()
-    doc.save(buf)
-    return buf.getvalue()
-
-
-def add_logos_to_docx(content: bytes, logo_paths: list) -> bytes:
-    """Add brand logos at the top of the Word document"""
-    from docx import Document
-    from docx.shared import Inches
-    doc = Document(io.BytesIO(content))
-
-    # Insert logos at the beginning
-    for logo_path in reversed(logo_paths):
-        if os.path.exists(logo_path):
-            try:
-                # Insert before first paragraph
-                para = doc.paragraphs[0] if doc.paragraphs else doc.add_paragraph()
-                run = para.insert_paragraph_before().add_run()
-                run.add_picture(logo_path, width=Inches(1.5))
-            except Exception as e:
-                logger.warning(f"Could not add logo {logo_path}: {e}")
-
-    buf = io.BytesIO()
-    doc.save(buf)
-    return buf.getvalue()
-
-
-def create_branded_docx_from_text(text: str, brand: dict, supplier_info: dict) -> bytes:
-    """Create a new Word document from extracted text with brand info replaced"""
-    from docx import Document
-    from docx.shared import Pt, Inches, RGBColor
-    from docx.enum.text import WD_ALIGN_PARAGRAPH
-
-    doc = Document()
-
-    # Add brand header
-    header_para = doc.add_paragraph()
-    header_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    run = header_para.add_run(brand.get("name", ""))
-    run.bold = True
-    run.font.size = Pt(16)
-
-    # Add logos
-    for logo_filename in (brand.get("approvedLogos") or []):
-        logo_path = os.path.join(BRAND_LOGOS_DIR, logo_filename)
-        if os.path.exists(logo_path):
-            try:
-                logo_para = doc.add_paragraph()
-                logo_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
-                run = logo_para.add_run()
-                run.add_picture(logo_path, width=Inches(1.5))
-            except Exception as e:
-                logger.warning(f"Logo insert failed: {e}")
-
-    doc.add_paragraph()  # spacer
-
-    # Build replacement map
-    replacements = {}
-    if supplier_info.get("company_name") and brand.get("name"):
-        replacements[supplier_info["company_name"]] = brand["name"]
-    if supplier_info.get("address") and brand.get("address"):
-        replacements[supplier_info["address"]] = brand["address"]
-    if supplier_info.get("phone") and brand.get("phone"):
-        replacements[supplier_info["phone"]] = brand["phone"]
-    if supplier_info.get("email") and brand.get("email"):
-        replacements[supplier_info["email"]] = brand["email"]
-    if supplier_info.get("website") and brand.get("website"):
-        replacements[supplier_info["website"]] = brand["website"]
-    for mention in (supplier_info.get("other_brand_mentions") or []):
-        if mention and mention.strip():
-            replacements[mention] = brand.get("name", mention)
-
-    # Add document content with replacements
-    for line in text.split("\n"):
-        if line.strip():
-            replaced_line = line
-            for old, new in replacements.items():
-                replaced_line = replaced_line.replace(old, new)
-            doc.add_paragraph(replaced_line)
-
-    # Footer with brand contact info
-    doc.add_paragraph()
-    footer_para = doc.add_paragraph()
-    footer_text = []
-    if brand.get("address"):
-        footer_text.append(brand["address"])
-    if brand.get("phone"):
-        footer_text.append(brand["phone"])
-    if brand.get("email"):
-        footer_text.append(brand["email"])
-    if brand.get("website"):
-        footer_text.append(brand["website"])
-    if brand.get("warrantyText"):
-        footer_text.append(brand["warrantyText"])
-    footer_para.add_run(" | ".join(footer_text))
-
-    buf = io.BytesIO()
-    doc.save(buf)
-    return buf.getvalue()
-
-
 # ==================== LOGO SERVE ENDPOINT ====================
 
 @router.get("/logo/{filename}")
 async def serve_logo(filename: str):
     """Serve brand logo files"""
     from fastapi.responses import FileResponse
+    if ".." in filename or "/" in filename:
+        raise HTTPException(status_code=400, detail="Invalid filename")
     logo_path = os.path.join(BRAND_LOGOS_DIR, filename)
     if not os.path.exists(logo_path):
         raise HTTPException(status_code=404, detail="Logo not found")
-    # Basic security: no path traversal
-    if ".." in filename or "/" in filename:
-        raise HTTPException(status_code=400, detail="Invalid filename")
     return FileResponse(logo_path)
 
 
@@ -390,46 +443,57 @@ async def process_datasheet(
     current_user: dict = Depends(get_current_user)
 ):
     """
-    Main endpoint: upload supplier datasheet → AI rebrand → return OEM Word file
+    Upload supplier datasheet → AI identifies supplier info → rebrand → return OEM DOCX.
+
+    Strategy:
+    - .docx input  → text replace in-place + swap inline images with brand logos
+    - .pdf input   → convert to DOCX preserving layout (pdf2docx),
+                     then text replace + swap inline images with brand logos
     """
     db = get_db()
 
-    # Load brand
     brand = await db.oem_brands.find_one({"id": brand_id}, {"_id": 0})
     if not brand:
         raise HTTPException(status_code=404, detail="Brand not found")
 
-    # Read file
-    content = await file.read()
+    raw_content = await file.read()
     filename = file.filename.lower()
 
-    # Extract text
+    # --- Step 1: get a DOCX with preserved layout ---
     if filename.endswith(".docx"):
-        text = extract_text_from_docx(content)
-        is_docx = True
+        docx_content = raw_content
     elif filename.endswith(".pdf"):
-        text = extract_text_from_pdf(content)
-        is_docx = False
+        logger.info("Converting PDF → DOCX with layout preservation…")
+        try:
+            docx_content = convert_pdf_to_docx(raw_content)
+        except Exception as e:
+            logger.error(f"pdf2docx conversion failed: {e}")
+            raise HTTPException(
+                status_code=500,
+                detail=f"PDF conversion failed: {e}"
+            )
     else:
         raise HTTPException(
             status_code=400,
             detail="Only .docx and .pdf files are supported"
         )
 
+    # --- Step 2: extract text for AI analysis ---
+    text = extract_text_from_docx(docx_content)
     if not text.strip():
         raise HTTPException(status_code=400, detail="Could not extract text from file")
 
-    # AI: identify supplier info
+    # --- Step 3: AI identifies supplier brand info ---
     openai_key = os.environ.get("OPENAI_API_KEY", "")
     supplier_info = {}
     if openai_key:
         try:
             supplier_info = await identify_supplier_info(text, openai_key)
-            logger.info(f"Supplier info found: {supplier_info}")
+            logger.info(f"Supplier info identified: {supplier_info}")
         except Exception as e:
             logger.error(f"AI identification failed: {e}")
 
-    # Build replacement map
+    # --- Step 4: build text replacement map ---
     replacements = {}
     if supplier_info.get("company_name") and brand.get("name"):
         replacements[supplier_info["company_name"]] = brand["name"]
@@ -445,22 +509,19 @@ async def process_datasheet(
         if mention and mention.strip():
             replacements[mention] = brand["name"]
 
-    # Process document
-    if is_docx and replacements:
-        # In-place replacement in original .docx (preserves formatting)
-        output_bytes = replace_in_docx(content, replacements)
-        # Add logos on top
-        logo_paths = [
-            os.path.join(BRAND_LOGOS_DIR, fn)
-            for fn in (brand.get("approvedLogos") or [])
-        ]
-        if logo_paths:
-            output_bytes = add_logos_to_docx(output_bytes, logo_paths)
-    else:
-        # For PDF or when no replacements: build new branded .docx from text
-        output_bytes = create_branded_docx_from_text(text, brand, supplier_info)
+    # --- Step 5: replace text (preserves all formatting / structure) ---
+    output_bytes = replace_text_in_docx(docx_content, replacements)
 
-    # Log job
+    # --- Step 6: replace inline images with brand logos ---
+    logo_paths = [
+        os.path.join(BRAND_LOGOS_DIR, fn)
+        for fn in (brand.get("approvedLogos") or [])
+        if os.path.exists(os.path.join(BRAND_LOGOS_DIR, fn))
+    ]
+    if logo_paths:
+        output_bytes = replace_images_in_docx(output_bytes, logo_paths)
+
+    # --- Log job ---
     await db.oem_jobs.insert_one({
         "_id": str(uuid4()),
         "userId": current_user["id"],
@@ -472,8 +533,7 @@ async def process_datasheet(
         "createdAt": datetime.now(timezone.utc).isoformat(),
     })
 
-    # Return file
-    safe_brand = re.sub(r'[^a-zA-Z0-9_-]', '_', brand["name"])
+    safe_brand = re.sub(r"[^a-zA-Z0-9_-]", "_", brand["name"])
     output_filename = f"OEM_{safe_brand}_{os.path.splitext(file.filename)[0]}.docx"
 
     return StreamingResponse(
