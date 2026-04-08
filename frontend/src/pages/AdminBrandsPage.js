@@ -15,7 +15,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 const API = `${process.env.REACT_APP_BACKEND_URL}/api/oem`;
 const BASE_URL = process.env.REACT_APP_BACKEND_URL;
 
-const emptyForm = { name: '', address: '', phone: '', email: '', website: '', warrantyText: '', primaryColor: '#3B82F6', secondaryColor: '' };
+const emptyForm = { name: '', address: '', phone: '', email: '', website: '', warrantyText: '', primaryColor: '#3B82F6', secondaryColor: '', headerHeight: 'medium', copyrightText: '' };
 
 const AdminBrandsPage = () => {
   const [brands, setBrands] = useState([]);
@@ -59,6 +59,8 @@ const AdminBrandsPage = () => {
       warrantyText: brand.warrantyText || '',
       primaryColor: brand.primaryColor || '#3B82F6',
       secondaryColor: brand.secondaryColor || '',
+      headerHeight: brand.headerHeight || 'medium',
+      copyrightText: brand.copyrightText || '',
     });
     setDialogOpen(true);
   };
@@ -383,6 +385,36 @@ const AdminBrandsPage = () => {
                         maxLength={7}
                       />
                     </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Header & Footer Settings */}
+              <div className="space-y-3 pt-2 border-t border-border">
+                <p className="text-sm font-semibold text-foreground">Header & Footer</p>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                    <Label>Header Height</Label>
+                    <select
+                      value={form.headerHeight}
+                      onChange={e => setForm(f => ({ ...f, headerHeight: e.target.value }))}
+                      className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                    >
+                      <option value="small">Small (~0.3&quot;)</option>
+                      <option value="medium">Medium (~0.5&quot;)</option>
+                      <option value="large">Large (~0.7&quot;)</option>
+                    </select>
+                    <p className="text-xs text-muted-foreground">Logo height in header</p>
+                  </div>
+                  <div className="space-y-1">
+                    <Label>Copyright Text</Label>
+                    <Input
+                      placeholder={`All rights reserved © ${new Date().getFullYear()}`}
+                      value={form.copyrightText}
+                      onChange={e => setForm(f => ({ ...f, copyrightText: e.target.value }))}
+                      className="text-sm"
+                    />
+                    <p className="text-xs text-muted-foreground">Centered in footer</p>
                   </div>
                 </div>
               </div>

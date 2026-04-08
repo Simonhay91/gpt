@@ -404,9 +404,8 @@ Datasheet text:
         logger.error(f"GPT structure parsing failed: {e}")
         structure = {"title": text[:80].split("\n")[0], "sections": []}
 
-    # Parse brand colors
+    # Brand colors
     primary_hex = (brand.get("primaryColor") or "#1E3A8A").lstrip("#")
-    secondary_hex = (brand.get("secondaryColor") or primary_hex).lstrip("#")
 
     def hex_to_rgb(h):
         h = (h or "1E3A8A").lstrip("#")
@@ -416,7 +415,12 @@ Datasheet text:
             return (30, 58, 138)
 
     primary_rgb = hex_to_rgb(primary_hex)
-    secondary_rgb = hex_to_rgb(secondary_hex)
+
+    # Header height (small=0.3", medium=0.5", large=0.7")
+    header_height_map = {"small": 0.3, "medium": 0.5, "large": 0.7}
+    logo_height_in = header_height_map.get(brand.get("headerHeight", "medium"), 0.5)
+
+    copyright_text = brand.get("copyrightText") or f"All rights reserved © {datetime.now(timezone.utc).year}"
 
     def set_cell_bg(cell, hex_color):
         tc = cell._tc
@@ -427,26 +431,53 @@ Datasheet text:
         shd.set(qn("w:fill"), hex_color.lstrip("#").upper())
         tcPr.append(shd)
 
+    def add_para_border_bottom(para, color_hex="auto"):
+        """Add a bottom border line to a paragraph (acts as horizontal rule)."""
+        pPr = para._p.get_or_add_pPr()
+        pBdr = OxmlElement("w:pBdr")
+        bottom = OxmlElement("w:bottom")
+        bottom.set(qn("w:val"), "single")
+        bottom.set(qn("w:sz"), "6")
+        bottom.set(qn("w:space"), "1")
+        bottom.set(qn("w:color"), color_hex.lstrip("#").upper() if color_hex != "auto" else "auto")
+        pBdr.append(bottom)
+        pPr.append(pBdr)
+
+    def add_para_border_top(para, color_hex="auto"):
+        """Add a top border line to a paragraph."""
+        pPr = para._p.get_or_add_pPr()
+        pBdr = OxmlElement("w:pBdr")
+        top = OxmlElement("w:top")
+        top.set(qn("w:val"), "single")
+        top.set(qn("w:sz"), "6")
+        top.set(qn("w:space"), "1")
+        top.set(qn("w:color"), color_hex.lstrip("#").upper() if color_hex != "auto" else "auto")
+        pBdr.append(top)
+        pPr.append(pBdr)
+
     # Build DOCX
     doc = Document()
 
-    # Page margins
+    # Page margins — leave room for header/footer
     section = doc.sections[0]
-    section.top_margin = Inches(1.0)
-    section.bottom_margin = Inches(0.8)
+    section.top_margin = Inches(1.2)
+    section.bottom_margin = Inches(1.0)
     section.left_margin = Inches(1.0)
     section.right_margin = Inches(1.0)
+    section.header_distance = Inches(0.3)
+    section.footer_distance = Inches(0.3)
 
-    # Header: brand logo
+    # ── Header: logo left-aligned + horizontal rule below ──────────────
     header = section.header
     h_para = header.paragraphs[0] if header.paragraphs else header.add_paragraph()
     h_para.alignment = WD_ALIGN_PARAGRAPH.LEFT
+
     logo_added = False
     for logo_fn in (brand.get("approvedLogos") or []):
         lpath = os.path.join(BRAND_LOGOS_DIR, logo_fn)
         if os.path.exists(lpath):
             try:
-                h_para.add_run().add_picture(lpath, height=Inches(0.45))
+                h_para.add_run().add_picture(lpath, height=Inches(logo_height_in))
                 logo_added = True
                 break
             except Exception:
@@ -457,17 +488,36 @@ Datasheet text:
         r.font.size = Pt(13)
         r.font.color.rgb = RGBColor(*primary_rgb)
 
-    # Footer: brand contact info
+    # Horizontal rule below header
+    add_para_border_bottom(h_para, primary_hex)
+
+    # ── Footer: email left | copyright center + horizontal rule above ───
     footer = section.footer
     f_para = footer.paragraphs[0] if footer.paragraphs else footer.add_paragraph()
-    f_parts = [p for p in [
-        brand.get("name"), brand.get("website"),
-        brand.get("email"), brand.get("phone"),
-        brand.get("warrantyText")
-    ] if p]
-    f_run = f_para.add_run(" | ".join(f_parts))
-    f_run.font.size = Pt(8)
-    f_run.font.color.rgb = RGBColor(*primary_rgb)
+
+    # Top border (horizontal rule above footer text)
+    add_para_border_top(f_para, primary_hex)
+
+    # Tab stop: center at half-page width (~3.3 inches from left margin)
+    pPr = f_para._p.get_or_add_pPr()
+    tabs = OxmlElement("w:tabs")
+    center_tab = OxmlElement("w:tab")
+    center_tab.set(qn("w:val"), "center")
+    center_tab.set(qn("w:pos"), "3780")   # ~3.3 inches in twips (1 inch=1440 twips)
+    tabs.append(center_tab)
+    pPr.append(tabs)
+
+    # Email (left)
+    email_text = brand.get("email") or ""
+    r_email = f_para.add_run(email_text)
+    r_email.font.size = Pt(8)
+    r_email.font.color.rgb = RGBColor(*primary_rgb)
+
+    # Tab to center + copyright text
+    f_para.add_run("\t")
+    r_copy = f_para.add_run(copyright_text)
+    r_copy.font.size = Pt(8)
+    r_copy.font.color.rgb = RGBColor(*primary_rgb)
 
     # Document title
     title_text = apply_replacements(structure.get("title", ""))
@@ -568,6 +618,8 @@ async def create_brand(
     warrantyText: str = Form(""),
     primaryColor: str = Form(""),
     secondaryColor: str = Form(""),
+    headerHeight: str = Form("medium"),
+    copyrightText: str = Form(""),
     current_user: dict = Depends(get_current_user)
 ):
     if not is_admin(current_user["email"]):
@@ -583,6 +635,8 @@ async def create_brand(
         "warrantyText": warrantyText,
         "primaryColor": primaryColor,
         "secondaryColor": secondaryColor,
+        "headerHeight": headerHeight,
+        "copyrightText": copyrightText,
         "approvedLogos": [],
         "createdAt": datetime.now(timezone.utc).isoformat(),
         "updatedAt": datetime.now(timezone.utc).isoformat(),
@@ -602,6 +656,8 @@ async def update_brand(
     warrantyText: str = Form(""),
     primaryColor: str = Form(""),
     secondaryColor: str = Form(""),
+    headerHeight: str = Form("medium"),
+    copyrightText: str = Form(""),
     current_user: dict = Depends(get_current_user)
 ):
     if not is_admin(current_user["email"]):
@@ -616,6 +672,8 @@ async def update_brand(
         "warrantyText": warrantyText,
         "primaryColor": primaryColor,
         "secondaryColor": secondaryColor,
+        "headerHeight": headerHeight,
+        "copyrightText": copyrightText,
         "updatedAt": datetime.now(timezone.utc).isoformat(),
     }
     result = await db.oem_brands.update_one({"id": brand_id}, {"$set": update})
