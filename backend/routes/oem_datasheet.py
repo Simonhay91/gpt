@@ -502,8 +502,12 @@ Datasheet text:
     section.header_distance = Inches(0.1)
     section.footer_distance = Inches(0.1)
 
-    def _apply_para_band(para, hex_color, height_px, indent_px=0):
-        """Colored background band with exact height and optional left indent."""
+    def _apply_para_band(para, hex_color, height_px, padding_px=0, indent_px=0):
+        """Colored background band.
+        Layout: before(padding) + exact-line(inner) + after(padding).
+        Logo/text fits in the inner area; padding creates breathing room.
+        """
+        inner_px = max(4, height_px - 2 * padding_px)
         pPr = para._p.get_or_add_pPr()
         # Background fill
         shd = OxmlElement("w:shd")
@@ -511,11 +515,11 @@ Datasheet text:
         shd.set(qn("w:color"), "auto")
         shd.set(qn("w:fill"), hex_color.lstrip("#").upper())
         pPr.append(shd)
-        # Exact line height, no before/after spacing
+        # before + inner(exact) + after = total band height
         spacing = OxmlElement("w:spacing")
-        spacing.set(qn("w:before"), "0")
-        spacing.set(qn("w:after"), "0")
-        spacing.set(qn("w:line"), str(int(height_px * PX_TO_TWIP)))
+        spacing.set(qn("w:before"), str(int(padding_px * PX_TO_TWIP)))
+        spacing.set(qn("w:after"),  str(int(padding_px * PX_TO_TWIP)))
+        spacing.set(qn("w:line"),   str(int(inner_px   * PX_TO_TWIP)))
         spacing.set(qn("w:lineRule"), "exact")
         pPr.append(spacing)
         # Left indent for horizontal padding
@@ -524,34 +528,23 @@ Datasheet text:
             ind.set(qn("w:left"), str(int(indent_px * PX_TO_TWIP)))
             pPr.append(ind)
 
-    def _set_run_vshift(run, content_px, band_px):
-        """Shift run up so it appears vertically centered in the band."""
-        shift_half_pts = int((band_px - content_px) / 2 * PX_TO_PT * 2)
-        if shift_half_pts <= 0:
-            return
-        rPr = run._r.get_or_add_rPr()
-        pos = OxmlElement("w:position")
-        pos.set(qn("w:val"), str(shift_half_pts))
-        rPr.append(pos)
-
-    # ── Header: colored band, logo left + vertically centered ──────────
+    # ── Header: colored band, logo left ────────────────────────────────
     header = section.header
     header.is_linked_to_previous = False
 
     h_para = header.paragraphs[0] if header.paragraphs else header.add_paragraph()
     h_para.alignment = WD_ALIGN_PARAGRAPH.LEFT
-    _apply_para_band(h_para, primary_hex, header_height_px, indent_px=header_padding_px)
+    _apply_para_band(h_para, primary_hex, header_height_px,
+                     padding_px=header_padding_px, indent_px=header_padding_px)
 
     logo_added = False
     for logo_fn in (brand.get("approvedLogos") or []):
         lpath = os.path.join(BRAND_LOGOS_DIR, logo_fn)
         if os.path.exists(lpath):
             try:
-                capped_logo_px = min(logo_size_px, header_height_px - 2)
-                logo_in = max(0.1, capped_logo_px * PX_TO_IN)
-                logo_run = h_para.add_run()
-                logo_run.add_picture(lpath, height=Inches(logo_in))
-                _set_run_vshift(logo_run, capped_logo_px, header_height_px)
+                inner_px  = max(4, header_height_px - 2 * header_padding_px)
+                capped_px = min(logo_size_px, inner_px)
+                h_para.add_run().add_picture(lpath, height=Inches(max(0.1, capped_px * PX_TO_IN)))
                 logo_added = True
                 break
             except Exception:
@@ -561,14 +554,14 @@ Datasheet text:
         r.bold = True
         r.font.size = Pt(12)
         r.font.color.rgb = RGBColor(255, 255, 255)
-        _set_run_vshift(r, 12 * 96 / 72, header_height_px)  # 12pt → px
 
     # ── Footer: colored band, email left | copyright center ────────────
     footer = section.footer
     footer.is_linked_to_previous = False
 
     f_para = footer.paragraphs[0] if footer.paragraphs else footer.add_paragraph()
-    _apply_para_band(f_para, primary_hex, footer_height_px, indent_px=footer_padding_px)
+    _apply_para_band(f_para, primary_hex, footer_height_px,
+                     padding_px=footer_padding_px, indent_px=footer_padding_px)
 
     # Center tab stop
     pPr = f_para._p.get_or_add_pPr()
@@ -579,19 +572,15 @@ Datasheet text:
     tabs.append(ct)
     pPr.append(tabs)
 
-    font_px = 8 * 96 / 72   # 8pt → px (for vshift calc)
-
     r_email = f_para.add_run(brand.get("email") or brand.get("name") or "")
     r_email.font.size = Pt(8)
     r_email.font.color.rgb = RGBColor(255, 255, 255)
-    _set_run_vshift(r_email, font_px, footer_height_px)
 
     f_para.add_run("\t")
 
     r_copy = f_para.add_run(copyright_text)
     r_copy.font.size = Pt(8)
     r_copy.font.color.rgb = RGBColor(255, 255, 255)
-    _set_run_vshift(r_copy, font_px, footer_height_px)
 
     # Document title
     title_text = apply_replacements(structure.get("title", ""))
