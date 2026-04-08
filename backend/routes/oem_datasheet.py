@@ -433,46 +433,43 @@ Datasheet text:
         shd.set(qn("w:fill"), hex_color.lstrip("#").upper())
         tcPr.append(shd)
 
-    def add_para_border_bottom(para, color_hex="auto"):
-        """Add a bottom border line to a paragraph (acts as horizontal rule)."""
+    def set_para_shading(para, hex_color):
+        """Fill paragraph background with a solid color (margin-to-margin band)."""
         pPr = para._p.get_or_add_pPr()
-        pBdr = OxmlElement("w:pBdr")
-        bottom = OxmlElement("w:bottom")
-        bottom.set(qn("w:val"), "single")
-        bottom.set(qn("w:sz"), "6")
-        bottom.set(qn("w:space"), "1")
-        bottom.set(qn("w:color"), color_hex.lstrip("#").upper() if color_hex != "auto" else "auto")
-        pBdr.append(bottom)
-        pPr.append(pBdr)
+        shd = OxmlElement("w:shd")
+        shd.set(qn("w:val"), "clear")
+        shd.set(qn("w:color"), "auto")
+        shd.set(qn("w:fill"), hex_color.lstrip("#").upper())
+        pPr.append(shd)
 
-    def add_para_border_top(para, color_hex="auto"):
-        """Add a top border line to a paragraph."""
-        pPr = para._p.get_or_add_pPr()
-        pBdr = OxmlElement("w:pBdr")
-        top = OxmlElement("w:top")
-        top.set(qn("w:val"), "single")
-        top.set(qn("w:sz"), "6")
-        top.set(qn("w:space"), "1")
-        top.set(qn("w:color"), color_hex.lstrip("#").upper() if color_hex != "auto" else "auto")
-        pBdr.append(top)
-        pPr.append(pBdr)
+    def set_para_spacing(para, before_pt, after_pt):
+        pf = para.paragraph_format
+        pf.space_before = Pt(before_pt)
+        pf.space_after = Pt(after_pt)
 
     # Build DOCX
     doc = Document()
 
-    # Page margins — leave room for header/footer
+    # Page margins
     section = doc.sections[0]
-    section.top_margin = Inches(1.2)
-    section.bottom_margin = Inches(1.0)
+    section.top_margin = Inches(1.3)
+    section.bottom_margin = Inches(1.1)
     section.left_margin = Inches(1.0)
     section.right_margin = Inches(1.0)
-    section.header_distance = Inches(0.3)
-    section.footer_distance = Inches(0.3)
+    section.header_distance = Inches(0.2)
+    section.footer_distance = Inches(0.2)
 
-    # ── Header: logo left-aligned + horizontal rule below ──────────────
+    # ── Header: colored background + logo left ─────────────────────────
     header = section.header
+    header.is_linked_to_previous = False
+
     h_para = header.paragraphs[0] if header.paragraphs else header.add_paragraph()
     h_para.alignment = WD_ALIGN_PARAGRAPH.LEFT
+    set_para_shading(h_para, primary_hex)
+
+    # Vertical padding via spacing (controls band height)
+    pad_pt = max(4.0, (logo_height_in - 0.25) * 28)   # scale with logo height
+    set_para_spacing(h_para, pad_pt, pad_pt)
 
     logo_added = False
     for logo_fn in (brand.get("approvedLogos") or []):
@@ -487,39 +484,35 @@ Datasheet text:
     if not logo_added:
         r = h_para.add_run(brand.get("name", ""))
         r.bold = True
-        r.font.size = Pt(13)
-        r.font.color.rgb = RGBColor(*primary_rgb)
+        r.font.size = Pt(14)
+        r.font.color.rgb = RGBColor(255, 255, 255)
 
-    # Horizontal rule below header
-    add_para_border_bottom(h_para, primary_hex)
-
-    # ── Footer: email left | copyright center + horizontal rule above ───
+    # ── Footer: colored background + email left | copyright center ─────
     footer = section.footer
+    footer.is_linked_to_previous = False
+
     f_para = footer.paragraphs[0] if footer.paragraphs else footer.add_paragraph()
+    set_para_shading(f_para, primary_hex)
+    set_para_spacing(f_para, 5, 5)
 
-    # Top border (horizontal rule above footer text)
-    add_para_border_top(f_para, primary_hex)
-
-    # Tab stop: center at half-page width (~3.3 inches from left margin)
+    # Tab stop at center of text area (~3.25 inches = 4680 twips)
     pPr = f_para._p.get_or_add_pPr()
     tabs = OxmlElement("w:tabs")
     center_tab = OxmlElement("w:tab")
     center_tab.set(qn("w:val"), "center")
-    center_tab.set(qn("w:pos"), "3780")   # ~3.3 inches in twips (1 inch=1440 twips)
+    center_tab.set(qn("w:pos"), "4680")
     tabs.append(center_tab)
     pPr.append(tabs)
 
-    # Email (left)
-    email_text = brand.get("email") or ""
+    email_text = brand.get("email") or brand.get("name") or ""
     r_email = f_para.add_run(email_text)
     r_email.font.size = Pt(8)
-    r_email.font.color.rgb = RGBColor(*primary_rgb)
+    r_email.font.color.rgb = RGBColor(255, 255, 255)
 
-    # Tab to center + copyright text
     f_para.add_run("\t")
     r_copy = f_para.add_run(copyright_text)
     r_copy.font.size = Pt(8)
-    r_copy.font.color.rgb = RGBColor(*primary_rgb)
+    r_copy.font.color.rgb = RGBColor(255, 255, 255)
 
     # Document title
     title_text = apply_replacements(structure.get("title", ""))
