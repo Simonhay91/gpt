@@ -15,7 +15,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 const API = `${process.env.REACT_APP_BACKEND_URL}/api/oem`;
 const BASE_URL = process.env.REACT_APP_BACKEND_URL;
 
-const emptyForm = { name: '', address: '', phone: '', email: '', website: '', warrantyText: '', primaryColor: '#3B82F6', subtitleColor: '', headerHeightPx: '60', headerPaddingPx: '8', footerHeightPx: '36', footerPaddingPx: '6', copyrightText: '' };
+const emptyForm = { name: '', address: '', phone: '', email: '', website: '', warrantyText: '', primaryColor: '#3B82F6', subtitleColor: '', headerHeightPx: '60', headerPaddingPx: '8', logoSizePx: '44', footerHeightPx: '36', footerPaddingPx: '6', copyrightText: '' };
 
 const AdminBrandsPage = () => {
   const [brands, setBrands] = useState([]);
@@ -61,6 +61,7 @@ const AdminBrandsPage = () => {
       subtitleColor: brand.subtitleColor || '',
       headerHeightPx: String(brand.headerHeightPx || '60'),
       headerPaddingPx: String(brand.headerPaddingPx || '8'),
+      logoSizePx: String(brand.logoSizePx || '44'),
       footerHeightPx: String(brand.footerHeightPx || '36'),
       footerPaddingPx: String(brand.footerPaddingPx || '6'),
       copyrightText: brand.copyrightText || '',
@@ -397,7 +398,7 @@ const AdminBrandsPage = () => {
                 <p className="text-sm font-semibold text-foreground">Header & Footer</p>
 
                 {/* Header row */}
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-3 gap-3">
                   <div className="space-y-1">
                     <Label>Header Height (px)</Label>
                     <Input
@@ -406,7 +407,7 @@ const AdminBrandsPage = () => {
                       onChange={e => setForm(f => ({ ...f, headerHeightPx: e.target.value }))}
                       className="text-sm"
                     />
-                    <p className="text-xs text-muted-foreground">Total header band height</p>
+                    <p className="text-xs text-muted-foreground">Band height</p>
                   </div>
                   <div className="space-y-1">
                     <Label>Header Padding (px)</Label>
@@ -416,7 +417,17 @@ const AdminBrandsPage = () => {
                       onChange={e => setForm(f => ({ ...f, headerPaddingPx: e.target.value }))}
                       className="text-sm"
                     />
-                    <p className="text-xs text-muted-foreground">Top & bottom padding inside header</p>
+                    <p className="text-xs text-muted-foreground">Top & bottom padding</p>
+                  </div>
+                  <div className="space-y-1">
+                    <Label>Logo Size (px)</Label>
+                    <Input
+                      type="number" min="10" max="160"
+                      value={form.logoSizePx}
+                      onChange={e => setForm(f => ({ ...f, logoSizePx: e.target.value }))}
+                      className="text-sm"
+                    />
+                    <p className="text-xs text-muted-foreground">Logo height</p>
                   </div>
                 </div>
 

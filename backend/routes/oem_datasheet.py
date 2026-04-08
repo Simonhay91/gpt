@@ -418,18 +418,16 @@ Datasheet text:
     primary_rgb = hex_to_rgb(primary_hex)
     subtitle_rgb = hex_to_rgb(subtitle_hex)
 
-    # px → inches (96dpi) and px → pt (72pt/inch)
-    PX_TO_IN = 1 / 96
-    PX_TO_PT = 72 / 96
+    # px → units conversion (96dpi screen)
+    PX_TO_IN   = 1 / 96
+    PX_TO_PT   = 72 / 96
+    PX_TO_TWIP = 1440 / 96   # 1 inch = 1440 twips
 
     header_height_px  = int(brand.get("headerHeightPx")  or 60)
     header_padding_px = int(brand.get("headerPaddingPx") or 8)
     footer_height_px  = int(brand.get("footerHeightPx")  or 36)
     footer_padding_px = int(brand.get("footerPaddingPx") or 6)
-
-    logo_height_in  = max(0.1, (header_height_px - 2 * header_padding_px) * PX_TO_IN)
-    header_pad_pt   = header_padding_px * PX_TO_PT
-    footer_pad_pt   = footer_padding_px * PX_TO_PT
+    logo_size_px      = int(brand.get("logoSizePx")      or max(10, header_height_px - 2 * header_padding_px))
 
     copyright_text = brand.get("copyrightText") or f"All rights reserved © {datetime.now(timezone.utc).year}"
 
@@ -442,82 +440,142 @@ Datasheet text:
         shd.set(qn("w:fill"), hex_color.lstrip("#").upper())
         tcPr.append(shd)
 
-    def set_para_shading(para, hex_color):
-        """Fill paragraph background with a solid color (margin-to-margin band)."""
-        pPr = para._p.get_or_add_pPr()
+    def _set_cell_bg(cell, hex_color):
+        tc = cell._tc
+        tcPr = tc.get_or_add_tcPr()
         shd = OxmlElement("w:shd")
         shd.set(qn("w:val"), "clear")
         shd.set(qn("w:color"), "auto")
         shd.set(qn("w:fill"), hex_color.lstrip("#").upper())
-        pPr.append(shd)
+        tcPr.append(shd)
 
-    def set_para_spacing(para, before_pt, after_pt):
-        pf = para.paragraph_format
-        pf.space_before = Pt(before_pt)
-        pf.space_after = Pt(after_pt)
+    def _set_table_no_borders(tbl_elem):
+        """Remove all visible borders from a table."""
+        tblPr = tbl_elem.tblPr if tbl_elem.tblPr is not None else OxmlElement("w:tblPr")
+        tblBdr = OxmlElement("w:tblBorders")
+        for side in ("top", "left", "bottom", "right", "insideH", "insideV"):
+            b = OxmlElement(f"w:{side}")
+            b.set(qn("w:val"), "none")
+            b.set(qn("w:sz"), "0")
+            b.set(qn("w:space"), "0")
+            b.set(qn("w:color"), "auto")
+            tblBdr.append(b)
+        tblPr.append(tblBdr)
+
+    def _set_row_exact_height(row, height_px):
+        tr = row._tr
+        trPr = tr.get_or_add_trPr()
+        trH = OxmlElement("w:trHeight")
+        trH.set(qn("w:val"), str(int(height_px * PX_TO_TWIP)))
+        trH.set(qn("w:hRule"), "exact")
+        trPr.append(trH)
+
+    def _set_cell_padding(cell, px):
+        tcPr = cell._tc.get_or_add_tcPr()
+        tcMar = OxmlElement("w:tcMar")
+        pt_val = str(int(px * PX_TO_TWIP))
+        for side in ("top", "left", "bottom", "right"):
+            m = OxmlElement(f"w:{side}")
+            m.set(qn("w:w"), pt_val)
+            m.set(qn("w:type"), "dxa")
+            tcMar.append(m)
+        tcPr.append(tcMar)
+
+    def _cell_no_borders(cell):
+        tcPr = cell._tc.get_or_add_tcPr()
+        tcBdr = OxmlElement("w:tcBorders")
+        for side in ("top", "left", "bottom", "right", "insideH", "insideV"):
+            b = OxmlElement(f"w:{side}")
+            b.set(qn("w:val"), "none")
+            tcBdr.append(b)
+        tcPr.append(tcBdr)
 
     # Build DOCX
     doc = Document()
 
     # Page margins
     section = doc.sections[0]
-    section.top_margin = Inches(1.3)
-    section.bottom_margin = Inches(1.1)
-    section.left_margin = Inches(1.0)
-    section.right_margin = Inches(1.0)
-    section.header_distance = Inches(0.2)
-    section.footer_distance = Inches(0.2)
+    section.top_margin    = Inches(header_height_px * PX_TO_IN + 0.3)
+    section.bottom_margin = Inches(footer_height_px * PX_TO_IN + 0.2)
+    section.left_margin   = Inches(1.0)
+    section.right_margin  = Inches(1.0)
+    section.header_distance = Inches(0.1)
+    section.footer_distance = Inches(0.1)
 
-    # ── Header: colored background + logo left ─────────────────────────
+    # ── Header: table with colored background, exact height, logo left ─
     header = section.header
     header.is_linked_to_previous = False
 
-    h_para = header.paragraphs[0] if header.paragraphs else header.add_paragraph()
-    h_para.alignment = WD_ALIGN_PARAGRAPH.LEFT
-    set_para_shading(h_para, primary_hex)
+    # Clear default empty paragraph content (keep the element, clear runs)
+    for p in header.paragraphs:
+        for r in p.runs:
+            r.text = ""
 
-    set_para_spacing(h_para, header_pad_pt, header_pad_pt)
+    h_tbl = header.add_table(rows=1, cols=1, width=Inches(6.5))
+    _set_table_no_borders(h_tbl._tbl)
+    h_row  = h_tbl.rows[0]
+    _set_row_exact_height(h_row, header_height_px)
+    h_cell = h_row.cells[0]
+    _set_cell_bg(h_cell, primary_hex)
+    _set_cell_no_borders = _cell_no_borders
+    _set_cell_no_borders(h_cell)
+    _set_cell_padding(h_cell, header_padding_px)
+
+    h_cell_para = h_cell.paragraphs[0]
+    h_cell_para.alignment = WD_ALIGN_PARAGRAPH.LEFT
+    # Vertical centering
+    from docx.enum.table import WD_CELL_VERTICAL_ALIGNMENT
+    h_cell.vertical_alignment = WD_CELL_VERTICAL_ALIGNMENT.CENTER
 
     logo_added = False
     for logo_fn in (brand.get("approvedLogos") or []):
         lpath = os.path.join(BRAND_LOGOS_DIR, logo_fn)
         if os.path.exists(lpath):
             try:
-                h_para.add_run().add_picture(lpath, height=Inches(logo_height_in))
+                logo_in = max(0.1, logo_size_px * PX_TO_IN)
+                h_cell_para.add_run().add_picture(lpath, height=Inches(logo_in))
                 logo_added = True
                 break
             except Exception:
                 pass
     if not logo_added:
-        r = h_para.add_run(brand.get("name", ""))
+        r = h_cell_para.add_run(brand.get("name", ""))
         r.bold = True
         r.font.size = Pt(14)
         r.font.color.rgb = RGBColor(255, 255, 255)
 
-    # ── Footer: colored background + email left | copyright center ─────
+    # ── Footer: table with colored background, email left | copyright center ─
     footer = section.footer
     footer.is_linked_to_previous = False
 
-    f_para = footer.paragraphs[0] if footer.paragraphs else footer.add_paragraph()
-    set_para_shading(f_para, primary_hex)
-    set_para_spacing(f_para, footer_pad_pt, footer_pad_pt)
+    for p in footer.paragraphs:
+        for r in p.runs:
+            r.text = ""
 
-    # Tab stop at center of text area (~3.25 inches = 4680 twips)
-    pPr = f_para._p.get_or_add_pPr()
-    tabs = OxmlElement("w:tabs")
-    center_tab = OxmlElement("w:tab")
-    center_tab.set(qn("w:val"), "center")
-    center_tab.set(qn("w:pos"), "4680")
-    tabs.append(center_tab)
-    pPr.append(tabs)
+    f_tbl = footer.add_table(rows=1, cols=2, width=Inches(6.5))
+    _set_table_no_borders(f_tbl._tbl)
+    f_row = f_tbl.rows[0]
+    _set_row_exact_height(f_row, footer_height_px)
 
-    email_text = brand.get("email") or brand.get("name") or ""
-    r_email = f_para.add_run(email_text)
+    f_left  = f_row.cells[0]
+    f_right = f_row.cells[1]
+    for fc in (f_left, f_right):
+        _set_cell_bg(fc, primary_hex)
+        _cell_no_borders(fc)
+        _set_cell_padding(fc, footer_padding_px)
+        fc.vertical_alignment = WD_CELL_VERTICAL_ALIGNMENT.CENTER
+
+    # Email — left cell
+    fl_para = f_left.paragraphs[0]
+    fl_para.alignment = WD_ALIGN_PARAGRAPH.LEFT
+    r_email = fl_para.add_run(brand.get("email") or brand.get("name") or "")
     r_email.font.size = Pt(8)
     r_email.font.color.rgb = RGBColor(255, 255, 255)
 
-    f_para.add_run("\t")
-    r_copy = f_para.add_run(copyright_text)
+    # Copyright — right cell, centered
+    fr_para = f_right.paragraphs[0]
+    fr_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    r_copy = fr_para.add_run(copyright_text)
     r_copy.font.size = Pt(8)
     r_copy.font.color.rgb = RGBColor(255, 255, 255)
 
@@ -622,6 +680,7 @@ async def create_brand(
     subtitleColor: str = Form(""),
     headerHeightPx: int = Form(60),
     headerPaddingPx: int = Form(8),
+    logoSizePx: int = Form(44),
     footerHeightPx: int = Form(36),
     footerPaddingPx: int = Form(6),
     copyrightText: str = Form(""),
@@ -642,6 +701,7 @@ async def create_brand(
         "subtitleColor": subtitleColor,
         "headerHeightPx": headerHeightPx,
         "headerPaddingPx": headerPaddingPx,
+        "logoSizePx": logoSizePx,
         "footerHeightPx": footerHeightPx,
         "footerPaddingPx": footerPaddingPx,
         "copyrightText": copyrightText,
@@ -666,6 +726,7 @@ async def update_brand(
     subtitleColor: str = Form(""),
     headerHeightPx: int = Form(60),
     headerPaddingPx: int = Form(8),
+    logoSizePx: int = Form(44),
     footerHeightPx: int = Form(36),
     footerPaddingPx: int = Form(6),
     copyrightText: str = Form(""),
@@ -685,6 +746,7 @@ async def update_brand(
         "subtitleColor": subtitleColor,
         "headerHeightPx": headerHeightPx,
         "headerPaddingPx": headerPaddingPx,
+        "logoSizePx": logoSizePx,
         "footerHeightPx": footerHeightPx,
         "footerPaddingPx": footerPaddingPx,
         "copyrightText": copyrightText,
