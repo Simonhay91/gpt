@@ -315,6 +315,226 @@ Datasheet text (first 3000 chars):
         return {}
 
 
+async def rebuild_docx_from_pdf(
+    pdf_content: bytes,
+    brand: dict,
+    supplier_info: dict,
+    openai_api_key: str,
+) -> bytes:
+    """
+    AI-powered PDF → clean DOCX rebuild:
+    1. Extract text from PDF
+    2. GPT parses it into structured sections + tables (JSON)
+    3. python-docx builds a clean DOCX with brand colors, logo in header,
+       brand contact in footer. Images are omitted (user adds manually).
+    """
+    from openai import AsyncOpenAI
+    from docx import Document
+    from docx.shared import Pt, Inches, RGBColor
+    from docx.enum.text import WD_ALIGN_PARAGRAPH
+    from docx.oxml.ns import qn
+    from docx.oxml import OxmlElement
+
+    text = extract_text_from_pdf(pdf_content)
+    if not text.strip():
+        raise HTTPException(status_code=400, detail="Could not extract text from PDF")
+
+    # Build supplier → brand replacement map for post-processing
+    replacements = {}
+    if supplier_info.get("company_name") and brand.get("name"):
+        replacements[supplier_info["company_name"]] = brand["name"]
+    if supplier_info.get("address") and brand.get("address"):
+        replacements[supplier_info["address"]] = brand["address"]
+    if supplier_info.get("phone") and brand.get("phone"):
+        replacements[supplier_info["phone"]] = brand["phone"]
+    if supplier_info.get("email") and brand.get("email"):
+        replacements[supplier_info["email"]] = brand["email"]
+    if supplier_info.get("website") and brand.get("website"):
+        replacements[supplier_info["website"]] = brand["website"]
+    for mention in (supplier_info.get("other_brand_mentions") or []):
+        if mention and mention.strip():
+            replacements[mention] = brand["name"]
+
+    def apply_replacements(s: str) -> str:
+        if not s:
+            return s
+        for old, new in replacements.items():
+            if old:
+                s = s.replace(old, new)
+        return s
+
+    # GPT: parse document structure
+    client = AsyncOpenAI(api_key=openai_api_key)
+    prompt = f"""Parse this product datasheet text into a structured JSON.
+
+Return ONLY valid JSON with exactly this structure:
+{{
+  "title": "product model/name (e.g. GYXTS)",
+  "sections": [
+    {{
+      "heading": "section title including number (e.g. '1. Cable cross-section')",
+      "text": "plain text description, or null",
+      "table": {{
+        "headers": ["Column1", "Column2", ...],
+        "rows": [["val1", "val2", ...], ...]
+      }}
+    }}
+  ]
+}}
+
+Rules:
+- Include ALL sections and ALL table data with exact values
+- Skip any images or diagrams (they will be added manually)
+- Do NOT include supplier company name, logo, address, phone, email or website — those will be replaced
+- Preserve technical specifications exactly (numbers, units, symbols)
+- If a section has both text and a table, include both fields
+
+Datasheet text:
+{text[:5000]}"""
+
+    try:
+        response = await client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[{"role": "user", "content": prompt}],
+            response_format={"type": "json_object"},
+            temperature=0
+        )
+        structure = json.loads(response.choices[0].message.content)
+    except Exception as e:
+        logger.error(f"GPT structure parsing failed: {e}")
+        structure = {"title": text[:80].split("\n")[0], "sections": []}
+
+    # Parse brand colors
+    primary_hex = (brand.get("primaryColor") or "#1E3A8A").lstrip("#")
+    secondary_hex = (brand.get("secondaryColor") or primary_hex).lstrip("#")
+
+    def hex_to_rgb(h):
+        h = (h or "1E3A8A").lstrip("#")
+        try:
+            return tuple(int(h[i:i+2], 16) for i in (0, 2, 4))
+        except Exception:
+            return (30, 58, 138)
+
+    primary_rgb = hex_to_rgb(primary_hex)
+    secondary_rgb = hex_to_rgb(secondary_hex)
+
+    def set_cell_bg(cell, hex_color):
+        tc = cell._tc
+        tcPr = tc.get_or_add_tcPr()
+        shd = OxmlElement("w:shd")
+        shd.set(qn("w:val"), "clear")
+        shd.set(qn("w:color"), "auto")
+        shd.set(qn("w:fill"), hex_color.lstrip("#").upper())
+        tcPr.append(shd)
+
+    # Build DOCX
+    doc = Document()
+
+    # Page margins
+    section = doc.sections[0]
+    section.top_margin = Inches(1.0)
+    section.bottom_margin = Inches(0.8)
+    section.left_margin = Inches(1.0)
+    section.right_margin = Inches(1.0)
+
+    # Header: brand logo
+    header = section.header
+    h_para = header.paragraphs[0] if header.paragraphs else header.add_paragraph()
+    h_para.alignment = WD_ALIGN_PARAGRAPH.LEFT
+    logo_added = False
+    for logo_fn in (brand.get("approvedLogos") or []):
+        lpath = os.path.join(BRAND_LOGOS_DIR, logo_fn)
+        if os.path.exists(lpath):
+            try:
+                h_para.add_run().add_picture(lpath, height=Inches(0.45))
+                logo_added = True
+                break
+            except Exception:
+                pass
+    if not logo_added:
+        r = h_para.add_run(brand.get("name", ""))
+        r.bold = True
+        r.font.size = Pt(13)
+        r.font.color.rgb = RGBColor(*primary_rgb)
+
+    # Footer: brand contact info
+    footer = section.footer
+    f_para = footer.paragraphs[0] if footer.paragraphs else footer.add_paragraph()
+    f_parts = [p for p in [
+        brand.get("name"), brand.get("website"),
+        brand.get("email"), brand.get("phone"),
+        brand.get("warrantyText")
+    ] if p]
+    f_run = f_para.add_run(" | ".join(f_parts))
+    f_run.font.size = Pt(8)
+    f_run.font.color.rgb = RGBColor(*primary_rgb)
+
+    # Document title
+    title_text = apply_replacements(structure.get("title", ""))
+    if title_text:
+        tp = doc.add_paragraph()
+        tp.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        tr = tp.add_run(title_text)
+        tr.bold = True
+        tr.font.size = Pt(16)
+        tr.font.color.rgb = RGBColor(*primary_rgb)
+
+    doc.add_paragraph()
+
+    # Sections
+    for sec in structure.get("sections", []):
+        heading = apply_replacements(sec.get("heading") or "")
+        text_body = apply_replacements(sec.get("text") or "")
+        table_data = sec.get("table")
+
+        if heading:
+            hp = doc.add_paragraph()
+            hr = hp.add_run(heading)
+            hr.bold = True
+            hr.font.size = Pt(11)
+            hr.font.color.rgb = RGBColor(*primary_rgb)
+
+        if text_body:
+            bp = doc.add_paragraph(text_body)
+            for run in bp.runs:
+                run.font.size = Pt(10)
+
+        if table_data:
+            headers = table_data.get("headers") or []
+            rows = table_data.get("rows") or []
+            col_count = max(
+                len(headers),
+                max((len(r) for r in rows), default=0)
+            )
+            if col_count > 0 and (headers or rows):
+                tbl = doc.add_table(rows=len(rows) + (1 if headers else 0), cols=col_count)
+                tbl.style = "Table Grid"
+
+                row_offset = 0
+                if headers:
+                    hdr_row = tbl.rows[0].cells
+                    for ci, h in enumerate(headers[:col_count]):
+                        cell = hdr_row[ci]
+                        set_cell_bg(cell, primary_hex)
+                        r = cell.paragraphs[0].add_run(apply_replacements(str(h)))
+                        r.bold = True
+                        r.font.size = Pt(9)
+                        r.font.color.rgb = RGBColor(255, 255, 255)
+                    row_offset = 1
+
+                for ri, row in enumerate(rows):
+                    cells = tbl.rows[ri + row_offset].cells
+                    for ci, val in enumerate(row[:col_count]):
+                        r = cells[ci].paragraphs[0].add_run(apply_replacements(str(val)))
+                        r.font.size = Pt(9)
+
+        doc.add_paragraph()
+
+    buf = io.BytesIO()
+    doc.save(buf)
+    return buf.getvalue()
+
+
 # ==================== LOGO SERVE ENDPOINT ====================
 
 @router.get("/logo/{filename}")
@@ -482,13 +702,8 @@ async def process_datasheet(
     """
     Upload supplier datasheet → AI identifies supplier info → rebrand → return OEM DOCX.
 
-    Pipeline:
-      1. PDF → convert to DOCX preserving layout (pdf2docx)
-      2. Extract text for AI analysis
-      3. AI identifies supplier company name, address, phone, email, website
-      4. Replace supplier text with brand text (run-by-run, preserves formatting)
-      5. Replace inline images with brand logos (ZIP-level, preserves positions)
-      6. Replace non-neutral colors with brand primaryColor / secondaryColor
+    PDF  → AI parses structure → clean DOCX rebuild (brand colors, logo, tables)
+    DOCX → in-place text/image/color replacement (layout fully preserved)
     """
     db = get_db()
 
@@ -497,72 +712,68 @@ async def process_datasheet(
         raise HTTPException(status_code=404, detail="Brand not found")
 
     raw_content = await file.read()
-    filename = file.filename.lower()
+    orig_filename = file.filename
+    filename_lower = orig_filename.lower()
 
-    # --- Step 1: get a DOCX with preserved layout ---
-    if filename.endswith(".docx"):
-        docx_content = raw_content
-    elif filename.endswith(".pdf"):
-        logger.info("Converting PDF → DOCX with layout preservation…")
-        try:
-            docx_content = convert_pdf_to_docx(raw_content)
-        except Exception as e:
-            logger.error(f"pdf2docx conversion failed: {e}")
-            raise HTTPException(status_code=500, detail=f"PDF conversion failed: {e}")
-    else:
-        raise HTTPException(
-            status_code=400,
-            detail="Only .docx and .pdf files are supported"
-        )
+    if not (filename_lower.endswith(".pdf") or filename_lower.endswith(".docx")):
+        raise HTTPException(status_code=400, detail="Only .docx and .pdf files are supported")
 
-    # --- Step 2: extract text for AI analysis ---
-    text = extract_text_from_docx(docx_content)
-    if not text.strip():
-        raise HTTPException(status_code=400, detail="Could not extract text from file")
+    is_pdf = filename_lower.endswith(".pdf")
 
-    # --- Step 3: AI identifies supplier brand info ---
     openai_key = os.environ.get("OPENAI_API_KEY", "")
+
+    # --- Identify supplier info (used for both PDF and DOCX paths) ---
     supplier_info = {}
     if openai_key:
         try:
-            supplier_info = await identify_supplier_info(text, openai_key)
+            raw_text = extract_text_from_pdf(raw_content) if is_pdf else extract_text_from_docx(raw_content)
+            supplier_info = await identify_supplier_info(raw_text, openai_key)
             logger.info(f"Supplier info identified: {supplier_info}")
         except Exception as e:
-            logger.error(f"AI identification failed: {e}")
+            logger.error(f"Supplier identification failed: {e}")
 
-    # --- Step 4: build text replacement map ---
-    replacements = {}
-    if supplier_info.get("company_name") and brand.get("name"):
-        replacements[supplier_info["company_name"]] = brand["name"]
-    if supplier_info.get("address") and brand.get("address"):
-        replacements[supplier_info["address"]] = brand["address"]
-    if supplier_info.get("phone") and brand.get("phone"):
-        replacements[supplier_info["phone"]] = brand["phone"]
-    if supplier_info.get("email") and brand.get("email"):
-        replacements[supplier_info["email"]] = brand["email"]
-    if supplier_info.get("website") and brand.get("website"):
-        replacements[supplier_info["website"]] = brand["website"]
-    for mention in (supplier_info.get("other_brand_mentions") or []):
-        if mention and mention.strip():
-            replacements[mention] = brand["name"]
+    safe_brand = re.sub(r"[^a-zA-Z0-9_-]", "_", brand["name"])
+    base_name = os.path.splitext(orig_filename)[0]
 
-    # --- Step 5: replace text (preserves all formatting/structure) ---
-    output_bytes = replace_text_in_docx(docx_content, replacements)
+    if is_pdf:
+        # ── PDF: AI rebuild → clean DOCX with brand colors + logo ──────
+        if not openai_key:
+            raise HTTPException(status_code=500, detail="OPENAI_API_KEY not configured")
+        output_bytes = await rebuild_docx_from_pdf(raw_content, brand, supplier_info, openai_key)
+        output_filename = f"OEM_{safe_brand}_{base_name}.docx"
+    else:
+        # ── DOCX: in-place text + image + color replacement ─────────────
+        replacements = {}
+        if supplier_info.get("company_name") and brand.get("name"):
+            replacements[supplier_info["company_name"]] = brand["name"]
+        if supplier_info.get("address") and brand.get("address"):
+            replacements[supplier_info["address"]] = brand["address"]
+        if supplier_info.get("phone") and brand.get("phone"):
+            replacements[supplier_info["phone"]] = brand["phone"]
+        if supplier_info.get("email") and brand.get("email"):
+            replacements[supplier_info["email"]] = brand["email"]
+        if supplier_info.get("website") and brand.get("website"):
+            replacements[supplier_info["website"]] = brand["website"]
+        for mention in (supplier_info.get("other_brand_mentions") or []):
+            if mention and mention.strip():
+                replacements[mention] = brand["name"]
 
-    # --- Step 6: replace inline images with brand logos ---
-    logo_paths = [
-        os.path.join(BRAND_LOGOS_DIR, fn)
-        for fn in (brand.get("approvedLogos") or [])
-        if os.path.exists(os.path.join(BRAND_LOGOS_DIR, fn))
-    ]
-    if logo_paths:
-        output_bytes = replace_images_in_docx(output_bytes, logo_paths)
+        output_bytes = replace_text_in_docx(raw_content, replacements)
 
-    # --- Step 7: replace colors with brand colors ---
-    primary_color = brand.get("primaryColor", "")
-    secondary_color = brand.get("secondaryColor", "")
-    if primary_color:
-        output_bytes = replace_colors_in_docx(output_bytes, primary_color, secondary_color or None)
+        logo_paths = [
+            os.path.join(BRAND_LOGOS_DIR, fn)
+            for fn in (brand.get("approvedLogos") or [])
+            if os.path.exists(os.path.join(BRAND_LOGOS_DIR, fn))
+        ]
+        if logo_paths:
+            output_bytes = replace_images_in_docx(output_bytes, logo_paths)
+
+        primary_color = brand.get("primaryColor", "")
+        secondary_color = brand.get("secondaryColor", "")
+        if primary_color:
+            output_bytes = replace_colors_in_docx(output_bytes, primary_color, secondary_color or None)
+
+        output_filename = f"OEM_{safe_brand}_{base_name}.docx"
 
     # --- Log job ---
     await db.oem_jobs.insert_one({
@@ -570,15 +781,11 @@ async def process_datasheet(
         "userId": current_user["id"],
         "brandId": brand_id,
         "brandName": brand["name"],
-        "originalFilename": file.filename,
+        "originalFilename": orig_filename,
         "supplierInfo": supplier_info,
-        "replacementsCount": len(replacements),
-        "colorsReplaced": bool(primary_color),
+        "outputFormat": "pdf→docx" if is_pdf else "docx",
         "createdAt": datetime.now(timezone.utc).isoformat(),
     })
-
-    safe_brand = re.sub(r"[^a-zA-Z0-9_-]", "_", brand["name"])
-    output_filename = f"OEM_{safe_brand}_{os.path.splitext(file.filename)[0]}.docx"
 
     return StreamingResponse(
         io.BytesIO(output_bytes),
