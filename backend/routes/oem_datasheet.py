@@ -502,56 +502,55 @@ Datasheet text:
     section.header_distance = Inches(0.1)
     section.footer_distance = Inches(0.1)
 
-    FOOTER_EMAIL_LEFT_PX = 10   # fixed 10px left margin for footer email
+    PAGE_MARGIN_TWIPS    = int(1.0 * 1440)   # matches section.left_margin = Inches(1.0)
+    FOOTER_EMAIL_LEFT_PX = 10
 
-    def _apply_para_band_header(para, hex_color, height_px, padding_px):
-        """Header band: padding on all 4 sides (top/bottom via spacing, left/right via ind)."""
+    def _apply_full_width_band(para, hex_color, height_px, padding_px, content_left_px):
+        """Full-width colored band (edge-to-edge).
+
+        Technique: negative w:ind left/right extends the paragraph shading into
+        page margins.  w:firstLine positions the content (logo/text) at the
+        desired offset from the left MARGIN.
+
+        Band = before(padding) + exact-line(inner) + after(padding)
+        Content starts at: content_left_px from the left margin.
+        """
         inner_px = max(4, height_px - 2 * padding_px)
         pPr = para._p.get_or_add_pPr()
+
+        # Full-width background fill
         shd = OxmlElement("w:shd")
         shd.set(qn("w:val"), "clear")
         shd.set(qn("w:color"), "auto")
         shd.set(qn("w:fill"), hex_color.lstrip("#").upper())
         pPr.append(shd)
+
+        # Vertical: padding top+bottom, exact inner height
         spacing = OxmlElement("w:spacing")
         spacing.set(qn("w:before"),   str(int(padding_px * PX_TO_TWIP)))
         spacing.set(qn("w:after"),    str(int(padding_px * PX_TO_TWIP)))
         spacing.set(qn("w:line"),     str(int(inner_px   * PX_TO_TWIP)))
         spacing.set(qn("w:lineRule"), "exact")
         pPr.append(spacing)
-        # Left AND right indent — logo gets breathing room on both sides
+
+        # Horizontal: extend band to paper edges; firstLine puts content at desired position
+        content_twips = int(content_left_px * PX_TO_TWIP)
         ind = OxmlElement("w:ind")
-        ind.set(qn("w:left"),  str(int(padding_px * PX_TO_TWIP)))
-        ind.set(qn("w:right"), str(int(padding_px * PX_TO_TWIP)))
+        ind.set(qn("w:left"),      str(-PAGE_MARGIN_TWIPS))
+        ind.set(qn("w:right"),     str(-PAGE_MARGIN_TWIPS))
+        # firstLine is relative to w:left → content_left_px from LEFT MARGIN
+        ind.set(qn("w:firstLine"), str(PAGE_MARGIN_TWIPS + content_twips))
         pPr.append(ind)
 
-    def _apply_para_band_footer(para, hex_color, height_px, top_px, left_email_px):
-        """Footer band: small top padding, text sits near top, email indented left."""
-        inner_px = max(4, height_px - top_px)
-        pPr = para._p.get_or_add_pPr()
-        shd = OxmlElement("w:shd")
-        shd.set(qn("w:val"), "clear")
-        shd.set(qn("w:color"), "auto")
-        shd.set(qn("w:fill"), hex_color.lstrip("#").upper())
-        pPr.append(shd)
-        spacing = OxmlElement("w:spacing")
-        spacing.set(qn("w:before"),   str(int(top_px   * PX_TO_TWIP)))
-        spacing.set(qn("w:after"),    "0")
-        spacing.set(qn("w:line"),     str(int(inner_px * PX_TO_TWIP)))
-        spacing.set(qn("w:lineRule"), "exact")
-        pPr.append(spacing)
-        # Email left margin
-        ind = OxmlElement("w:ind")
-        ind.set(qn("w:left"), str(int(left_email_px * PX_TO_TWIP)))
-        pPr.append(ind)
-
-    # ── Header: colored band, logo with left+right padding ─────────────
+    # ── Header: full-width colored band, logo left ─────────────────────
     header = section.header
     header.is_linked_to_previous = False
 
     h_para = header.paragraphs[0] if header.paragraphs else header.add_paragraph()
     h_para.alignment = WD_ALIGN_PARAGRAPH.LEFT
-    _apply_para_band_header(h_para, primary_hex, header_height_px, header_padding_px)
+    _apply_full_width_band(h_para, primary_hex, header_height_px,
+                           padding_px=header_padding_px,
+                           content_left_px=header_padding_px)
 
     logo_added = False
     for logo_fn in (brand.get("approvedLogos") or []):
@@ -571,16 +570,16 @@ Datasheet text:
         r.font.size = Pt(12)
         r.font.color.rgb = RGBColor(255, 255, 255)
 
-    # ── Footer: email top-left (10px) | copyright centered ─────────────
+    # ── Footer: full-width colored band, email left | copyright center ─
     footer = section.footer
     footer.is_linked_to_previous = False
 
     f_para = footer.paragraphs[0] if footer.paragraphs else footer.add_paragraph()
-    _apply_para_band_footer(f_para, primary_hex, footer_height_px,
-                            top_px=footer_padding_px,
-                            left_email_px=FOOTER_EMAIL_LEFT_PX)
+    _apply_full_width_band(f_para, primary_hex, footer_height_px,
+                           padding_px=footer_padding_px,
+                           content_left_px=FOOTER_EMAIL_LEFT_PX)
 
-    # Center tab stop for copyright (page center ≈ 4680 twips from left margin)
+    # Center tab stop — measured from left margin (not paper edge)
     pPr = f_para._p.get_or_add_pPr()
     tabs = OxmlElement("w:tabs")
     ct = OxmlElement("w:tab")
