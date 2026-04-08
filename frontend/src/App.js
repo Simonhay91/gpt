@@ -30,6 +30,8 @@ import AiSettingsPage from './pages/AiSettingsPage';
 import CompetitorsPage from './pages/CompetitorsPage';
 import ProductCatalogPage from './pages/ProductCatalogPage';
 import ProductDetailPage from './pages/ProductDetailPage';
+import OemDatasheetPage from './pages/OemDatasheetPage';
+import AdminBrandsPage from './pages/AdminBrandsPage';
 
 // Protected Route Component
 const ProtectedRoute = ({ children }) => {
@@ -220,6 +222,18 @@ function AppRoutes() {
         </ProtectedRoute>
       } />
       
+      {/* OEM Datasheet Routes */}
+      <Route path="/oem-datasheet" element={
+        <ProtectedRoute>
+          <OemDatasheetPage />
+        </ProtectedRoute>
+      } />
+      <Route path="/admin/oem-brands" element={
+        <AdminRoute>
+          <AdminBrandsPage />
+        </AdminRoute>
+      } />
+
       {/* Default redirect */}
       <Route path="/" element={<Navigate to="/dashboard" replace />} />
       <Route path="*" element={<Navigate to="/dashboard" replace />} />

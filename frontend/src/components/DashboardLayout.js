@@ -26,7 +26,8 @@ import {
   Newspaper,
   Languages,
   TrendingUp,
-  Package
+  Package,
+  FileOutput
 } from 'lucide-react';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
@@ -140,7 +141,12 @@ const DashboardLayout = ({ children }) => {
       name: language === 'ru' ? 'Competitors' : 'Competitors',
       path: '/competitors',
       icon: TrendingUp
-    }] : [])
+    }] : []),
+    {
+      name: 'OEM Datasheet',
+      path: '/oem-datasheet',
+      icon: FileOutput
+    }
   ];
 
   if (user?.isAdmin) {
@@ -169,6 +175,11 @@ const DashboardLayout = ({ children }) => {
       name: t('nav.gptConfig'),
       path: '/admin/config',
       icon: Settings
+    });
+    navItems.push({
+      name: 'OEM Brands',
+      path: '/admin/oem-brands',
+      icon: Building2
     });
   } else {
     // Non-admin users: always show Departments link for managers
