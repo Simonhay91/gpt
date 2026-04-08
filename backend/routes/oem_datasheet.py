@@ -22,6 +22,17 @@ UPLOAD_DIR = os.environ.get("UPLOAD_DIR", "/app/uploads")
 BRAND_LOGOS_DIR = os.path.join(UPLOAD_DIR, "brand_logos")
 os.makedirs(BRAND_LOGOS_DIR, exist_ok=True)
 
+# Colors considered neutral — never replaced with brand color
+NEUTRAL_COLORS = {
+    'FFFFFF', 'FEFEFE', 'FDFDFD', 'F9F9F9', 'F8F8F8',
+    '000000', '000001', '010101', '1A1A1A', '0D0D0D',
+    'F2F2F2', 'F0F0F0', 'EBEBEB', 'E6E6E6', 'E5E5E5', 'DEDEDE',
+    'D9D9D9', 'CCCCCC', 'C0C0C0', 'BFBFBF', 'B2B2B2', 'A6A6A6',
+    '808080', '737373', '666666', '595959', '4D4D4D', '404040',
+    '333333', '262626', '1F1F1F',
+    'AUTO',
+}
+
 
 # ==================== HELPERS ====================
 
@@ -66,7 +77,7 @@ def extract_text_from_pdf(content: bytes) -> str:
 def convert_pdf_to_docx(pdf_content: bytes) -> bytes:
     """
     Convert PDF → DOCX while preserving layout (tables, columns, fonts).
-    Uses pdf2docx library which reconstructs the document structure.
+    Uses pdf2docx which reconstructs the document structure.
     """
     try:
         from pdf2docx import Converter
@@ -84,7 +95,6 @@ def convert_pdf_to_docx(pdf_content: bytes) -> bytes:
             pdf_tmp = f.name
 
         docx_tmp = pdf_tmp.replace(".pdf", ".docx")
-
         cv = Converter(pdf_tmp)
         cv.convert(docx_tmp, start=0, end=None)
         cv.close()
@@ -100,62 +110,38 @@ def convert_pdf_to_docx(pdf_content: bytes) -> bytes:
 
 def replace_text_in_docx(content: bytes, replacements: dict) -> bytes:
     """
-    Replace supplier text with brand text in a Word document.
+    Replace supplier text with brand text.
     Operates run-by-run to preserve character formatting.
-    Also handles the case where a word is split across multiple runs
-    by working at the paragraph XML level.
     """
     from docx import Document
-    from docx.oxml.ns import qn
-    import lxml.etree as etree
-    import copy
 
     if not replacements:
         return content
 
     doc = Document(io.BytesIO(content))
 
-    def apply_replacements(text: str) -> str:
+    def apply(text: str) -> str:
         for old, new in replacements.items():
             if old and old.strip() and new is not None:
                 text = text.replace(old, new)
         return text
 
-    def fix_runs_in_paragraph(para):
-        """
-        Merge all runs into one (preserving first run's format),
-        apply replacement, then restore as single run.
-        This fixes cases where a word is split across runs.
-        """
-        if not para.runs:
-            return
-        full_text = "".join(r.text for r in para.runs)
-        replaced = apply_replacements(full_text)
-        if replaced == full_text:
-            return
-        # Text changed — apply replacement run-by-run first
-        for run in para.runs:
-            run.text = apply_replacements(run.text)
-
     def process_paragraphs(paragraphs):
         for para in paragraphs:
-            # First try simple per-run replacement
             for run in para.runs:
                 if run.text:
-                    run.text = apply_replacements(run.text)
-            # Then fix any cross-run splits
-            fix_runs_in_paragraph(para)
+                    run.text = apply(run.text)
+            # Fix cross-run splits
+            full = "".join(r.text for r in para.runs)
+            if apply(full) != full:
+                for run in para.runs:
+                    run.text = apply(run.text)
 
-    # Paragraphs in body
     process_paragraphs(doc.paragraphs)
-
-    # Paragraphs in tables
     for table in doc.tables:
         for row in table.rows:
             for cell in row.cells:
                 process_paragraphs(cell.paragraphs)
-
-    # Headers and footers
     for section in doc.sections:
         process_paragraphs(section.header.paragraphs)
         process_paragraphs(section.footer.paragraphs)
@@ -167,42 +153,33 @@ def replace_text_in_docx(content: bytes, replacements: dict) -> bytes:
 
 def replace_images_in_docx(content: bytes, brand_logo_paths: list) -> bytes:
     """
-    Replace existing inline images in a docx with brand logo images.
-    Works at the ZIP level: finds word/media/* entries and replaces them.
-    The document XML structure (positions, sizes) stays intact.
+    Replace existing inline images in a docx with brand logos (ZIP-level).
+    Keeps original image positions and sizes intact.
     """
     if not brand_logo_paths:
         return content
 
-    # Read docx as zip
     with zipfile.ZipFile(io.BytesIO(content), "r") as zin:
         zip_data = {name: zin.read(name) for name in zin.namelist()}
 
-    # Find existing media files (images), sorted by name
     media_files = sorted(
         [n for n in zip_data if n.startswith("word/media/") and not n.endswith("/")]
     )
 
     if not media_files:
-        # No images in document — insert brand logos at the top instead
         return insert_logos_at_top(content, brand_logo_paths)
 
-    # Replace images one-by-one, cycling brand logos if needed
     for i, media_key in enumerate(media_files):
         logo_path = brand_logo_paths[i % len(brand_logo_paths)]
         if not os.path.exists(logo_path):
             continue
-
         with open(logo_path, "rb") as f:
             logo_bytes = f.read()
-
         media_ext = os.path.splitext(media_key)[1].lower()
         logo_ext = os.path.splitext(logo_path)[1].lower()
-
         if logo_ext == media_ext:
             zip_data[media_key] = logo_bytes
         else:
-            # Convert logo to match the media slot's format
             try:
                 from PIL import Image
                 img = Image.open(io.BytesIO(logo_bytes))
@@ -210,18 +187,73 @@ def replace_images_in_docx(content: bytes, brand_logo_paths: list) -> bytes:
                 if media_ext in (".jpg", ".jpeg"):
                     img = img.convert("RGB")
                     img.save(buf, "JPEG")
-                elif media_ext == ".png":
-                    img.save(buf, "PNG")
                 elif media_ext == ".gif":
                     img.save(buf, "GIF")
                 else:
                     img.save(buf, "PNG")
                 zip_data[media_key] = buf.getvalue()
             except Exception as e:
-                logger.warning(f"Logo format conversion failed ({logo_path}): {e}")
+                logger.warning(f"Logo format conversion failed: {e}")
                 zip_data[media_key] = logo_bytes
 
-    # Write back as docx
+    out = io.BytesIO()
+    with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as zout:
+        for name, data in zip_data.items():
+            zout.writestr(name, data)
+    return out.getvalue()
+
+
+def replace_colors_in_docx(content: bytes, primary_color: str, secondary_color: str = None) -> bytes:
+    """
+    Replace non-neutral colors in DOCX XML with brand colors (ZIP-level).
+    Targets:
+      - w:val="RRGGBB"     → text colors
+      - w:fill="RRGGBB"    → paragraph / cell shading
+      - a:srgbClr val=...  → DrawingML shape / table-header colors
+      - a:lastClr val=...  → DrawingML theme gradient colors
+    """
+    primary = primary_color.lstrip('#').upper() if primary_color else ''
+    secondary = secondary_color.lstrip('#').upper() if secondary_color else primary
+
+    if not primary:
+        return content
+
+    with zipfile.ZipFile(io.BytesIO(content), "r") as zin:
+        zip_data = {name: zin.read(name) for name in zin.namelist()}
+
+    xml_files = [
+        n for n in zip_data
+        if n.startswith("word/") and n.endswith(".xml")
+    ]
+
+    for xml_file in xml_files:
+        try:
+            text = zip_data[xml_file].decode("utf-8")
+        except Exception:
+            continue
+
+        original = text
+
+        def sub_w_val(m):
+            c = m.group(1).upper()
+            return m.group(0) if c in NEUTRAL_COLORS else f'w:val="{primary}"'
+
+        def sub_w_fill(m):
+            c = m.group(1).upper()
+            return m.group(0) if c in NEUTRAL_COLORS else f'w:fill="{secondary}"'
+
+        def sub_srgb(m):
+            c = m.group(1).upper()
+            return m.group(0) if c in NEUTRAL_COLORS else f'val="{primary}"'
+
+        text = re.sub(r'w:val="([0-9A-Fa-f]{6})"', sub_w_val, text)
+        text = re.sub(r'w:fill="([0-9A-Fa-f]{6})"', sub_w_fill, text)
+        text = re.sub(r'(?<=<a:srgbClr )val="([0-9A-Fa-f]{6})"', sub_srgb, text)
+        text = re.sub(r'(?<=<a:lastClr )val="([0-9A-Fa-f]{6})"', sub_srgb, text)
+
+        if text != original:
+            zip_data[xml_file] = text.encode("utf-8")
+
     out = io.BytesIO()
     with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as zout:
         for name, data in zip_data.items():
@@ -230,10 +262,7 @@ def replace_images_in_docx(content: bytes, brand_logo_paths: list) -> bytes:
 
 
 def insert_logos_at_top(content: bytes, logo_paths: list) -> bytes:
-    """
-    Fallback: insert brand logos at the very top of a docx
-    when the original document contains no images to replace.
-    """
+    """Fallback: insert brand logos at the top when document has no existing images."""
     from docx import Document
     from docx.shared import Inches
 
@@ -317,6 +346,8 @@ async def create_brand(
     email: str = Form(""),
     website: str = Form(""),
     warrantyText: str = Form(""),
+    primaryColor: str = Form(""),
+    secondaryColor: str = Form(""),
     current_user: dict = Depends(get_current_user)
 ):
     if not is_admin(current_user["email"]):
@@ -330,6 +361,8 @@ async def create_brand(
         "email": email,
         "website": website,
         "warrantyText": warrantyText,
+        "primaryColor": primaryColor,
+        "secondaryColor": secondaryColor,
         "approvedLogos": [],
         "createdAt": datetime.now(timezone.utc).isoformat(),
         "updatedAt": datetime.now(timezone.utc).isoformat(),
@@ -347,6 +380,8 @@ async def update_brand(
     email: str = Form(""),
     website: str = Form(""),
     warrantyText: str = Form(""),
+    primaryColor: str = Form(""),
+    secondaryColor: str = Form(""),
     current_user: dict = Depends(get_current_user)
 ):
     if not is_admin(current_user["email"]):
@@ -359,6 +394,8 @@ async def update_brand(
         "email": email,
         "website": website,
         "warrantyText": warrantyText,
+        "primaryColor": primaryColor,
+        "secondaryColor": secondaryColor,
         "updatedAt": datetime.now(timezone.utc).isoformat(),
     }
     result = await db.oem_brands.update_one({"id": brand_id}, {"$set": update})
@@ -445,10 +482,13 @@ async def process_datasheet(
     """
     Upload supplier datasheet → AI identifies supplier info → rebrand → return OEM DOCX.
 
-    Strategy:
-    - .docx input  → text replace in-place + swap inline images with brand logos
-    - .pdf input   → convert to DOCX preserving layout (pdf2docx),
-                     then text replace + swap inline images with brand logos
+    Pipeline:
+      1. PDF → convert to DOCX preserving layout (pdf2docx)
+      2. Extract text for AI analysis
+      3. AI identifies supplier company name, address, phone, email, website
+      4. Replace supplier text with brand text (run-by-run, preserves formatting)
+      5. Replace inline images with brand logos (ZIP-level, preserves positions)
+      6. Replace non-neutral colors with brand primaryColor / secondaryColor
     """
     db = get_db()
 
@@ -468,10 +508,7 @@ async def process_datasheet(
             docx_content = convert_pdf_to_docx(raw_content)
         except Exception as e:
             logger.error(f"pdf2docx conversion failed: {e}")
-            raise HTTPException(
-                status_code=500,
-                detail=f"PDF conversion failed: {e}"
-            )
+            raise HTTPException(status_code=500, detail=f"PDF conversion failed: {e}")
     else:
         raise HTTPException(
             status_code=400,
@@ -509,7 +546,7 @@ async def process_datasheet(
         if mention and mention.strip():
             replacements[mention] = brand["name"]
 
-    # --- Step 5: replace text (preserves all formatting / structure) ---
+    # --- Step 5: replace text (preserves all formatting/structure) ---
     output_bytes = replace_text_in_docx(docx_content, replacements)
 
     # --- Step 6: replace inline images with brand logos ---
@@ -521,6 +558,12 @@ async def process_datasheet(
     if logo_paths:
         output_bytes = replace_images_in_docx(output_bytes, logo_paths)
 
+    # --- Step 7: replace colors with brand colors ---
+    primary_color = brand.get("primaryColor", "")
+    secondary_color = brand.get("secondaryColor", "")
+    if primary_color:
+        output_bytes = replace_colors_in_docx(output_bytes, primary_color, secondary_color or None)
+
     # --- Log job ---
     await db.oem_jobs.insert_one({
         "_id": str(uuid4()),
@@ -530,6 +573,7 @@ async def process_datasheet(
         "originalFilename": file.filename,
         "supplierInfo": supplier_info,
         "replacementsCount": len(replacements),
+        "colorsReplaced": bool(primary_color),
         "createdAt": datetime.now(timezone.utc).isoformat(),
     })
 

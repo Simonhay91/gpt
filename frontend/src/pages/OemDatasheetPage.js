@@ -255,9 +255,26 @@ const OemDatasheetPage = () => {
                           : 'border-border hover:border-indigo-500/40 hover:bg-secondary/30'
                       }`}
                     >
-                      <Building2 className={`h-5 w-5 flex-shrink-0 mt-0.5 ${
-                        selectedBrand?.id === brand.id ? 'text-indigo-400' : 'text-muted-foreground'
-                      }`} />
+                      {brand.primaryColor ? (
+                        <div className="flex gap-0.5 flex-shrink-0 mt-0.5">
+                          <div
+                            className="w-5 h-5 rounded-full border border-border shadow-sm"
+                            style={{ backgroundColor: brand.primaryColor }}
+                            title={brand.primaryColor}
+                          />
+                          {brand.secondaryColor && (
+                            <div
+                              className="w-5 h-5 rounded-full border border-border shadow-sm"
+                              style={{ backgroundColor: brand.secondaryColor }}
+                              title={brand.secondaryColor}
+                            />
+                          )}
+                        </div>
+                      ) : (
+                        <Building2 className={`h-5 w-5 flex-shrink-0 mt-0.5 ${
+                          selectedBrand?.id === brand.id ? 'text-indigo-400' : 'text-muted-foreground'
+                        }`} />
+                      )}
                       <div className="min-w-0">
                         <p className="font-medium text-sm">{brand.name}</p>
                         {brand.address && (

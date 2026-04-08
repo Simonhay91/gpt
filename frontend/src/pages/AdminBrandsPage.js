@@ -15,7 +15,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 const API = `${process.env.REACT_APP_BACKEND_URL}/api/oem`;
 const BASE_URL = process.env.REACT_APP_BACKEND_URL;
 
-const emptyForm = { name: '', address: '', phone: '', email: '', website: '', warrantyText: '' };
+const emptyForm = { name: '', address: '', phone: '', email: '', website: '', warrantyText: '', primaryColor: '#3B82F6', secondaryColor: '' };
 
 const AdminBrandsPage = () => {
   const [brands, setBrands] = useState([]);
@@ -57,6 +57,8 @@ const AdminBrandsPage = () => {
       email: brand.email || '',
       website: brand.website || '',
       warrantyText: brand.warrantyText || '',
+      primaryColor: brand.primaryColor || '#3B82F6',
+      secondaryColor: brand.secondaryColor || '',
     });
     setDialogOpen(true);
   };
@@ -185,7 +187,25 @@ const AdminBrandsPage = () => {
               <Card key={brand.id} className="border border-border">
                 <CardHeader className="pb-3">
                   <div className="flex items-start justify-between">
-                    <CardTitle className="text-lg">{brand.name}</CardTitle>
+                    <div className="flex items-center gap-3">
+                      {brand.primaryColor && (
+                        <div className="flex gap-1 flex-shrink-0">
+                          <div
+                            className="w-5 h-5 rounded-full border border-border shadow-sm"
+                            style={{ backgroundColor: brand.primaryColor }}
+                            title={`Primary: ${brand.primaryColor}`}
+                          />
+                          {brand.secondaryColor && (
+                            <div
+                              className="w-5 h-5 rounded-full border border-border shadow-sm"
+                              style={{ backgroundColor: brand.secondaryColor }}
+                              title={`Secondary: ${brand.secondaryColor}`}
+                            />
+                          )}
+                        </div>
+                      )}
+                      <CardTitle className="text-lg">{brand.name}</CardTitle>
+                    </div>
                     <div className="flex gap-2">
                       <Button variant="ghost" size="icon" onClick={() => openEdit(brand)}>
                         <Pencil className="h-4 w-4" />
@@ -324,6 +344,47 @@ const AdminBrandsPage = () => {
                   onChange={e => setForm(f => ({ ...f, warrantyText: e.target.value }))}
                   rows={2}
                 />
+              </div>
+              <div className="space-y-2">
+                <Label>Brand Colors <span className="text-xs text-muted-foreground">(applied to document colors during rebranding)</span></Label>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <p className="text-xs text-muted-foreground">Primary Color</p>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="color"
+                        value={form.primaryColor || '#3B82F6'}
+                        onChange={e => setForm(f => ({ ...f, primaryColor: e.target.value }))}
+                        className="h-9 w-12 rounded border border-border cursor-pointer bg-background p-0.5"
+                      />
+                      <Input
+                        placeholder="#3B82F6"
+                        value={form.primaryColor}
+                        onChange={e => setForm(f => ({ ...f, primaryColor: e.target.value }))}
+                        className="flex-1 font-mono text-sm"
+                        maxLength={7}
+                      />
+                    </div>
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-xs text-muted-foreground">Secondary Color <span className="text-muted-foreground">(optional)</span></p>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="color"
+                        value={form.secondaryColor || '#1E40AF'}
+                        onChange={e => setForm(f => ({ ...f, secondaryColor: e.target.value }))}
+                        className="h-9 w-12 rounded border border-border cursor-pointer bg-background p-0.5"
+                      />
+                      <Input
+                        placeholder="#1E40AF"
+                        value={form.secondaryColor}
+                        onChange={e => setForm(f => ({ ...f, secondaryColor: e.target.value }))}
+                        className="flex-1 font-mono text-sm"
+                        maxLength={7}
+                      />
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
             <DialogFooter>
