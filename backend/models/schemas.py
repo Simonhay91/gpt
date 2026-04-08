@@ -23,6 +23,7 @@ class UserResponse(BaseModel):
     canEditGlobalSources: Optional[bool] = False
     departments: Optional[List[str]] = []
     primaryDepartmentId: Optional[str] = None
+    mustChangePassword: Optional[bool] = False
 
 
 class UserWithUsageResponse(BaseModel):
@@ -110,6 +111,11 @@ class SourceModeUpdate(BaseModel):
 
 class MessageCreate(BaseModel):
     content: str
+    temp_file_id: Optional[str] = None  # ID of a temp file uploaded via /api/chat/upload-temp
+
+
+class MessageEditRequest(BaseModel):
+    content: str
 
 
 class EnhancedCitation(BaseModel):
@@ -136,6 +142,16 @@ class MessageResponse(BaseModel):
     senderName: Optional[str] = None
     fromCache: Optional[bool] = False
     cacheInfo: Optional[dict] = None
+    web_sources: Optional[List[dict]] = None  # Brave Search results: [{"title": str, "url": str}]
+    clarifying_question: Optional[str] = None  # Clarifying question text
+    clarifying_options: Optional[List[str]] = None  # Options for clarifying question
+    fetchedUrls: Optional[List[str]] = None  # URLs whose content was fetched and used as context
+    excel_file_id: Optional[str] = None      # ID of generated Excel file in /tmp/
+    excel_preview: Optional[dict] = None     # Preview data for inline table display
+    is_excel_clarification: Optional[bool] = False  # True when AI asked clarifying questions before Excel generation
+    uploadedFile: Optional[dict] = None      # { name, fileType } for temp file badge in UI
+    agent_type: Optional[str] = None         # Selected agent: excel | research | rag | general
+    agent_name: Optional[str] = None         # Human-readable agent name
 
 
 # ==================== SOURCE MODELS ====================
@@ -308,31 +324,96 @@ class CompetitorMatchUpdate(BaseModel):
     matched_our_products: List[MatchedProduct]
 
 
-# ==================== AI SETTINGS MODELS ====================
+# ==================== PRODUCT CATALOG MODELS ====================
 
-class AiProfileUpdate(BaseModel):
-    display_name: Optional[str] = None
-    position: Optional[str] = None
-    department_id: Optional[str] = None
-    preferred_language: Optional[str] = None  # ru, en
-    response_style: Optional[str] = None  # formal, casual, technical, simple
-    custom_instruction: Optional[str] = None
+class ProductRelation(BaseModel):
+    product_id: str
+    relation_type: Literal["compatible", "bundle", "requires"]
 
 
-class AiProfileResponse(BaseModel):
-    display_name: Optional[str] = None
-    position: Optional[str] = None
-    department_id: Optional[str] = None
-    preferred_language: Optional[str] = "ru"
-    response_style: Optional[str] = "formal"
-    custom_instruction: Optional[str] = None
+class ProductCatalogCreate(BaseModel):
+    article_number: str
+    title_en: str
+    crm_code: Optional[str] = None
+    root_category: Optional[str] = None
+    lvl1_subcategory: Optional[str] = None
+    lvl2_subcategory: Optional[str] = None
+    lvl3_subcategory: Optional[str] = None
+    vendor: Optional[str] = None
+    description: Optional[str] = None
+    features: Optional[str] = None
+    attribute_values: Optional[str] = None
+    product_model: Optional[str] = None
+    datasheet_url: Optional[str] = None
+    aliases: Optional[List[str]] = []
+    price: Optional[float] = None
+    extra_fields: Optional[dict] = None
 
 
-class DepartmentAiContextUpdate(BaseModel):
-    style: Optional[str] = None
-    instruction: Optional[str] = None
+class ProductCatalogUpdate(BaseModel):
+    title_en: Optional[str] = None
+    crm_code: Optional[str] = None
+    root_category: Optional[str] = None
+    lvl1_subcategory: Optional[str] = None
+    lvl2_subcategory: Optional[str] = None
+    lvl3_subcategory: Optional[str] = None
+    vendor: Optional[str] = None
+    description: Optional[str] = None
+    features: Optional[str] = None
+    attribute_values: Optional[str] = None
+    product_model: Optional[str] = None
+    datasheet_url: Optional[str] = None
+    aliases: Optional[List[str]] = None
+    price: Optional[float] = None
+    extra_fields: Optional[dict] = None
 
 
-class DepartmentAiContextResponse(BaseModel):
-    style: Optional[str] = None
-    instruction: Optional[str] = None
+class ProductCatalogResponse(BaseModel):
+    id: str
+    article_number: str
+    title_en: str
+    crm_code: Optional[str] = None
+    root_category: Optional[str] = None
+    lvl1_subcategory: Optional[str] = None
+    lvl2_subcategory: Optional[str] = None
+    lvl3_subcategory: Optional[str] = None
+    vendor: Optional[str] = None
+    description: Optional[str] = None
+    features: Optional[str] = None
+    attribute_values: Optional[str] = None
+    product_model: Optional[str] = None
+    datasheet_url: Optional[str] = None
+    aliases: List[str] = []
+    price: Optional[float] = None
+    relations: List[ProductRelation] = []
+    extra_fields: Optional[dict] = None
+    is_active: bool = True
+    last_synced_at: Optional[str] = None
+    source: str = "manual"
+    created_by: str
+    updated_by: Optional[str] = None
+    created_at: str
+    updated_at: Optional[str] = None
+
+
+class ProductRelationCreate(BaseModel):
+    product_id: str
+    relation_type: Literal["compatible", "bundle", "requires"]
+
+
+class ProductImportResult(BaseModel):
+    added: int
+    updated: int
+    deactivated: int
+    skipped: int
+    errors: List[str] = []
+
+
+class ProductMatchRequest(BaseModel):
+    titles: List[str]
+
+
+class ProductMatchResult(BaseModel):
+    query: str
+    matched: Optional[ProductCatalogResponse] = None
+    confidence: float = 0.0

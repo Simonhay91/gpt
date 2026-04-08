@@ -17,7 +17,6 @@ import {
   Clock, 
   Save,
   Settings,
-  Activity,
   Globe2
 } from 'lucide-react';
 import DashboardLayout from '../components/DashboardLayout';
@@ -114,10 +113,11 @@ const AdminUserDetailPage = () => {
   };
 
   const formatNumber = (num) => {
-    if (!num) return '0';
-    if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M';
-    if (num >= 1000) return (num / 1000).toFixed(1) + 'K';
-    return num.toString();
+    const n = Number(num);
+    if (!n || isNaN(n)) return '0';
+    if (n >= 1000000) return (n / 1000000).toFixed(1) + 'M';
+    if (n >= 1000) return (n / 1000).toFixed(1) + 'K';
+    return n.toLocaleString('ru-RU');
   };
 
   if (isLoading) {
@@ -331,33 +331,6 @@ const AdminUserDetailPage = () => {
                         <span className="text-xs text-muted-foreground">
                           {formatDate(project.createdAt).split(',')[0]}
                         </span>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-
-            {/* Recent Activity */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Activity className="h-5 w-5" />
-                  Последняя активность
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                {userDetails.recentActivity.length === 0 ? (
-                  <p className="text-sm text-muted-foreground text-center py-4">Нет активности</p>
-                ) : (
-                  <div className="space-y-2 max-h-[250px] overflow-y-auto">
-                    {userDetails.recentActivity.map((msg, idx) => (
-                      <div key={idx} className="p-3 bg-secondary/30 rounded-lg border-l-2 border-indigo-500">
-                        <p className="text-sm truncate">{msg.content}</p>
-                        <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
-                          <Clock className="h-3 w-3" />
-                          {formatDate(msg.createdAt)}
-                        </p>
                       </div>
                     ))}
                   </div>

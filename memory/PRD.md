@@ -1,486 +1,55 @@
-# Planet Knowledge - Complete Product Requirements Document
+# Planet Knowledge — Product Requirements Document
 
-## 1. Executive Summary
+**Version:** 2.9  
+**Last Updated:** Апрель 2026  
+**Admin credentials:** `admin@ai.planetworkspace.com` / `Admin@123456`
 
-### 1.1 Название продукта
-**Planet Knowledge** - корпоративная платформа управления знаниями с AI
+---
 
-### 1.2 Миссия
+## 1. Продукт
+
+**Planet Knowledge** — корпоративная платформа управления знаниями с AI-чатом, семантическим поиском и аналитикой.
+
+### Миссия
 Объединить все корпоративные знания в единую систему с интеллектуальным поиском и анализом на базе AI.
 
-### 1.3 Ключевые ценности
-| Для бизнеса | Для пользователей |
-|-------------|-------------------|
-| Централизация знаний | Быстрый поиск информации |
-| Контроль доступа | Естественные вопросы к AI |
-| Аудит и compliance | Работа с документами |
-| Снижение затрат | Анализ данных без Excel навыков |
+---
+
+## 2. Роли пользователей
+
+| Роль | Возможности |
+|------|------------|
+| **Admin** | Всё + управление пользователями, GPT config, глобальные источники, аудит |
+| **Manager** | Одобрение источников, управление отделом, создание контента |
+| **Editor** | Создание и редактирование источников, чат |
+| **Viewer** | Просмотр, чат с AI |
 
 ---
 
-## 2. Целевая аудитория
+## 3. Текущая архитектура
 
-### 2.1 Пользовательские роли
-```
-┌─────────────────────────────────────────────────────────────┐
-│                        ADMIN                                 │
-│    • Управление пользователями                              │
-│    • Настройка GPT                                          │
-│    • Глобальные источники                                   │
-│    • Аудит логи                                             │
-└─────────────────────────────────────────────────────────────┘
-                            │
-        ┌───────────────────┼───────────────────┐
-        ▼                   ▼                   ▼
-┌───────────────┐   ┌───────────────┐   ┌───────────────┐
-│    MANAGER    │   │    EDITOR     │   │    VIEWER     │
-│  • Одобрение  │   │  • Создание   │   │  • Просмотр   │
-│    источников │   │    контента   │   │    контента   │
-│  • Управление │   │  • Редактир.  │   │  • Чат с AI   │
-│    отделом    │   │    источников │   │               │
-└───────────────┘   └───────────────┘   └───────────────┘
-```
-
-### 2.2 User Personas
-
-#### Persona 1: IT Administrator (Админ)
-- **Имя:** Александр, 35 лет
-- **Роль:** Системный администратор
-- **Задачи:** Управление пользователями, настройка AI, мониторинг
-- **Боль:** Сложность контроля доступа к корпоративным данным
-- **Решение:** Централизованная админка с полным контролем
-
-#### Persona 2: Department Manager (Менеджер)
-- **Имя:** Мария, 42 года
-- **Роль:** Руководитель отдела закупок
-- **Задачи:** Одобрение документов, управление базой знаний отдела
-- **Боль:** Разрозненные документы, долгий поиск информации
-- **Решение:** Иерархическая база знаний с workflow одобрения
-
-#### Persona 3: Business Analyst (Пользователь)
-- **Имя:** Дмитрий, 28 лет
-- **Роль:** Бизнес-аналитик
-- **Задачи:** Анализ данных, поиск информации, создание отчётов
-- **Боль:** Ручной анализ Excel файлов, сложные формулы
-- **Решение:** AI-анализатор с естественным языком
-
----
-
-## 3. Функциональные требования
-
-### 3.1 Модуль аутентификации
-
-#### 3.1.1 Регистрация/Вход
-```
-POST /api/auth/register
-POST /api/auth/login
-POST /api/auth/logout
-GET  /api/auth/me
-```
-
-#### 3.1.2 JWT токены
-- Access token: 24 часа
-- Хранение: localStorage
-- Формат: Bearer token
-
-#### 3.1.3 Роли и права
-| Действие | Admin | Manager | Editor | Viewer |
-|----------|-------|---------|--------|--------|
-| Управление пользователями | ✅ | ❌ | ❌ | ❌ |
-| Глобальные источники | ✅ | ❌ | ❌ | ❌ |
-| Настройка GPT | ✅ | ❌ | ❌ | ❌ |
-| Аудит логи | ✅ | ❌ | ❌ | ❌ |
-| Одобрение источников | ✅ | ✅ | ❌ | ❌ |
-| Удаление источников отдела | ✅ | ✅ | ❌ | ❌ |
-| Создание источников | ✅ | ✅ | ✅ | ❌ |
-| Чат с AI | ✅ | ✅ | ✅ | ✅ |
-
----
-
-### 3.2 Модуль проектов
-
-#### 3.2.1 Структура проекта
-```python
-Project = {
-    "id": "uuid",
-    "name": "Название проекта",
-    "description": "Описание",
-    "ownerId": "user_uuid",
-    "members": [
-        {"userId": "...", "role": "editor|viewer"}
-    ],
-    "createdAt": "ISO datetime",
-    "updatedAt": "ISO datetime"
-}
-```
-
-#### 3.2.2 API Endpoints
-```
-POST   /api/projects              # Создать проект
-GET    /api/projects              # Список проектов
-GET    /api/projects/{id}         # Детали проекта
-PUT    /api/projects/{id}         # Обновить проект
-DELETE /api/projects/{id}         # Удалить проект
-POST   /api/projects/{id}/members # Добавить участника
-DELETE /api/projects/{id}/members/{userId}
-```
-
-#### 3.2.3 Права доступа к проекту
-| Роль в проекте | Просмотр | Редактирование | Удаление | Управление участниками |
-|----------------|----------|----------------|----------|------------------------|
-| Owner | ✅ | ✅ | ✅ | ✅ |
-| Editor | ✅ | ✅ | ❌ | ❌ |
-| Viewer | ✅ | ❌ | ❌ | ❌ |
-
----
-
-### 3.3 Модуль чатов
-
-#### 3.3.1 Типы чатов
-| Тип | Описание | Источники |
-|-----|----------|-----------|
-| Quick Chat | Быстрый чат без проекта | Нет |
-| Project Chat | Чат внутри проекта | Project + Global sources |
-
-#### 3.3.2 Структура чата
-```python
-Chat = {
-    "id": "uuid",
-    "projectId": "uuid|null",  # null для quick chat
-    "name": "Название чата",
-    "ownerId": "user_uuid",
-    "activeSourceIds": ["source_id_1", "source_id_2"],
-    "messages": [
-        {
-            "id": "uuid",
-            "role": "user|assistant",
-            "content": "текст сообщения",
-            "timestamp": "ISO datetime",
-            "citations": [{"source": "...", "chunk": 1}]
-        }
-    ],
-    "createdAt": "ISO datetime"
-}
-```
-
-#### 3.3.3 API Endpoints
-```
-POST   /api/quick-chats                    # Создать quick chat
-GET    /api/quick-chats                    # Список quick chats
-POST   /api/projects/{id}/chats            # Создать project chat
-GET    /api/projects/{id}/chats            # Список project chats
-GET    /api/chats/{id}                     # Получить чат
-DELETE /api/chats/{id}                     # Удалить чат
-POST   /api/chats/{id}/messages            # Отправить сообщение
-PUT    /api/chats/{id}/active-sources      # Установить активные источники
-```
-
-#### 3.3.4 RAG Pipeline
-```
-┌──────────────┐    ┌──────────────┐    ┌──────────────┐
-│    User      │───▶│   Embed      │───▶│   Search     │
-│   Question   │    │   Question   │    │   Vectors    │
-└──────────────┘    └──────────────┘    └──────────────┘
-                                              │
-┌──────────────┐    ┌──────────────┐          ▼
-│   Response   │◀───│     GPT      │◀───┌──────────────┐
-│   to User    │    │   Generate   │    │   Context    │
-└──────────────┘    └──────────────┘    │   Chunks     │
-                                        └──────────────┘
-```
-
----
-
-### 3.4 Модуль источников (Sources)
-
-#### 3.4.1 Иерархия источников
-```
-┌─────────────────────────────────────────────────────────────┐
-│                     GLOBAL SOURCES                           │
-│            (Доступны всем пользователям)                    │
-│                    Управляет: Admin                         │
-└─────────────────────────────────────────────────────────────┘
-                            │
-        ┌───────────────────┼───────────────────┐
-        ▼                   ▼                   ▼
-┌───────────────┐   ┌───────────────┐   ┌───────────────┐
-│  DEPARTMENT   │   │  DEPARTMENT   │   │  DEPARTMENT   │
-│   SOURCES     │   │   SOURCES     │   │   SOURCES     │
-│ (Engineering) │   │    (Sales)    │   │   (Finance)   │
-│ Manager: John │   │ Manager: Mary │   │ Manager: Alex │
-└───────────────┘   └───────────────┘   └───────────────┘
-        │
-        ▼
-┌───────────────────────────────────────────────────────────────┐
-│                      PROJECT SOURCES                           │
-│                  (Специфичны для проекта)                     │
-│                   Управляет: Project Owner                    │
-└───────────────────────────────────────────────────────────────┘
-        │
-        ▼
-┌───────────────────────────────────────────────────────────────┐
-│                      PERSONAL SOURCES                          │
-│                    (Личные файлы юзера)                       │
-│                   Управляет: User                             │
-└───────────────────────────────────────────────────────────────┘
-```
-
-#### 3.4.2 Типы источников
-| Тип | Расширения | Обработка |
-|-----|------------|-----------|
-| Document | .pdf, .docx, .txt | Text extraction |
-| Spreadsheet | .xlsx, .csv | Table parsing |
-| Presentation | .pptx | Slide extraction |
-| Image | .png, .jpg | OCR (Tesseract) |
-| URL | http(s):// | Web scraping |
-
-#### 3.4.3 Workflow статусы
-```
-┌─────────┐    ┌──────────┐    ┌─────────┐
-│  DRAFT  │───▶│ PENDING  │───▶│ ACTIVE  │
-│         │    │ APPROVAL │    │         │
-└─────────┘    └──────────┘    └─────────┘
-     │              │               │
-     │              ▼               │
-     │         ┌──────────┐        │
-     └────────▶│ REJECTED │◀───────┘
-               └──────────┘
-```
-
-#### 3.4.4 Chunking стратегия
-```python
-# Для текстовых документов
-chunk_size = 1000  # символов
-chunk_overlap = 200  # символов
-
-# Для таблиц (Excel/CSV)
-# Каждая строка = отдельный chunk с заголовками
-"Column1: value1, Column2: value2, Column3: value3"
-```
-
-#### 3.4.5 API Endpoints
-```
-# Personal Sources
-POST   /api/sources/upload          # Загрузить файл
-POST   /api/sources/url             # Добавить URL
-GET    /api/sources                 # Список личных источников
-DELETE /api/sources/{id}            # Удалить источник
-
-# Project Sources
-POST   /api/projects/{id}/sources/upload
-GET    /api/projects/{id}/sources
-
-# Department Sources
-GET    /api/departments/{id}/sources
-POST   /api/departments/{id}/sources/upload
-PUT    /api/sources/{id}/approve    # Manager only
-PUT    /api/sources/{id}/reject     # Manager only
-
-# Global Sources (Admin only)
-GET    /api/admin/global-sources
-POST   /api/admin/global-sources/upload
-DELETE /api/admin/global-sources/{id}
-```
-
----
-
-### 3.5 Модуль отделов (Departments)
-
-#### 3.5.1 Структура отдела
-```python
-Department = {
-    "id": "uuid",
-    "name": "Engineering",
-    "description": "Инженерный отдел",
-    "managerId": "user_uuid",
-    "memberIds": ["user_1", "user_2"],
-    "createdAt": "ISO datetime"
-}
-```
-
-#### 3.5.2 API Endpoints
-```
-GET    /api/departments              # Список отделов (Admin)
-POST   /api/departments              # Создать отдел (Admin)
-PUT    /api/departments/{id}         # Обновить отдел (Admin)
-DELETE /api/departments/{id}         # Удалить отдел (Admin)
-GET    /api/departments/{id}/members # Участники отдела
-POST   /api/departments/{id}/members # Добавить участника
-```
-
----
-
-### 3.6 Модуль администрирования
-
-#### 3.6.1 Управление пользователями
-```
-GET    /api/admin/users              # Список пользователей
-POST   /api/admin/users              # Создать пользователя
-PUT    /api/admin/users/{id}         # Обновить пользователя
-DELETE /api/admin/users/{id}         # Удалить пользователя
-PUT    /api/admin/users/{id}/role    # Изменить роль
-```
-
-#### 3.6.2 Настройка GPT
-```python
-GPTConfig = {
-    "id": "1",
-    "model": "gpt-4.1-mini",
-    "developerPrompt": "You are a helpful assistant...",
-    "temperature": 0.7,
-    "maxTokens": 4096,
-    "updatedAt": "ISO datetime"
-}
-```
-
-```
-GET    /api/admin/gpt-config         # Получить настройки
-PUT    /api/admin/gpt-config         # Обновить настройки
-```
-
-#### 3.6.3 Аудит логи
-```python
-AuditLog = {
-    "id": "uuid",
-    "userId": "user_uuid",
-    "userEmail": "user@example.com",
-    "action": "source_upload|source_delete|login|...",
-    "resourceType": "source|user|project|...",
-    "resourceId": "resource_uuid",
-    "details": {"fileName": "report.pdf", ...},
-    "timestamp": "ISO datetime"
-}
-```
-
-```
-GET /api/admin/audit-logs?action=...&userId=...&from=...&to=...
-```
-
----
-
-### 3.7 Excel/CSV Analyzer
-
-#### 3.7.1 Возможности
-| Функция | Описание |
-|---------|----------|
-| Загрузка файлов | CSV, XLSX до 10 MB |
-| Вопросы на естественном языке | "Покажи все продукты где..." |
-| Экспорт результатов | PDF, Excel |
-| Debug информация | Количество строк в контексте |
-
-#### 3.7.2 API Endpoints
-```
-POST   /api/analyzer/upload                    # Загрузить файл
-POST   /api/analyzer/ask                       # Задать вопрос
-GET    /api/analyzer/session/{id}              # Получить сессию
-DELETE /api/analyzer/session/{id}              # Удалить сессию
-GET    /api/analyzer/session/{id}/export/excel # Экспорт Excel
-GET    /api/analyzer/session/{id}/export/pdf   # Экспорт PDF
-```
-
-#### 3.7.3 Ограничения
-- Max файл: 10 MB
-- Max контекст: 100,000 символов (~500 строк)
-- In-memory хранение сессий
-
----
-
-### 3.8 Semantic Cache
-
-#### 3.8.1 Принцип работы
-```
-┌──────────────┐    ┌──────────────┐
-│   Question   │───▶│   Embed      │
-│              │    │   Question   │
-└──────────────┘    └──────────────┘
-                          │
-                          ▼
-                    ┌──────────────┐
-                    │   Search     │
-                    │   Cache DB   │
-                    └──────────────┘
-                          │
-            ┌─────────────┴─────────────┐
-            ▼                           ▼
-    similarity > 0.95           similarity < 0.95
-            │                           │
-            ▼                           ▼
-    ┌──────────────┐           ┌──────────────┐
-    │ Return       │           │ Call GPT     │
-    │ Cached       │           │ Save to      │
-    │ Answer       │           │ Cache        │
-    └──────────────┘           └──────────────┘
-```
-
-#### 3.8.2 Конфигурация
-```python
-CacheConfig = {
-    "enabled": True,
-    "similarityThreshold": 0.95,
-    "ttlDays": 7,
-    "maxEntries": 10000
-}
-```
-
----
-
-### 3.9 Tech News
-
-#### 3.9.1 Функционал
-- Отображение топ новостей с Hacker News
-- Автообновление каждые 30 минут
-- Ссылки на оригинальные статьи
-
-#### 3.9.2 API
-```
-GET /api/news?limit=30
-```
-
----
-
-### 3.10 Мультиязычность (i18n)
-
-#### 3.10.1 Поддерживаемые языки
-- 🇷🇺 Русский (ru)
-- 🇬🇧 English (en)
-
-#### 3.10.2 Реализация
-```javascript
-// Frontend: LanguageContext
-const { language, setLanguage, t } = useLanguage();
-
-// Использование
-<Button>{t('nav.dashboard')}</Button>
-```
-
-#### 3.10.3 Статус перевода
-| Раздел | RU | EN |
-|--------|----|----|
-| Login | ✅ | ✅ |
-| Dashboard | ✅ | ✅ |
-| Sidebar | ✅ | ✅ |
-| Admin pages | ✅ | ✅ |
-| News | ✅ | ✅ |
-| Analyzer | ✅ | ✅ |
-| Modals/Toasts | 🔄 | 🔄 |
-
----
-
-## 4. Техническая архитектура
-
-### 4.1 Стек технологий
-
-#### Backend
+### Backend
 ```
 Framework:    FastAPI (Python 3.11+)
 Database:     MongoDB (motor async driver)
-AI:           OpenAI GPT-4.1-mini, text-embedding-3-small
-OCR:          Tesseract
-File parsing: openpyxl, python-pptx, PyPDF2
+AI:           Claude claude-sonnet-4-20250514 (via emergentintegrations)
+Embeddings:   Voyage AI (voyage-3)
+Web Search:   Brave Search API
+URL Parsing:  BeautifulSoup4 + pypdf + pdfplumber
 Auth:         JWT (PyJWT)
+Scheduler:    APScheduler
+
+Services:
+  services/web_search.py      — Brave search, URL fetching, auto-ingest
+  services/catalog_service.py — Product catalog search
+  services/excel_service.py   — Excel generation + targeted edits (openpyxl/pandas)
+  services/agents.py          — Agent definitions (excel/research/rag/general)
+  services/agent_router.py    — Rule-based + Claude Haiku routing
+  routes/messages.py          — RAG + Chat AI + agent routing (~1061 lines)
+  routes/temp_files.py        — Temp file upload/save endpoints
 ```
 
-#### Frontend
+### Frontend
 ```
 Framework:    React 18
 Styling:      Tailwind CSS
@@ -488,519 +57,296 @@ Components:   Shadcn/UI
 Icons:        Lucide React
 HTTP:         Axios
 Routing:      React Router v6
-State:        React Context
+
+Chat Components:
+  pages/ChatPage.js                    — Orchestrator (~940 lines)
+  components/chat/MessageBubble.js     — Single message rendering + Excel/confirm buttons
+  components/chat/SourcePanel.js       — Sources panel UI
+  components/chat/ChatInput.js         — Input area + plus menu + paperclip
+  data/changelog.js                    — App version + changelog (v2.9.0)
 ```
 
-### 4.2 Структура проекта
+### Структура проекта
 ```
 /app/
 ├── backend/
-│   ├── models/
-│   │   └── enterprise.py          # Pydantic models
-│   ├── routes/
-│   │   ├── analyzer.py            # Excel analyzer
-│   │   ├── departments.py         # Departments CRUD
-│   │   ├── enterprise_sources.py  # Sources management
-│   │   └── news.py                # Tech news API
+│   ├── db/connection.py
+│   ├── middleware/auth.py
+│   ├── models/schemas.py            # Pydantic models (MessageCreate, MessageResponse)
 │   ├── services/
-│   │   └── enterprise.py          # Business logic
-│   ├── server.py                  # Main FastAPI app (~3600 lines)
-│   ├── requirements.txt
-│   └── .env
+│   │   ├── rag.py
+│   │   ├── cache.py
+│   │   ├── file_processor.py
+│   │   ├── web_search.py
+│   │   ├── catalog_service.py
+│   │   ├── excel_service.py
+│   │   ├── agents.py                # NEW: Agent definitions
+│   │   └── agent_router.py          # NEW: Agent routing logic
+│   ├── routes/
+│   │   ├── messages.py
+│   │   ├── temp_files.py            # NEW: /api/chat/upload-temp, /api/chat/save-temp-to-source
+│   │   ├── sources.py
+│   │   ├── projects.py
+│   │   ├── auth.py
+│   │   ├── chats.py
+│   │   ├── images.py
+│   │   ├── admin.py
+│   │   ├── excel.py
+│   │   └── ...
+│   └── server.py
 │
-├── frontend/
-│   ├── src/
-│   │   ├── components/
-│   │   │   ├── ui/                # Shadcn components
-│   │   │   └── DashboardLayout.js
-│   │   ├── contexts/
-│   │   │   ├── AuthContext.js
-│   │   │   └── LanguageContext.js
-│   │   ├── i18n/
-│   │   │   └── translations.js
-│   │   ├── pages/
-│   │   │   ├── LoginPage.js
-│   │   │   ├── DashboardPage.js
-│   │   │   ├── ProjectPage.js
-│   │   │   ├── ChatPage.js
-│   │   │   ├── NewsPage.js
-│   │   │   ├── ExcelAnalyzerPage.js
-│   │   │   ├── MyGptPromptPage.js
-│   │   │   ├── PersonalSourcesPage.js
-│   │   │   ├── DepartmentSourcesPage.js
-│   │   │   ├── AdminUsersPage.js
-│   │   │   ├── AdminDepartmentsPage.js
-│   │   │   ├── AdminGptConfigPage.js
-│   │   │   ├── AdminGlobalSourcesPage.js
-│   │   │   └── AdminAuditLogsPage.js
-│   │   └── App.js
-│   ├── package.json
-│   └── .env
-│
-└── memory/
-    ├── PRD.md
-    └── EXCEL_ANALYZER_PRD.md
+└── frontend/src/
+    ├── components/chat/
+    │   ├── MessageBubble.js
+    │   ├── SourcePanel.js
+    │   └── ChatInput.js
+    ├── contexts/
+    │   ├── AuthContext.js           # exports: user (not currentUser)
+    │   └── LanguageContext.js
+    ├── data/changelog.js            # APP_VERSION = "2.9.0"
+    ├── i18n/translations.js
+    └── pages/
+        ├── ChatPage.js
+        ├── DashboardPage.js
+        ├── ProjectPage.js
+        └── ...
 ```
 
-### 4.3 База данных (MongoDB)
-
-#### Collections
+### MongoDB Collections
 ```
-users                 # Пользователи
-projects              # Проекты
-chats                 # Чаты (quick + project)
-sources               # Все источники
-source_chunks         # Векторные chunks
-departments           # Отделы
-gpt_config            # Настройки GPT
-audit_logs            # Аудит логи
-semantic_cache        # Кэш ответов
-token_usage           # Использование токенов
-user_prompts          # Пользовательские промпты
-```
-
-#### Индексы
-```javascript
-// sources
-db.sources.createIndex({ "projectId": 1 })
-db.sources.createIndex({ "departmentId": 1 })
-db.sources.createIndex({ "userId": 1 })
-db.sources.createIndex({ "scope": 1, "status": 1 })
-
-// source_chunks
-db.source_chunks.createIndex({ "sourceId": 1 })
-db.source_chunks.createIndex({ "embedding": "2dsphere" })  // Vector search
-
-// audit_logs
-db.audit_logs.createIndex({ "timestamp": -1 })
-db.audit_logs.createIndex({ "userId": 1, "action": 1 })
-```
-
-### 4.4 API Authentication Flow
-```
-┌─────────┐     ┌─────────┐     ┌─────────┐     ┌─────────┐
-│  Login  │────▶│  Verify │────▶│ Generate│────▶│  Return │
-│ Request │     │  Creds  │     │   JWT   │     │  Token  │
-└─────────┘     └─────────┘     └─────────┘     └─────────┘
-
-┌─────────┐     ┌─────────┐     ┌─────────┐     ┌─────────┐
-│   API   │────▶│ Extract │────▶│  Verify │────▶│ Process │
-│ Request │     │  Token  │     │   JWT   │     │ Request │
-└─────────┘     └─────────┘     └─────────┘     └─────────┘
+users            # Пользователи (roles, ai_profile, departments)
+projects         # Проекты (project_memory)
+chats            # Чаты (quick + project, sourceMode)
+messages         # Сообщения (citations, web_sources, excel_file_id,
+                 #   is_excel_clarification, agent_type, agent_name, uploadedFile)
+sources          # Все источники (personal/project/department/global)
+source_chunks    # Векторные chunks (embedding via Voyage AI)
+departments      # Отделы
+gpt_config       # Настройки AI (developer prompt, model)
+audit_logs       # Аудит логи
+semantic_cache   # Кэш ответов
+token_usage      # Статистика токенов
+user_prompts     # Пользовательские промпты
+source_usage     # Статистика источников
+product_catalog  # Каталог продуктов
+competitors      # Конкурентный трекер
 ```
 
 ---
 
-## 5. Нефункциональные требования
+## 4. Реализованные функции ✅
 
-### 5.1 Производительность
-| Метрика | Требование |
-|---------|------------|
-| Время ответа API | < 200ms (без AI) |
-| Время ответа GPT | < 10 сек |
-| Загрузка страницы | < 2 сек |
-| Concurrent users | 100+ |
-
-### 5.2 Безопасность
-- [x] JWT аутентификация
-- [x] Role-based access control
-- [x] Audit logging
-- [x] Input validation (Pydantic)
-- [ ] Rate limiting
-- [ ] HTTPS only (production)
-
-### 5.3 Масштабируемость
-- MongoDB sharding ready
-- Stateless backend
-- File storage abstraction
-
-### 5.4 Мониторинг
-- [ ] Error tracking (Sentry)
-- [ ] Performance metrics (Prometheus)
-- [ ] Log aggregation (ELK)
-
----
-
-## 6. Текущий статус
-
-### 6.1 Реализованные функции ✅
-| Модуль | Статус | Примечания |
-|--------|--------|------------|
-| Аутентификация | ✅ | JWT, роли |
-| Проекты | ✅ | CRUD, участники |
-| Чаты | ✅ | Quick + Project |
-| RAG Pipeline | ✅ | Embeddings + GPT |
-| Personal Sources | ✅ | Upload, URL |
-| Department Sources | ✅ | Workflow approval |
+| Модуль | Статус | Описание |
+|--------|--------|----------|
+| Аутентификация | ✅ | JWT, 4 роли, смена пароля |
+| Проекты | ✅ | CRUD, участники, project memory |
+| Quick Chats | ✅ | Чат без проекта |
+| RAG Pipeline | ✅ | Voyage AI embeddings, cosine similarity |
+| Semantic Cache | ✅ | Схожесть > 0.95 → кэш |
+| Personal Sources | ✅ | Upload, URL, knowledge save |
+| Project Sources | ✅ | Upload, URL, dept copy |
+| Department Sources | ✅ | Workflow одобрения, manager controls |
 | Global Sources | ✅ | Admin only |
-| Admin Panel | ✅ | Users, GPT config |
-| Audit Logs | ✅ | Фильтрация |
-| Excel Analyzer | ✅ | GPT-4.1-mini |
-| Export PDF/Excel | ✅ | Analyzer results |
+| Source Insights | ✅ | AI summary + 5 вопросов по источнику |
+| Brave Web Search | ✅ | Авто-триггер + стоп-слова (RU/EN/AM) |
+| URL Content Fetch | ✅ | Авто-чтение HTML/PDF из URL в сообщении |
+| Edit Message | ✅ | Редактирование + регенерация AI ответа |
+| Clarifying Questions | ✅ | AI задаёт уточняющие вопросы с кнопками |
+| Save Context | ✅ | Суммаризация чата → AI Profile |
+| Project Memory | ✅ | Ключевые факты → фон для AI |
+| Image Generation | ✅ | gpt-image-1 via Emergent LLM Key |
+| Excel Generation | ✅ | Полный pipeline: pandas + openpyxl targeted edits |
+| Excel Confirmation | ✅ | __CONFIRM_EXCEL__ prefix flow, кнопка в UI |
+| Temp File Upload | ✅ | Скрепка в чате, /api/chat/upload-temp, vision + text |
+| Agent Routing | ✅ | 4 агента: excel/research/rag/general, rule + Haiku |
+| Competitor Tracker | ✅ | Отслеживание конкурентов |
+| Product Catalog | ✅ | Фазы 1-2: CRUD, CSV import, relations |
 | Tech News | ✅ | Hacker News |
-| i18n (RU/EN) | 🔄 | ~80% готово |
-| Semantic Cache | ✅ | Базовая версия |
-
-### 6.2 В разработке 🔄
-| Функция | Приоритет | Статус |
-|---------|-----------|--------|
-| Column selector (Analyzer) | P0 | Planned |
-| Two-stage analysis | P0 | Planned |
-| Complete i18n | P1 | In progress |
-| Pending approvals page | P1 | Planned |
-| Cache settings UI | P1 | Planned |
-
-### 6.3 Backlog 📋
-| Функция | Приоритет |
-|---------|-----------|
-| Question templates | P2 |
-| Source preview before query | P2 |
-| Usage/cost dashboard | P2 |
-| News bookmarks | P2 |
-| Global search | P2 |
-| Chat export (PDF/MD) | P2 |
-| User token limits | P3 |
-| Notifications | P3 |
-| Mobile responsive | P3 |
+| Admin Audit Logs | ✅ | Фильтрация + пагинация |
+| i18n (RU/EN) | 🔄 | ~80% переведено |
+| Changelog UI | ✅ | История обновлений в интерфейсе (v2.9.0) |
 
 ---
 
-## 7. Известные проблемы
+## 5. Схема ключевых полей
 
-### 7.1 Технические
-| Проблема | Severity | Workaround |
-|----------|----------|------------|
-| Excel Analyzer: только ~500 строк | High | Уменьшить колонки |
-| Analyzer sessions in-memory | Medium | Перезагрузка теряет данные |
-| useEffect dependency warnings | Low | Не влияет на работу |
+### Message (в БД) — актуальная
+```python
+{
+  "id": str,
+  "chatId": str,
+  "role": "user" | "assistant",
+  "content": str,
+  "citations": [{sourceId, sourceName, sourceType, chunks}],
+  "usedSources": [{sourceId, sourceName, sourceType}],
+  "web_sources": [{"title": str, "url": str}],
+  "fetchedUrls": [str],
+  "clarifying_question": str,
+  "clarifying_options": [str],
+  "fromCache": bool,
+  "autoIngestedUrls": [str],
+  "excel_file_id": str | None,          # ID в /tmp/excel_result_{uuid}.xlsx
+  "excel_preview": dict | None,         # {columns, rows, total_rows, message}
+  "is_excel_clarification": bool,       # True = AI задал уточн. вопросы перед генерацией
+  "uploadedFile": dict | None,          # {name, fileType} — temp file badge
+  "agent_type": str | None,             # "excel"|"research"|"rag"|"general"
+  "agent_name": str | None,             # "Excel Agent" | "Research Agent" | ...
+  "createdAt": ISO datetime
+}
+```
 
-### 7.2 UX
-| Проблема | Severity |
-|----------|----------|
-| Нет индикатора обработки больших файлов | Medium |
-| Нет выбора колонок в Analyzer | High |
-| ~20% UI не переведено | Medium |
+### User (в БД)
+```python
+{
+  "id": str,
+  "email": str,
+  "isAdmin": bool,
+  "role": str,
+  "departments": [str],
+  "ai_profile": {
+    "display_name": str,
+    "position": str,
+    "preferred_language": "ru" | "en",
+    "response_style": str,
+    "custom_instruction": str
+  },
+  "gptModel": str
+}
+```
 
 ---
 
-## 8. Roadmap
+## 6. Ключевые API эндпоинты
 
-### Q1 2024 - Оптимизация Analyzer
-- [ ] Two-stage analysis (Python filter → GPT format)
-- [ ] Column selector UI
-- [ ] MongoDB persistence for sessions
-- [ ] Progress indicators
-
-### Q2 2024 - Enterprise Features
-- [ ] SSO integration (SAML/OIDC)
-- [ ] Advanced audit reporting
-- [ ] API rate limiting
-- [ ] Usage dashboards
-
-### Q3 2024 - Collaboration
-- [ ] Real-time chat notifications
-- [ ] @mentions in chats
-- [ ] Shared analysis sessions
-- [ ] Comments on sources
-
-### Q4 2024 - Advanced AI
-- [ ] Multi-model support (GPT-4, Claude, Gemini)
-- [ ] Custom fine-tuned models
-- [ ] AI-powered source suggestions
-- [ ] Automated categorization
-
----
-
-## 9. Тестовые аккаунты
-
-| Role | Email | Password |
-|------|-------|----------|
-| Admin | admin@admin.com | admin123 |
-| Manager | manager@test.com | testpassword |
-
----
-
-## 10. API Reference
-
-### Base URL
-```
-Production: https://team-knowledge-hub-1.preview.emergentagent.com/api
-```
-
-### Authentication Header
-```
-Authorization: Bearer <jwt_token>
-```
-
-### Common Responses
-```json
-// Success
-{ "id": "...", "name": "...", ... }
-
-// Error
-{ "detail": "Error message" }
-```
-
-### Full API List
 ```
 # Auth
-POST   /api/auth/register
 POST   /api/auth/login
 GET    /api/auth/me
 
-# Projects
-GET    /api/projects
-POST   /api/projects
-GET    /api/projects/{id}
-PUT    /api/projects/{id}
-DELETE /api/projects/{id}
-
-# Chats
+# Chats & Messages
 POST   /api/quick-chats
-GET    /api/quick-chats
 POST   /api/projects/{id}/chats
-GET    /api/projects/{id}/chats
-GET    /api/chats/{id}
-DELETE /api/chats/{id}
-POST   /api/chats/{id}/messages
-PUT    /api/chats/{id}/active-sources
+POST   /api/chats/{id}/messages              # RAG + Brave + Claude + Agent routing
+PUT    /api/chats/{id}/messages/{msg_id}/edit
+POST   /api/chats/{id}/save-context
+POST   /api/chats/{id}/extract-memory-points
+
+# Temp File Upload (NEW)
+POST   /api/chat/upload-temp                 # multipart: file + chat_id
+POST   /api/chat/save-temp-to-source         # JSON: temp_file_id, project_id, ...
+
+# Excel
+GET    /api/excel/download/{file_id}
 
 # Sources
-POST   /api/sources/upload
-POST   /api/sources/url
-GET    /api/sources
-DELETE /api/sources/{id}
+POST   /api/projects/{id}/sources/upload
+POST   /api/projects/{id}/sources/url
+DELETE /api/projects/{id}/sources/{id}
+POST   /api/save-to-knowledge
 
-# Departments
-GET    /api/departments
-POST   /api/departments
-PUT    /api/departments/{id}
-DELETE /api/departments/{id}
-GET    /api/departments/{id}/sources
-POST   /api/departments/{id}/sources/upload
+# Product Catalog
+GET    /api/product-catalog
+POST   /api/product-catalog/import
+POST   /api/product-catalog/match
 
 # Admin
 GET    /api/admin/users
-POST   /api/admin/users
-PUT    /api/admin/users/{id}
-DELETE /api/admin/users/{id}
+GET    /api/admin/audit-logs?limit=&offset=
 GET    /api/admin/gpt-config
 PUT    /api/admin/gpt-config
-GET    /api/admin/global-sources
-POST   /api/admin/global-sources/upload
-DELETE /api/admin/global-sources/{id}
-GET    /api/admin/audit-logs
-
-# Analyzer
-POST   /api/analyzer/upload
-POST   /api/analyzer/ask
-GET    /api/analyzer/session/{id}
-DELETE /api/analyzer/session/{id}
-GET    /api/analyzer/session/{id}/export/excel
-GET    /api/analyzer/session/{id}/export/pdf
-
-# News
-GET    /api/news
-
-# User Settings
-GET    /api/user/prompt
-PUT    /api/user/prompt
 ```
 
 ---
 
-## 11. Changelog
+## 7. Приоритизированный бэклог
 
-### 2024-03-02
-- Excel/CSV Analyzer переключен на GPT-4.1-mini
-- Добавлен debug info в ответы Analyzer
-- Основной чат работает на GPT-4.1-mini
+### 🟠 P1 — Высокий приоритет
 
-### 2024-03-01
-- Добавлена мультиязычность (RU/EN)
-- Реализована страница Tech News
-- Улучшен RAG для табличных данных
-- Конвертирован My GPT Prompt в отдельную страницу
+#### Fix init_admin_user (продакшен)
+- **Что:** При создании нового admin в `server.py` не добавляются `isAdmin: True` и `role: "admin"`
+- **Где:** `server.py` → функция `init_admin_user`
+- **Эффект:** На чистой БД (продакшен) admin логинится, но не имеет прав
+- **Статус:** НЕ ИСПРАВЛЕНО ⚠️
 
-### 2024-02-28
-- Реализован workflow одобрения источников
-- Добавлены права менеджера (удаление, одобрение)
-- Исправлен баг с навигацией "Departments"
+#### Excel файлы → Object Storage
+- **Что:** Сейчас Excel сохраняется в `/tmp/excel_result_{uuid}.xlsx` — теряется при перезапуске
+- **Как:** Мигрировать на persistent object storage через `integration_playbook_expert_v2`
+- **Затронуто:** `excel_service.py`, `routes/excel.py`, `MessageBubble.js` (download URL)
+- **Статус:** НЕ РЕАЛИЗОВАНО ⚠️
 
-### 2024-03-04 (Refactoring Sprint)
-- **Backend Modularization Started:**
-  - Created `/app/backend/db/connection.py` - Database connection module
-  - Created `/app/backend/models/schemas.py` - Pydantic models for requests/responses
-  - Created `/app/backend/middleware/auth.py` - Authentication middleware
-  - Created `/app/backend/services/cache.py` - Semantic cache service
-  - Created `/app/backend/services/rag.py` - RAG pipeline service
-  - Created `/app/backend/services/file_processor.py` - File extraction utilities
-  - Created `/app/backend/routes/insights.py` - Source Insights & Smart Questions
-  - Created new route modules: `auth.py`, `projects.py`, `chats.py`, `messages.py`, `sources.py`, `admin.py`, `images.py`, `global_sources.py`, `user_settings.py`
-  - Created `/app/backend/server_modular.py` - Compact modular server (424 lines) as reference
-- **Frontend Componentization Started:**
-  - Created `/app/frontend/src/components/chat/` directory
-  - Created reusable components: `ChatHeader.js`, `Message.js`, `MessageList.js`, `ChatInput.js`
-- **API Pagination Added:**
-  - Added `paginate_query()` helper function
-  - Paginated endpoints: `/projects`, `/quick-chats`, `/chats`, `/messages`, `/sources`, `/admin/users`
-  - Response format: `{ items: [], total: N, page: N, pageSize: N, totalPages: N }`
-  - Frontend updated to handle new paginated response format
-- **Bug Fixes:**
-  - Fixed `analyzer.py` session management (was using undefined dictionary, now uses MongoDB)
-  - **Fixed "Publish failed" bug** - chunks for "Save to Knowledge" sources use `text` field instead of `content`. Updated all chunk processing code to handle both field names.
-  - **Fixed "Failed to load chat"** - SourceResponse model now supports `kind: "knowledge"` type
-  - Removed `emergentintegrations` from requirements.txt (was causing deployment failures)
-- **UI Improvements:**
-  - Made all action buttons always visible (removed hover requirement)
-- **New Features:**
-  - **Source Insights**: AI analyzes sources, generates summary + 5 suggested questions. Available on all source pages.
-  - **Smart Question Suggestions**: "💡 Get question ideas" button in chat generates relevant questions based on active sources.
-  - AI responses now match the language of the source document (Armenian, Russian, English, etc.)
-- **Tests:** All 32 core API tests passed (100% success rate)
+#### Product Catalog AI Integration (Фаза 3)
+- `POST /api/product-catalog/chat-search` — AI ищет в каталоге по запросу из чата
+- Тендерный анализ: загрузить список → AI сопоставляет с каталогом
+
+### 🟡 P2 — Средний приоритет
+
+- **i18n** — оставшиеся ~20% строк (`ChatPage.js`, модали, toasts)
+- **Agent badge в UI** — показывать `agent_name` под ответом AI в `MessageBubble`
+- **Product Catalog Weekly Sync** — APScheduler job каждое воскресенье
+
+### 🔵 P3 — Низкий приоритет
+
+- **useEffect dependency warnings** — не критично, нет рантайм-эффекта
+- **API Rate Limiting** — FastAPI middleware + counter
+- **Question Templates** — сохранённые шаблоны вопросов
+- **Dashboard использования** — токены per-user, топ источников
+- **Глобальный поиск** — `GET /api/search?q=...`
+- **Экспорт чата** — PDF/Markdown
+- **Mobile responsive** — адаптив для < 768px
+- **SSO / SAML** — корпоративная аутентификация
+- **Sentry** — production error tracking
 
 ---
 
-## 12. Technical Debt & Refactoring Status
+## 8. Известные технические долги
 
-### Server.py Refactoring (P0 - In Progress)
-| Module | Status | Lines | Description |
-|--------|--------|-------|-------------|
-| auth.py | Created | ~60 | Auth routes (login, me) |
-| projects.py | Created | ~250 | Project CRUD + sharing |
-| chats.py | Created | ~200 | Chat CRUD + visibility |
-| messages.py | Created | ~400 | Messages + RAG pipeline |
-| sources.py | Created | ~350 | Source upload + management |
-| admin.py | Created | ~300 | Admin functions |
-| images.py | Created | ~150 | Image generation |
-| global_sources.py | Created | ~200 | Global sources |
-| user_settings.py | Created | ~80 | User prompts |
-| **server.py** | **NOT YET REPLACED** | 3700+ | Monolith still in use |
-
-### ChatPage.js Refactoring (P0 - In Progress)
-| Component | Status | Lines | Description |
-|-----------|--------|-------|-------------|
-| ChatHeader.js | Created | ~140 | Header with controls |
-| Message.js | Created | ~250 | Single message display |
-| MessageList.js | Created | ~90 | Messages container |
-| ChatInput.js | Created | ~70 | Input area |
-| SourcePanel.js | **TODO** | - | Sources panel |
-| **ChatPage.js** | **NOT YET UPDATED** | 1468 | Monolith still in use |
-
-### Next Steps for Refactoring
-1. Replace server.py with modular imports (careful migration)
-2. Update ChatPage.js to use new components
-3. Create SourcePanel.js component
-4. Remove duplicate code
-5. Update tests
+| Файл | Проблема | Приоритет |
+|------|----------|-----------|
+| `server.py` → `init_admin_user` | Не проставляет `isAdmin`/`role` | P1 |
+| `excel_service.py` | Excel в `/tmp` — теряется при рестарте | P1 |
+| `messages.py` | ~1061 строк, смешана бизнес-логика | P2 |
+| `enterprise_sources.py` | ~802 строк | P3 |
+| i18n | ~20% строк не переведено | P2 |
+| `useEffect` warnings | Отсутствующие зависимости | P3 |
 
 ---
 
-## 13. Session Updates (2026-03-07)
+## 9. Changelog — сессии
 
-### Completed Tasks
-1. **✅ Excel/CSV Analyzer Removal (P0)** - Полностью удалён
-   - Removed `/api/analyzer/*` endpoints from server.py
-   - Removed `ExcelAnalyzerPage.js` import from App.js
-   - Removed `/analyzer` route from App.js
-   - Removed navigation link from DashboardLayout.js
-   - Removed `FileSpreadsheet` icon import
-   - Removed translations from `translations.js`
-   - Deleted test files (`test_analyzer.py`, analyzer tests in `test_core_apis.py`)
-   - Deleted backup server files (`server_new.py`, `server_modular.py`, `server_backup.py`, `server_full_backup.py`)
-   - **All tests passed:** 100% backend, 100% frontend
+### Апрель 2026 (текущая сессия)
+- ✅ **P0 Crash fix** — `ChatPage.js` использовал `currentUser` вместо `user` из `useAuth()`. Исправлено в 4 местах.
+- ✅ **Excel confirmation flow** — `__CONFIRM_EXCEL__` prefix вместо ненадёжного поиска "excel" в истории. Кнопка «Да, генерируй Excel» в UI. Поле `is_excel_clarification` в MessageResponse.
+- ✅ **Temp File Upload** — POST /api/chat/upload-temp (JPG/PNG/PDF/XLSX/CSV/DOCX ≤20MB). Скрепка в ChatInput. Vision для изображений. Prompt «Сохранить в источники?» после ответа AI. POST /api/chat/save-temp-to-source с индексацией через Voyage AI.
+- ✅ **Agent Routing System** — `services/agents.py` (4 агента) + `services/agent_router.py` (rule-based + Claude Haiku). Поля `agent_type`/`agent_name` в каждом assistant message. AsyncAnthropic для non-blocking routing.
+- ✅ **Excel download UX** — tooltip "Файл доступен до перезапуска", 404-specific error toast.
+- ✅ **Web Search bug fix** — армянские romanized команды (`poxi`, `popoxir`, `gri`, `avel`, `jnjel`) добавлены в `_TRIVIAL_STOP` и `_ARMENIAN_EDIT_WORDS` — больше не триггерят web search.
+- ✅ **Changelog обновлён** — v2.9.0, 4 новые записи.
 
-2. **⚠️ Server.py Refactoring (P0)** - Attempted but reverted
-   - Created modular server.py that imports all routers
-   - **Issue:** `setup_department_routes()` and `setup_enterprise_source_routes()` require complex dependencies (db, get_current_user, is_admin, audit_service, version_service, etc.)
-   - **Decision:** Reverted to monolith with analyzer removed; full refactor requires rewriting route modules to use dependency injection differently
-   - Server.py still ~4000 lines but functional without analyzer
+### Март 2026 (рефакторинг + Excel)
+- ✅ **messages.py рефакторинг** — разбит на `web_search.py`, `catalog_service.py`, `excel_service.py`
+- ✅ **ChatPage.js рефакторинг** — `MessageBubble.js`, `SourcePanel.js`, `ChatInput.js`
+- ✅ **Excel targeted edits** — `openpyxl` для точечного редактирования ячеек, формулы, цвета (HEX PatternFill)
+- ✅ **Image generation** — мигрирован на `emergentintegrations` + `gpt-image-1`
+- ✅ **Product Catalog** — Фазы 1-2: CRUD, CSV import, relations
+- ✅ **Brave Web Search** — авто-fallback, стоп-слова, BeautifulSoup fetch
 
-### Test Results (iteration_11.json)
-- Backend: 10/10 tests passed (100%)
-- Frontend: 5/5 UI checks passed (100%)
-- All analyzer endpoints return 404 ✅
-- Navigation no longer shows Excel Analyzer ✅
-- Core features working (auth, projects, chats) ✅
+### Февраль 2026
+- ✅ URL Content Fetching, Clarifying Questions, Save Context, Project Memory
+- ✅ Image Generator reference photo, JWT 7 days, Auth fix
+- ✅ Source Insights, Competitor Tracker, Audit Logs pagination
 
-### Remaining P0 Tasks
-1. **Complete server.py refactoring** - Requires updating route modules to not use setup functions with dependencies
-2. **Complete ChatPage.js refactoring** - Integrate existing components
-
-### Files Cleaned Up
-- `/app/backend/server_new.py` - Deleted
-- `/app/backend/server_modular.py` - Deleted
-- `/app/backend/server_backup.py` - Deleted
-- `/app/backend/server_full_backup.py` - Deleted
-- `/app/backend/tests/test_analyzer.py` - Deleted
-- `/app/backend/routes/analyzer.py` - Already did not exist
+### Октябрь–Январь 2026
+- ✅ RAG Pipeline (Voyage AI), Semantic Cache, Admin panel
+- ✅ Аутентификация + роли, Проекты, Quick Chats, i18n foundation
 
 ---
 
-## 14. Session Updates (2026-03-08)
+## 10. Тестовые аккаунты
 
-### Critical Bug Fixed
-1. **✅ ReferenceError: TrendingUp is not defined (P0 BLOCKER)** - ИСПРАВЛЕНО
-   - **Проблема:** Приложение крашилось после логина из-за отсутствующего импорта `TrendingUp` в `DashboardLayout.js`
-   - **Решение:** Добавлен импорт `TrendingUp` из `lucide-react` в `/app/frontend/src/components/DashboardLayout.js`
-   - **Тестирование:** Успешный логин под admin@admin.com, dashboard полностью загружается
-   - **Статус:** ✅ ИСПРАВЛЕНО И ПРОТЕСТИРОВАНО
-
-### Current Status
-- Приложение **полностью работоспособно**
-- Все основные функции доступны: логин, dashboard, чаты, проекты, competitors
-- Интерфейс на русском языке работает корректно
-
-### Pending Tasks (P1)
-1. ~~**Рефакторинг server.py (~4800 строк)**~~ ✅ ЗАВЕРШЕНО
-2. **Рефакторинг ChatPage.js (~1780 строк)** - Интегрировать созданные компоненты
-3. **Улучшение атрибуции источников в AI** - Показывать какой файл использован для ответа
-4. **Полная интернационализация (i18n)** - Все строки на русском
-
-### Known Technical Debt
-- ~~`server.py`: ~4800 строк монолита~~ ✅ Рефакторинг завершен
-- `ChatPage.js`: ~1780 строк монолита
-- Созданы компоненты чата, но не интегрированы
+| Роль | Email | Пароль |
+|------|-------|--------|
+| Admin | admin@ai.planetworkspace.com | Admin@123456 |
 
 ---
 
-## 15. Session Updates (2026-03-09)
-
-### Completed: Server.py Refactoring (P0)
-**БЫЛО:** `server.py` = 4791 строк (монолит)
-**СТАЛО:** `server.py` = 177 строк (точка входа)
-
-Код разбит на модульные файлы:
-| Модуль | Строк | Описание |
-|--------|-------|----------|
-| `routes/admin.py` | 429 | Админ-панель, управление пользователями |
-| `routes/auth.py` | 50 | Аутентификация |
-| `routes/chats.py` | 217 | Управление чатами |
-| `routes/competitors.py` | 418 | **NEW** Competitor Tracker |
-| `routes/departments.py` | 430 | Управление отделами |
-| `routes/enterprise_sources.py` | 802 | Корпоративные источники |
-| `routes/global_sources.py` | 369 | Глобальные источники |
-| `routes/images.py` | 189 | Генерация изображений |
-| `routes/insights.py` | 288 | AI-аналитика |
-| `routes/messages.py` | 590 | RAG pipeline, сообщения |
-| `routes/news.py` | 108 | Новости |
-| `routes/projects.py` | 336 | Проекты |
-| `routes/sources.py` | 647 | Источники документов |
-| `routes/user_settings.py` | 232 | Настройки пользователя, AI Profile |
-
-**Всего в routes:** 5106 строк (модульная структура)
-
-### Test Results
-- ✅ Login API работает
-- ✅ Projects API работает
-- ✅ Quick chats API работает
-- ✅ Admin users API работает
-- ✅ AI Profile API работает
-- ✅ Dashboard загружается
-- ✅ Все функции работают
-
----
-
-**Document Version:** 1.4
-**Last Updated:** 2026-03-09
-**Author:** Planet Knowledge Team
+*Planet Knowledge PRD v2.9 — Confidential*

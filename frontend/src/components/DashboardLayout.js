@@ -3,6 +3,8 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { useLanguage } from '../contexts/LanguageContext';
+import ChangelogModal from './ChangelogModal';
+import { APP_VERSION } from '../data/changelog';
 import { Button } from './ui/button';
 import axios from 'axios';
 import { 
@@ -23,7 +25,9 @@ import {
   Lock,
   Newspaper,
   Languages,
-  TrendingUp
+  TrendingUp,
+  Package,
+  FileOutput
 } from 'lucide-react';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
@@ -39,6 +43,7 @@ const DashboardLayout = ({ children }) => {
   // Pending approvals count for managers
   const [pendingCount, setPendingCount] = useState(0);
   const [isManager, setIsManager] = useState(false);
+  const [showChangelog, setShowChangelog] = useState(false);
   const [hasCompetitorAccess, setHasCompetitorAccess] = useState(() => {
     // Initialize from localStorage to prevent flicker
     const cached = localStorage.getItem('hasCompetitorAccess');
@@ -48,29 +53,39 @@ const DashboardLayout = ({ children }) => {
 
   // Fetch pending approvals count for managers and competitor access
   useEffect(() => {
+    let isMounted = true;
+    
     const fetchData = async () => {
+      if (!isMounted) return;
+      
       try {
         const response = await axios.get(`${API}/departments/pending-count`);
-        setPendingCount(response.data.count || 0);
-        setIsManager(response.data.isManager || false);
+        if (isMounted) {
+          setPendingCount(response.data.count || 0);
+          setIsManager(response.data.isManager || false);
+        }
       } catch (error) {
         // Silently fail - user might not be a manager
-        setPendingCount(0);
-        setIsManager(false);
+        if (isMounted) {
+          setPendingCount(0);
+          setIsManager(false);
+        }
       }
       
       // Check competitor tracker access (only if not already loaded)
-      if (!competitorAccessLoaded) {
+      if (!competitorAccessLoaded && isMounted) {
         try {
           const deptResponse = await axios.get(`${API}/departments`);
           const departments = deptResponse.data || [];
           const hasAccess = departments.some(dept => dept.competitor_tracker_enabled === true);
-          setHasCompetitorAccess(hasAccess);
-          localStorage.setItem('hasCompetitorAccess', hasAccess.toString());
-          setCompetitorAccessLoaded(true);
+          if (isMounted) {
+            setHasCompetitorAccess(hasAccess);
+            localStorage.setItem('hasCompetitorAccess', hasAccess.toString());
+            setCompetitorAccessLoaded(true);
+          }
         } catch (error) {
           // Don't reset if already have cached value
-          if (!localStorage.getItem('hasCompetitorAccess')) {
+          if (!localStorage.getItem('hasCompetitorAccess') && isMounted) {
             setHasCompetitorAccess(false);
           }
         }
@@ -79,10 +94,15 @@ const DashboardLayout = ({ children }) => {
     
     if (user) {
       fetchData();
-      // Refresh every 60 seconds
-      const interval = setInterval(fetchData, 60000);
-      return () => clearInterval(interval);
+      // Refresh every 5 minutes (300000ms) instead of 60 seconds
+      const interval = setInterval(fetchData, 300000);
+      return () => {
+        isMounted = false;
+        clearInterval(interval);
+      };
     }
+    
+    return () => { isMounted = false; };
   }, [user, competitorAccessLoaded]);
 
   const handleLogout = () => {
@@ -111,12 +131,22 @@ const DashboardLayout = ({ children }) => {
       path: '/my-prompt',
       icon: Sparkles
     },
+    {
+      name: language === 'ru' ? 'Product Catalog' : 'Product Catalog',
+      path: '/product-catalog',
+      icon: Package
+    },
     // Conditionally add Competitors if user has access
     ...(hasCompetitorAccess ? [{
       name: language === 'ru' ? 'Competitors' : 'Competitors',
       path: '/competitors',
       icon: TrendingUp
-    }] : [])
+    }] : []),
+    {
+      name: 'OEM Datasheet',
+      path: '/oem-datasheet',
+      icon: FileOutput
+    }
   ];
 
   if (user?.isAdmin) {
@@ -145,6 +175,11 @@ const DashboardLayout = ({ children }) => {
       name: t('nav.gptConfig'),
       path: '/admin/config',
       icon: Settings
+    });
+    navItems.push({
+      name: 'OEM Brands',
+      path: '/admin/oem-brands',
+      icon: Building2
     });
   } else {
     // Non-admin users: always show Departments link for managers
@@ -291,6 +326,17 @@ const DashboardLayout = ({ children }) => {
             <LogOut className="mr-2 h-4 w-4" />
             {t('nav.signOut')}
           </Button>
+
+          {/* Version badge */}
+          <button
+            onClick={() => setShowChangelog(true)}
+            className="w-full mt-3 flex items-center justify-center gap-1.5 py-1.5 rounded-md text-xs text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+            data-testid="changelog-btn"
+          >
+            <Sparkles className="h-3 w-3" />
+            <span>v{APP_VERSION}</span>
+            <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-indigo-500/15 text-indigo-400 border border-indigo-500/25 ml-1">Что нового?</span>
+          </button>
         </div>
       </aside>
 
@@ -304,9 +350,11 @@ const DashboardLayout = ({ children }) => {
 
       {/* Main Content */}
       <main className="lg:pl-64 min-h-screen">
-        <div className="h-16 lg:hidden" /> {/* Spacer for mobile */}
+        <div className="h-16 lg:hidden" />
         {children}
       </main>
+
+      <ChangelogModal open={showChangelog} onClose={() => setShowChangelog(false)} />
     </div>
   );
 };

@@ -5,6 +5,7 @@ import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { ThemeProvider } from './contexts/ThemeContext';
 import { LanguageProvider } from './contexts/LanguageContext';
 import ErrorBoundary from './components/ErrorBoundary';
+import ChangePasswordModal from './components/ChangePasswordModal';
 import './App.css';
 
 // Pages
@@ -27,6 +28,10 @@ import NewsPage from './pages/NewsPage';
 import MyGptPromptPage from './pages/MyGptPromptPage';
 import AiSettingsPage from './pages/AiSettingsPage';
 import CompetitorsPage from './pages/CompetitorsPage';
+import ProductCatalogPage from './pages/ProductCatalogPage';
+import ProductDetailPage from './pages/ProductDetailPage';
+import OemDatasheetPage from './pages/OemDatasheetPage';
+import AdminBrandsPage from './pages/AdminBrandsPage';
 
 // Protected Route Component
 const ProtectedRoute = ({ children }) => {
@@ -123,6 +128,18 @@ function AppRoutes() {
         </ProtectedRoute>
       } />
       
+      {/* Product Catalog Routes */}
+      <Route path="/product-catalog" element={
+        <ProtectedRoute>
+          <ProductCatalogPage />
+        </ProtectedRoute>
+      } />
+      <Route path="/product-catalog/:productId" element={
+        <ProtectedRoute>
+          <ProductDetailPage />
+        </ProtectedRoute>
+      } />
+      
       {/* Admin Routes */}
       <Route path="/admin/config" element={
         <AdminRoute>
@@ -205,6 +222,18 @@ function AppRoutes() {
         </ProtectedRoute>
       } />
       
+      {/* OEM Datasheet Routes */}
+      <Route path="/oem-datasheet" element={
+        <ProtectedRoute>
+          <OemDatasheetPage />
+        </ProtectedRoute>
+      } />
+      <Route path="/admin/oem-brands" element={
+        <AdminRoute>
+          <AdminBrandsPage />
+        </AdminRoute>
+      } />
+
       {/* Default redirect */}
       <Route path="/" element={<Navigate to="/dashboard" replace />} />
       <Route path="*" element={<Navigate to="/dashboard" replace />} />
@@ -220,6 +249,7 @@ function App() {
           <AuthProvider>
             <ErrorBoundary>
               <AppRoutes />
+              <ChangePasswordModal />
             </ErrorBoundary>
             <Toaster 
               position="top-right"

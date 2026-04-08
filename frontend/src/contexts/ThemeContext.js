@@ -13,7 +13,7 @@ export const useTheme = () => {
 export const ThemeProvider = ({ children }) => {
   const [theme, setTheme] = useState(() => {
     // Get saved theme from localStorage or default to 'dark'
-    const savedTheme = localStorage.getItem('planet-gpt-theme');
+    const savedTheme = localStorage.getItem('planet-knowledge-theme');
     return savedTheme || 'dark';
   });
 
@@ -30,7 +30,7 @@ export const ThemeProvider = ({ children }) => {
     }
     
     // Save to localStorage
-    localStorage.setItem('planet-gpt-theme', theme);
+    localStorage.setItem('planet-knowledge-theme', theme);
   }, [theme]);
 
   const toggleTheme = () => {

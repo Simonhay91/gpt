@@ -197,7 +197,7 @@ async def delete_chat(chat_id: str, current_user: dict = Depends(get_current_use
 async def update_source_mode(chat_id: str, data: SourceModeUpdate, current_user: dict = Depends(get_current_user)):
     """Update source mode for a chat"""
     db = get_db()
-    if data.sourceMode not in ['all', 'my']:
+    if data.sourceMode not in ['all', 'my', 'ai_only']:
         raise HTTPException(status_code=400, detail="Invalid source mode. Use 'all' or 'my'")
     
     chat = await db.chats.find_one({"id": chat_id}, {"_id": 0})

@@ -132,16 +132,39 @@ def setup_enterprise_source_routes(
     
     @router.get("/api/personal-sources")
     async def list_personal_sources(current_user: dict = Depends(get_current_user)):
-        """List user's personal sources"""
+        """List user's personal sources with info about where they were published"""
         sources = await db.sources.find(
             {"level": "personal", "ownerId": current_user["id"]},
             {"_id": 0}
         ).to_list(100)
         
-        # Add chunk counts
+        # Add chunk counts and publishedTo info
         for source in sources:
             count = await db.source_chunks.count_documents({"sourceId": source["id"]})
             source["chunkCount"] = count
+            
+            # Find all project/department copies of this source
+            published_copies = await db.sources.find(
+                {"publishedFrom": source["id"]},
+                {"_id": 0, "projectId": 1, "departmentId": 1, "level": 1}
+            ).to_list(50)
+            
+            published_to = []
+            for copy in published_copies:
+                if copy.get("projectId"):
+                    project = await db.projects.find_one(
+                        {"id": copy["projectId"]}, {"_id": 0, "name": 1, "id": 1}
+                    )
+                    if project:
+                        published_to.append({"type": "project", "id": project["id"], "name": project["name"]})
+                elif copy.get("departmentId"):
+                    dept = await db.departments.find_one(
+                        {"id": copy["departmentId"]}, {"_id": 0, "name": 1, "id": 1}
+                    )
+                    if dept:
+                        published_to.append({"type": "department", "id": dept["id"], "name": dept["name"]})
+            
+            source["publishedTo"] = published_to
         
         return sources
     
@@ -170,6 +193,12 @@ def setup_enterprise_source_routes(
         await db.source_chunks.delete_many({"sourceId": source_id})
         await db.source_versions.delete_many({"sourceId": source_id})
         await db.sources.delete_one({"id": source_id})
+        
+        # Remove from active sources in all chats
+        await db.chats.update_many(
+            {"activeSourceIds": source_id},
+            {"$pull": {"activeSourceIds": source_id}}
+        )
         
         return {"message": "Personal source deleted"}
     
@@ -550,6 +579,90 @@ def setup_enterprise_source_routes(
             source["chunkCount"] = count
         
         return sources
+    
+    @router.post("/api/department-sources/copy-from-project")
+    async def copy_project_source_to_department(
+        data: dict,
+        current_user: dict = Depends(get_current_user)
+    ):
+        """
+        Copy a project source to department sources
+        Creates a new department-level source with same content
+        """
+        source_id = data.get("sourceId")
+        project_id = data.get("projectId")
+        department_id = data.get("departmentId")
+        
+        if not source_id or not project_id or not department_id:
+            raise HTTPException(status_code=400, detail="Missing required fields")
+        
+        # Check user has access to department
+        user_depts = current_user.get("departments", [])
+        if department_id not in user_depts and not is_admin(current_user["email"]):
+            raise HTTPException(status_code=403, detail="You don't have access to this department")
+        
+        # Get original source
+        source = await db.sources.find_one({"id": source_id, "projectId": project_id}, {"_id": 0})
+        if not source:
+            raise HTTPException(status_code=404, detail="Source not found")
+        
+        # Check department exists
+        department = await db.departments.find_one({"id": department_id}, {"_id": 0})
+        if not department:
+            raise HTTPException(status_code=404, detail="Department not found")
+        
+        # Create new source for department
+        new_source_id = str(uuid.uuid4())
+        new_source = {
+            **source,
+            "id": new_source_id,
+            "level": "department",
+            "departmentId": department_id,
+            "projectId": None,  # Remove project association
+            "ownerId": current_user["id"],
+            "status": "draft",  # Starts as draft, needs approval
+            "createdAt": datetime.now(timezone.utc).isoformat(),
+            "createdBy": current_user["id"],
+            "originalSourceId": source_id  # Track where it came from
+        }
+        
+        await db.sources.insert_one(new_source)
+        
+        # Copy all chunks
+        chunks = await db.source_chunks.find({"sourceId": source_id}, {"_id": 0}).to_list(1000)
+        if chunks:
+            new_chunks = []
+            for chunk in chunks:
+                new_chunk = {
+                    **chunk,
+                    "id": str(uuid.uuid4()),
+                    "sourceId": new_source_id,
+                    "departmentId": department_id,
+                    "projectId": None,
+                    "ownerId": current_user["id"]
+                }
+                new_chunks.append(new_chunk)
+            
+            await db.source_chunks.insert_many(new_chunks)
+        
+        # Log audit
+        await audit_service.log(
+            user_id=current_user["id"],
+            user_email=current_user["email"],
+            action="copy_to_department",
+            entity="source",
+            entity_id=new_source_id,
+            details=f"Copied from project source {source_id}",
+            level="department",
+            department_id=department_id
+        )
+        
+        return {
+            "message": "Source copied to department",
+            "sourceId": new_source_id,
+            "status": "draft",
+            "note": "Source requires approval before becoming active"
+        }
     
     # ==================== APPROVAL WORKFLOW ====================
     
