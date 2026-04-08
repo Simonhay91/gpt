@@ -406,6 +406,7 @@ Datasheet text:
 
     # Brand colors
     primary_hex = (brand.get("primaryColor") or "#1E3A8A").lstrip("#")
+    subtitle_hex = (brand.get("subtitleColor") or brand.get("primaryColor") or "#1E3A8A").lstrip("#")
 
     def hex_to_rgb(h):
         h = (h or "1E3A8A").lstrip("#")
@@ -415,6 +416,7 @@ Datasheet text:
             return (30, 58, 138)
 
     primary_rgb = hex_to_rgb(primary_hex)
+    subtitle_rgb = hex_to_rgb(subtitle_hex)
 
     # Header height (small=0.3", medium=0.5", large=0.7")
     header_height_map = {"small": 0.3, "medium": 0.5, "large": 0.7}
@@ -542,7 +544,7 @@ Datasheet text:
             hr = hp.add_run(heading)
             hr.bold = True
             hr.font.size = Pt(11)
-            hr.font.color.rgb = RGBColor(*primary_rgb)
+            hr.font.color.rgb = RGBColor(*subtitle_rgb)
 
         if text_body:
             bp = doc.add_paragraph(text_body)
@@ -617,7 +619,7 @@ async def create_brand(
     website: str = Form(""),
     warrantyText: str = Form(""),
     primaryColor: str = Form(""),
-    secondaryColor: str = Form(""),
+    subtitleColor: str = Form(""),
     headerHeight: str = Form("medium"),
     copyrightText: str = Form(""),
     current_user: dict = Depends(get_current_user)
@@ -634,7 +636,7 @@ async def create_brand(
         "website": website,
         "warrantyText": warrantyText,
         "primaryColor": primaryColor,
-        "secondaryColor": secondaryColor,
+        "subtitleColor": subtitleColor,
         "headerHeight": headerHeight,
         "copyrightText": copyrightText,
         "approvedLogos": [],
@@ -655,7 +657,7 @@ async def update_brand(
     website: str = Form(""),
     warrantyText: str = Form(""),
     primaryColor: str = Form(""),
-    secondaryColor: str = Form(""),
+    subtitleColor: str = Form(""),
     headerHeight: str = Form("medium"),
     copyrightText: str = Form(""),
     current_user: dict = Depends(get_current_user)
@@ -671,7 +673,7 @@ async def update_brand(
         "website": website,
         "warrantyText": warrantyText,
         "primaryColor": primaryColor,
-        "secondaryColor": secondaryColor,
+        "subtitleColor": subtitleColor,
         "headerHeight": headerHeight,
         "copyrightText": copyrightText,
         "updatedAt": datetime.now(timezone.utc).isoformat(),
@@ -827,9 +829,8 @@ async def process_datasheet(
             output_bytes = replace_images_in_docx(output_bytes, logo_paths)
 
         primary_color = brand.get("primaryColor", "")
-        secondary_color = brand.get("secondaryColor", "")
         if primary_color:
-            output_bytes = replace_colors_in_docx(output_bytes, primary_color, secondary_color or None)
+            output_bytes = replace_colors_in_docx(output_bytes, primary_color)
 
         output_filename = f"OEM_{safe_brand}_{base_name}.docx"
 

@@ -15,7 +15,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 const API = `${process.env.REACT_APP_BACKEND_URL}/api/oem`;
 const BASE_URL = process.env.REACT_APP_BACKEND_URL;
 
-const emptyForm = { name: '', address: '', phone: '', email: '', website: '', warrantyText: '', primaryColor: '#3B82F6', secondaryColor: '', headerHeight: 'medium', copyrightText: '' };
+const emptyForm = { name: '', address: '', phone: '', email: '', website: '', warrantyText: '', primaryColor: '#3B82F6', subtitleColor: '', headerHeight: 'medium', copyrightText: '' };
 
 const AdminBrandsPage = () => {
   const [brands, setBrands] = useState([]);
@@ -58,7 +58,7 @@ const AdminBrandsPage = () => {
       website: brand.website || '',
       warrantyText: brand.warrantyText || '',
       primaryColor: brand.primaryColor || '#3B82F6',
-      secondaryColor: brand.secondaryColor || '',
+      subtitleColor: brand.subtitleColor || '',
       headerHeight: brand.headerHeight || 'medium',
       copyrightText: brand.copyrightText || '',
     });
@@ -197,11 +197,11 @@ const AdminBrandsPage = () => {
                             style={{ backgroundColor: brand.primaryColor }}
                             title={`Primary: ${brand.primaryColor}`}
                           />
-                          {brand.secondaryColor && (
+                          {brand.subtitleColor && (
                             <div
                               className="w-5 h-5 rounded-full border border-border shadow-sm"
-                              style={{ backgroundColor: brand.secondaryColor }}
-                              title={`Secondary: ${brand.secondaryColor}`}
+                              style={{ backgroundColor: brand.subtitleColor }}
+                              title={`Subtitle: ${brand.subtitleColor}`}
                             />
                           )}
                         </div>
@@ -369,18 +369,18 @@ const AdminBrandsPage = () => {
                     </div>
                   </div>
                   <div className="space-y-1">
-                    <p className="text-xs text-muted-foreground">Secondary Color <span className="text-muted-foreground">(optional)</span></p>
+                    <p className="text-xs text-muted-foreground">Subtitle Color <span className="text-muted-foreground">(optional)</span></p>
                     <div className="flex items-center gap-2">
                       <input
                         type="color"
-                        value={form.secondaryColor || '#1E40AF'}
-                        onChange={e => setForm(f => ({ ...f, secondaryColor: e.target.value }))}
+                        value={form.subtitleColor || '#1E40AF'}
+                        onChange={e => setForm(f => ({ ...f, subtitleColor: e.target.value }))}
                         className="h-9 w-12 rounded border border-border cursor-pointer bg-background p-0.5"
                       />
                       <Input
                         placeholder="#1E40AF"
-                        value={form.secondaryColor}
-                        onChange={e => setForm(f => ({ ...f, secondaryColor: e.target.value }))}
+                        value={form.subtitleColor}
+                        onChange={e => setForm(f => ({ ...f, subtitleColor: e.target.value }))}
                         className="flex-1 font-mono text-sm"
                         maxLength={7}
                       />
