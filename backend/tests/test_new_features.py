@@ -1,5 +1,5 @@
 """
-Test suite for Planet GPT new features:
+Test suite for Planet Knowledge new features:
 1. All sources in a project are automatically active (no manual selection needed)
 2. Project sharing with user list selection
 3. Support for PPTX, XLSX, PNG, JPEG files

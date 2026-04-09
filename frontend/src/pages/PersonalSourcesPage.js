@@ -278,6 +278,28 @@ const PersonalSourcesPage = () => {
                             v{source.version}
                           </span>
                         </div>
+                        {/* Published-to badges */}
+                        {source.publishedTo?.length > 0 && (
+                          <div className="flex flex-wrap gap-1.5 mt-2">
+                            {source.publishedTo.map((dest, idx) => (
+                              <span
+                                key={idx}
+                                className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs border ${
+                                  dest.type === 'project'
+                                    ? 'bg-indigo-500/10 text-indigo-400 border-indigo-500/20'
+                                    : 'bg-amber-500/10 text-amber-400 border-amber-500/20'
+                                }`}
+                                data-testid={`published-badge-${source.id}-${idx}`}
+                              >
+                                {dest.type === 'project'
+                                  ? <FolderOpen className="h-3 w-3 flex-shrink-0" />
+                                  : <Building2 className="h-3 w-3 flex-shrink-0" />
+                                }
+                                <span className="truncate max-w-[150px]">{dest.name}</span>
+                              </span>
+                            ))}
+                          </div>
+                        )}
                       </div>
                     </div>
                     

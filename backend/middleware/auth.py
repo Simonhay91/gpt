@@ -11,10 +11,10 @@ from db.connection import get_db
 # JWT Settings
 JWT_SECRET = os.environ.get('JWT_SECRET', 'shared-project-gpt-secret-key-2024')
 JWT_ALGORITHM = "HS256"
-JWT_EXPIRATION_HOURS = 24
+JWT_EXPIRATION_HOURS = 168  # 7 days
 
 # Admin email domain
-ADMIN_EMAIL_DOMAIN = "@admin.com"
+ADMIN_EMAIL_DOMAIN = "@ai.planetworkspace.com"
 
 # Security
 security = HTTPBearer()

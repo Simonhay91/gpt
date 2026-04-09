@@ -1,0 +1,100 @@
+{
+  "summary": "Refactoring smoke test: messages.py (1485→889 lines, split into 4 files) and ChatPage.js (1791→896 lines, split into 4 components). All 19 backend API tests passed. All 15 frontend test scenarios passed. Full functionality preserved post-refactoring with zero regressions.",
+
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {
+        "endpoint": "GET /api/chats",
+        "issue": "Endpoint does not exist — /api/quick-chats is the correct endpoint for listing user chats. This is pre-existing behavior, not caused by refactoring.",
+        "priority": "INFO"
+      }
+    ]
+  },
+
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {
+        "screen": "Project chat - test messages from prior testing sessions",
+        "issues": [
+          "Pre-existing: Some messages display raw Claude API overload errors 'Error: Error code: 529 - overloaded_error'. These are from prior test sessions and reflect transient external API failures - not a refactoring regression."
+        ]
+      }
+    ]
+  },
+
+  "passed_tests": [
+    "Backend: POST /api/auth/login returns token + user",
+    "Backend: POST /api/auth/login with wrong password returns 401",
+    "Backend: GET /api/auth/me returns current admin user",
+    "Backend: GET /api/projects returns list directly (not wrapped)",
+    "Backend: GET /api/quick-chats returns quick chat list",
+    "Backend: GET /api/chats/601b3e24 returns Quick Chat",
+    "Backend: GET /api/chats/84597c00 returns Test Chat (Excel Test Project)",
+    "Backend: GET /api/chats/{id}/messages returns direct list for Quick Chat",
+    "Backend: GET /api/chats/{id}/messages returns direct list for Test Chat",
+    "Backend: Messages schema has id/role/content/createdAt/chatId fields",
+    "Backend: POST /api/chats/{id}/messages without auth returns 401/403",
+    "Backend: POST /api/chats/{id}/messages sends and gets AI response (refactored routes/messages.py + services/web_search.py + catalog_service.py)",
+    "Backend: PUT /api/chats/{id}/rename works and restores name",
+    "Backend: POST /api/save-to-knowledge creates personal source",
+    "Backend: POST /api/chats/{id}/save-context summarizes and saves (services used)",
+    "Backend: POST /api/chats/{id}/active-sources syncs source IDs",
+    "Backend: PUT /api/chats/{id}/source-mode updates mode",
+    "Backend: GET /api/projects for move dialog returns project list",
+    "Backend: POST /api/chats/{id}/extract-memory-points extracts facts",
+    "Frontend: Login with admin@ai.planetworkspace.com / Admin@123456",
+    "Frontend: Dashboard loads showing Quick Chat entries + Excel Test Project",
+    "Frontend: Quick Chat page loads with [data-testid='chat-page'] and 6 messages",
+    "Frontend: ChatInput component renders (data-testid='chat-input', 'send-message-btn')",
+    "Frontend: MessageBubble components render (6 messages in Quick Chat)",
+    "Frontend: Source panel toggle button ABSENT for quick chat (correct)",
+    "Frontend: Plus menu button ABSENT for quick chat (correct)",
+    "Frontend: Save dropdown shows 'Project Memory' + 'My Sources' options",
+    "Frontend: Copy button works + 'Copied to clipboard' toast shown",
+    "Frontend: Chat rename via pencil icon - input appears, saves correctly",
+    "Frontend: Move chat dialog - shows Excel Test Project + Create New Project",
+    "Frontend: Edit user message - edit textarea opens and closes correctly",
+    "Frontend: Project chat (Test Chat) breadcrumb shows 'Excel Test Project / Test Chat'",
+    "Frontend: Source panel opens via 'Sources' toggle button",
+    "Frontend: Source panel has Upload Files button, URL input, Add URL btn, Search input/btn, Close btn",
+    "Frontend: Source panel closes via X button",
+    "Frontend: Plus menu in project chat shows Upload File, Add URL, Generate Image, Save Context, Project Memory",
+    "Frontend: Send message 'What is 2+2?' → AI responds '2 + 2 = 4' (full refactored pipeline)",
+    "Frontend: Web source pills (blue) visible on older messages with web search results"
+  ],
+
+  "test_report_links": [
+    "/app/backend/tests/test_refactoring_smoke.py",
+    "/app/test_reports/pytest/refactoring_smoke_results.xml"
+  ],
+
+  "action_items": [],
+
+  "critical_code_review_comments": [
+    "services/excel_service.py line 26: UPLOAD_DIR uses __file__ parent path which is /app/backend/services/ not /app/backend/uploads/. The path resolves to /app/backend/uploads since .parent.parent is backend root. Verify this is correct.",
+    "routes/messages.py: The api prefix is set in the router itself (prefix='/api') - consistent with other routes",
+    "services/web_search.py: WEB_SEARCH_KEYWORDS contains Armenian transliteration entries with incorrect encoding ('գтир', 'փнтrir') - likely a copy-paste encoding error but non-critical as they are unlikely to match",
+    "All 4 new service files are clean, focused modules with proper logging - refactoring quality is high"
+  ],
+
+  "updated_files": [
+    "/app/backend/tests/test_refactoring_smoke.py"
+  ],
+
+  "success_rate": {
+    "backend": "100% (19/19 tests passed)",
+    "frontend": "100% (all 15 scenario checks passed)"
+  },
+
+  "test_credentials": "admin@ai.planetworkspace.com / Admin@123456",
+  "seed_data_creation": "None - used existing Quick Chat (601b3e24) and Test Chat (84597c00) in Excel Test Project",
+
+  "retest_needed": false,
+
+  "should_main_agent_self_test": false,
+
+  "context_for_next_testing_agent": "Refactoring validated. Backend: routes/messages.py (889 lines) + services/web_search.py + services/catalog_service.py + services/excel_service.py all working. Frontend: pages/ChatPage.js (896 lines) + components/chat/MessageBubble.js + SourcePanel.js + ChatInput.js all working. Key endpoints: GET /api/quick-chats (list quick chats), GET /api/chats/{id}/messages (returns direct list not wrapped). Smoke test file at /app/backend/tests/test_refactoring_smoke.py covers auth, projects, chat CRUD, rename, save-to-knowledge, save-context, source management."
+}

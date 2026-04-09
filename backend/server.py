@@ -6,8 +6,10 @@ from fastapi import FastAPI
 from fastapi.responses import JSONResponse
 from starlette.middleware.cors import CORSMiddleware
 from datetime import datetime, timezone
+from uuid import uuid4
 import os
 import logging
+import bcrypt
 from pathlib import Path
 from dotenv import load_dotenv
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
@@ -42,17 +44,31 @@ from routes.admin import router as admin_router
 from routes.global_sources import router as global_sources_router
 from routes.user_settings import router as user_settings_router
 from routes.images import router as images_router
-from routes.insights import router as insights_router
+from routes.insights import router as insights_router, setup_insights_routes
 from routes.competitors import router as competitors_router, auto_refresh_competitor_products
+from routes.product_catalog import router as product_catalog_router
+from routes.oem_datasheet import router as oem_router
 
 # Enterprise routes with setup functions
 from routes.departments import setup_department_routes, router as departments_router
 from routes.enterprise_sources import setup_enterprise_source_routes, router as enterprise_sources_router
 from routes.news import router as news_router
+from routes.excel import router as excel_router
+from routes.temp_files import router as temp_files_router
 
 # Import services and dependencies needed for enterprise route setup
 from services.enterprise import AuditService, VersionService
-from services.file_processor import chunk_text, chunk_tabular_text
+from services.file_processor import (
+    chunk_text, 
+    chunk_tabular_text,
+    extract_text_from_pdf,
+    extract_text_from_docx,
+    extract_text_from_pptx,
+    extract_text_from_xlsx,
+    extract_text_from_csv,
+    extract_text_from_txt,
+    extract_text_from_image
+)
 from middleware.auth import get_current_user, is_admin
 
 # File storage settings
@@ -81,10 +97,30 @@ audit_service = AuditService(db)
 version_service = VersionService(db)
 
 
-# Wrapper for extract_text - delegated to enterprise_sources setup
-async def extract_text_wrapper(file_path, mime_type):
-    """Placeholder wrapper - actual extraction happens in route modules"""
-    return ""
+# Text extraction wrapper that routes to appropriate extraction function
+async def extract_text_wrapper(content: bytes, file_type: str) -> str:
+    """Extract text from file content based on file type"""
+    try:
+        if file_type == "pdf":
+            return extract_text_from_pdf(content)
+        elif file_type == "docx":
+            return extract_text_from_docx(content)
+        elif file_type == "pptx":
+            return extract_text_from_pptx(content)
+        elif file_type == "xlsx":
+            return extract_text_from_xlsx(content)
+        elif file_type in ["csv"]:
+            return extract_text_from_csv(content)
+        elif file_type in ["txt", "md"]:
+            return extract_text_from_txt(content)
+        elif file_type in ["png", "jpg", "jpeg", "gif", "webp"]:
+            return extract_text_from_image(content)
+        else:
+            logger.warning(f"Unsupported file type for extraction: {file_type}")
+            return ""
+    except Exception as e:
+        logger.error(f"Text extraction error for type {file_type}: {str(e)}")
+        raise
 
 
 # ==================== SETUP ENTERPRISE ROUTES ====================
@@ -103,6 +139,7 @@ setup_enterprise_source_routes(
     MAX_FILE_SIZE,
     SUPPORTED_MIME_TYPES
 )
+setup_insights_routes(db, get_current_user)
 
 # ==================== REGISTER ALL ROUTERS ====================
 
@@ -124,11 +161,15 @@ app.include_router(user_settings_router)
 app.include_router(images_router)
 app.include_router(insights_router)
 app.include_router(competitors_router)
+app.include_router(product_catalog_router)
+app.include_router(oem_router)
 
 # Enterprise routes
 app.include_router(departments_router)
 app.include_router(enterprise_sources_router)
 app.include_router(news_router, prefix="/api")
+app.include_router(excel_router, prefix="/api")
+app.include_router(temp_files_router)
 
 # ==================== MIDDLEWARE ====================
 
@@ -154,9 +195,76 @@ async def health():
 
 # ==================== LIFECYCLE EVENTS ====================
 
+async def init_admin_user():
+    """Create or update admin user for fresh deployments"""
+    try:
+        admin_email = "admin@ai.planetworkspace.com"
+        admin_password = "Admin@123456"
+        
+        # Check if correct admin exists
+        existing_admin = await db.users.find_one({"email": admin_email})
+        
+        if existing_admin:
+            logger.info(f"✓ Admin user already exists: {admin_email}")
+            return
+        
+        # Check for old admin emails and update
+        old_emails = ["admin@admin.com", "admin@planetworkspace.com"]
+        old_admin = None
+        
+        for old_email in old_emails:
+            old_admin = await db.users.find_one({"email": old_email})
+            if old_admin:
+                logger.info(f"Found old admin: {old_email}")
+                break
+        
+        if old_admin:
+            # Update old admin to new email and password
+            password_hash = bcrypt.hashpw(admin_password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+            await db.users.update_one(
+                {"_id": old_admin["_id"]},
+                {"$set": {
+                    "email": admin_email,
+                    "passwordHash": password_hash,
+                    "mustChangePassword": True,
+                    "canEditGlobalSources": True
+                }}
+            )
+            logger.info(f"✓ Updated admin user to: {admin_email}")
+            logger.info(f"✓ Password reset to: {admin_password}")
+            return
+        
+        # No admin exists - create new one
+        logger.info("No admin found - creating new admin user...")
+        password_hash = bcrypt.hashpw(admin_password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+        
+        admin_user = {
+            "id": str(uuid4()),
+            "email": admin_email,
+            "passwordHash": password_hash,
+            "createdAt": datetime.now(timezone.utc).isoformat(),
+            "departments": [],
+            "primaryDepartmentId": None,
+            "canEditGlobalSources": True,
+            "mustChangePassword": True
+        }
+        
+        await db.users.insert_one(admin_user)
+        logger.info(f"✓ Created admin user: {admin_email}")
+        logger.info(f"✓ Default password: {admin_password}")
+            
+    except Exception as e:
+        logger.error(f"Error initializing admin user: {e}")
+        import traceback
+        logger.error(traceback.format_exc())
+
+
 @app.on_event("startup")
 async def startup_event():
-    """Start background scheduler"""
+    """Initialize database and start background scheduler"""
+    # Create admin user if database is empty
+    await init_admin_user()
+    
     # Schedule auto-refresh task to run daily at 2 AM
     scheduler.add_job(
         auto_refresh_competitor_products,

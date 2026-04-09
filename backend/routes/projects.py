@@ -334,3 +334,39 @@ async def delete_project(project_id: str, current_user: dict = Depends(get_curre
     await db.projects.delete_one({"id": project_id})
     
     return {"message": "Project deleted successfully"}
+
+# ==================== PROJECT MEMORY ====================
+
+@router.get("/projects/{project_id}/memory")
+async def get_project_memory(project_id: str, current_user: dict = Depends(get_current_user)):
+    """Get project memory"""
+    await check_project_access(current_user, project_id, required_role="viewer")
+    db = get_db()
+    project = await db.projects.find_one({"id": project_id}, {"_id": 0})
+    return {"project_memory": project.get("project_memory", "")}
+
+
+@router.put("/projects/{project_id}/memory")
+async def update_project_memory(
+    project_id: str, 
+    data: dict, 
+    current_user: dict = Depends(get_current_user)
+):
+    """Save project memory — owners and managers only"""
+    await check_project_access(current_user, project_id, required_role="manager")
+    db = get_db()
+    
+    memory_text = data.get("project_memory", "").strip()
+    
+    # ~1500 token limit ≈ 6000 characters
+    if len(memory_text) > 6000:
+        raise HTTPException(status_code=400, detail="Memory too long (max ~1500 tokens)")
+    
+    await db.projects.update_one(
+        {"id": project_id},
+        {"$set": {
+            "project_memory": memory_text,
+            "memory_updated_at": datetime.now(timezone.utc).isoformat()
+        }}
+    )
+    return {"success": True, "project_memory": memory_text}

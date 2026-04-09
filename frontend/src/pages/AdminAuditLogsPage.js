@@ -9,7 +9,7 @@ import { toast } from 'sonner';
 import { 
   ScrollText, User, FileText, Building2, Settings,
   Filter, RefreshCw, ChevronDown, CheckCircle, XCircle,
-  Plus, Trash2, Edit, Share, RotateCcw
+  Plus, Trash2, Edit, Share, RotateCcw, ChevronLeft, ChevronRight
 } from 'lucide-react';
 import DashboardLayout from '../components/DashboardLayout';
 import { useAuth } from '../contexts/AuthContext';
@@ -54,6 +54,8 @@ const AdminAuditLogsPage = () => {
     limit: 50
   });
   const [showFilters, setShowFilters] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [hasMore, setHasMore] = useState(false);
 
   useEffect(() => {
     if (user?.isAdmin) {
@@ -61,7 +63,7 @@ const AdminAuditLogsPage = () => {
     }
   }, [user]);
 
-  const fetchLogs = async () => {
+  const fetchLogs = async (page = 1) => {
     setIsLoading(true);
     try {
       const params = new URLSearchParams();
@@ -69,9 +71,14 @@ const AdminAuditLogsPage = () => {
       if (filters.action) params.append('action', filters.action);
       if (filters.level) params.append('level', filters.level);
       params.append('limit', filters.limit.toString());
+      const offset = (page - 1) * filters.limit;
+      params.append('offset', offset.toString());
       
       const response = await axios.get(`${API}/admin/audit-logs?${params}`);
       setLogs(response.data);
+      setCurrentPage(page);
+      // Check if there are more pages by checking if we got full limit
+      setHasMore(response.data.length === filters.limit);
     } catch (error) {
       toast.error(t('common.error'));
     } finally {
@@ -215,7 +222,10 @@ const AdminAuditLogsPage = () => {
                   </div>
                 </div>
                 <div className="mt-4 flex justify-end">
-                  <Button size="sm" onClick={fetchLogs}>
+                  <Button size="sm" onClick={() => {
+                    setCurrentPage(1);
+                    fetchLogs(1);
+                  }}>
                     Применить
                   </Button>
                 </div>
@@ -295,6 +305,35 @@ const AdminAuditLogsPage = () => {
                 </Card>
               );
             })}
+          </div>
+        )}
+
+        {/* Pagination */}
+        {!isLoading && logs.length > 0 && (
+          <div className="mt-6 flex items-center justify-between">
+            <div className="text-sm text-muted-foreground">
+              Страница {currentPage} • Показано {logs.length} записей
+            </div>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => fetchLogs(currentPage - 1)}
+                disabled={currentPage === 1}
+              >
+                <ChevronLeft className="h-4 w-4 mr-1" />
+                Назад
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => fetchLogs(currentPage + 1)}
+                disabled={!hasMore}
+              >
+                Вперед
+                <ChevronRight className="h-4 w-4 ml-1" />
+              </Button>
+            </div>
           </div>
         )}
       </div>

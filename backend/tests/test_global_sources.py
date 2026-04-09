@@ -1,5 +1,5 @@
 """
-Test suite for Global Sources feature in Planet GPT
+Test suite for Global Sources feature in Planet Knowledge
 Tests admin endpoints for managing global knowledge base
 """
 import pytest
@@ -68,7 +68,7 @@ class TestGlobalSourcesFeature:
     def test_upload_global_source_file(self):
         """Test POST /api/admin/global-sources/upload - upload a text file"""
         # Create a simple text file
-        test_content = "This is a test global source file for Planet GPT testing.\nIt contains important knowledge for all users."
+        test_content = "This is a test global source file for Planet Knowledge testing.\nIt contains important knowledge for all users."
         files = {
             'file': ('test_global_source.txt', io.BytesIO(test_content.encode()), 'text/plain')
         }

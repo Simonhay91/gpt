@@ -5,8 +5,13 @@ from typing import List
 from datetime import datetime, timezone
 from pathlib import Path
 import uuid
+import logging
 import aiofiles
 import httpx
+from openpyxl import load_workbook
+from io import BytesIO
+
+logger = logging.getLogger(__name__)
 
 from models.schemas import (
     SourceResponse,
@@ -34,6 +39,7 @@ from services.file_processor import (
     chunk_text,
     chunk_tabular_text
 )
+from services.rag import get_embedding
 
 router = APIRouter(prefix="/api", tags=["sources"])
 
@@ -68,7 +74,6 @@ async def get_all_user_sources(current_user: dict = Depends(get_current_user)):
     user_id = current_user["id"]
     user_dept_ids = current_user.get("departments", [])
     
-    # Get user's projects
     projects = await db.projects.find(
         {"$or": [
             {"ownerId": user_id},
@@ -78,7 +83,6 @@ async def get_all_user_sources(current_user: dict = Depends(get_current_user)):
     ).to_list(1000)
     project_ids = [p["id"] for p in projects]
     
-    # Query sources from projects, departments, and global
     query = {
         "$or": [
             {"projectId": {"$in": project_ids}},
@@ -151,6 +155,16 @@ async def upload_source(
         chunks = chunk_tabular_text(extracted_text)
     else:
         chunks = chunk_text(extracted_text)
+
+    # Extract sheet names for xlsx
+    sheet_names = []
+    if file_type == "xlsx":
+        try:
+            wb = load_workbook(BytesIO(content), read_only=True, data_only=True)
+            sheet_names = wb.sheetnames
+            wb.close()
+        except Exception as e:
+            logger.warning(f"Could not extract sheet names: {e}")
     
     source_doc = {
         "id": source_id,
@@ -161,17 +175,20 @@ async def upload_source(
         "mimeType": file.content_type,
         "sizeBytes": len(content),
         "storagePath": storage_filename,
+        "sheetNames": sheet_names,
         "createdAt": datetime.now(timezone.utc).isoformat()
     }
     await db.sources.insert_one(source_doc)
     
     for i, chunk_content in enumerate(chunks):
+        embedding = await get_embedding(chunk_content)
         chunk_doc = {
             "id": str(uuid.uuid4()),
             "sourceId": source_id,
             "projectId": project_id,
             "chunkIndex": i,
             "content": chunk_content,
+            "embedding": embedding,
             "createdAt": datetime.now(timezone.utc).isoformat()
         }
         await db.source_chunks.insert_one(chunk_doc)
@@ -251,6 +268,16 @@ async def upload_multiple_sources(
                 chunks = chunk_tabular_text(extracted_text)
             else:
                 chunks = chunk_text(extracted_text)
+
+            # Extract sheet names for xlsx
+            sheet_names = []
+            if file_type == "xlsx":
+                try:
+                    wb = load_workbook(BytesIO(content), read_only=True, data_only=True)
+                    sheet_names = wb.sheetnames
+                    wb.close()
+                except Exception as e:
+                    logger.warning(f"Could not extract sheet names: {e}")
             
             source_doc = {
                 "id": source_id,
@@ -261,17 +288,20 @@ async def upload_multiple_sources(
                 "mimeType": file.content_type,
                 "sizeBytes": len(content),
                 "storagePath": storage_filename,
+                "sheetNames": sheet_names,
                 "createdAt": datetime.now(timezone.utc).isoformat()
             }
             await db.sources.insert_one(source_doc)
             
             for i, chunk_content in enumerate(chunks):
+                embedding = await get_embedding(chunk_content)
                 chunk_doc = {
                     "id": str(uuid.uuid4()),
                     "sourceId": source_id,
                     "projectId": project_id,
                     "chunkIndex": i,
                     "content": chunk_content,
+                    "embedding": embedding,
                     "createdAt": datetime.now(timezone.utc).isoformat()
                 }
                 await db.source_chunks.insert_one(chunk_doc)
@@ -316,12 +346,43 @@ async def add_url_source(
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Failed to fetch URL: {str(e)[:100]}")
     
-    content_type = response.headers.get('content-type', '')
-    if 'text/html' not in content_type and 'text/plain' not in content_type:
-        raise HTTPException(status_code=400, detail="URL must return HTML or text content")
+    content_type = response.headers.get('content-type', '').lower()
     
-    html_content = response.text
-    extracted_text = extract_text_from_html(html_content)
+    # Allow HTML, plain text, XML, and PDF
+    allowed_types = ['text/html', 'text/plain', 'application/xhtml+xml', 'text/xml', 'application/xml', 'application/pdf']
+    is_supported = any(allowed in content_type for allowed in allowed_types) or content_type.startswith('text/')
+    
+    # Try to parse if content-type is missing or ambiguous
+    if not is_supported and not content_type:
+        logger.warning(f"URL {url} has no content-type header, attempting to parse anyway")
+        is_supported = True
+    
+    if not is_supported:
+        raise HTTPException(
+            status_code=400, 
+            detail=f"URL must return HTML, text or PDF content (got: {content_type})"
+        )
+    
+    # Extract text depending on content type
+    is_pdf = 'application/pdf' in content_type
+    if is_pdf:
+        from io import BytesIO
+        from pypdf import PdfReader
+        try:
+            pdf_file = BytesIO(response.content)
+            pdf_reader = PdfReader(pdf_file)
+            text_parts = []
+            for page in pdf_reader.pages[:20]:
+                page_text = page.extract_text()
+                if page_text:
+                    text_parts.append(page_text)
+            extracted_text = "\n".join(text_parts)
+        except Exception as e:
+            logger.error(f"PDF extraction failed for {url}: {e}")
+            raise HTTPException(status_code=400, detail="Could not extract text from PDF")
+    else:
+        html_content = response.text
+        extracted_text = extract_text_from_html(html_content)
     
     if not extracted_text or len(extracted_text.strip()) < 10:
         raise HTTPException(status_code=400, detail="Could not extract meaningful text from this URL")
@@ -339,20 +400,22 @@ async def add_url_source(
         "kind": "url",
         "originalName": display_name,
         "url": url,
-        "mimeType": "text/html",
-        "sizeBytes": len(html_content.encode('utf-8')),
+        "mimeType": "application/pdf" if is_pdf else "text/html",
+        "sizeBytes": len(response.content) if is_pdf else len(response.text.encode('utf-8')),
         "storagePath": None,
         "createdAt": datetime.now(timezone.utc).isoformat()
     }
     await db.sources.insert_one(source_doc)
     
     for i, chunk_content in enumerate(chunks):
+        embedding = await get_embedding(chunk_content)
         chunk_doc = {
             "id": str(uuid.uuid4()),
             "sourceId": source_id,
             "projectId": project_id,
             "chunkIndex": i,
             "content": chunk_content,
+            "embedding": embedding,
             "createdAt": datetime.now(timezone.utc).isoformat()
         }
         await db.source_chunks.insert_one(chunk_doc)
@@ -363,7 +426,7 @@ async def add_url_source(
         kind="url",
         originalName=display_name,
         url=url,
-        mimeType="text/html",
+        mimeType=source_doc["mimeType"],
         sizeBytes=source_doc["sizeBytes"],
         createdAt=source_doc["createdAt"],
         chunkCount=len(chunks)
@@ -548,7 +611,6 @@ async def preview_source(project_id: str, source_id: str, current_user: dict = D
 async def download_all_sources(project_id: str, current_user: dict = Depends(get_current_user)):
     """Download all file sources as a ZIP archive"""
     import zipfile
-    from io import BytesIO
     
     db = get_db()
     await verify_project_access(project_id, current_user["id"])
@@ -649,7 +711,6 @@ async def get_source_chunks(source_id: str, current_user: dict = Depends(get_cur
     if not source:
         raise HTTPException(status_code=404, detail="Source not found")
     
-    # Check access based on source level
     source_level = source.get("level", "project")
     
     if source_level == "personal":
@@ -660,9 +721,8 @@ async def get_source_chunks(source_id: str, current_user: dict = Depends(get_cur
         if source.get("departmentId") not in user_departments:
             raise HTTPException(status_code=403, detail="Access denied")
     elif source_level == "global":
-        pass  # Everyone can access global sources
+        pass
     else:
-        # Project source - check project access
         project_id = source.get("projectId")
         if project_id and project_id != GLOBAL_PROJECT_ID:
             try:
@@ -670,7 +730,6 @@ async def get_source_chunks(source_id: str, current_user: dict = Depends(get_cur
             except HTTPException:
                 raise HTTPException(status_code=403, detail="Access denied")
     
-    # Get all chunks for this source
     chunks = await db.source_chunks.find(
         {"sourceId": source_id},
         {"_id": 0}

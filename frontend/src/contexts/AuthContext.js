@@ -26,7 +26,10 @@ export const AuthProvider = ({ children }) => {
       localStorage.setItem('userEmail', response.data.email);
     } catch (error) {
       console.error('Failed to fetch user:', error);
-      logout();
+      // Only logout on 401 (token invalid/expired), not on network errors
+      if (error.response?.status === 401) {
+        logout();
+      }
     } finally {
       setLoading(false);
     }
@@ -53,6 +56,12 @@ export const AuthProvider = ({ children }) => {
     return userData;
   };
 
+  const changePassword = async (newPassword) => {
+    await axios.post(`${API}/auth/change-password`, { new_password: newPassword });
+    // Update user state to remove mustChangePassword flag
+    setUser(prev => ({ ...prev, mustChangePassword: false }));
+  };
+
   const logout = () => {
     localStorage.removeItem('token');
     localStorage.removeItem('userEmail');
@@ -62,7 +71,7 @@ export const AuthProvider = ({ children }) => {
   };
 
   return (
-    <AuthContext.Provider value={{ user, token, loading, login, register, logout }}>
+    <AuthContext.Provider value={{ user, token, loading, login, register, logout, changePassword }}>
       {children}
     </AuthContext.Provider>
   );
