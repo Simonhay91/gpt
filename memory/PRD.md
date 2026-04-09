@@ -1,7 +1,7 @@
 # Planet Knowledge — Product Requirements Document
 
-**Version:** 2.9  
-**Last Updated:** Апрель 2026  
+**Version:** 3.0  
+**Last Updated:** 2026-04-07  
 **Admin credentials:** `admin@ai.planetworkspace.com` / `Admin@123456`
 
 ---
@@ -84,7 +84,8 @@ Chat Components:
 │   │   └── agent_router.py          # NEW: Agent routing logic
 │   ├── routes/
 │   │   ├── messages.py
-│   │   ├── temp_files.py            # NEW: /api/chat/upload-temp, /api/chat/save-temp-to-source
+│   │   ├── temp_files.py            # /api/chat/upload-temp, /api/chat/save-temp-to-source
+│   │   ├── oem_datasheet.py         # NEW: /api/oem/brands, /api/oem/process, /api/oem/logo
 │   │   ├── sources.py
 │   │   ├── projects.py
 │   │   ├── auth.py
@@ -109,6 +110,8 @@ Chat Components:
         ├── ChatPage.js
         ├── DashboardPage.js
         ├── ProjectPage.js
+        ├── OemDatasheetPage.js      # NEW: 3-step OEM rebranding tool
+        ├── AdminBrandsPage.js       # NEW: admin brand setup + logo mgmt
         └── ...
 ```
 
@@ -130,6 +133,8 @@ user_prompts     # Пользовательские промпты
 source_usage     # Статистика источников
 product_catalog  # Каталог продуктов
 competitors      # Конкурентный трекер
+oem_brands       # OEM бренды (name, address, phone, email, website, warrantyText, approvedLogos)
+oem_jobs         # История OEM rebranding jobs
 ```
 
 ---
@@ -165,6 +170,7 @@ competitors      # Конкурентный трекер
 | Admin Audit Logs | ✅ | Фильтрация + пагинация |
 | i18n (RU/EN) | 🔄 | ~80% переведено |
 | Changelog UI | ✅ | История обновлений в интерфейсе (v2.9.0) |
+| **OEM Datasheet Rebrander** | ✅ | AI rebrand supplier datasheets → OEM .docx |
 
 ---
 
@@ -254,6 +260,16 @@ GET    /api/admin/users
 GET    /api/admin/audit-logs?limit=&offset=
 GET    /api/admin/gpt-config
 PUT    /api/admin/gpt-config
+
+# OEM Datasheet Rebrander (NEW)
+GET    /api/oem/brands                    # List all brands
+POST   /api/oem/brands                    # Create brand (admin, multipart form)
+PUT    /api/oem/brands/{id}               # Update brand (admin, multipart form)
+DELETE /api/oem/brands/{id}               # Delete brand (admin)
+POST   /api/oem/brands/{id}/logo          # Upload brand logo (admin)
+DELETE /api/oem/brands/{id}/logo/{fname}  # Remove logo (admin)
+GET    /api/oem/logo/{filename}           # Serve logo file
+POST   /api/oem/process                   # AI rebrand: upload file + brand_id → .docx
 ```
 
 ---
@@ -280,6 +296,9 @@ PUT    /api/admin/gpt-config
 
 ### 🟡 P2 — Средний приоритет
 
+- **OEM Datasheet — PDF layout preservation** — сейчас PDF → plain text .docx; улучшить с сохранением структуры таблиц
+- **OEM Datasheet — history page** — список прошлых rebrand jobs с re-download
+- **OEM Datasheet — i18n** — тексты страницы на RU/EN
 - **i18n** — оставшиеся ~20% строк (`ChatPage.js`, модали, toasts)
 - **Agent badge в UI** — показывать `agent_name` под ответом AI в `MessageBubble`
 - **Product Catalog Weekly Sync** — APScheduler job каждое воскресенье
@@ -313,7 +332,19 @@ PUT    /api/admin/gpt-config
 
 ## 9. Changelog — сессии
 
-### Апрель 2026 (текущая сессия)
+### Апрель 2026 — сессия 2 (2026-04-07)
+- ✅ **OEM Datasheet Rebrander** — полный pipeline:
+  - `routes/oem_datasheet.py` — Brand CRUD + logo management + AI processing endpoint
+  - AI (GPT-4o-mini) идентифицирует supplier info в uploaded datasheet (name, address, phone, email, website)
+  - Для .docx: in-place replace с сохранением форматирования + вставка approved logos
+  - Для .pdf: извлечение текста → новый .docx с brand header + заменёнными данными
+  - Logo storage: `/uploads/brand_logos/`, served via `GET /api/oem/logo/{filename}`
+  - `OemDatasheetPage.js` — 3-step UI (drag&drop upload → brand selection → download)
+  - `AdminBrandsPage.js` — brand setup: name, address, phone, email, website, warranty, logos
+  - New nav links: **OEM Datasheet** (all users) + **OEM Brands** (admin only)
+  - New collections: `oem_brands`, `oem_jobs`
+
+### Апрель 2026 — сессия 1 (текущая)
 - ✅ **P0 Crash fix** — `ChatPage.js` использовал `currentUser` вместо `user` из `useAuth()`. Исправлено в 4 местах.
 - ✅ **Excel confirmation flow** — `__CONFIRM_EXCEL__` prefix вместо ненадёжного поиска "excel" в истории. Кнопка «Да, генерируй Excel» в UI. Поле `is_excel_clarification` в MessageResponse.
 - ✅ **Temp File Upload** — POST /api/chat/upload-temp (JPG/PNG/PDF/XLSX/CSV/DOCX ≤20MB). Скрепка в ChatInput. Vision для изображений. Prompt «Сохранить в источники?» после ответа AI. POST /api/chat/save-temp-to-source с индексацией через Voyage AI.
@@ -349,4 +380,48 @@ PUT    /api/admin/gpt-config
 
 ---
 
-*Planet Knowledge PRD v2.9 — Confidential*
+---
+
+## 11. OEM Datasheet Rebrander — детали
+
+### Как работает AI processing (`POST /api/oem/process`)
+
+```
+1. Upload file (.docx или .pdf)
+2. Extract text:
+   - .docx → python-docx (параграфы + таблицы + header/footer)
+   - .pdf  → pdfplumber → fallback PyPDF2
+3. GPT-4o-mini → identify supplier info:
+   {company_name, address, phone, email, website, other_brand_mentions}
+4. Build replacements map: {supplier_value → brand_value}
+5. Apply:
+   - .docx: in-place replace run-by-run (сохраняет Bold/Italic/размер)
+             + вставка approved logos в начало документа
+   - .pdf:  create new branded .docx from extracted text
+6. Return StreamingResponse → .docx download
+```
+
+### Brand model (MongoDB `oem_brands`)
+```python
+{
+  "id": str,
+  "name": str,
+  "address": str,
+  "phone": str,
+  "email": str,
+  "website": str,
+  "warrantyText": str,
+  "approvedLogos": [str],   # filenames in /uploads/brand_logos/
+  "createdAt": ISO str,
+  "updatedAt": ISO str
+}
+```
+
+### Лого storage
+- Path: `/app/uploads/brand_logos/{brand_id}_{uuid8}{ext}`
+- Serve: `GET /api/oem/logo/{filename}` → FileResponse
+- Frontend URL: `${REACT_APP_BACKEND_URL}/api/oem/logo/{filename}`
+
+---
+
+*Planet Knowledge PRD v3.0 — Confidential*

@@ -15,7 +15,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 const API = `${process.env.REACT_APP_BACKEND_URL}/api/oem`;
 const BASE_URL = process.env.REACT_APP_BACKEND_URL;
 
-const emptyForm = { name: '', address: '', phone: '', email: '', website: '', warrantyText: '' };
+const emptyForm = { name: '', address: '', phone: '', email: '', website: '', warrantyText: '', primaryColor: '#3B82F6', subtitleColor: '', headerHeightPx: '60', headerPaddingPx: '8', logoSizePx: '44', footerHeightPx: '36', footerPaddingPx: '6', copyrightText: '' };
 
 const AdminBrandsPage = () => {
   const [brands, setBrands] = useState([]);
@@ -57,6 +57,14 @@ const AdminBrandsPage = () => {
       email: brand.email || '',
       website: brand.website || '',
       warrantyText: brand.warrantyText || '',
+      primaryColor: brand.primaryColor || '#3B82F6',
+      subtitleColor: brand.subtitleColor || '',
+      headerHeightPx: String(brand.headerHeightPx || '60'),
+      headerPaddingPx: String(brand.headerPaddingPx || '8'),
+      logoSizePx: String(brand.logoSizePx || '44'),
+      footerHeightPx: String(brand.footerHeightPx || '36'),
+      footerPaddingPx: String(brand.footerPaddingPx || '6'),
+      copyrightText: brand.copyrightText || '',
     });
     setDialogOpen(true);
   };
@@ -185,7 +193,25 @@ const AdminBrandsPage = () => {
               <Card key={brand.id} className="border border-border">
                 <CardHeader className="pb-3">
                   <div className="flex items-start justify-between">
-                    <CardTitle className="text-lg">{brand.name}</CardTitle>
+                    <div className="flex items-center gap-3">
+                      {brand.primaryColor && (
+                        <div className="flex gap-1 flex-shrink-0">
+                          <div
+                            className="w-5 h-5 rounded-full border border-border shadow-sm"
+                            style={{ backgroundColor: brand.primaryColor }}
+                            title={`Primary: ${brand.primaryColor}`}
+                          />
+                          {brand.subtitleColor && (
+                            <div
+                              className="w-5 h-5 rounded-full border border-border shadow-sm"
+                              style={{ backgroundColor: brand.subtitleColor }}
+                              title={`Subtitle: ${brand.subtitleColor}`}
+                            />
+                          )}
+                        </div>
+                      )}
+                      <CardTitle className="text-lg">{brand.name}</CardTitle>
+                    </div>
                     <div className="flex gap-2">
                       <Button variant="ghost" size="icon" onClick={() => openEdit(brand)}>
                         <Pencil className="h-4 w-4" />
@@ -269,7 +295,7 @@ const AdminBrandsPage = () => {
 
         {/* Create / Edit Dialog */}
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-          <DialogContent className="sm:max-w-lg">
+          <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>{editingBrand ? 'Edit Brand' : 'Create Brand'}</DialogTitle>
             </DialogHeader>
@@ -324,6 +350,122 @@ const AdminBrandsPage = () => {
                   onChange={e => setForm(f => ({ ...f, warrantyText: e.target.value }))}
                   rows={2}
                 />
+              </div>
+              <div className="space-y-2">
+                <Label>Brand Colors <span className="text-xs text-muted-foreground">(applied to document colors during rebranding)</span></Label>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <p className="text-xs text-muted-foreground">Primary Color</p>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="color"
+                        value={form.primaryColor || '#3B82F6'}
+                        onChange={e => setForm(f => ({ ...f, primaryColor: e.target.value }))}
+                        className="h-9 w-12 rounded border border-border cursor-pointer bg-background p-0.5"
+                      />
+                      <Input
+                        placeholder="#3B82F6"
+                        value={form.primaryColor}
+                        onChange={e => setForm(f => ({ ...f, primaryColor: e.target.value }))}
+                        className="flex-1 font-mono text-sm"
+                        maxLength={7}
+                      />
+                    </div>
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-xs text-muted-foreground">Subtitle Color <span className="text-muted-foreground">(optional)</span></p>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="color"
+                        value={form.subtitleColor || '#1E40AF'}
+                        onChange={e => setForm(f => ({ ...f, subtitleColor: e.target.value }))}
+                        className="h-9 w-12 rounded border border-border cursor-pointer bg-background p-0.5"
+                      />
+                      <Input
+                        placeholder="#1E40AF"
+                        value={form.subtitleColor}
+                        onChange={e => setForm(f => ({ ...f, subtitleColor: e.target.value }))}
+                        className="flex-1 font-mono text-sm"
+                        maxLength={7}
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Header & Footer Settings */}
+              <div className="space-y-3 pt-2 border-t border-border">
+                <p className="text-sm font-semibold text-foreground">Header & Footer</p>
+
+                {/* Header row */}
+                <div className="grid grid-cols-3 gap-3">
+                  <div className="space-y-1">
+                    <Label>Header Height (px)</Label>
+                    <Input
+                      type="number" min="20" max="200"
+                      value={form.headerHeightPx}
+                      onChange={e => setForm(f => ({ ...f, headerHeightPx: e.target.value }))}
+                      className="text-sm"
+                    />
+                    <p className="text-xs text-muted-foreground">Band height</p>
+                  </div>
+                  <div className="space-y-1">
+                    <Label>Header Padding (px)</Label>
+                    <Input
+                      type="number" min="0" max="60"
+                      value={form.headerPaddingPx}
+                      onChange={e => setForm(f => ({ ...f, headerPaddingPx: e.target.value }))}
+                      className="text-sm"
+                    />
+                    <p className="text-xs text-muted-foreground">Top & bottom padding</p>
+                  </div>
+                  <div className="space-y-1">
+                    <Label>Logo Size (px)</Label>
+                    <Input
+                      type="number" min="10" max="160"
+                      value={form.logoSizePx}
+                      onChange={e => setForm(f => ({ ...f, logoSizePx: e.target.value }))}
+                      className="text-sm"
+                    />
+                    <p className="text-xs text-muted-foreground">Logo height</p>
+                  </div>
+                </div>
+
+                {/* Footer row */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                    <Label>Footer Height (px)</Label>
+                    <Input
+                      type="number" min="20" max="120"
+                      value={form.footerHeightPx}
+                      onChange={e => setForm(f => ({ ...f, footerHeightPx: e.target.value }))}
+                      className="text-sm"
+                    />
+                    <p className="text-xs text-muted-foreground">Total footer band height</p>
+                  </div>
+                  <div className="space-y-1">
+                    <Label>Footer Padding (px)</Label>
+                    <Input
+                      type="number" min="0" max="40"
+                      value={form.footerPaddingPx}
+                      onChange={e => setForm(f => ({ ...f, footerPaddingPx: e.target.value }))}
+                      className="text-sm"
+                    />
+                    <p className="text-xs text-muted-foreground">Top & bottom padding inside footer</p>
+                  </div>
+                </div>
+
+                {/* Copyright */}
+                <div className="space-y-1">
+                  <Label>Copyright Text</Label>
+                  <Input
+                    placeholder={`All rights reserved © ${new Date().getFullYear()}`}
+                    value={form.copyrightText}
+                    onChange={e => setForm(f => ({ ...f, copyrightText: e.target.value }))}
+                    className="text-sm"
+                  />
+                  <p className="text-xs text-muted-foreground">Centered in footer</p>
+                </div>
               </div>
             </div>
             <DialogFooter>
