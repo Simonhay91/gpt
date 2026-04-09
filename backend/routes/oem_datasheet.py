@@ -22,6 +22,32 @@ UPLOAD_DIR = os.environ.get("UPLOAD_DIR", "/app/uploads")
 BRAND_LOGOS_DIR = os.path.join(UPLOAD_DIR, "brand_logos")
 os.makedirs(BRAND_LOGOS_DIR, exist_ok=True)
 
+
+def _resolve_logo_path(filename: str, brand: dict) -> str | None:
+    """Return a usable file path for a brand logo.
+
+    1. Try the normal filesystem path.
+    2. If missing (e.g. after redeploy), restore the file from the base64
+       stored in MongoDB and return the restored path.
+    3. Return None if the logo cannot be found or restored.
+    """
+    import base64 as _b64
+    lpath = os.path.join(BRAND_LOGOS_DIR, filename)
+    if os.path.exists(lpath):
+        return lpath
+    # Try to restore from MongoDB base64
+    logo_data_map = brand.get("logoDataMap") or {}
+    b64 = logo_data_map.get(filename)
+    if not b64:
+        return None
+    try:
+        os.makedirs(BRAND_LOGOS_DIR, exist_ok=True)
+        with open(lpath, "wb") as f:
+            f.write(_b64.b64decode(b64))
+        return lpath
+    except Exception:
+        return None
+
 # Colors considered neutral — never replaced with brand color
 NEUTRAL_COLORS = {
     'FFFFFF', 'FEFEFE', 'FDFDFD', 'F9F9F9', 'F8F8F8',
@@ -554,8 +580,8 @@ Datasheet text:
 
     logo_added = False
     for logo_fn in (brand.get("approvedLogos") or []):
-        lpath = os.path.join(BRAND_LOGOS_DIR, logo_fn)
-        if os.path.exists(lpath):
+        lpath = _resolve_logo_path(logo_fn, brand)
+        if lpath:
             try:
                 inner_px  = max(4, header_height_px - 2 * header_padding_px)
                 capped_px = min(logo_size_px, inner_px)
@@ -672,8 +698,11 @@ async def serve_logo(filename: str):
     from fastapi.responses import FileResponse
     if ".." in filename or "/" in filename:
         raise HTTPException(status_code=400, detail="Invalid filename")
-    logo_path = os.path.join(BRAND_LOGOS_DIR, filename)
-    if not os.path.exists(logo_path):
+    db = get_db()
+    # Find the brand that owns this logo
+    brand = await db.oem_brands.find_one({"approvedLogos": filename}, {"_id": 0})
+    logo_path = _resolve_logo_path(filename, brand or {})
+    if not logo_path:
         raise HTTPException(status_code=404, detail="Logo not found")
     return FileResponse(logo_path)
 
@@ -813,11 +842,21 @@ async def upload_brand_logo(
     with open(logo_path, "wb") as f:
         f.write(content)
 
+    # Store base64 in MongoDB so logo survives server redeployments
+    import base64 as _b64
+    logo_b64 = _b64.b64encode(content).decode("utf-8")
+    logo_data_map = brand.get("logoDataMap") or {}
+    logo_data_map[filename] = logo_b64
+
     approved_logos = brand.get("approvedLogos", [])
     approved_logos.append(filename)
     await db.oem_brands.update_one(
         {"id": brand_id},
-        {"$set": {"approvedLogos": approved_logos, "updatedAt": datetime.now(timezone.utc).isoformat()}}
+        {"$set": {
+            "approvedLogos": approved_logos,
+            "logoDataMap": logo_data_map,
+            "updatedAt": datetime.now(timezone.utc).isoformat()
+        }}
     )
     return {"filename": filename, "approvedLogos": approved_logos}
 
@@ -840,7 +879,12 @@ async def delete_brand_logo(
         os.remove(logo_path)
 
     approved_logos = [l for l in (brand.get("approvedLogos") or []) if l != filename]
-    await db.oem_brands.update_one({"id": brand_id}, {"$set": {"approvedLogos": approved_logos}})
+    logo_data_map = brand.get("logoDataMap") or {}
+    logo_data_map.pop(filename, None)
+    await db.oem_brands.update_one(
+        {"id": brand_id},
+        {"$set": {"approvedLogos": approved_logos, "logoDataMap": logo_data_map}}
+    )
     return {"approvedLogos": approved_logos}
 
 
@@ -914,9 +958,10 @@ async def process_datasheet(
         output_bytes = replace_text_in_docx(raw_content, replacements)
 
         logo_paths = [
-            os.path.join(BRAND_LOGOS_DIR, fn)
-            for fn in (brand.get("approvedLogos") or [])
-            if os.path.exists(os.path.join(BRAND_LOGOS_DIR, fn))
+            p for p in (
+                _resolve_logo_path(fn, brand)
+                for fn in (brand.get("approvedLogos") or [])
+            ) if p
         ]
         if logo_paths:
             output_bytes = replace_images_in_docx(output_bytes, logo_paths)
