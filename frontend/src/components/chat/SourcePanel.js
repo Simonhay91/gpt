@@ -1,40 +1,13 @@
-/**
- * SourcePanel Component
- * Manages project sources: upload, URL add, search, selection, delete, preview
- */
-import React, { useState, useRef, useMemo } from 'react';
-import axios from 'axios';
-import { toast } from 'sonner';
-import {
-  Upload,
-  FileText,
-  Trash2,
-  ChevronDown,
-  ChevronRight,
-  Link,
-  Globe,
-  File,
-  ImageIcon,
-  Download,
-  Search,
-  Eye,
-  Loader2,
-  X,
-} from 'lucide-react';
+import React from 'react';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Checkbox } from '../ui/checkbox';
 import { ScrollArea } from '../ui/scroll-area';
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '../ui/dialog';
-
-const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
+  Upload, Link, FileText, File, Globe, ImageIcon, Loader2,
+  Search, X, Info, Database, Target, Lightbulb, ChevronRight,
+  ChevronDown, Eye, Download, Trash2, Building2, FolderOpen
+} from 'lucide-react';
 
 const getFileIcon = (mimeType, kind) => {
   if (kind === 'url') return <Globe className="h-5 w-5 text-blue-400" />;
@@ -53,274 +26,55 @@ const formatFileSize = (bytes) => {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 };
 
-const highlightMatch = (text, query) => {
-  const regex = new RegExp(`(${query})`, 'gi');
-  return text.replace(
-    regex,
-    '<mark class="bg-yellow-300 dark:bg-yellow-600 px-0.5 rounded">$1</mark>'
-  );
-};
-
 export const SourcePanel = ({
-  projectId,
-  sources = [],
-  activeSourceIds = [],
-  onSourcesChange,
-  onActiveSourcesChange,
+  projectSources,
+  activeSourceIds,
+  currentProjectName,
+  currentUser,
+  chat,
+  isUploading,
+  isAddingUrl,
+  urlInput,
+  onUrlInputChange,
+  onAddUrl,
+  onClose,
+  onToggleSource,
+  onToggleGroupSelection,
+  onSelectAll,
+  onDeselectAll,
+  expandedGroups,
+  onToggleGroup,
+  groupedSources,
+  onDeleteSource,
+  onPreview,
+  onDownload,
+  onSaveToDept,
+  searchQuery,
+  onSearchQueryChange,
+  onSearch,
+  isSearching,
+  showSearchResults,
+  searchResults,
+  onCloseSearch,
+  fileInputRef,
+  onFileInputChange,
+  showInfoBlock,
+  onCloseInfoBlock,
 }) => {
-  const fileInputRef = useRef(null);
-
-  const [urlInput, setUrlInput] = useState('');
-  const [isUploading, setIsUploading] = useState(false);
-  const [isAddingUrl, setIsAddingUrl] = useState(false);
-
-  const [searchQuery, setSearchQuery] = useState('');
-  const [searchResults, setSearchResults] = useState([]);
-  const [isSearching, setIsSearching] = useState(false);
-  const [showSearchResults, setShowSearchResults] = useState(false);
-
-  const [expandedGroups, setExpandedGroups] = useState({});
-
-  const [previewDialogOpen, setPreviewDialogOpen] = useState(false);
-  const [previewSource, setPreviewSource] = useState(null);
-  const [previewLoading, setPreviewLoading] = useState(false);
-
-  // ─── Source grouping ───────────────────────────────────────────────────────
-
-  const groupedSources = useMemo(() => {
-    const groups = {
-      pdf:   { label: 'PDF документы',   icon: FileText,   color: 'text-red-400',    sources: [] },
-      doc:   { label: 'Документы Word',  icon: File,       color: 'text-blue-500',   sources: [] },
-      excel: { label: 'Таблицы Excel',   icon: File,       color: 'text-green-500',  sources: [] },
-      ppt:   { label: 'Презентации',     icon: File,       color: 'text-orange-500', sources: [] },
-      url:   { label: 'Web URLs',        icon: Globe,      color: 'text-blue-400',   sources: [] },
-      image: { label: 'Изображения',     icon: ImageIcon,  color: 'text-purple-400', sources: [] },
-      other: { label: 'Другие файлы',    icon: FileText,   color: 'text-gray-400',   sources: [] },
-    };
-
-    sources.forEach((source) => {
-      if (source.kind === 'url') {
-        groups.url.sources.push(source);
-      } else if (source.mimeType?.includes('pdf')) {
-        groups.pdf.sources.push(source);
-      } else if (source.mimeType?.includes('wordprocessingml')) {
-        groups.doc.sources.push(source);
-      } else if (source.mimeType?.includes('spreadsheetml')) {
-        groups.excel.sources.push(source);
-      } else if (source.mimeType?.includes('presentationml')) {
-        groups.ppt.sources.push(source);
-      } else if (source.mimeType?.includes('image')) {
-        groups.image.sources.push(source);
-      } else {
-        groups.other.sources.push(source);
-      }
-    });
-
-    return Object.entries(groups).filter(([, group]) => group.sources.length > 0);
-  }, [sources]);
-
-  // ─── Selection helpers ─────────────────────────────────────────────────────
-
-  const toggleGroup = (groupKey) => {
-    setExpandedGroups((prev) => ({ ...prev, [groupKey]: !prev[groupKey] }));
+  const highlightMatch = (text, query) => {
+    const regex = new RegExp(`(${query})`, 'gi');
+    return text.replace(regex, '<mark class="bg-yellow-300 dark:bg-yellow-600 px-0.5 rounded">$1</mark>');
   };
-
-  const toggleSourceSelection = (sourceId) => {
-    const next = activeSourceIds.includes(sourceId)
-      ? activeSourceIds.filter((id) => id !== sourceId)
-      : [...activeSourceIds, sourceId];
-    onActiveSourcesChange(next);
-  };
-
-  const toggleGroupSelection = (groupSources) => {
-    const ids = groupSources.map((s) => s.id);
-    const allSelected = ids.every((id) => activeSourceIds.includes(id));
-    const next = allSelected
-      ? activeSourceIds.filter((id) => !ids.includes(id))
-      : [...new Set([...activeSourceIds, ...ids])];
-    onActiveSourcesChange(next);
-  };
-
-  const selectAllSources = () => onActiveSourcesChange(sources.map((s) => s.id));
-  const deselectAllSources = () => onActiveSourcesChange([]);
-
-  // ─── Upload ────────────────────────────────────────────────────────────────
-
-  const handleFileUpload = async (e) => {
-    const files = Array.from(e.target.files || []);
-    if (files.length === 0) return;
-
-    const supportedMimeTypes = [
-      'application/pdf',
-      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-      'application/vnd.openxmlformats-officedocument.presentationml.presentation',
-      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-      'text/plain',
-      'text/markdown',
-      'image/png',
-      'image/jpeg',
-      'image/jpg',
-    ];
-    const supportedExtensions = ['.pdf', '.docx', '.pptx', '.xlsx', '.txt', '.md', '.png', '.jpg', '.jpeg'];
-
-    const validFiles = files.filter((file) => {
-      const ext = '.' + file.name.split('.').pop().toLowerCase();
-      if (!supportedExtensions.includes(ext) && !supportedMimeTypes.includes(file.type)) {
-        toast.error(`${file.name}: Unsupported file type. Use PDF, DOCX, PPTX, XLSX, TXT, MD, PNG, JPEG`);
-        return false;
-      }
-      if (file.size > 10 * 1024 * 1024) {
-        toast.error(`${file.name}: File size must be less than 10MB`);
-        return false;
-      }
-      return true;
-    });
-
-    if (validFiles.length === 0) return;
-
-    setIsUploading(true);
-    try {
-      if (validFiles.length > 1) {
-        const formData = new FormData();
-        validFiles.forEach((f) => formData.append('files', f));
-        const response = await axios.post(
-          `${API}/projects/${projectId}/sources/upload-multiple`,
-          formData,
-          { headers: { 'Content-Type': 'multipart/form-data' } }
-        );
-        const sourcesRes = await axios.get(`${API}/projects/${projectId}/sources`);
-        onSourcesChange(sourcesRes.data.items || sourcesRes.data);
-
-        const uploaded = response.data.uploaded || [];
-        const errors = response.data.errors || [];
-        if (uploaded.length > 0) toast.success(`Uploaded ${uploaded.length} file(s)`);
-        errors.forEach((err) => toast.error(`${err.filename}: ${err.error}`));
-      } else {
-        const formData = new FormData();
-        formData.append('file', validFiles[0]);
-        const response = await axios.post(
-          `${API}/projects/${projectId}/sources/upload`,
-          formData,
-          { headers: { 'Content-Type': 'multipart/form-data' } }
-        );
-        onSourcesChange([...sources, response.data]);
-        toast.success(`Uploaded ${validFiles[0].name} (${response.data.chunkCount} chunks extracted)`);
-      }
-    } catch (error) {
-      toast.error(error.response?.data?.detail || 'Failed to upload file');
-    } finally {
-      setIsUploading(false);
-      if (fileInputRef.current) fileInputRef.current.value = '';
-    }
-  };
-
-  // ─── Add URL ───────────────────────────────────────────────────────────────
-
-  const handleAddUrl = async () => {
-    const url = urlInput.trim();
-    if (!url) { toast.error('Please enter a URL'); return; }
-    if (!url.startsWith('http://') && !url.startsWith('https://')) {
-      toast.error('URL must start with http:// or https://');
-      return;
-    }
-
-    setIsAddingUrl(true);
-    try {
-      const response = await axios.post(`${API}/projects/${projectId}/sources/url`, { url });
-      onSourcesChange([...sources, response.data]);
-      onActiveSourcesChange([...activeSourceIds, response.data.id]);
-      setUrlInput('');
-      toast.success(`Added URL (${response.data.chunkCount} chunks extracted)`);
-    } catch (error) {
-      toast.error(error.response?.data?.detail || 'Failed to add URL');
-    } finally {
-      setIsAddingUrl(false);
-    }
-  };
-
-  // ─── Delete ────────────────────────────────────────────────────────────────
-
-  const deleteSource = async (sourceId, e) => {
-    e.stopPropagation();
-    if (!window.confirm('Are you sure you want to delete this source?')) return;
-
-    try {
-      await axios.delete(`${API}/projects/${projectId}/sources/${sourceId}`);
-      onSourcesChange(sources.filter((s) => s.id !== sourceId));
-      onActiveSourcesChange(activeSourceIds.filter((id) => id !== sourceId));
-      toast.success('Source deleted');
-    } catch {
-      toast.error('Failed to delete source');
-    }
-  };
-
-  // ─── Preview ───────────────────────────────────────────────────────────────
-
-  const openPreview = async (source, e) => {
-    e.stopPropagation();
-    setPreviewLoading(true);
-    setPreviewDialogOpen(true);
-    try {
-      const response = await axios.get(`${API}/projects/${projectId}/sources/${source.id}/preview`);
-      setPreviewSource(response.data);
-    } catch {
-      toast.error('Failed to load preview');
-      setPreviewDialogOpen(false);
-    } finally {
-      setPreviewLoading(false);
-    }
-  };
-
-  // ─── Download ──────────────────────────────────────────────────────────────
-
-  const downloadSource = async (source, e) => {
-    e.stopPropagation();
-    try {
-      const response = await axios.get(
-        `${API}/projects/${projectId}/sources/${source.id}/download`,
-        { responseType: 'blob' }
-      );
-      const url = window.URL.createObjectURL(new Blob([response.data]));
-      const link = document.createElement('a');
-      link.href = url;
-      link.setAttribute('download', source.originalName || 'file');
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      window.URL.revokeObjectURL(url);
-    } catch {
-      toast.error('Failed to download file');
-    }
-  };
-
-  // ─── Search ────────────────────────────────────────────────────────────────
-
-  const searchSources = async () => {
-    if (!searchQuery.trim() || searchQuery.trim().length < 2) {
-      toast.error('Введите минимум 2 символа');
-      return;
-    }
-    setIsSearching(true);
-    setShowSearchResults(true);
-    try {
-      const response = await axios.post(`${API}/projects/${projectId}/sources/search`, {
-        query: searchQuery.trim(),
-        limit: 20,
-      });
-      setSearchResults(response.data);
-      if (response.data.length === 0) toast.info('Ничего не найдено');
-    } catch {
-      toast.error('Ошибка поиска');
-    } finally {
-      setIsSearching(false);
-    }
-  };
-
-  // ─── Render ────────────────────────────────────────────────────────────────
 
   return (
     <div className="border-b border-border bg-card/30 px-6 py-4" data-testid="source-panel">
       <div className="max-w-3xl mx-auto">
+        {/* Close button */}
+        <div className="flex justify-end mb-2">
+          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={onClose} data-testid="close-source-panel-btn" title="Close">
+            <X className="h-4 w-4 text-muted-foreground" />
+          </Button>
+        </div>
 
         {/* Upload row */}
         <div className="flex flex-wrap items-center gap-3 mb-4">
@@ -329,39 +83,24 @@ export const SourcePanel = ({
             type="file"
             multiple
             accept=".pdf,.docx,.pptx,.xlsx,.txt,.md,.png,.jpg,.jpeg,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.openxmlformats-officedocument.presentationml.presentation,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/plain,text/markdown,image/png,image/jpeg"
-            onChange={handleFileUpload}
+            onChange={onFileInputChange}
             className="hidden"
             data-testid="file-input"
           />
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => fileInputRef.current?.click()}
-            disabled={isUploading}
-            className="gap-2"
-            data-testid="upload-file-btn"
-          >
+          <Button variant="outline" size="sm" onClick={() => fileInputRef.current?.click()} disabled={isUploading} className="gap-2" data-testid="upload-file-btn">
             {isUploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
             Upload Files
           </Button>
-
           <div className="flex-1 flex items-center gap-2 min-w-[200px]">
             <Input
               placeholder="https://example.com/article"
               value={urlInput}
-              onChange={(e) => setUrlInput(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && handleAddUrl()}
+              onChange={(e) => onUrlInputChange(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && onAddUrl()}
               className="h-9 text-sm"
               data-testid="url-input"
             />
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleAddUrl}
-              disabled={isAddingUrl || !urlInput.trim()}
-              className="gap-2 whitespace-nowrap"
-              data-testid="add-url-btn"
-            >
+            <Button variant="outline" size="sm" onClick={onAddUrl} disabled={isAddingUrl || !urlInput.trim()} className="gap-2 whitespace-nowrap" data-testid="add-url-btn">
               {isAddingUrl ? <Loader2 className="h-4 w-4 animate-spin" /> : <Link className="h-4 w-4" />}
               Add URL
             </Button>
@@ -375,20 +114,13 @@ export const SourcePanel = ({
             <Input
               placeholder="Поиск в документах (0 токенов)..."
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && searchSources()}
+              onChange={(e) => onSearchQueryChange(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && onSearch()}
               className="h-9 text-sm pl-9"
               data-testid="search-sources-input"
             />
           </div>
-          <Button
-            variant="default"
-            size="sm"
-            onClick={searchSources}
-            disabled={isSearching || !searchQuery.trim()}
-            className="gap-2"
-            data-testid="search-sources-btn"
-          >
+          <Button variant="default" size="sm" onClick={onSearch} disabled={isSearching || !searchQuery.trim()} className="gap-2" data-testid="search-sources-btn">
             {isSearching ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
             Найти
           </Button>
@@ -399,13 +131,7 @@ export const SourcePanel = ({
           <div className="mb-4 border border-border rounded-lg p-3 bg-secondary/30">
             <div className="flex items-center justify-between mb-2">
               <span className="text-sm font-medium">Результаты поиска ({searchResults.length})</span>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => { setShowSearchResults(false); setSearchResults([]); setSearchQuery(''); }}
-              >
-                <X className="h-4 w-4" />
-              </Button>
+              <Button variant="ghost" size="sm" onClick={onCloseSearch}><X className="h-4 w-4" /></Button>
             </div>
             {searchResults.length === 0 ? (
               <p className="text-sm text-muted-foreground">Ничего не найдено</p>
@@ -418,10 +144,7 @@ export const SourcePanel = ({
                       <span className="text-xs font-medium truncate">{result.sourceName}</span>
                       <span className="text-xs text-muted-foreground">({result.matchCount} совпадений)</span>
                     </div>
-                    <p
-                      className="text-xs text-muted-foreground"
-                      dangerouslySetInnerHTML={{ __html: highlightMatch(result.content, searchQuery) }}
-                    />
+                    <p className="text-xs text-muted-foreground" dangerouslySetInnerHTML={{ __html: highlightMatch(result.content, searchQuery) }} />
                   </div>
                 ))}
               </div>
@@ -433,8 +156,28 @@ export const SourcePanel = ({
           Supported: PDF, DOCX, PPTX, XLSX, TXT, MD, PNG, JPEG files and web URLs (multiple files allowed)
         </div>
 
-        {/* Sources list */}
-        {sources.length === 0 ? (
+        {/* Info block */}
+        {projectSources.length > 0 && showInfoBlock && (
+          <div className="mb-4 p-3 rounded-lg bg-blue-500/10 border border-blue-500/20 relative">
+            <button onClick={onCloseInfoBlock} className="absolute top-2 right-2 p-1 hover:bg-blue-500/20 rounded transition-colors">
+              <X className="h-4 w-4 text-blue-400" />
+            </button>
+            <div className="flex items-start gap-3 pr-8">
+              <Info className="h-5 w-5 text-blue-400 flex-shrink-0 mt-0.5" />
+              <div className="flex-1 text-sm text-blue-200/90 space-y-2">
+                <p className="font-medium text-blue-300">Как работают источники в AI-чате:</p>
+                <ul className="space-y-1.5 text-xs">
+                  <li className="flex items-start gap-2"><Database className="h-3.5 w-3.5 text-blue-400 flex-shrink-0 mt-0.5" /><span><strong className="text-blue-300">Иерархия:</strong> Личные → Проектные → Департамент → Глобальные</span></li>
+                  <li className="flex items-start gap-2"><Target className="h-3.5 w-3.5 text-blue-400 flex-shrink-0 mt-0.5" /><span><strong className="text-blue-300">Активные источники:</strong> Только выбранные используются для ответов</span></li>
+                  <li className="flex items-start gap-2"><Lightbulb className="h-3.5 w-3.5 text-blue-400 flex-shrink-0 mt-0.5" /><span><strong className="text-blue-300">Влияние на ответы:</strong> AI ищет в активных источниках и формирует ответ</span></li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Source list */}
+        {projectSources.length === 0 ? (
           <div className="text-center py-6 text-muted-foreground">
             <FileText className="h-8 w-8 mx-auto mb-2 opacity-50" />
             <p className="text-sm">Источники не загружены</p>
@@ -442,70 +185,40 @@ export const SourcePanel = ({
           </div>
         ) : (
           <div className="space-y-1">
-            {/* Select all / deselect all */}
             <div className="flex items-center justify-between mb-2 pb-2 border-b border-border">
-              <span className="text-xs text-muted-foreground">
-                Выбрано: {activeSourceIds.length} из {sources.length}
-              </span>
+              <span className="text-xs text-muted-foreground">Выбрано: {activeSourceIds.length} из {projectSources.length}</span>
               <div className="flex gap-1">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-6 text-xs px-2"
-                  onClick={selectAllSources}
-                  data-testid="select-all-sources"
-                >
-                  Все
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-6 text-xs px-2"
-                  onClick={deselectAllSources}
-                  data-testid="deselect-all-sources"
-                >
-                  Сбросить
-                </Button>
+                <Button variant="ghost" size="sm" className="h-6 text-xs px-2" onClick={onSelectAll} data-testid="select-all-sources">Все</Button>
+                <Button variant="ghost" size="sm" className="h-6 text-xs px-2" onClick={onDeselectAll} data-testid="deselect-all-sources">Сбросить</Button>
               </div>
             </div>
 
-            {/* Grouped sources */}
             <div className="max-h-[280px] overflow-y-auto space-y-1">
               {groupedSources.map(([groupKey, group]) => {
                 const GroupIcon = group.icon;
                 const isExpanded = expandedGroups[groupKey];
-                const groupSourceIds = group.sources.map((s) => s.id);
-                const selectedInGroup = groupSourceIds.filter((id) => activeSourceIds.includes(id)).length;
+                const groupSourceIds = group.sources.map(s => s.id);
+                const selectedInGroup = groupSourceIds.filter(id => activeSourceIds.includes(id)).length;
                 const allSelected = selectedInGroup === group.sources.length;
                 const someSelected = selectedInGroup > 0 && selectedInGroup < group.sources.length;
 
                 return (
                   <div key={groupKey} className="rounded-lg border border-border overflow-hidden">
-                    {/* Group header */}
-                    <div
-                      className="flex items-center gap-2 p-2 bg-secondary/30 cursor-pointer hover:bg-secondary/50 transition-colors"
-                      onClick={() => toggleGroup(groupKey)}
-                    >
+                    <div className="flex items-center gap-2 p-2 bg-secondary/30 cursor-pointer hover:bg-secondary/50 transition-colors" onClick={() => onToggleGroup(groupKey)}>
                       <Checkbox
                         checked={allSelected}
                         ref={someSelected ? (el) => { if (el) el.indeterminate = true; } : undefined}
-                        onCheckedChange={() => toggleGroupSelection(group.sources)}
+                        onCheckedChange={() => onToggleGroupSelection(group.sources)}
                         onClick={(e) => e.stopPropagation()}
                         className="data-[state=checked]:bg-indigo-500"
                         data-testid={`group-checkbox-${groupKey}`}
                       />
-                      {isExpanded
-                        ? <ChevronDown className="h-4 w-4 text-muted-foreground" />
-                        : <ChevronRight className="h-4 w-4 text-muted-foreground" />
-                      }
+                      {isExpanded ? <ChevronDown className="h-4 w-4 text-muted-foreground" /> : <ChevronRight className="h-4 w-4 text-muted-foreground" />}
                       <GroupIcon className={`h-4 w-4 ${group.color}`} />
                       <span className="text-sm font-medium flex-1">{group.label}</span>
-                      <span className="text-xs text-muted-foreground">
-                        {selectedInGroup}/{group.sources.length}
-                      </span>
+                      <span className="text-xs text-muted-foreground">{selectedInGroup}/{group.sources.length}</span>
                     </div>
 
-                    {/* Expanded files */}
                     {isExpanded && (
                       <div className="border-t border-border">
                         {group.sources.map((source) => {
@@ -513,55 +226,45 @@ export const SourcePanel = ({
                           return (
                             <div
                               key={source.id}
-                              className={`flex items-center gap-2 p-2 pl-8 transition-colors ${
-                                isSelected ? 'bg-indigo-500/10' : 'hover:bg-secondary/20'
-                              }`}
+                              className={`flex items-center gap-2 p-2 pl-8 transition-colors ${isSelected ? 'bg-indigo-500/10' : 'hover:bg-secondary/20'}`}
                               data-testid={`source-item-${source.id}`}
                             >
                               <Checkbox
                                 checked={isSelected}
-                                onCheckedChange={() => toggleSourceSelection(source.id)}
+                                onCheckedChange={() => onToggleSource(source.id)}
                                 className="data-[state=checked]:bg-indigo-500"
                                 data-testid={`source-checkbox-${source.id}`}
                               />
                               {getFileIcon(source.mimeType, source.kind)}
                               <div className="flex-1 min-w-0">
                                 <p className="text-sm truncate">{source.originalName || source.url}</p>
-                                <p className="text-xs text-muted-foreground">
-                                  {source.sizeBytes ? `${formatFileSize(source.sizeBytes)} • ` : ''}
-                                  {source.chunkCount} chunks
-                                </p>
+                                <div className="flex items-center gap-1.5 flex-wrap mt-0.5">
+                                  <p className="text-xs text-muted-foreground">
+                                    {source.sizeBytes ? `${formatFileSize(source.sizeBytes)} • ` : ''}{source.chunkCount} chunks
+                                  </p>
+                                  {currentProjectName && (
+                                    <span className="inline-flex items-center gap-0.5 text-xs text-indigo-400 bg-indigo-500/10 px-1.5 py-0.5 rounded-full border border-indigo-500/20" data-testid={`source-project-badge-${source.id}`}>
+                                      <FolderOpen className="h-2.5 w-2.5 flex-shrink-0" />
+                                      <span className="truncate max-w-[90px]">{currentProjectName}</span>
+                                    </span>
+                                  )}
+                                </div>
                               </div>
                               <div className="flex items-center gap-1">
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  className="h-7 w-7"
-                                  onClick={(e) => openPreview(source, e)}
-                                  title="Просмотр"
-                                  data-testid={`preview-source-${source.id}`}
-                                >
+                                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={(e) => { e.stopPropagation(); onPreview(source, e); }} title="Preview" data-testid={`preview-source-${source.id}`}>
                                   <Eye className="h-3.5 w-3.5 text-blue-400" />
                                 </Button>
                                 {source.kind === 'file' && (
-                                  <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    className="h-7 w-7"
-                                    onClick={(e) => downloadSource(source, e)}
-                                    title="Скачать"
-                                    data-testid={`download-source-${source.id}`}
-                                  >
+                                  <Button variant="ghost" size="icon" className="h-7 w-7" onClick={(e) => { e.stopPropagation(); onDownload(source, e); }} title="Download" data-testid={`download-source-${source.id}`}>
                                     <Download className="h-3.5 w-3.5 text-green-400" />
                                   </Button>
                                 )}
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  className="h-7 w-7"
-                                  onClick={(e) => deleteSource(source.id, e)}
-                                  data-testid={`delete-source-${source.id}`}
-                                >
+                                {source.level === 'project' && currentUser?.departments?.length > 0 && (
+                                  <Button variant="ghost" size="icon" className="h-7 w-7" onClick={(e) => { e.stopPropagation(); onSaveToDept(source, e); }} title="Save to department" data-testid={`save-to-dept-${source.id}`}>
+                                    <Building2 className="h-3.5 w-3.5 text-amber-400" />
+                                  </Button>
+                                )}
+                                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={(e) => { e.stopPropagation(); onDeleteSource(source.id, e); }} data-testid={`delete-source-${source.id}`}>
                                   <Trash2 className="h-3.5 w-3.5 text-destructive" />
                                 </Button>
                               </div>
@@ -577,66 +280,13 @@ export const SourcePanel = ({
           </div>
         )}
 
-        {sources.length > 0 && (
+        {projectSources.length > 0 && (
           <p className="text-xs text-muted-foreground mt-3 flex items-center gap-1">
-            <span className="inline-block w-2 h-2 rounded-full bg-indigo-500" />
+            <span className="inline-block w-2 h-2 rounded-full bg-indigo-500"></span>
             Выбранные источники используются как контекст для AI ответов
           </p>
         )}
       </div>
-
-      {/* Preview Dialog */}
-      <Dialog open={previewDialogOpen} onOpenChange={setPreviewDialogOpen}>
-        <DialogContent className="sm:max-w-2xl max-h-[80vh]">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <FileText className="h-5 w-5" />
-              {previewSource?.name || 'Source Preview'}
-            </DialogTitle>
-            <DialogDescription>
-              {previewSource?.chunkCount} chunks • {previewSource?.wordCount || 0} слов •{' '}
-              {previewSource?.kind === 'url' ? 'URL' : previewSource?.mimeType}
-            </DialogDescription>
-          </DialogHeader>
-
-          {previewLoading ? (
-            <div className="flex items-center justify-center py-12">
-              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-            </div>
-          ) : (
-            <>
-              <div className={`p-3 rounded-lg text-sm flex items-center gap-2 ${
-                previewSource?.quality === 'good'  ? 'bg-green-500/10 text-green-600 dark:text-green-400' :
-                previewSource?.quality === 'low'   ? 'bg-yellow-500/10 text-yellow-600 dark:text-yellow-400' :
-                previewSource?.quality === 'poor'  ? 'bg-red-500/10 text-red-600 dark:text-red-400' :
-                previewSource?.quality === 'empty' ? 'bg-red-500/10 text-red-600 dark:text-red-400' :
-                'bg-secondary'
-              }`}>
-                <span className={`w-2 h-2 rounded-full ${
-                  previewSource?.quality === 'good'  ? 'bg-green-500' :
-                  previewSource?.quality === 'low'   ? 'bg-yellow-500' :
-                  'bg-red-500'
-                }`} />
-                {previewSource?.qualityMessage || 'Текст извлечён'}
-              </div>
-
-              <ScrollArea className="max-h-[45vh] mt-3">
-                <pre className="text-sm whitespace-pre-wrap font-mono bg-secondary/50 p-4 rounded-lg">
-                  {previewSource?.text || 'No content'}
-                </pre>
-              </ScrollArea>
-            </>
-          )}
-
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setPreviewDialogOpen(false)}>
-              Close
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 };
-
-export default SourcePanel;
