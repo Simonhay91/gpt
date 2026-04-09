@@ -17,7 +17,10 @@ import {
   Trash2,
   X,
   Check,
-  AlertCircle
+  AlertCircle,
+  FileSearch,
+  Download,
+  Loader2
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -61,6 +64,13 @@ export default function ProductCatalogPage() {
   const [page, setPage] = useState(1);
   const [totalProducts, setTotalProducts] = useState(0);
   const pageSize = 20;
+
+  // Match File state
+  const [showMatchModal, setShowMatchModal] = useState(false);
+  const [matchFile, setMatchFile] = useState(null);
+  const [matchMode, setMatchMode] = useState('article');
+  const [matchColumn, setMatchColumn] = useState('0');
+  const [matching, setMatching] = useState(false);
   
   // Permission check - Admin or Manager can edit
   const canEdit = user?.isAdmin || user?.email?.endsWith('@admin.com');
@@ -202,6 +212,38 @@ export default function ProductCatalogPage() {
     }
   };
 
+  const handleMatchFile = async () => {
+    if (!matchFile) return;
+    setMatching(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', matchFile);
+      formData.append('mode', matchMode);
+      formData.append('name_column', matchColumn);
+
+      const response = await axios.post(`${API}/product-catalog/match-file`, formData, {
+        responseType: 'blob'
+      });
+
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', 'matched_products.xlsx');
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+
+      toast.success('Matching complete! File downloaded.');
+      setShowMatchModal(false);
+      setMatchFile(null);
+    } catch (error) {
+      toast.error('Matching failed. Please try again.');
+    } finally {
+      setMatching(false);
+    }
+  };
+
   return (
     <DashboardLayout>
       <div className="space-y-6" data-testid="product-catalog-page">
@@ -217,22 +259,32 @@ export default function ProductCatalogPage() {
             </p>
           </div>
           
-          {canEdit && (
-            <div className="flex gap-2">
-              <Button 
-                variant="outline" 
-                onClick={() => setShowImportModal(true)}
-                data-testid="import-btn"
-              >
-                <Upload className="h-4 w-4 mr-2" />
-                Импорт CSV
-              </Button>
-              <Button onClick={() => setShowCreateModal(true)} data-testid="create-product-btn">
-                <Plus className="h-4 w-4 mr-2" />
-                Добавить
-              </Button>
-            </div>
-          )}
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              onClick={() => setShowMatchModal(true)}
+              data-testid="match-file-btn"
+            >
+              <FileSearch className="h-4 w-4 mr-2" />
+              Match File
+            </Button>
+            {canEdit && (
+              <>
+                <Button 
+                  variant="outline" 
+                  onClick={() => setShowImportModal(true)}
+                  data-testid="import-btn"
+                >
+                  <Upload className="h-4 w-4 mr-2" />
+                  Импорт CSV
+                </Button>
+                <Button onClick={() => setShowCreateModal(true)} data-testid="create-product-btn">
+                  <Plus className="h-4 w-4 mr-2" />
+                  Добавить
+                </Button>
+              </>
+            )}
+          </div>
         </div>
 
         {/* Search & Filters */}
@@ -615,6 +667,93 @@ export default function ProductCatalogPage() {
                   </Button>
                   <Button onClick={handleCreate} className="flex-1">
                     Создать
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+        {/* Match File Modal */}
+        {showMatchModal && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+            <div className="bg-background rounded-lg p-6 max-w-md w-full mx-4">
+              <div className="flex justify-between items-center mb-4">
+                <h2 className="text-xl font-bold flex items-center gap-2">
+                  <FileSearch className="h-5 w-5" />
+                  Match Customer File
+                </h2>
+                <Button variant="ghost" size="sm" onClick={() => setShowMatchModal(false)}>
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+
+              <p className="text-sm text-muted-foreground mb-4">
+                Upload a customer file (Excel, CSV, DOCX, PDF) with product names.
+                AI will match them against our catalog and return an Excel with results.
+              </p>
+
+              <div className="space-y-4">
+                {/* File upload */}
+                <div>
+                  <label className="text-sm font-medium block mb-1">Customer File *</label>
+                  <input
+                    type="file"
+                    accept=".xlsx,.xls,.csv,.docx,.pdf"
+                    onChange={(e) => setMatchFile(e.target.files[0])}
+                    className="w-full text-sm border rounded-md px-3 py-2 bg-background"
+                  />
+                  {matchFile && (
+                    <p className="text-xs text-muted-foreground mt-1">{matchFile.name}</p>
+                  )}
+                </div>
+
+                {/* Mode selector */}
+                <div>
+                  <label className="text-sm font-medium block mb-1">Output Code</label>
+                  <select
+                    value={matchMode}
+                    onChange={(e) => setMatchMode(e.target.value)}
+                    className="w-full px-3 py-2 rounded-md border bg-background text-sm"
+                  >
+                    <option value="article">Article Number (OEM)</option>
+                    <option value="crm">CRM Code</option>
+                  </select>
+                </div>
+
+                {/* Column selector (for Excel/CSV) */}
+                <div>
+                  <label className="text-sm font-medium block mb-1">Product Name Column</label>
+                  <Input
+                    value={matchColumn}
+                    onChange={(e) => setMatchColumn(e.target.value)}
+                    placeholder="0 (first column) or column name"
+                    className="text-sm"
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Enter column index (0 = first) or column header name. For PDF/DOCX, ignored.
+                  </p>
+                </div>
+
+                <div className="flex gap-2 pt-2">
+                  <Button variant="outline" onClick={() => setShowMatchModal(false)} className="flex-1">
+                    Cancel
+                  </Button>
+                  <Button
+                    onClick={handleMatchFile}
+                    disabled={!matchFile || matching}
+                    className="flex-1"
+                  >
+                    {matching ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Matching...
+                      </>
+                    ) : (
+                      <>
+                        <Download className="h-4 w-4 mr-2" />
+                        Match & Download
+                      </>
+                    )}
                   </Button>
                 </div>
               </div>

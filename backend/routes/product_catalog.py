@@ -1,11 +1,15 @@
 """Product Catalog routes"""
-from fastapi import APIRouter, HTTPException, Depends, UploadFile, File, Query
+from fastapi import APIRouter, HTTPException, Depends, UploadFile, File, Query, Form
+from fastapi.responses import StreamingResponse
 from typing import List, Optional
 from datetime import datetime, timezone
 from uuid import uuid4
 import logging
 import csv
 import io
+import os
+import re
+import json
 
 from models.schemas import (
     ProductCatalogCreate,
@@ -627,3 +631,269 @@ async def match_products(
             results.append(ProductMatchResult(query=title, matched=None, confidence=0.0))
     
     return results
+
+
+# ==================== FILE MATCHING ENDPOINT ====================
+
+def _parse_names_from_excel(content: bytes, name_column: str) -> List[str]:
+    """Parse product names from Excel/CSV file."""
+    import pandas as pd
+    try:
+        df = pd.read_excel(io.BytesIO(content), header=0)
+    except Exception:
+        try:
+            text = content.decode("utf-8")
+        except UnicodeDecodeError:
+            text = content.decode("cp1251")
+        df = pd.read_csv(io.StringIO(text))
+
+    if name_column.isdigit():
+        col_idx = int(name_column)
+        if col_idx < len(df.columns):
+            col = df.columns[col_idx]
+        else:
+            col = df.columns[0]
+    else:
+        # Try to find column by name (case-insensitive)
+        matched = [c for c in df.columns if name_column.lower() in str(c).lower()]
+        col = matched[0] if matched else df.columns[0]
+
+    names = [str(v).strip() for v in df[col].dropna() if str(v).strip() and str(v).strip().lower() != "nan"]
+    return names
+
+
+def _parse_names_from_docx(content: bytes) -> List[str]:
+    from docx import Document
+    doc = Document(io.BytesIO(content))
+    names = []
+    for para in doc.paragraphs:
+        line = para.text.strip()
+        if line:
+            names.append(line)
+    return names
+
+
+def _parse_names_from_pdf(content: bytes) -> List[str]:
+    import pdfplumber
+    names = []
+    with pdfplumber.open(io.BytesIO(content)) as pdf:
+        for page in pdf.pages:
+            text = page.extract_text() or ""
+            for line in text.splitlines():
+                line = line.strip()
+                if line:
+                    names.append(line)
+    return names
+
+
+async def _search_candidates(db, query: str, limit: int = 6) -> List[dict]:
+    """Fast text search for candidate products."""
+    words = [w for w in re.findall(r'\w+', query) if len(w) > 2]
+    if not words:
+        return []
+    regex_parts = [{"title_en": {"$regex": w, "$options": "i"}} for w in words[:5]]
+    regex_parts += [{"article_number": {"$regex": w, "$options": "i"}} for w in words[:3]]
+    regex_parts += [{"product_model": {"$regex": w, "$options": "i"}} for w in words[:3]]
+    regex_parts += [{"aliases": {"$elemMatch": {"$regex": w, "$options": "i"}}} for w in words[:3]]
+    results = await db.product_catalog.find(
+        {"is_active": True, "$or": regex_parts},
+        {"_id": 0, "id": 1, "title_en": 1, "article_number": 1, "crm_code": 1,
+         "datasheet_url": 1, "vendor": 1, "product_model": 1, "description": 1}
+    ).limit(limit).to_list(limit)
+    return results
+
+
+async def _claude_match_batch(batch: List[dict], mode: str) -> List[dict]:
+    """
+    Ask Claude to match a batch of {customer_name, candidates[]} items.
+    Returns list of match results.
+    """
+    import anthropic
+    CLAUDE_API_KEY = os.environ.get("CLAUDE_API_KEY", "")
+    client = anthropic.Anthropic(api_key=CLAUDE_API_KEY)
+
+    code_field = "article_number" if mode == "article" else "crm_code"
+
+    batch_text = ""
+    for i, item in enumerate(batch):
+        batch_text += f"\n--- Product {i+1} ---\n"
+        batch_text += f"Customer name: {item['customer_name']}\n"
+        if item["candidates"]:
+            batch_text += "Catalog candidates:\n"
+            for j, c in enumerate(item["candidates"]):
+                batch_text += (
+                    f"  [{j+1}] title={c.get('title_en','')} | "
+                    f"article={c.get('article_number','')} | "
+                    f"crm={c.get('crm_code','')} | "
+                    f"model={c.get('product_model','')} | "
+                    f"vendor={c.get('vendor','')}\n"
+                )
+        else:
+            batch_text += "Catalog candidates: (none found)\n"
+
+    prompt = f"""You are a product matching assistant for a fiber optics / network equipment catalog.
+
+For each product below, find the best match from the given catalog candidates.
+Return a JSON array with one object per product in the same order:
+{{
+  "matched_title": "<catalog title_en or empty string>",
+  "matched_article": "<article_number or empty string>",
+  "matched_crm": "<crm_code or empty string>",
+  "matched_datasheet": "<datasheet_url or empty string>",
+  "confidence": <integer 0-100>,
+  "comment": "<short explanation in English, max 15 words>"
+}}
+
+Rules:
+- If no good match exists, set confidence=0 and leave matched fields empty.
+- confidence=90+ means near-identical, 70-89 means close match (minor spec diff), 50-69 means probable match, <50 means uncertain.
+- Keep comment concise.
+
+Products to match:
+{batch_text}
+
+Return ONLY the JSON array, no extra text."""
+
+    response = client.messages.create(
+        model="claude-sonnet-4-20250514",
+        max_tokens=2000,
+        messages=[{"role": "user", "content": prompt}]
+    )
+    raw = response.content[0].text.strip()
+    # Extract JSON array
+    match = re.search(r'\[.*\]', raw, re.DOTALL)
+    if match:
+        return json.loads(match.group(0))
+    return [{"matched_title": "", "matched_article": "", "matched_crm": "",
+             "matched_datasheet": "", "confidence": 0, "comment": "Parse error"} for _ in batch]
+
+
+def _build_excel(rows: List[dict]) -> bytes:
+    """Build result Excel file in memory."""
+    import openpyxl
+    from openpyxl.styles import Font, PatternFill, Alignment
+
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Matched Products"
+
+    headers = [
+        "Customer Product Name",
+        "Matched Catalog Name",
+        "Article Number",
+        "CRM Code",
+        "Datasheet",
+        "Confidence %",
+        "AI Comment"
+    ]
+    header_fill = PatternFill("solid", fgColor="1E3A5F")
+    header_font = Font(bold=True, color="FFFFFF")
+
+    for col_idx, h in enumerate(headers, 1):
+        cell = ws.cell(row=1, column=col_idx, value=h)
+        cell.fill = header_fill
+        cell.font = header_font
+        cell.alignment = Alignment(horizontal="center", vertical="center")
+
+    for row_idx, r in enumerate(rows, 2):
+        conf = r.get("confidence", 0)
+        row_fill = None
+        if conf >= 85:
+            row_fill = PatternFill("solid", fgColor="D6EFCD")  # green
+        elif conf >= 60:
+            row_fill = PatternFill("solid", fgColor="FFF2CC")  # yellow
+        elif conf > 0:
+            row_fill = PatternFill("solid", fgColor="FCE4D6")  # orange
+
+        values = [
+            r.get("customer_name", ""),
+            r.get("matched_title", ""),
+            r.get("matched_article", ""),
+            r.get("matched_crm", ""),
+            r.get("matched_datasheet", ""),
+            conf,
+            r.get("comment", "")
+        ]
+        for col_idx, val in enumerate(values, 1):
+            cell = ws.cell(row=row_idx, column=col_idx, value=val)
+            if row_fill:
+                cell.fill = row_fill
+
+    # Column widths
+    widths = [40, 45, 18, 18, 40, 14, 40]
+    for col_idx, w in enumerate(widths, 1):
+        ws.column_dimensions[openpyxl.utils.get_column_letter(col_idx)].width = w
+
+    buf = io.BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+    return buf.read()
+
+
+@router.post("/product-catalog/match-file")
+async def match_file(
+    file: UploadFile = File(...),
+    mode: str = Form("article"),          # "article" or "crm"
+    name_column: str = Form("0"),          # column index or name
+    current_user: dict = Depends(get_current_user)
+):
+    """
+    Upload a customer file (Excel/CSV/DOCX/PDF) with product names.
+    Returns an Excel file with matched catalog products, confidence scores, and AI comments.
+    """
+    db = get_db()
+    content = await file.read()
+    filename = (file.filename or "").lower()
+
+    # 1. Parse product names from file
+    try:
+        if filename.endswith(".pdf"):
+            customer_names = _parse_names_from_pdf(content)
+        elif filename.endswith(".docx"):
+            customer_names = _parse_names_from_docx(content)
+        else:
+            customer_names = _parse_names_from_excel(content, name_column)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Failed to parse file: {e}")
+
+    if not customer_names:
+        raise HTTPException(status_code=400, detail="No product names found in file")
+
+    # Limit to 200 rows per request
+    customer_names = customer_names[:200]
+
+    # 2. For each name, find text-based candidates from catalog
+    batch_items = []
+    for name in customer_names:
+        candidates = await _search_candidates(db, name, limit=6)
+        batch_items.append({"customer_name": name, "candidates": candidates})
+
+    # 3. Claude batch matching (10 products per call)
+    results = []
+    BATCH_SIZE = 10
+    for i in range(0, len(batch_items), BATCH_SIZE):
+        batch = batch_items[i:i + BATCH_SIZE]
+        try:
+            matches = await _claude_match_batch(batch, mode)
+        except Exception as e:
+            logger.error(f"Claude batch matching error: {e}")
+            matches = [{"matched_title": "", "matched_article": "", "matched_crm": "",
+                        "matched_datasheet": "", "confidence": 0, "comment": "Error"} for _ in batch]
+        for item, match in zip(batch, matches):
+            results.append({
+                "customer_name": item["customer_name"],
+                "matched_title": match.get("matched_title", ""),
+                "matched_article": match.get("matched_article", ""),
+                "matched_crm": match.get("matched_crm", ""),
+                "matched_datasheet": match.get("matched_datasheet", ""),
+                "confidence": match.get("confidence", 0),
+                "comment": match.get("comment", "")
+            })
+
+    # 4. Build and return Excel
+    excel_bytes = _build_excel(results)
+    return StreamingResponse(
+        io.BytesIO(excel_bytes),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": "attachment; filename=matched_products.xlsx"}
+    )
