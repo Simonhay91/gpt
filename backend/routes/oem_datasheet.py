@@ -100,6 +100,23 @@ def extract_text_from_pdf(content: bytes) -> str:
             return ""
 
 
+def extract_images_from_pdf(pdf_content: bytes) -> list:
+    import fitz
+    doc = fitz.open(stream=pdf_content, filetype="pdf")
+    images = []
+    for page_num, page in enumerate(doc):
+        for img_index, img in enumerate(page.get_images(full=True)):
+            xref = img[0]
+            base_image = doc.extract_image(xref)
+            images.append({
+                "page": page_num,
+                "index": img_index,
+                "ext": base_image["ext"],
+                "data": base_image["image"]
+            })
+    return images
+
+
 def convert_pdf_to_docx(pdf_content: bytes) -> bytes:
     """
     Convert PDF → DOCX while preserving layout (tables, columns, fonts).
@@ -346,6 +363,7 @@ async def rebuild_docx_from_pdf(
     brand: dict,
     supplier_info: dict,
     openai_api_key: str,
+    extracted_images: list = None,
 ) -> bytes:
     """
     AI-powered PDF → clean DOCX rebuild:
@@ -596,6 +614,16 @@ Datasheet text:
         r.font.size = Pt(12)
         r.font.color.rgb = RGBColor(255, 255, 255)
 
+    header_image_fn = brand.get("headerImage")
+    if header_image_fn:
+        hi_path = _resolve_logo_path(header_image_fn, brand)
+        if hi_path:
+            try:
+                inner_px = max(4, header_height_px - 2 * header_padding_px)
+                h_para.add_run().add_picture(hi_path, height=Inches(max(0.1, inner_px * PX_TO_IN)))
+            except Exception as e:
+                logger.warning(f"Could not insert header image: {e}")
+
     # ── Footer: full-width colored band, email left | copyright center ─
     footer = section.footer
     footer.is_linked_to_previous = False
@@ -637,7 +665,7 @@ Datasheet text:
     doc.add_paragraph()
 
     # Sections
-    for sec in structure.get("sections", []):
+    for sec_index, sec in enumerate(structure.get("sections", [])):
         heading = apply_replacements(sec.get("heading") or "")
         text_body = apply_replacements(sec.get("text") or "")
         table_data = sec.get("table")
@@ -684,6 +712,16 @@ Datasheet text:
                         r.font.size = Pt(9)
 
         doc.add_paragraph()
+
+        # Insert extracted PDF image for this section (skip index 0 — likely supplier logo)
+        img_insert_index = sec_index + 1
+        if extracted_images and img_insert_index < len(extracted_images):
+            try:
+                img_buf = io.BytesIO(extracted_images[img_insert_index]["data"])
+                doc.add_picture(img_buf, width=Inches(4.0))
+                doc.add_paragraph()
+            except Exception as e:
+                logger.warning(f"Could not insert PDF image {img_insert_index}: {e}")
 
     buf = io.BytesIO()
     doc.save(buf)
@@ -888,6 +926,41 @@ async def delete_brand_logo(
     return {"approvedLogos": approved_logos}
 
 
+@router.post("/brands/{brand_id}/header-image")
+async def upload_brand_header_image(
+    brand_id: str,
+    file: UploadFile = File(...),
+    current_user: dict = Depends(get_current_user)
+):
+    if not is_admin(current_user["email"]):
+        raise HTTPException(status_code=403, detail="Admin only")
+    db = get_db()
+    brand = await db.oem_brands.find_one({"id": brand_id})
+    if not brand:
+        raise HTTPException(status_code=404, detail="Brand not found")
+    allowed = {".png", ".jpg", ".jpeg", ".svg", ".webp"}
+    ext = os.path.splitext(file.filename)[1].lower()
+    if ext not in allowed:
+        raise HTTPException(status_code=400, detail="Only PNG, JPG, SVG, WEBP allowed")
+    filename = f"header_{brand_id}_{str(uuid4())[:8]}{ext}"
+    path = os.path.join(BRAND_LOGOS_DIR, filename)
+    content = await file.read()
+    with open(path, "wb") as f:
+        f.write(content)
+    import base64 as _b64
+    logo_data_map = brand.get("logoDataMap") or {}
+    logo_data_map[filename] = _b64.b64encode(content).decode("utf-8")
+    await db.oem_brands.update_one(
+        {"id": brand_id},
+        {"$set": {
+            "headerImage": filename,
+            "logoDataMap": logo_data_map,
+            "updatedAt": datetime.now(timezone.utc).isoformat()
+        }}
+    )
+    return {"filename": filename}
+
+
 # ==================== DATASHEET PROCESSING ====================
 
 @router.post("/process")
@@ -931,12 +1004,18 @@ async def process_datasheet(
 
     safe_brand = re.sub(r"[^a-zA-Z0-9_-]", "_", brand["name"])
     base_name = os.path.splitext(orig_filename)[0]
+    extracted_images = []
 
     if is_pdf:
         # ── PDF: AI rebuild → clean DOCX with brand colors + logo ──────
         if not openai_key:
             raise HTTPException(status_code=500, detail="OPENAI_API_KEY not configured")
-        output_bytes = await rebuild_docx_from_pdf(raw_content, brand, supplier_info, openai_key)
+        try:
+            extracted_images = extract_images_from_pdf(raw_content)
+            logger.info(f"Extracted {len(extracted_images)} images from PDF")
+        except Exception as e:
+            logger.warning(f"Image extraction failed: {e}")
+        output_bytes = await rebuild_docx_from_pdf(raw_content, brand, supplier_info, openai_key, extracted_images)
         output_filename = f"OEM_{safe_brand}_{base_name}.docx"
     else:
         # ── DOCX: in-place text + image + color replacement ─────────────
@@ -981,6 +1060,7 @@ async def process_datasheet(
         "originalFilename": orig_filename,
         "supplierInfo": supplier_info,
         "outputFormat": "pdf→docx" if is_pdf else "docx",
+        "extractedImageCount": len(extracted_images) if is_pdf else 0,
         "createdAt": datetime.now(timezone.utc).isoformat(),
     })
 
