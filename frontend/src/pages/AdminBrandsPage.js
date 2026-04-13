@@ -15,7 +15,36 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 const API = `${process.env.REACT_APP_BACKEND_URL}/api/oem`;
 const BASE_URL = process.env.REACT_APP_BACKEND_URL;
 
-const emptyForm = { name: '', address: '', phone: '', email: '', website: '', warrantyText: '', primaryColor: '#3B82F6', subtitleColor: '', headerHeightPx: '60', headerPaddingPx: '8', logoSizePx: '44', footerHeightPx: '36', footerPaddingPx: '6', copyrightText: '' };
+const emptyForm = { name: '', address: '', phone: '', email: '', website: '', warrantyText: '', primaryColor: '#3B82F6', subtitleColor: '', headerHeightPx: '60', headerPaddingPx: '8', logoSizePx: '44', footerHeightPx: '36', footerPaddingPx: '6', copyrightText: '', headerImageFile: null };
+
+const BrandPreview = ({ form }) => {
+  const primary = form.primaryColor || '#3B82F6';
+  const subtitle = form.subtitleColor || primary;
+  const headerH = parseInt(form.headerHeightPx) || 60;
+  const footerH = parseInt(form.footerHeightPx) || 36;
+  const logoH = parseInt(form.logoSizePx) || 44;
+  return (
+    <div className="sticky top-0 space-y-2">
+      <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Live Preview</p>
+      <div className="border border-border rounded-lg overflow-hidden shadow-sm bg-white text-black">
+        <div style={{ backgroundColor: primary, height: headerH, display: 'flex', alignItems: 'center', padding: '0 12px' }}>
+          <span style={{ color: 'white', fontWeight: 700, fontSize: Math.max(10, logoH * 0.4) }}>
+            {form.name || 'Brand Name'}
+          </span>
+        </div>
+        <div style={{ padding: '12px 16px' }}>
+          <div style={{ color: primary, fontWeight: 700, fontSize: 14, marginBottom: 4 }}>{form.name || 'Brand Name'}</div>
+          <div style={{ color: subtitle, fontWeight: 600, fontSize: 11, marginBottom: 8 }}>1. Product Specifications</div>
+          <div style={{ color: '#555', fontSize: 9 }}>Sample product description text goes here...</div>
+        </div>
+        <div style={{ backgroundColor: primary, height: footerH, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 12px' }}>
+          <span style={{ color: 'white', fontSize: 8 }}>{form.email || 'email@brand.com'}</span>
+          <span style={{ color: 'white', fontSize: 8 }}>{form.copyrightText || `© ${new Date().getFullYear()}`}</span>
+        </div>
+      </div>
+    </div>
+  );
+};
 
 const AdminBrandsPage = () => {
   const [brands, setBrands] = useState([]);
@@ -65,6 +94,7 @@ const AdminBrandsPage = () => {
       footerHeightPx: String(brand.footerHeightPx || '36'),
       footerPaddingPx: String(brand.footerPaddingPx || '6'),
       copyrightText: brand.copyrightText || '',
+      headerImageFile: null,
     });
     setDialogOpen(true);
   };
@@ -74,17 +104,26 @@ const AdminBrandsPage = () => {
     setSaving(true);
     try {
       const formData = new FormData();
-      Object.entries(form).forEach(([k, v]) => formData.append(k, v));
+      Object.entries(form).forEach(([k, v]) => { if (k !== 'headerImageFile') formData.append(k, v ?? ''); });
 
+      let res;
       if (editingBrand) {
-        const res = await axios.put(`${API}/brands/${editingBrand.id}`, formData);
+        res = await axios.put(`${API}/brands/${editingBrand.id}`, formData);
         setBrands(prev => prev.map(b => b.id === editingBrand.id ? res.data : b));
         toast.success('Brand updated');
       } else {
-        const res = await axios.post(`${API}/brands`, formData);
+        res = await axios.post(`${API}/brands`, formData);
         setBrands(prev => [...prev, res.data]);
         toast.success('Brand created');
       }
+
+      if (form.headerImageFile) {
+        const brandId = editingBrand?.id || res.data.id;
+        const hd = new FormData();
+        hd.append('file', form.headerImageFile);
+        await axios.post(`${API}/brands/${brandId}/header-image`, hd);
+      }
+
       setDialogOpen(false);
     } catch (e) {
       toast.error(e.response?.data?.detail || 'Failed to save brand');
@@ -295,11 +334,12 @@ const AdminBrandsPage = () => {
 
         {/* Create / Edit Dialog */}
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-          <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogContent className="sm:max-w-5xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>{editingBrand ? 'Edit Brand' : 'Create Brand'}</DialogTitle>
             </DialogHeader>
-            <div className="space-y-4 py-2">
+            <div className="flex gap-6">
+            <div className="flex-1 space-y-4 py-2">
               <div className="space-y-1">
                 <Label>Brand Name *</Label>
                 <Input
@@ -397,18 +437,28 @@ const AdminBrandsPage = () => {
               <div className="space-y-3 pt-2 border-t border-border">
                 <p className="text-sm font-semibold text-foreground">Header & Footer</p>
 
-                {/* Header row */}
-                <div className="grid grid-cols-3 gap-3">
-                  <div className="space-y-1">
-                    <Label>Header Height (px)</Label>
-                    <Input
-                      type="number" min="20" max="200"
-                      value={form.headerHeightPx}
-                      onChange={e => setForm(f => ({ ...f, headerHeightPx: e.target.value }))}
-                      className="text-sm"
-                    />
-                    <p className="text-xs text-muted-foreground">Band height</p>
-                  </div>
+                {/* Sliders */}
+                <div className="space-y-1">
+                  <Label>Header Height: {form.headerHeightPx}px</Label>
+                  <input type="range" min="40" max="120" value={form.headerHeightPx}
+                    onChange={e => setForm(f => ({ ...f, headerHeightPx: e.target.value }))}
+                    className="w-full accent-indigo-500" />
+                </div>
+                <div className="space-y-1">
+                  <Label>Logo Size: {form.logoSizePx}px</Label>
+                  <input type="range" min="20" max="80" value={form.logoSizePx}
+                    onChange={e => setForm(f => ({ ...f, logoSizePx: e.target.value }))}
+                    className="w-full accent-indigo-500" />
+                </div>
+                <div className="space-y-1">
+                  <Label>Footer Height: {form.footerHeightPx}px</Label>
+                  <input type="range" min="24" max="60" value={form.footerHeightPx}
+                    onChange={e => setForm(f => ({ ...f, footerHeightPx: e.target.value }))}
+                    className="w-full accent-indigo-500" />
+                </div>
+
+                {/* Padding inputs (unchanged) */}
+                <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1">
                     <Label>Header Padding (px)</Label>
                     <Input
@@ -418,30 +468,6 @@ const AdminBrandsPage = () => {
                       className="text-sm"
                     />
                     <p className="text-xs text-muted-foreground">Top & bottom padding</p>
-                  </div>
-                  <div className="space-y-1">
-                    <Label>Logo Size (px)</Label>
-                    <Input
-                      type="number" min="10" max="160"
-                      value={form.logoSizePx}
-                      onChange={e => setForm(f => ({ ...f, logoSizePx: e.target.value }))}
-                      className="text-sm"
-                    />
-                    <p className="text-xs text-muted-foreground">Logo height</p>
-                  </div>
-                </div>
-
-                {/* Footer row */}
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-1">
-                    <Label>Footer Height (px)</Label>
-                    <Input
-                      type="number" min="20" max="120"
-                      value={form.footerHeightPx}
-                      onChange={e => setForm(f => ({ ...f, footerHeightPx: e.target.value }))}
-                      className="text-sm"
-                    />
-                    <p className="text-xs text-muted-foreground">Total footer band height</p>
                   </div>
                   <div className="space-y-1">
                     <Label>Footer Padding (px)</Label>
@@ -466,7 +492,22 @@ const AdminBrandsPage = () => {
                   />
                   <p className="text-xs text-muted-foreground">Centered in footer</p>
                 </div>
+
+                {/* Header Image */}
+                <div className="space-y-1">
+                  <Label>Header Image <span className="text-xs text-muted-foreground">(optional, shown right side of header)</span></Label>
+                  <input
+                    type="file"
+                    accept=".png,.jpg,.jpeg,.svg,.webp"
+                    onChange={e => setForm(f => ({ ...f, headerImageFile: e.target.files[0] || null }))}
+                    className="text-sm text-muted-foreground file:mr-3 file:py-1 file:px-3 file:rounded file:border-0 file:text-xs file:bg-secondary file:text-foreground cursor-pointer"
+                  />
+                </div>
               </div>
+            </div>
+            <div className="w-72 flex-shrink-0">
+              <BrandPreview form={form} />
+            </div>
             </div>
             <DialogFooter>
               <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>
