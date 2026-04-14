@@ -6,6 +6,16 @@ UI версия: `frontend/src/data/changelog.js`
 
 ---
 
+## 2026-04-14 — v2.9.7
+
+### Fix: AI always knows active sources even when no chunks retrieved
+**Файл:** `backend/routes/messages.py`
+
+- Добавлен `elif active_source_names:` блок — если `document_context` пустой но источники активны, AI получает SYS_META с именами источников
+- Решает проблему: AI отвечал «нет источников» на мета-вопросы типа «ты видишь файл?», т.к. RAG не находил релевантных чанков по таким запросам
+
+---
+
 ## 2026-04-14 — v2.9.6
 
 ### Fix: activeSourceIds race condition — send with message payload

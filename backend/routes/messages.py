@@ -590,6 +590,14 @@ async def send_message(
                     f"{document_context[:max_context_chars]}"
                 )
                 system_parts.append(context_message)
+            elif active_source_names:
+                # Always inform AI about active sources even when no chunks matched the query
+                active_sources_list = ", ".join(active_source_names)
+                system_parts.append(
+                    f"[SYS_META sources={active_sources_list} chunks=0]\n\n"
+                    f"The following sources are active: {active_sources_list}. "
+                    "No relevant content was retrieved for this specific query, but the sources exist and are active."
+                )
 
             if fetched_url_count > 0:
                 system_parts.append(
