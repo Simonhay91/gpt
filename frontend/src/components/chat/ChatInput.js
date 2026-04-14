@@ -43,6 +43,7 @@ export const ChatInput = ({
   isTempUploading,
   onPaperclipChange,
   onRemoveTempFile,
+  onOpenExcelAssistant,
 }) => {
   const canSend = (input.trim() || tempFile) && !isSending;
 
@@ -112,6 +113,20 @@ export const ChatInput = ({
                     <div>
                       <p className="font-medium">Upload File</p>
                       <p className="text-xs text-muted-foreground">PDF, DOCX, XLSX, IMG</p>
+                    </div>
+                  </button>
+
+                  <button
+                    className="w-full flex items-center gap-3 px-4 py-3 text-sm hover:bg-secondary transition-colors text-left"
+                    onClick={() => { onOpenExcelAssistant?.(); }}
+                    data-testid="plus-menu-excel-assistant"
+                  >
+                    <div className="flex items-center justify-center h-8 w-8 rounded-lg bg-green-500/15">
+                      <FileSpreadsheet className="h-4 w-4 text-green-400" />
+                    </div>
+                    <div>
+                      <p className="font-medium">Excel Assistant</p>
+                      <p className="text-xs text-muted-foreground">Upload XLSX / CSV → AI → download</p>
                     </div>
                   </button>
 

@@ -1,6 +1,14 @@
-export const APP_VERSION = "2.9.11";
+export const APP_VERSION = "2.9.12";
 
 export const CHANGELOG = [
+  {
+    version: "2.9.12",
+    date: "Апрель 2026",
+    badge: "new",
+    changes: [
+      "Чат: Excel Assistant в меню «+» — загрузка XLSX/CSV, инструкция AI, скачивание результата",
+    ]
+  },
   {
     version: "2.9.11",
     date: "Апрель 2026",

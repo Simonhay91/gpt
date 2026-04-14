@@ -14,6 +14,7 @@ import AuthImage from '../components/AuthImage';
 import { MessageBubble } from '../components/chat/MessageBubble';
 import { SourcePanel } from '../components/chat/SourcePanel';
 import { ChatInput } from '../components/chat/ChatInput';
+import ExcelAssistant from '../components/ExcelAssistant';
 import { toast } from 'sonner';
 import {
   ArrowLeft, Loader2, FileText, File, Globe, ImageIcon,
@@ -108,6 +109,7 @@ const ChatPage = () => {
   const [expandedSources, setExpandedSources] = useState({});
   const [showScrollBtn, setShowScrollBtn] = useState(false);
   const [showPlusMenu, setShowPlusMenu] = useState(false);
+  const [excelAssistantOpen, setExcelAssistantOpen] = useState(false);
 
   // ── Chat name editing ──
   const [isEditingName, setIsEditingName] = useState(false);
@@ -1024,7 +1026,17 @@ const finalContent = content || "Analyze this file and summarize the key points.
           isTempUploading={isTempUploading}
           onPaperclipChange={handlePaperclipChange}
           onRemoveTempFile={() => setTempFile(null)}
+          onOpenExcelAssistant={() => { setExcelAssistantOpen(true); setShowPlusMenu(false); }}
         />
+
+        {!isQuickChat && chatId && (
+          <ExcelAssistant
+            chatId={chatId}
+            hideTrigger
+            open={excelAssistantOpen}
+            onOpenChange={setExcelAssistantOpen}
+          />
+        )}
 
         {/* ── Save temp file to sources prompt ── */}
         {pendingTempFile && (

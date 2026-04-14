@@ -6,6 +6,17 @@ UI версия: `frontend/src/data/changelog.js`
 
 ---
 
+## 2026-04-14 — v2.9.12
+
+### Feature: Excel Assistant in Plus menu
+**Commit:** `134c80c`  
+**Файлы:** `frontend/src/pages/ChatPage.js`, `frontend/src/components/chat/ChatInput.js`, `frontend/src/components/ExcelAssistant.js`
+
+- Plus menu: пункт «Excel Assistant» открывает диалог загрузки таблицы и инструкции к AI (`POST /chats/{id}/excel-process`)
+- `ExcelAssistant`: опционально `hideTrigger`, controlled `open` / `onOpenChange` для открытия из родителя без отдельной кнопки в хедере
+
+---
+
 ## 2026-04-14 — v2.9.11
 
 ### Feature: animated thinking steps during AI response
