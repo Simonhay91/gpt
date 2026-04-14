@@ -713,9 +713,15 @@ const finalContent = content || "Analyze this file and summarize the key points.
             )}
             <p className="text-xs text-muted-foreground mt-0.5">
               {messages.length} {messages.length === 1 ? 'message' : 'messages'}
-              {!isQuickChat && !sourcesExplicitlySet && projectSources.length > 0 && <span className="ml-1.5 text-indigo-400">• all sources</span>}
-              {!isQuickChat && sourcesExplicitlySet && activeSourceIds.length > 0 && <span className="ml-1.5 text-indigo-400">• {activeSourceIds.length} source{activeSourceIds.length !== 1 ? 's' : ''} active</span>}
-              {!isQuickChat && sourcesExplicitlySet && activeSourceIds.length === 0 && <span className="ml-1.5 text-amber-400">• no sources</span>}
+              {!isQuickChat && !sourcesExplicitlySet && projectSources.length > 0 && (
+                <button onClick={() => setShowSourcePanel(true)} className="ml-1.5 text-indigo-400 hover:text-indigo-300 hover:underline transition-colors">• all sources</button>
+              )}
+              {!isQuickChat && sourcesExplicitlySet && activeSourceIds.length > 0 && (
+                <button onClick={() => setShowSourcePanel(true)} className="ml-1.5 text-indigo-400 hover:text-indigo-300 hover:underline transition-colors">• {activeSourceIds.length} source{activeSourceIds.length !== 1 ? 's' : ''} active</button>
+              )}
+              {!isQuickChat && sourcesExplicitlySet && activeSourceIds.length === 0 && (
+                <button onClick={() => setShowSourcePanel(true)} className="ml-1.5 text-amber-400 hover:text-amber-300 hover:underline transition-colors">• no sources</button>
+              )}
             </p>
           </div>
 
