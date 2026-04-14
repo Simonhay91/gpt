@@ -45,7 +45,7 @@ export const ChatInput = ({
   const canSend = (input.trim() || tempFile) && !isSending;
 
   return (
-    <div className="border-t border-border px-6 py-4 bg-card/50 backdrop-blur">
+    <div className="px-4 py-3 bg-card/50 backdrop-blur">
       <div className="max-w-3xl mx-auto space-y-2">
 
         {/* Temp file preview badge */}
@@ -76,10 +76,10 @@ export const ChatInput = ({
           </div>
         )}
 
-        <div className="flex gap-3 items-end">
+        <div className="flex gap-2 items-end">
           {/* Plus menu — only for project chats */}
           {!isQuickChat && (
-            <div className="relative flex-shrink-0 self-end mb-0.5" ref={plusMenuRef}>
+            <div className="relative flex-shrink-0 self-end mb-1" ref={plusMenuRef}>
               <input
                 type="file"
                 accept=".jpg,.jpeg,.png,.pdf,.xlsx,.xls,.csv,.docx"
@@ -205,31 +205,32 @@ export const ChatInput = ({
             </div>
           )}
 
-          <Textarea
-            ref={textareaRef}
-            placeholder={
-              tempFile
-                ? `Задайте вопрос по файлу "${tempFile.filename}"...`
-                : activeSourceIds.length > 0
-                  ? "Ask a question about the selected sources..."
-                  : "Type your message... (Enter to send, Shift+Enter for new line)"
-            }
-            value={input}
-            onChange={(e) => onInputChange(e.target.value)}
-            onKeyDown={onKeyDown}
-            className="min-h-[60px] max-h-[200px] resize-none bg-background flex-1"
-            disabled={isSending}
-            data-testid="chat-input"
-          />
-
-          <Button
-            onClick={onSend}
-            disabled={!canSend}
-            className="btn-hover self-end"
-            data-testid="send-message-btn"
-          >
-            {isSending ? <Loader2 className="h-5 w-5 animate-spin" /> : <Send className="h-5 w-5" />}
-          </Button>
+          {/* Pill input container */}
+          <div className="flex-1 flex items-end gap-2 rounded-2xl border border-border bg-background px-4 py-2 focus-within:ring-2 focus-within:ring-indigo-500/30 transition-shadow">
+            <Textarea
+              ref={textareaRef}
+              placeholder={
+                tempFile
+                  ? `Ask about "${tempFile.filename}"...`
+                  : "Message..."
+              }
+              value={input}
+              onChange={(e) => onInputChange(e.target.value)}
+              onKeyDown={onKeyDown}
+              className="min-h-[36px] max-h-[160px] resize-none bg-transparent border-0 shadow-none focus-visible:ring-0 p-0 flex-1 text-sm"
+              disabled={isSending}
+              data-testid="chat-input"
+            />
+            <Button
+              onClick={onSend}
+              disabled={!canSend}
+              size="icon"
+              className="h-8 w-8 rounded-xl flex-shrink-0 self-end"
+              data-testid="send-message-btn"
+            >
+              {isSending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+            </Button>
+          </div>
         </div>
       </div>
     </div>

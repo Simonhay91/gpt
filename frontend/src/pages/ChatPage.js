@@ -719,7 +719,18 @@ const finalContent = content || "Analyze this file and summarize the key points.
             </p>
           </div>
 
-          {chat?.projectId && <ImageGenerator projectId={chat.projectId} onImageGenerated={handleImageGenerated} />}
+          {!isQuickChat && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className={`h-8 w-8 flex-shrink-0 ${showSourcePanel ? 'text-indigo-400' : 'text-muted-foreground'}`}
+              onClick={() => setShowSourcePanel(v => !v)}
+              data-testid="toggle-source-panel-btn"
+              title="Sources"
+            >
+              <FileText className="h-4 w-4" />
+            </Button>
+          )}
         </div>
 
         {/* ── Move Chat Dialog ── */}
@@ -787,8 +798,8 @@ const finalContent = content || "Analyze this file and summarize the key points.
                 onClick={() => setShowSourcePanel(false)}
               />
             )}
-            {/* Drawer */}
-            <div className={`fixed top-0 left-0 h-full z-40 w-80 bg-card border-r border-border shadow-2xl transition-transform duration-300 ease-in-out flex flex-col ${showSourcePanel ? 'translate-x-0' : '-translate-x-full'}`}>
+            {/* Drawer — right side */}
+            <div className={`fixed top-0 right-0 h-full z-40 w-96 bg-card border-l border-border shadow-2xl transition-transform duration-300 ease-in-out flex flex-col ${showSourcePanel ? 'translate-x-0' : 'translate-x-full'}`}>
               <SourcePanel
                 projectSources={projectSources}
                 activeSourceIds={activeSourceIds}
@@ -853,6 +864,13 @@ const finalContent = content || "Analyze this file and summarize the key points.
             <DialogFooter><Button variant="outline" onClick={() => setPreviewDialogOpen(false)}>Close</Button></DialogFooter>
           </DialogContent>
         </Dialog>
+
+        {/* Hidden ImageGenerator — triggered from Plus menu */}
+        {chat?.projectId && (
+          <div className="hidden">
+            <ImageGenerator projectId={chat.projectId} onImageGenerated={handleImageGenerated} />
+          </div>
+        )}
 
         {/* ── Messages Area ── */}
         <ScrollArea
