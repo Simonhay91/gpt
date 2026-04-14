@@ -1000,12 +1000,7 @@ async def save_to_knowledge(
 
 @router.post("/chats/{chat_id}/save-context")
 async def save_chat_context(chat_id: str, data: dict, current_user: dict = Depends(get_current_user)):
-    """Summarize chat and save either to AI Profile or Project Memory.
-
-    data:
-      - dialogText: str (required)
-      - saveTo: "ai_profile" | "project_memory" (optional; default ai_profile)
-    """
+    """Save chat context to user's AI Profile via summarization"""
     db = get_db()
     chat = await db.chats.find_one({"id": chat_id}, {"_id": 0})
     if not chat:
@@ -1020,10 +1015,6 @@ async def save_chat_context(chat_id: str, data: dict, current_user: dict = Depen
     dialog_text = data.get("dialogText", "")
     if not dialog_text or len(dialog_text.strip()) < 10:
         raise HTTPException(status_code=400, detail="Dialog text too short")
-
-    save_to = (data.get("saveTo") or "ai_profile").strip()
-    if save_to not in ("ai_profile", "project_memory"):
-        raise HTTPException(status_code=400, detail="Invalid saveTo value")
 
     try:
         CLAUDE_API_KEY = os.environ.get('CLAUDE_API_KEY', '')
@@ -1046,26 +1037,6 @@ async def save_chat_context(chat_id: str, data: dict, current_user: dict = Depen
         now = datetime.now(timezone.utc)
         context_prefix = f"[Контекст чата: {now.strftime('%Y-%m-%d %H:%M')}]\n{summary}"
 
-        if save_to == "project_memory":
-            if not chat.get("projectId"):
-                raise HTTPException(status_code=400, detail="Chat is not linked to a project")
-
-            project_doc = await db.projects.find_one({"id": chat["projectId"]}, {"_id": 0, "project_memory": 1})
-            existing_mem = (project_doc or {}).get("project_memory", "") or ""
-            separator = "\n\n---\n" if existing_mem.strip() else ""
-            updated_mem = f"{existing_mem}{separator}{context_prefix}".strip()
-
-            if len(updated_mem) > 6000:
-                raise HTTPException(status_code=400, detail="Project Memory is full (max 6000 chars)")
-
-            await db.projects.update_one(
-                {"id": chat["projectId"]},
-                {"$set": {"project_memory": updated_mem, "updatedAt": now.isoformat()}}
-            )
-
-            return {"success": True, "summary": summary, "message": "Контекст сохранен в Project Memory"}
-
-        # default: ai_profile
         user_data = await db.users.find_one({"id": current_user["id"]}, {"_id": 0})
         if not user_data:
             raise HTTPException(status_code=404, detail="User not found")

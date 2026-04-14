@@ -6,6 +6,16 @@ UI версия: `frontend/src/data/changelog.js`
 
 ---
 
+## 2026-04-14 — v2.9.10
+
+### Fix/Rollback: auto-save context not writing Project Memory
+**Commit:** `6aca086`  
+**Файлы:** `backend/routes/messages.py`, `frontend/src/pages/ChatPage.js`
+
+- Откат изменения: авто‑сохранение контекста больше не пишет в Project Memory
+
+---
+
 ## 2026-04-14 — v2.9.7
 
 ### Fix: AI always knows active sources even when no chunks retrieved

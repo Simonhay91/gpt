@@ -1,6 +1,14 @@
-export const APP_VERSION = "2.9.9";
+export const APP_VERSION = "2.9.10";
 
 export const CHANGELOG = [
+  {
+    version: "2.9.10",
+    date: "Апрель 2026",
+    badge: "fix",
+    changes: [
+      "Rollback: авто-сохранение контекста вернули обратно (не пишет в Project Memory)",
+    ]
+  },
   {
     version: "2.9.9",
     date: "Апрель 2026",
