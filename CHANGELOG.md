@@ -1,0 +1,74 @@
+# История обновлений / Changelog
+
+Формат: `[дата] — краткое описание`  
+Ветка: `main`
+
+---
+
+## 2026-04-14
+
+### RAG — Fix source selection, filename targeting, save-to-sources (`244af3a`)
+**Файлы:** `backend/routes/messages.py`, `backend/services/rag.py`
+
+- **Bug fix:** `activeSourceIds` (checkbox в SourcePanel) теперь реально ограничивает RAG-пул.  
+  Логика: `null` = чат новый → все источники; `[]` = всё снято вручную → ни одного; `[ids]` = пересечение с accessible.
+- **Bug fix:** Pre-RAG filename resolution — если пользователь упоминает имя файла в сообщении, retrieval ограничивается только этим источником.
+- **Улучшение:** `SYS_META` теперь содержит `targeted=<filename>` с инструкцией фокусироваться только на упомянутом файле.
+- **Улучшение:** `rag.py` — 1.5× score boost для чанков из явно упомянутого источника.
+- **Bug fix:** `save_to_knowledge` — при сохранении из проектного чата источник теперь создаётся как `level=project` с реальным `projectId` (раньше всегда `personal + null`).
+- **Bug fix:** `save_to_knowledge` — новый источник автоматически добавляется в `chat.activeSourceIds`.
+
+---
+
+### OEM: PDF image extraction, header image upload, brand live preview (`764b813`)
+**Файлы:** `backend/routes/oem_datasheet.py`, `frontend/src/pages/AdminBrandsPage.js`
+
+- Добавлена функция `extract_images_from_pdf` (PyMuPDF/fitz) — извлекает изображения из PDF.
+- В `rebuild_docx_from_pdf` — изображения вставляются после каждой секции (index 0 пропускается как логотип поставщика).
+- Новый endpoint `POST /api/oem/brands/{id}/header-image` — загрузка header image с сохранением в MongoDB (`logoDataMap`).
+- Header image вставляется в header-полосу документа рядом с логотипом.
+- `extractedImageCount` логируется в `oem_jobs`.
+- `AdminBrandsPage`: живой preview бренда (header/footer/colors) справа от формы.
+- Слайдеры для `headerHeightPx` (40–120), `logoSizePx` (20–80), `footerHeightPx` (24–60).
+- Поле загрузки header image в форме редактирования бренда.
+
+---
+
+### Product matching: AI match-file endpoint + Match File UI (`86deacc`)
+**Файлы:** `backend/routes/product_catalog.py`, `frontend/src/pages/ProductCatalogPage.js`
+
+- AI-эндпоинт для сопоставления файла с товарами каталога.
+- UI для загрузки файла и просмотра результатов матчинга в ProductCatalogPage.
+
+---
+
+## 2026-04-13
+
+### Fix sidebar layout (`4466540`)
+**Файл:** `frontend/src/components/DashboardLayout.js`
+
+- Flex column layout для сайдбара.
+- Nav прокручивается независимо.
+- Секция пользователя всегда внизу.
+
+---
+
+### Logo persistence — MongoDB base64 fallback (`2a97f3b`)
+**Файл:** `backend/routes/oem_datasheet.py`
+
+- Логотипы бренда сохраняются в MongoDB как base64.
+- При redeploy (потеря файлов) логотип восстанавливается из базы данных автоматически.
+
+---
+
+### OEM header/footer — full-width edge-to-edge band (`cad5f6e`)
+**Файл:** `backend/routes/oem_datasheet.py`
+
+- Полноширинная цветная полоса header/footer через отрицательный `w:ind`.
+- Точная высота через `w:lineRule=exact`.
+- Контроль: `headerHeightPx`, `headerPaddingPx`, `logoSizePx`, `footerHeightPx`, `footerPaddingPx`.
+- Copyright по центру footer-а через tab stop.
+
+---
+
+*Этот файл обновляется вручную после каждого значимого коммита.*
