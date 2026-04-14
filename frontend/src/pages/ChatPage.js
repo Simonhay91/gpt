@@ -16,9 +16,9 @@ import { SourcePanel } from '../components/chat/SourcePanel';
 import { ChatInput } from '../components/chat/ChatInput';
 import { toast } from 'sonner';
 import {
-  ArrowLeft, Bot, Loader2, FileText, File, Globe, ImageIcon,
-  ChevronDown, Pencil, Check, X, MoveRight, FolderOpen,
-  MessageSquare, Plus, Target, Globe2, Brain
+  ArrowLeft, Loader2, FileText, File, Globe, ImageIcon,
+  ChevronDown, Pencil, Check, X, FolderOpen,
+  MessageSquare, Plus, Bot
 } from 'lucide-react';
 import DashboardLayout from '../components/DashboardLayout';
 
@@ -683,80 +683,43 @@ const finalContent = content || "Analyze this file and summarize the key points.
       <div className="flex flex-col h-[calc(100vh-4rem)]" data-testid="chat-page">
 
         {/* ── Header ── */}
-        <div className="border-b border-border px-6 py-4 flex items-center justify-between bg-card/50 backdrop-blur">
-          <div className="flex items-center gap-4">
-            <Button variant="ghost" size="icon" onClick={() => chat?.projectId ? navigate(`/projects/${chat.projectId}`) : navigate('/dashboard')} data-testid="back-from-chat-btn">
-              <ArrowLeft className="h-5 w-5" />
-            </Button>
-            <div>
-              {isEditingName ? (
-                <div className="flex items-center gap-2">
-                  <MessageSquare className="h-4 w-4 text-emerald-400" />
-                  <Input ref={nameInputRef} value={editedName} onChange={(e) => setEditedName(e.target.value)} onKeyDown={handleNameKeyDown} className="h-8 w-48 text-sm font-semibold" disabled={isSavingName} data-testid="chat-name-input" />
-                  <Button variant="ghost" size="icon" className="h-7 w-7" onClick={saveNewName} disabled={isSavingName} data-testid="save-chat-name-btn">
-                    {isSavingName ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4 text-emerald-400" />}
-                  </Button>
-                  <Button variant="ghost" size="icon" className="h-7 w-7" onClick={cancelEditingName} disabled={isSavingName}><X className="h-4 w-4 text-muted-foreground" /></Button>
-                </div>
-              ) : (
-                <h1 className="font-semibold flex items-center gap-2">
-                  {isQuickChat ? (
-                    <>
-                      <MessageSquare className="h-4 w-4 text-emerald-400" />
-                      <span className="cursor-pointer hover:text-emerald-400 transition-colors" onClick={startEditingName} data-testid="chat-name-display">{chat.name || 'Quick Chat'}</span>
-                      <Button variant="ghost" size="icon" className="h-6 w-6 opacity-50 hover:opacity-100" onClick={startEditingName} data-testid="edit-chat-name-btn"><Pencil className="h-3 w-3" /></Button>
-                    </>
-                  ) : (
-                    <>
-                      {currentProjectName && (
-                        <button className="text-muted-foreground hover:text-foreground transition-colors text-sm font-normal" onClick={() => navigate(`/projects/${chat.projectId}`)} data-testid="breadcrumb-project-name">
-                          {currentProjectName}
-                        </button>
-                      )}
-                      {currentProjectName && <span className="text-muted-foreground mx-1">/</span>}
-                      <span className="cursor-pointer hover:text-emerald-400 transition-colors" onClick={startEditingName} data-testid="chat-name-display">{chat?.name || 'Untitled Chat'}</span>
-                      <Button variant="ghost" size="icon" className="h-6 w-6 opacity-50 hover:opacity-100" onClick={startEditingName} data-testid="edit-chat-name-btn"><Pencil className="h-3 w-3" /></Button>
-                    </>
-                  )}
-                </h1>
-              )}
-              <p className="text-sm text-muted-foreground">
-                {messages.length} {messages.length === 1 ? 'message' : 'messages'}
-                {!isQuickChat && !sourcesExplicitlySet && projectSources.length > 0 && <span className="ml-2 text-indigo-400">• all sources</span>}
-                {!isQuickChat && sourcesExplicitlySet && activeSourceIds.length > 0 && <span className="ml-2 text-indigo-400">• {activeSourceIds.length} source{activeSourceIds.length !== 1 ? 's' : ''} active</span>}
-                {!isQuickChat && sourcesExplicitlySet && activeSourceIds.length === 0 && <span className="ml-2 text-amber-400">• no sources</span>}
-                {isQuickChat && <span className="ml-2 text-emerald-400">• Quick Chat</span>}
-              </p>
-            </div>
+        <div className="px-4 py-3 flex items-center gap-3 bg-card/50 backdrop-blur border-b border-border">
+          <Button variant="ghost" size="icon" className="h-8 w-8 flex-shrink-0" onClick={() => chat?.projectId ? navigate(`/projects/${chat.projectId}`) : navigate('/dashboard')} data-testid="back-from-chat-btn">
+            <ArrowLeft className="h-4 w-4" />
+          </Button>
+
+          <div className="flex-1 min-w-0">
+            {isEditingName ? (
+              <div className="flex items-center gap-2">
+                <Input ref={nameInputRef} value={editedName} onChange={(e) => setEditedName(e.target.value)} onKeyDown={handleNameKeyDown} className="h-7 text-sm font-semibold" disabled={isSavingName} data-testid="chat-name-input" />
+                <Button variant="ghost" size="icon" className="h-6 w-6 flex-shrink-0" onClick={saveNewName} disabled={isSavingName} data-testid="save-chat-name-btn">
+                  {isSavingName ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3 text-emerald-400" />}
+                </Button>
+                <Button variant="ghost" size="icon" className="h-6 w-6 flex-shrink-0" onClick={cancelEditingName} disabled={isSavingName}><X className="h-3 w-3" /></Button>
+              </div>
+            ) : (
+              <div className="flex items-center gap-1.5 min-w-0">
+                {currentProjectName && (
+                  <button className="text-muted-foreground hover:text-foreground transition-colors text-sm shrink-0" onClick={() => navigate(`/projects/${chat.projectId}`)} data-testid="breadcrumb-project-name">
+                    {currentProjectName}
+                  </button>
+                )}
+                {currentProjectName && <span className="text-muted-foreground text-sm">/</span>}
+                <button className="font-semibold text-sm truncate hover:text-muted-foreground transition-colors" onClick={startEditingName} data-testid="chat-name-display">
+                  {isQuickChat ? (chat.name || 'Quick Chat') : (chat?.name || 'Untitled Chat')}
+                </button>
+                <Button variant="ghost" size="icon" className="h-5 w-5 opacity-40 hover:opacity-100 flex-shrink-0" onClick={startEditingName} data-testid="edit-chat-name-btn"><Pencil className="h-2.5 w-2.5" /></Button>
+              </div>
+            )}
+            <p className="text-xs text-muted-foreground mt-0.5">
+              {messages.length} {messages.length === 1 ? 'message' : 'messages'}
+              {!isQuickChat && !sourcesExplicitlySet && projectSources.length > 0 && <span className="ml-1.5 text-indigo-400">• all sources</span>}
+              {!isQuickChat && sourcesExplicitlySet && activeSourceIds.length > 0 && <span className="ml-1.5 text-indigo-400">• {activeSourceIds.length} source{activeSourceIds.length !== 1 ? 's' : ''} active</span>}
+              {!isQuickChat && sourcesExplicitlySet && activeSourceIds.length === 0 && <span className="ml-1.5 text-amber-400">• no sources</span>}
+            </p>
           </div>
 
-          <div className="flex items-center gap-2">
-            {/* Source mode toggle */}
-            <div className="flex items-center gap-1 bg-muted/50 rounded-lg p-1">
-              <Button variant={sourceMode === 'my' ? 'default' : 'ghost'} size="sm" onClick={() => updateSourceMode('my')} className={`gap-1.5 h-8 ${sourceMode === 'my' ? 'bg-violet-600 hover:bg-violet-700' : ''}`} data-testid="source-mode-my">
-                <Target className="h-3.5 w-3.5" /><span className="hidden sm:inline">My Sources</span>
-              </Button>
-              <Button variant={sourceMode === 'all' ? 'default' : 'ghost'} size="sm" onClick={() => updateSourceMode('all')} className={`gap-1.5 h-8 ${sourceMode === 'all' ? 'bg-emerald-600 hover:bg-emerald-700' : ''}`} data-testid="source-mode-all">
-                <Globe2 className="h-3.5 w-3.5" /><span className="hidden sm:inline">All Sources</span>
-              </Button>
-              <Button variant={sourceMode === 'ai_only' ? 'default' : 'ghost'} size="sm" onClick={() => updateSourceMode('ai_only')} className={`gap-1.5 h-8 ${sourceMode === 'ai_only' ? 'bg-orange-600 hover:bg-orange-700' : ''}`} data-testid="source-mode-ai-only">
-                <Bot className="h-3.5 w-3.5" /><span className="hidden sm:inline">AI Only</span>
-              </Button>
-            </div>
-            <Button variant="outline" size="sm" onClick={openMoveDialog} className="gap-2" data-testid="move-chat-btn"><MoveRight className="h-4 w-4" />Move</Button>
-            {!isQuickChat && (
-              <Button variant="outline" size="sm" onClick={() => setMemoryModalOpen(true)} disabled={!messages.length} className="gap-2" data-testid="memory-btn">
-                <Brain className="h-4 w-4 text-violet-400" /><span className="hidden sm:inline">Memory</span>
-              </Button>
-            )}
-            {chat?.projectId && <ImageGenerator projectId={chat.projectId} onImageGenerated={handleImageGenerated} />}
-            {!isQuickChat && (
-              <Button variant="outline" size="sm" onClick={() => setShowSourcePanel(!showSourcePanel)} className="gap-2" data-testid="toggle-source-panel-btn">
-                <FileText className="h-4 w-4" />Sources
-                {showSourcePanel ? <X className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-              </Button>
-            )}
-          </div>
+          {chat?.projectId && <ImageGenerator projectId={chat.projectId} onImageGenerated={handleImageGenerated} />}
         </div>
 
         {/* ── Move Chat Dialog ── */}
@@ -814,45 +777,57 @@ const finalContent = content || "Analyze this file and summarize the key points.
           </DialogContent>
         </Dialog>
 
-        {/* ── Source Panel ── */}
-        {!isQuickChat && showSourcePanel && (
-          <SourcePanel
-            projectSources={projectSources}
-            activeSourceIds={activeSourceIds}
-            sourcesExplicitlySet={sourcesExplicitlySet}
-            currentProjectName={currentProjectName}
-            currentUser={user}
-            chat={chat}
-            isUploading={isUploading}
-            isAddingUrl={isAddingUrl}
-            urlInput={urlInput}
-            onUrlInputChange={setUrlInput}
-            onAddUrl={handleAddUrl}
-            onClose={() => setShowSourcePanel(false)}
-            onToggleSource={toggleSourceSelection}
-            onToggleGroupSelection={toggleGroupSelection}
-            onSelectAll={selectAllSources}
-            onDeselectAll={deselectAllSources}
-            onResetToAll={resetSourcesToAll}
-            expandedGroups={expandedGroups}
-            onToggleGroup={toggleGroup}
-            groupedSources={groupedSources}
-            onDeleteSource={deleteSource}
-            onPreview={openPreview}
-            onDownload={downloadSource}
-            onSaveToDept={saveToDepartment}
-            searchQuery={searchQuery}
-            onSearchQueryChange={setSearchQuery}
-            onSearch={searchSources}
-            isSearching={isSearching}
-            showSearchResults={showSearchResults}
-            searchResults={searchResults}
-            onCloseSearch={() => { setShowSearchResults(false); setSearchResults([]); setSearchQuery(''); }}
-            fileInputRef={fileInputRef}
-            onFileInputChange={handleFileUpload}
-            showInfoBlock={showInfoBlock}
-            onCloseInfoBlock={() => setShowInfoBlock(false)}
-          />
+        {/* ── Source Panel (left drawer) ── */}
+        {!isQuickChat && (
+          <>
+            {/* Backdrop */}
+            {showSourcePanel && (
+              <div
+                className="fixed inset-0 z-30 bg-black/40 backdrop-blur-sm"
+                onClick={() => setShowSourcePanel(false)}
+              />
+            )}
+            {/* Drawer */}
+            <div className={`fixed top-0 left-0 h-full z-40 w-80 bg-card border-r border-border shadow-2xl transition-transform duration-300 ease-in-out flex flex-col ${showSourcePanel ? 'translate-x-0' : '-translate-x-full'}`}>
+              <SourcePanel
+                projectSources={projectSources}
+                activeSourceIds={activeSourceIds}
+                sourcesExplicitlySet={sourcesExplicitlySet}
+                currentProjectName={currentProjectName}
+                currentUser={user}
+                chat={chat}
+                isUploading={isUploading}
+                isAddingUrl={isAddingUrl}
+                urlInput={urlInput}
+                onUrlInputChange={setUrlInput}
+                onAddUrl={handleAddUrl}
+                onClose={() => setShowSourcePanel(false)}
+                onToggleSource={toggleSourceSelection}
+                onToggleGroupSelection={toggleGroupSelection}
+                onSelectAll={selectAllSources}
+                onDeselectAll={deselectAllSources}
+                onResetToAll={resetSourcesToAll}
+                expandedGroups={expandedGroups}
+                onToggleGroup={toggleGroup}
+                groupedSources={groupedSources}
+                onDeleteSource={deleteSource}
+                onPreview={openPreview}
+                onDownload={downloadSource}
+                onSaveToDept={saveToDepartment}
+                searchQuery={searchQuery}
+                onSearchQueryChange={setSearchQuery}
+                onSearch={searchSources}
+                isSearching={isSearching}
+                showSearchResults={showSearchResults}
+                searchResults={searchResults}
+                onCloseSearch={() => { setShowSearchResults(false); setSearchResults([]); setSearchQuery(''); }}
+                fileInputRef={fileInputRef}
+                onFileInputChange={handleFileUpload}
+                showInfoBlock={showInfoBlock}
+                onCloseInfoBlock={() => setShowInfoBlock(false)}
+              />
+            </div>
+          </>
         )}
 
         {/* ── Preview Dialog ── */}
@@ -883,7 +858,6 @@ const finalContent = content || "Analyze this file and summarize the key points.
         <ScrollArea
           className="flex-1 px-6 py-4"
           ref={scrollAreaRef}
-          onClick={() => showSourcePanel && setShowSourcePanel(false)}
         >
           {messages.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full text-center">
@@ -954,6 +928,7 @@ const finalContent = content || "Analyze this file and summarize the key points.
           isUploading={isUploading}
           isQuickChat={isQuickChat}
           activeSourceIds={activeSourceIds}
+          sourcesExplicitlySet={sourcesExplicitlySet}
           chat={chat}
           messages={messages}
           isSavingContext={isSavingContext}
@@ -961,6 +936,7 @@ const finalContent = content || "Analyze this file and summarize the key points.
           onShowSourcePanel={() => setShowSourcePanel(true)}
           onSaveContext={saveContext}
           onOpenMemory={() => setMemoryModalOpen(true)}
+          onOpenMoveDialog={openMoveDialog}
           textareaRef={textareaRef}
           plusMenuRef={plusMenuRef}
           showPlusMenu={showPlusMenu}

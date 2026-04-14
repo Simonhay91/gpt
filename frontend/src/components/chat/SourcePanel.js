@@ -69,14 +69,15 @@ export const SourcePanel = ({
   };
 
   return (
-    <div className="border-b border-border bg-card/30 px-6 py-4" data-testid="source-panel">
-      <div className="max-w-3xl mx-auto">
-        {/* Close button */}
-        <div className="flex justify-end mb-2">
-          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={onClose} data-testid="close-source-panel-btn" title="Close">
-            <X className="h-4 w-4 text-muted-foreground" />
-          </Button>
-        </div>
+    <div className="flex flex-col h-full overflow-hidden" data-testid="source-panel">
+      {/* Drawer header */}
+      <div className="flex items-center justify-between px-4 py-3 border-b border-border flex-shrink-0">
+        <span className="font-semibold text-sm">Sources</span>
+        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={onClose} data-testid="close-source-panel-btn" title="Close">
+          <X className="h-4 w-4 text-muted-foreground" />
+        </Button>
+      </div>
+      <div className="flex-1 overflow-y-auto px-4 py-4">
 
         {/* Upload row */}
         <div className="flex flex-wrap items-center gap-3 mb-4">
@@ -288,7 +289,7 @@ export const SourcePanel = ({
         {projectSources.length > 0 && (
           <p className="text-xs text-muted-foreground mt-3 flex items-center gap-1">
             <span className="inline-block w-2 h-2 rounded-full bg-indigo-500"></span>
-            Выбранные источники используются как контекст для AI ответов
+            Checked sources are used as AI context
           </p>
         )}
       </div>

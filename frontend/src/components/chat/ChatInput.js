@@ -3,7 +3,7 @@ import { Button } from '../ui/button';
 import { Textarea } from '../ui/textarea';
 import {
   Loader2, Send, Plus, Upload, Link, ImageIcon, Save, Brain, X,
-  FileText, FileSpreadsheet, File
+  FileText, FileSpreadsheet, File, MoveRight
 } from 'lucide-react';
 
 const FILE_TYPE_ICON = {
@@ -24,6 +24,7 @@ export const ChatInput = ({
   isUploading,
   isQuickChat,
   activeSourceIds,
+  sourcesExplicitlySet,
   chat,
   messages,
   isSavingContext,
@@ -31,6 +32,7 @@ export const ChatInput = ({
   onShowSourcePanel,
   onSaveContext,
   onOpenMemory,
+  onOpenMoveDialog,
   textareaRef,
   plusMenuRef,
   showPlusMenu,
@@ -116,7 +118,24 @@ export const ChatInput = ({
                     onClick={() => { onShowSourcePanel(); onTogglePlusMenu(false); }}
                   >
                     <div className="flex items-center justify-center h-8 w-8 rounded-lg bg-blue-500/15">
-                      <Link className="h-4 w-4 text-blue-400" />
+                      <FileText className="h-4 w-4 text-blue-400" />
+                    </div>
+                    <div>
+                      <p className="font-medium">My Sources</p>
+                      <p className="text-xs text-muted-foreground">
+                        {sourcesExplicitlySet
+                          ? (activeSourceIds?.length > 0 ? `${activeSourceIds.length} active` : 'none selected')
+                          : 'all active'}
+                      </p>
+                    </div>
+                  </button>
+
+                  <button
+                    className="w-full flex items-center gap-3 px-4 py-3 text-sm hover:bg-secondary transition-colors text-left"
+                    onClick={() => { onShowSourcePanel(); onTogglePlusMenu(false); }}
+                  >
+                    <div className="flex items-center justify-center h-8 w-8 rounded-lg bg-cyan-500/15">
+                      <Link className="h-4 w-4 text-cyan-400" />
                     </div>
                     <div>
                       <p className="font-medium">Add URL</p>
@@ -168,6 +187,19 @@ export const ChatInput = ({
                       </div>
                     </button>
                   )}
+
+                  <button
+                    className="w-full flex items-center gap-3 px-4 py-3 text-sm hover:bg-secondary transition-colors text-left border-t border-border"
+                    onClick={() => { onOpenMoveDialog?.(); onTogglePlusMenu(false); }}
+                  >
+                    <div className="flex items-center justify-center h-8 w-8 rounded-lg bg-orange-500/15">
+                      <MoveRight className="h-4 w-4 text-orange-400" />
+                    </div>
+                    <div>
+                      <p className="font-medium">Move Chat</p>
+                      <p className="text-xs text-muted-foreground">Move to another project</p>
+                    </div>
+                  </button>
                 </div>
               )}
             </div>
