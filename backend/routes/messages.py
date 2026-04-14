@@ -162,6 +162,7 @@ async def send_message(
     # Department and global sources are temporarily excluded from chat RAG.
     # Only personal (My Sources) + project sources are used.
     source_mode = chat.get("sourceMode", "all")
+    user_department_ids = []  # dept/global excluded — kept for rag.py signature compatibility
 
     personal_sources = await db.sources.find(
         {"level": "personal", "ownerId": current_user["id"], "status": {"$in": ["active", None]}},
@@ -185,8 +186,6 @@ async def send_message(
         active_source_ids = []
         personal_source_ids = []
         project_source_ids = []
-        department_source_ids = []
-        global_source_ids = []
 
     # Apply user's checkbox selection from SourcePanel.
     # Prefer payload value (real-time from frontend) over DB value (may lag due to 500ms debounce).
