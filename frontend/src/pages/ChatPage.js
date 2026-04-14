@@ -805,7 +805,7 @@ const finalContent = content || "Analyze this file and summarize the key points.
               />
             )}
             {/* Drawer — right side */}
-            <div className={`fixed top-0 right-0 h-full z-40 w-96 bg-card border-l border-border shadow-2xl transition-transform duration-300 ease-in-out flex flex-col ${showSourcePanel ? 'translate-x-0' : 'translate-x-full'}`}>
+            <div className={`fixed top-0 right-0 h-full z-40 w-[500px] bg-card border-l border-border shadow-2xl transition-transform duration-300 ease-in-out flex flex-col ${showSourcePanel ? 'translate-x-0' : 'translate-x-full'}`}>
               <SourcePanel
                 projectSources={projectSources}
                 activeSourceIds={activeSourceIds}
