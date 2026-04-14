@@ -158,9 +158,10 @@ async def send_message(
             if source:
                 auto_ingested_sources.append(source)
 
-    # ── 2. Collect source IDs by hierarchy ──
+    # ── 2. Collect source IDs ──
+    # Department and global sources are temporarily excluded from chat RAG.
+    # Only personal (My Sources) + project sources are used.
     source_mode = chat.get("sourceMode", "all")
-    user_department_ids = current_user.get("departments", [])
 
     personal_sources = await db.sources.find(
         {"level": "personal", "ownerId": current_user["id"], "status": {"$in": ["active", None]}},
@@ -176,23 +177,7 @@ async def send_message(
         ).to_list(1000)
         project_source_ids = [s["id"] for s in project_sources]
 
-    department_source_ids = []
-    global_source_ids = []
-    if source_mode == 'all':
-        if user_department_ids:
-            dept_sources = await db.sources.find(
-                {"departmentId": {"$in": user_department_ids}, "level": "department", "status": "active"},
-                {"_id": 0, "id": 1}
-            ).to_list(1000)
-            department_source_ids = [s["id"] for s in dept_sources]
-
-        global_sources = await db.sources.find(
-            {"$or": [{"projectId": GLOBAL_PROJECT_ID}, {"level": "global", "status": "active"}]},
-            {"_id": 0, "id": 1}
-        ).to_list(1000)
-        global_source_ids = [s["id"] for s in global_sources]
-
-    active_source_ids = personal_source_ids + project_source_ids + department_source_ids + global_source_ids
+    active_source_ids = personal_source_ids + project_source_ids
     user_accessible_source_ids = active_source_ids.copy()
 
     # AI Only mode — bypass all sources and web search
