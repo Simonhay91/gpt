@@ -43,6 +43,7 @@ export const SourcePanel = ({
   onToggleGroupSelection,
   onSelectAll,
   onDeselectAll,
+  onResetToAll,
   expandedGroups,
   onToggleGroup,
   groupedSources,
@@ -191,6 +192,9 @@ export const SourcePanel = ({
               <div className="flex gap-1">
                 <Button variant="ghost" size="sm" className="h-6 text-xs px-2" onClick={onSelectAll} data-testid="select-all-sources">Все</Button>
                 <Button variant="ghost" size="sm" className="h-6 text-xs px-2" onClick={onDeselectAll} data-testid="deselect-all-sources">Сбросить</Button>
+                {sourcesExplicitlySet && (
+                  <Button variant="ghost" size="sm" className="h-6 text-xs px-2 text-amber-500 hover:text-amber-600" onClick={onResetToAll} title="Reset to default (use all sources)" data-testid="reset-to-all-sources">↺</Button>
+                )}
               </div>
             </div>
 

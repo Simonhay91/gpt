@@ -170,7 +170,7 @@ class SourceResponse(BaseModel):
 
 
 class ActiveSourcesUpdate(BaseModel):
-    sourceIds: List[str]
+    sourceIds: Optional[List[str]] = None  # null = reset to "use all sources"
 
 
 class UrlSourceCreate(BaseModel):

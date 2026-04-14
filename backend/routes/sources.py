@@ -655,7 +655,7 @@ async def set_active_sources(chat_id: str, data: ActiveSourcesUpdate, current_us
     
     await verify_project_ownership(chat["projectId"], current_user["id"])
     
-    if data.sourceIds:
+    if data.sourceIds is not None and len(data.sourceIds) > 0:
         sources = await db.sources.find({
             "id": {"$in": data.sourceIds},
             "projectId": chat["projectId"]
@@ -666,7 +666,7 @@ async def set_active_sources(chat_id: str, data: ActiveSourcesUpdate, current_us
         
         if invalid_ids:
             raise HTTPException(status_code=400, detail=f"Invalid source IDs: {invalid_ids}")
-    
+
     await db.chats.update_one(
         {"id": chat_id},
         {"$set": {"activeSourceIds": data.sourceIds}}

@@ -245,6 +245,14 @@ const ChatPage = () => {
 
   const selectAllSources = () => { setSourcesExplicitlySet(true); setActiveSourceIds(projectSources.map(s => s.id)); };
   const deselectAllSources = () => { setSourcesExplicitlySet(true); setActiveSourceIds([]); };
+  const resetSourcesToAll = async () => {
+    setSourcesExplicitlySet(false);
+    setActiveSourceIds([]);
+    try {
+      // Clear explicit selection from DB — null means "use all"
+      await axios.post(`${API}/chats/${chatId}/active-sources`, { sourceIds: null });
+    } catch { /* silent */ }
+  };
   const toggleGroup = (groupKey) => setExpandedGroups(prev => ({ ...prev, [groupKey]: !prev[groupKey] }));
 
   const deleteSource = async (sourceId, e) => {
@@ -825,6 +833,7 @@ const finalContent = content || "Analyze this file and summarize the key points.
             onToggleGroupSelection={toggleGroupSelection}
             onSelectAll={selectAllSources}
             onDeselectAll={deselectAllSources}
+            onResetToAll={resetSourcesToAll}
             expandedGroups={expandedGroups}
             onToggleGroup={toggleGroup}
             groupedSources={groupedSources}

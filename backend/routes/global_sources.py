@@ -168,7 +168,11 @@ async def user_delete_global_source(source_id: str, current_user: dict = Depends
     
     await db.source_chunks.delete_many({"sourceId": source_id})
     await db.sources.delete_one({"id": source_id})
-    
+    await db.chats.update_many(
+        {"activeSourceIds": source_id},
+        {"$pull": {"activeSourceIds": source_id}}
+    )
+
     return {"message": "Global source deleted"}
 
 
@@ -338,7 +342,11 @@ async def admin_delete_global_source(source_id: str, current_user: dict = Depend
     
     await db.source_chunks.delete_many({"sourceId": source_id})
     await db.sources.delete_one({"id": source_id})
-    
+    await db.chats.update_many(
+        {"activeSourceIds": source_id},
+        {"$pull": {"activeSourceIds": source_id}}
+    )
+
     return {"message": "Global source deleted"}
 
 
