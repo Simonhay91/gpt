@@ -24,6 +24,53 @@ import DashboardLayout from '../components/DashboardLayout';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
+const THINKING_STEPS = [
+  { icon: '📂', label: 'Reading sources...',         ms: 0    },
+  { icon: '🔍', label: 'Searching relevant chunks...', ms: 1800 },
+  { icon: '🧠', label: 'Thinking...',                 ms: 3800 },
+  { icon: '✍️',  label: 'Writing answer...',           ms: 6000 },
+];
+
+const ThinkingSteps = ({ activeSourceIds, sourcesExplicitlySet, hasWebSearch }) => {
+  const [stepIdx, setStepIdx] = useState(0);
+  useEffect(() => {
+    const timers = THINKING_STEPS.slice(1).map((s, i) =>
+      setTimeout(() => setStepIdx(i + 1), s.ms)
+    );
+    return () => timers.forEach(clearTimeout);
+  }, []);
+
+  const noSources = sourcesExplicitlySet && activeSourceIds.length === 0;
+  const steps = noSources
+    ? THINKING_STEPS.filter(s => s.label !== 'Reading sources...' && s.label !== 'Searching relevant chunks...')
+    : hasWebSearch
+      ? THINKING_STEPS.map(s => s.label === 'Reading sources...' ? { ...s, label: 'Searching the web...' } : s)
+      : THINKING_STEPS;
+
+  const current = steps[Math.min(stepIdx, steps.length - 1)];
+
+  return (
+    <div className="flex gap-3 justify-start animate-slideIn">
+      <div className="flex-shrink-0 rounded-full bg-indigo-500/20 p-2 h-fit">
+        <Bot className="h-5 w-5 text-indigo-400" />
+      </div>
+      <div className="bg-secondary px-4 py-3 rounded-2xl rounded-bl-sm space-y-1.5 min-w-[200px]">
+        {steps.map((s, i) => {
+          const done = i < Math.min(stepIdx, steps.length - 1);
+          const active = i === Math.min(stepIdx, steps.length - 1);
+          return (
+            <div key={i} className={`flex items-center gap-2 text-sm transition-all duration-300 ${active ? 'opacity-100' : done ? 'opacity-40' : 'opacity-20'}`}>
+              <span className="text-base leading-none">{done ? '✅' : s.icon}</span>
+              <span className={active ? 'text-foreground font-medium' : 'text-muted-foreground'}>{s.label}</span>
+              {active && <span className="inline-flex gap-0.5 ml-1">{[0,1,2].map(d => <span key={d} className="w-1 h-1 rounded-full bg-indigo-400 animate-bounce" style={{ animationDelay: `${d * 150}ms` }} />)}</span>}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+};
+
 const ChatPage = () => {
   const { chatId } = useParams();
   const navigate = useNavigate();
@@ -925,10 +972,11 @@ const finalContent = content || "Analyze this file and summarize the key points.
                 />
               ))}
               {isSending && (
-                <div className="flex gap-4 justify-start animate-slideIn">
-                  <div className="flex-shrink-0 rounded-full bg-indigo-500/20 p-2 h-fit"><Bot className="h-5 w-5 text-indigo-400" /></div>
-                  <div className="bg-secondary px-4 py-3 rounded-2xl rounded-bl-sm"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div>
-                </div>
+                <ThinkingSteps
+                  activeSourceIds={activeSourceIds}
+                  sourcesExplicitlySet={sourcesExplicitlySet}
+                  hasWebSearch={webSearchEnabled}
+                />
               )}
               <div ref={messagesEndRef} />
             </div>
