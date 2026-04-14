@@ -1,6 +1,25 @@
-export const APP_VERSION = "2.9.2";
+export const APP_VERSION = "2.9.3";
 
 export const CHANGELOG = [
+  {
+    version: "2.9.3",
+    date: "Апрель 2026",
+    badge: "fix",
+    changes: [
+      "RAG: activeSourceIds теперь реально ограничивает контекст AI (uncheck source — AI больше не видит его)",
+      "RAG: если пользователь упоминает имя файла — retrieval ограничивается только этим файлом",
+      "RAG: 1.5× score boost для чанков из явно упомянутого источника",
+      "SYS_META: AI получает подсказку targeted= с инструкцией фокусироваться на конкретном файле",
+      "Save to My Sources: из проектного чата источник сохраняется как project-level с реальным projectId",
+      "Save to My Sources: новый источник автоматически добавляется в активные источники чата",
+      "OEM: извлечение изображений из PDF (PyMuPDF) — вставка по секциям в готовый DOCX",
+      "OEM: новый endpoint POST /brands/{id}/header-image для загрузки header-изображения",
+      "OEM: header image вставляется в header-полосу документа рядом с логотипом",
+      "OEM Admin: живой preview бренда (header/footer/цвета) обновляется в реальном времени",
+      "OEM Admin: слайдеры для headerHeightPx, logoSizePx, footerHeightPx",
+      "OEM Admin: поле загрузки header image в форме редактирования бренда",
+    ]
+  },
   {
     version: "2.9.2",
     date: "Апрель 2026",

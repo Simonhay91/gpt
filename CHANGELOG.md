@@ -1,11 +1,12 @@
 # История обновлений / Changelog
 
 Формат: `[дата] — краткое описание`  
-Ветка: `main`
+Ветка: `main`  
+UI версия: `frontend/src/data/changelog.js`
 
 ---
 
-## 2026-04-14
+## 2026-04-14 — v2.9.3
 
 ### RAG — Fix source selection, filename targeting, save-to-sources (`244af3a`)
 **Файлы:** `backend/routes/messages.py`, `backend/services/rag.py`
