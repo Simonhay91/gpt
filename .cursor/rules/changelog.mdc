@@ -1,0 +1,37 @@
+---
+description: Always update changelog files after every push
+alwaysApply: true
+---
+
+# Changelog Update Rule
+
+**EVERY time you push to git, you MUST update BOTH changelog files in the same commit:**
+
+## 1. `frontend/src/data/changelog.js` (UI-facing)
+- Bump `APP_VERSION` (e.g. 2.9.3 → 2.9.4)
+- Add new entry at the TOP of `CHANGELOG` array:
+```js
+{
+  version: "X.Y.Z",
+  date: "Апрель 2026",
+  badge: "new" | "fix" | null,
+  changes: [
+    "Short Russian description of each change",
+    ...
+  ]
+}
+```
+- `badge: "new"` for features, `badge: "fix"` for bugfixes, `null` for mixed/refactor
+
+## 2. `CHANGELOG.md` (developer history, root of project)
+- Add new section at the TOP under the date heading
+- Include commit hash, file paths changed, and bullet descriptions
+
+## Commit format
+Include both files in the same commit as the feature/fix:
+```
+git add frontend/src/data/changelog.js CHANGELOG.md <other files>
+git commit -m "vX.Y.Z: short description"
+```
+
+## ⚠️ NEVER push without updating both changelog files first.
