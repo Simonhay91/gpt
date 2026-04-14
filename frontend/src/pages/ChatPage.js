@@ -683,59 +683,41 @@ const finalContent = content || "Analyze this file and summarize the key points.
       <div className="flex flex-col h-[calc(100vh-4rem)]" data-testid="chat-page">
 
         {/* ── Header ── */}
-        <div className="px-4 py-3 flex items-center gap-3 bg-card/50 backdrop-blur border-b border-border">
-          <Button variant="ghost" size="icon" className="h-8 w-8 flex-shrink-0" onClick={() => chat?.projectId ? navigate(`/projects/${chat.projectId}`) : navigate('/dashboard')} data-testid="back-from-chat-btn">
-            <ArrowLeft className="h-4 w-4" />
-          </Button>
+        <div className="px-3 py-2 flex items-center gap-2 bg-transparent">
+          {/* Back → Project name */}
+          <button
+            className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors flex-shrink-0"
+            onClick={() => chat?.projectId ? navigate(`/projects/${chat.projectId}`) : navigate('/dashboard')}
+            data-testid="back-from-chat-btn"
+          >
+            <ArrowLeft className="h-3.5 w-3.5" />
+            <span>{currentProjectName || 'Back'}</span>
+          </button>
 
-          <div className="flex-1 min-w-0">
-            {isEditingName ? (
-              <div className="flex items-center gap-2">
-                <Input ref={nameInputRef} value={editedName} onChange={(e) => setEditedName(e.target.value)} onKeyDown={handleNameKeyDown} className="h-7 text-sm font-semibold" disabled={isSavingName} data-testid="chat-name-input" />
-                <Button variant="ghost" size="icon" className="h-6 w-6 flex-shrink-0" onClick={saveNewName} disabled={isSavingName} data-testid="save-chat-name-btn">
-                  {isSavingName ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3 text-emerald-400" />}
-                </Button>
-                <Button variant="ghost" size="icon" className="h-6 w-6 flex-shrink-0" onClick={cancelEditingName} disabled={isSavingName}><X className="h-3 w-3" /></Button>
-              </div>
-            ) : (
-              <div className="flex items-center gap-1.5 min-w-0">
-                {currentProjectName && (
-                  <button className="text-muted-foreground hover:text-foreground transition-colors text-sm shrink-0" onClick={() => navigate(`/projects/${chat.projectId}`)} data-testid="breadcrumb-project-name">
-                    {currentProjectName}
-                  </button>
-                )}
-                {currentProjectName && <span className="text-muted-foreground text-sm">/</span>}
-                <button className="font-semibold text-sm truncate hover:text-muted-foreground transition-colors" onClick={startEditingName} data-testid="chat-name-display">
-                  {isQuickChat ? (chat.name || 'Quick Chat') : (chat?.name || 'Untitled Chat')}
-                </button>
-                <Button variant="ghost" size="icon" className="h-5 w-5 opacity-40 hover:opacity-100 flex-shrink-0" onClick={startEditingName} data-testid="edit-chat-name-btn"><Pencil className="h-2.5 w-2.5" /></Button>
-              </div>
-            )}
-            <p className="text-xs text-muted-foreground mt-0.5">
-              {messages.length} {messages.length === 1 ? 'message' : 'messages'}
-              {!isQuickChat && !sourcesExplicitlySet && projectSources.length > 0 && (
-                <button onClick={() => setShowSourcePanel(true)} className="ml-1.5 text-indigo-400 hover:text-indigo-300 hover:underline transition-colors">• all sources</button>
-              )}
-              {!isQuickChat && sourcesExplicitlySet && activeSourceIds.length > 0 && (
-                <button onClick={() => setShowSourcePanel(true)} className="ml-1.5 text-indigo-400 hover:text-indigo-300 hover:underline transition-colors">• {activeSourceIds.length} source{activeSourceIds.length !== 1 ? 's' : ''} active</button>
-              )}
-              {!isQuickChat && sourcesExplicitlySet && activeSourceIds.length === 0 && (
-                <button onClick={() => setShowSourcePanel(true)} className="ml-1.5 text-amber-400 hover:text-amber-300 hover:underline transition-colors">• no sources</button>
-              )}
-            </p>
-          </div>
+          <div className="flex-1" />
 
-          {!isQuickChat && (
-            <Button
-              variant="ghost"
-              size="icon"
-              className={`h-8 w-8 flex-shrink-0 ${showSourcePanel ? 'text-indigo-400' : 'text-muted-foreground'}`}
+          {/* Source status — clickable */}
+          {!isQuickChat && projectSources.length > 0 && (
+            <button
               onClick={() => setShowSourcePanel(v => !v)}
+              className="text-xs transition-colors flex items-center gap-1"
+            >
+              {!sourcesExplicitlySet && <span className="text-indigo-400 hover:text-indigo-300">all sources</span>}
+              {sourcesExplicitlySet && activeSourceIds.length > 0 && <span className="text-indigo-400 hover:text-indigo-300">{activeSourceIds.length} source{activeSourceIds.length !== 1 ? 's' : ''} active</span>}
+              {sourcesExplicitlySet && activeSourceIds.length === 0 && <span className="text-amber-400 hover:text-amber-300">no sources</span>}
+            </button>
+          )}
+
+          {/* Sources icon */}
+          {!isQuickChat && (
+            <button
+              onClick={() => setShowSourcePanel(v => !v)}
+              className={`h-7 w-7 flex items-center justify-center rounded-lg hover:bg-secondary transition-colors ${showSourcePanel ? 'text-indigo-400' : 'text-muted-foreground'}`}
               data-testid="toggle-source-panel-btn"
               title="Sources"
             >
-              <FileText className="h-4 w-4" />
-            </Button>
+              <FileText className="h-3.5 w-3.5" />
+            </button>
           )}
         </div>
 
