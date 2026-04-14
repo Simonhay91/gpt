@@ -203,6 +203,19 @@ async def send_message(
         department_source_ids = []
         global_source_ids = []
 
+    # Apply user's checkbox selection from SourcePanel
+    # None  = chat never touched (new chat) → use all accessible sources
+    # []    = user explicitly unchecked everything → no sources
+    # [ids] = user selected specific sources → intersect with accessible
+    if source_mode != 'ai_only':
+        chat_selected = chat.get("activeSourceIds")
+        if chat_selected is not None:
+            if len(chat_selected) == 0:
+                active_source_ids = []
+            else:
+                sel_set = set(chat_selected)
+                active_source_ids = [sid for sid in active_source_ids if sid in sel_set]
+
     # ── 3. Save user message ──
     sender_email = current_user["email"]
     sender_name = sender_email.split("@")[0] if sender_email else "User"
@@ -286,6 +299,8 @@ async def send_message(
     source_types = {}
     xlsx_sheet_info = []
     has_excel_source = False
+    mentioned_source_ids = []
+    source_names = {}
 
     if active_source_ids:
         sources = await db.sources.find({"id": {"$in": active_source_ids}}, {"_id": 0}).to_list(1000)
@@ -317,8 +332,19 @@ async def send_message(
             ):
                 xlsx_sheet_info.append(f"- {name}: {', '.join(sheet_names)}")
 
+        # Pre-RAG: if user mentions a specific source name, restrict retrieval to that source
+        user_msg_lower = message_data.content.lower()
+        mentioned_source_ids = []
+        for s in sources:
+            name = (s.get("originalName") or s.get("url") or "").lower().strip()
+            if name and len(name) > 3 and name in user_msg_lower:
+                mentioned_source_ids.append(s["id"])
+
+        rag_source_ids = mentioned_source_ids if mentioned_source_ids else active_source_ids
+
         relevant_chunks = await get_relevant_chunks(
-            db, active_source_ids, project_id, message_data.content, user_department_ids
+            db, rag_source_ids, project_id, message_data.content, user_department_ids,
+            mentioned_source_ids=mentioned_source_ids
         )
 
         if relevant_chunks:
@@ -550,8 +576,12 @@ async def send_message(
                 active_sources_list = ", ".join(active_source_names) if active_source_names else "None"
                 chunks_count = len(citations)
                 max_context_chars = 18000 if fetched_url_count > 0 else 10000
+                targeted_note = ""
+                if mentioned_source_ids:
+                    targeted_names = [source_names.get(sid, sid) for sid in mentioned_source_ids]
+                    targeted_note = f" targeted={', '.join(targeted_names)} | IMPORTANT: The user explicitly asked about these file(s). Focus ONLY on content from these sources."
                 context_message = (
-                    f"[SYS_META sources={active_sources_list} chunks={chunks_count}]\n\n"
+                    f"[SYS_META sources={active_sources_list} chunks={chunks_count}{targeted_note}]\n\n"
                     f"{document_context[:max_context_chars]}"
                 )
                 system_parts.append(context_message)
@@ -871,7 +901,7 @@ async def save_to_knowledge(
     request: SaveToKnowledgeRequest,
     current_user: dict = Depends(get_current_user)
 ):
-    """Save AI message content as a Personal Source"""
+    """Save AI message content as a Personal or Project Source"""
     db = get_db()
     openai_client = get_openai_client()
 
@@ -883,12 +913,21 @@ async def save_to_knowledge(
         source_name = f"{content_preview} ({timestamp})"
         source_id = str(uuid.uuid4())
 
+        # Resolve project from chat if provided
+        source_project_id = None
+        source_level = "personal"
+        if request.chatId:
+            chat_doc = await db.chats.find_one({"id": request.chatId}, {"_id": 0, "projectId": 1, "activeSourceIds": 1})
+            if chat_doc and chat_doc.get("projectId"):
+                source_project_id = chat_doc["projectId"]
+                source_level = "project"
+
         source_doc = {
             "id": source_id,
-            "level": "personal",
+            "level": source_level,
             "ownerId": current_user["id"],
             "ownerEmail": current_user["email"],
-            "projectId": None,
+            "projectId": source_project_id,
             "departmentId": None,
             "kind": "knowledge",
             "originalName": source_name,
@@ -903,6 +942,15 @@ async def save_to_knowledge(
             "updatedAt": datetime.now(timezone.utc).isoformat()
         }
         await db.sources.insert_one(source_doc)
+
+        # Auto-add the new source to the chat's active sources
+        if request.chatId:
+            existing_active = (chat_doc.get("activeSourceIds") or []) if chat_doc else []
+            if source_id not in existing_active:
+                await db.chats.update_one(
+                    {"id": request.chatId},
+                    {"$push": {"activeSourceIds": source_id}}
+                )
 
         chunks = chunk_text(request.content, chunk_size=1000)
         for i, chunk_text_content in enumerate(chunks):

@@ -54,7 +54,8 @@ async def get_relevant_chunks(
     source_ids: List[str],
     project_id: str,
     query: str,
-    department_ids: List[str] = None
+    department_ids: List[str] = None,
+    mentioned_source_ids: List[str] = None
 ) -> List[dict]:
     """Get most relevant chunks using cosine similarity"""
     if not source_ids:
@@ -103,6 +104,10 @@ async def get_relevant_chunks(
                 score = score_chunk_relevance(content, query) * 0.5
         else:
             score = score_chunk_relevance(content, query)
+
+        # Boost score for chunks from sources the user explicitly mentioned
+        if mentioned_source_ids and chunk.get("sourceId") in mentioned_source_ids:
+            score = min(1.0, score * 1.5)
 
         scored_chunks.append({**chunk, "content": content, "score": score})
 
