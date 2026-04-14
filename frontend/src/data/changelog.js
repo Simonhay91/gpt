@@ -1,6 +1,15 @@
-export const APP_VERSION = "2.9.3";
+export const APP_VERSION = "2.9.4";
 
 export const CHANGELOG = [
+  {
+    version: "2.9.4",
+    date: "Апрель 2026",
+    badge: "fix",
+    changes: [
+      "Save to My Sources: исправлено — источник всегда сохраняется как personal (level=personal), появляется в My Sources",
+      "Save to My Sources из проектного чата: projectId сохраняется для связи с проектом, но тип остаётся personal",
+    ]
+  },
   {
     version: "2.9.3",
     date: "Апрель 2026",

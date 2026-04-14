@@ -6,6 +6,17 @@ UI версия: `frontend/src/data/changelog.js`
 
 ---
 
+## 2026-04-14 — v2.9.4
+
+### Fix: save_to_knowledge always saves as personal level
+**Файл:** `backend/routes/messages.py`
+
+- `level` всегда `"personal"` — источник появляется в My Sources page
+- `projectId` сохраняется для связи с проектом (если вызвано из проектного чата)
+- Предыдущий фикс (v2.9.3) ошибочно ставил `level=project`, из-за чего источник не показывался в My Sources
+
+---
+
 ## 2026-04-14 — v2.9.3
 
 ### RAG — Fix source selection, filename targeting, save-to-sources (`244af3a`)

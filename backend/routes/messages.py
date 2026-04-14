@@ -914,17 +914,18 @@ async def save_to_knowledge(
         source_id = str(uuid.uuid4())
 
         # Resolve project from chat if provided
+        # Always keep level=personal so it appears in My Sources page.
+        # projectId is set to link it to the project for visibility.
         source_project_id = None
-        source_level = "personal"
+        chat_doc = None
         if request.chatId:
             chat_doc = await db.chats.find_one({"id": request.chatId}, {"_id": 0, "projectId": 1, "activeSourceIds": 1})
             if chat_doc and chat_doc.get("projectId"):
                 source_project_id = chat_doc["projectId"]
-                source_level = "project"
 
         source_doc = {
             "id": source_id,
-            "level": source_level,
+            "level": "personal",
             "ownerId": current_user["id"],
             "ownerEmail": current_user["email"],
             "projectId": source_project_id,
