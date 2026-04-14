@@ -694,14 +694,32 @@ const finalContent = content || "Analyze this file and summarize the key points.
             <span>{currentProjectName || 'Back'}</span>
           </button>
 
-          <div className="flex-1" />
+          {currentProjectName && <span className="text-muted-foreground text-sm">/</span>}
+
+          {/* Chat name + edit */}
+          <div className="flex-1 min-w-0">
+            {isEditingName ? (
+              <div className="flex items-center gap-1.5">
+                <Input ref={nameInputRef} value={editedName} onChange={(e) => setEditedName(e.target.value)} onKeyDown={handleNameKeyDown} className="h-6 text-xs font-medium w-40" disabled={isSavingName} data-testid="chat-name-input" />
+                <Button variant="ghost" size="icon" className="h-5 w-5" onClick={saveNewName} disabled={isSavingName} data-testid="save-chat-name-btn">
+                  {isSavingName ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3 text-emerald-400" />}
+                </Button>
+                <Button variant="ghost" size="icon" className="h-5 w-5" onClick={cancelEditingName}><X className="h-3 w-3" /></Button>
+              </div>
+            ) : (
+              <div className="flex items-center gap-1 min-w-0">
+                <button className="text-sm font-medium truncate hover:text-muted-foreground transition-colors" onClick={startEditingName} data-testid="chat-name-display">
+                  {isQuickChat ? (chat.name || 'Quick Chat') : (chat?.name || 'Untitled Chat')}
+                </button>
+                <Button variant="ghost" size="icon" className="h-5 w-5 opacity-30 hover:opacity-100 flex-shrink-0" onClick={startEditingName} data-testid="edit-chat-name-btn"><Pencil className="h-2.5 w-2.5" /></Button>
+                <span className="text-xs text-muted-foreground flex-shrink-0">{messages.length} msg</span>
+              </div>
+            )}
+          </div>
 
           {/* Source status — clickable */}
           {!isQuickChat && projectSources.length > 0 && (
-            <button
-              onClick={() => setShowSourcePanel(v => !v)}
-              className="text-xs transition-colors flex items-center gap-1"
-            >
+            <button onClick={() => setShowSourcePanel(v => !v)} className="text-xs transition-colors flex-shrink-0">
               {!sourcesExplicitlySet && <span className="text-indigo-400 hover:text-indigo-300">all sources</span>}
               {sourcesExplicitlySet && activeSourceIds.length > 0 && <span className="text-indigo-400 hover:text-indigo-300">{activeSourceIds.length} source{activeSourceIds.length !== 1 ? 's' : ''} active</span>}
               {sourcesExplicitlySet && activeSourceIds.length === 0 && <span className="text-amber-400 hover:text-amber-300">no sources</span>}
@@ -712,7 +730,7 @@ const finalContent = content || "Analyze this file and summarize the key points.
           {!isQuickChat && (
             <button
               onClick={() => setShowSourcePanel(v => !v)}
-              className={`h-7 w-7 flex items-center justify-center rounded-lg hover:bg-secondary transition-colors ${showSourcePanel ? 'text-indigo-400' : 'text-muted-foreground'}`}
+              className={`h-7 w-7 flex items-center justify-center rounded-lg hover:bg-secondary transition-colors flex-shrink-0 ${showSourcePanel ? 'text-indigo-400' : 'text-muted-foreground'}`}
               data-testid="toggle-source-panel-btn"
               title="Sources"
             >
