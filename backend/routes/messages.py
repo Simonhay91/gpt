@@ -203,12 +203,17 @@ async def send_message(
         department_source_ids = []
         global_source_ids = []
 
-    # Apply user's checkbox selection from SourcePanel
+    # Apply user's checkbox selection from SourcePanel.
+    # Prefer payload value (real-time from frontend) over DB value (may lag due to 500ms debounce).
     # None  = chat never touched (new chat) → use all accessible sources
     # []    = user explicitly unchecked everything → no sources
     # [ids] = user selected specific sources → intersect with accessible
     if source_mode != 'ai_only':
-        chat_selected = chat.get("activeSourceIds")
+        chat_selected = (
+            message_data.activeSourceIds
+            if message_data.activeSourceIds is not None
+            else chat.get("activeSourceIds")
+        )
         if chat_selected is not None:
             if len(chat_selected) == 0:
                 active_source_ids = []

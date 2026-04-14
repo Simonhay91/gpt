@@ -6,6 +6,17 @@ UI версия: `frontend/src/data/changelog.js`
 
 ---
 
+## 2026-04-14 — v2.9.6
+
+### Fix: activeSourceIds race condition — send with message payload
+**Файлы:** `backend/models/schemas.py`, `backend/routes/messages.py`, `frontend/src/pages/ChatPage.js`
+
+- `MessageCreate` schema: добавлено поле `activeSourceIds: Optional[List[str]]`
+- `send_message`: приоритет отдаётся `message_data.activeSourceIds` (real-time из frontend) над DB значением (могло отставать на 500мс из-за debounce)
+- `ChatPage.js`: `activeSourceIds` теперь всегда включается в payload сообщения
+
+---
+
 ## 2026-04-14 — v2.9.5
 
 ### Fix: My Sources shows project badge for sources saved from project chat

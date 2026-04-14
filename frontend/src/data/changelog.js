@@ -1,6 +1,15 @@
-export const APP_VERSION = "2.9.5";
+export const APP_VERSION = "2.9.6";
 
 export const CHANGELOG = [
+  {
+    version: "2.9.6",
+    date: "Апрель 2026",
+    badge: "fix",
+    changes: [
+      "Источники: исправлен race condition — activeSourceIds теперь передаётся прямо с сообщением, не зависит от 500мс debounce",
+      "Снять все → поставить один чекбокс → отправить: AI теперь видит выбранный источник сразу",
+    ]
+  },
   {
     version: "2.9.5",
     date: "Апрель 2026",

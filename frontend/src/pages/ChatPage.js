@@ -400,7 +400,7 @@ const finalContent = content || "Analyze this file and summarize the key points.
     setIsSending(true);
 
     try {
-      const payload = { content: finalContent };
+      const payload = { content: finalContent, activeSourceIds };
       if (activeTempFile) payload.temp_file_id = activeTempFile.id;
       const response = await axios.post(`${API}/chats/${chatId}/messages`, payload);
       const { user_message: userMsg, assistant_message: assistantMsg } = response.data;
