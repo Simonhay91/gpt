@@ -1,6 +1,14 @@
-export const APP_VERSION = "2.9.4";
+export const APP_VERSION = "2.9.5";
 
 export const CHANGELOG = [
+  {
+    version: "2.9.5",
+    date: "Апрель 2026",
+    badge: "fix",
+    changes: [
+      "My Sources: источники, сохранённые из проектного чата, теперь показывают badge с названием проекта",
+    ]
+  },
   {
     version: "2.9.4",
     date: "Апрель 2026",

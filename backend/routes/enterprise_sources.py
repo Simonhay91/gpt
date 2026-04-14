@@ -164,6 +164,14 @@ def setup_enterprise_source_routes(
                     if dept:
                         published_to.append({"type": "department", "id": dept["id"], "name": dept["name"]})
             
+            # Also show direct projectId link (set by save_to_knowledge from project chat)
+            if source.get("projectId") and not any(p["id"] == source["projectId"] for p in published_to):
+                project = await db.projects.find_one(
+                    {"id": source["projectId"]}, {"_id": 0, "name": 1, "id": 1}
+                )
+                if project:
+                    published_to.append({"type": "project", "id": project["id"], "name": project["name"]})
+
             source["publishedTo"] = published_to
         
         return sources

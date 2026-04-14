@@ -6,6 +6,16 @@ UI версия: `frontend/src/data/changelog.js`
 
 ---
 
+## 2026-04-14 — v2.9.5
+
+### Fix: My Sources shows project badge for sources saved from project chat
+**Файл:** `backend/routes/enterprise_sources.py`
+
+- `list_personal_sources`: если у source есть `projectId` (прямая ссылка через save_to_knowledge), добавляет project badge в `publishedTo`
+- Дедупликация: не дублирует badge если тот же проект уже есть через `publishedFrom`
+
+---
+
 ## 2026-04-14 — v2.9.4
 
 ### Fix: save_to_knowledge always saves as personal level
