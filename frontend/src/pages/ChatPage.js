@@ -683,7 +683,7 @@ const finalContent = content || "Analyze this file and summarize the key points.
       <div className="flex flex-col h-[calc(100vh-4rem)]" data-testid="chat-page">
 
         {/* ── Header ── */}
-        <div className="px-3 py-2 flex items-center gap-2 absolute top-0 left-0 right-0 z-10">
+        <div className="px-3 py-2 flex items-center gap-2 bg-transparent">
           {/* Back → Project name */}
           <button
             className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors flex-shrink-0"
@@ -862,7 +862,7 @@ const finalContent = content || "Analyze this file and summarize the key points.
 
         {/* ── Messages Area ── */}
         <ScrollArea
-          className="flex-1 px-6 pt-10 pb-4"
+          className="flex-1 px-6 py-4"
           ref={scrollAreaRef}
         >
           {messages.length === 0 ? (
