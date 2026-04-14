@@ -134,14 +134,14 @@ const ChatPage = () => {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Auto-save context every 10 AI messages
+  // Auto-save context every 10 AI messages → saves to AI Profile (Settings → AI Profile)
   useEffect(() => {
     const assistantCount = messages.filter(m => m.role === 'assistant').length;
     if (assistantCount > 0 && assistantCount % 10 === 0 && !isSavingContext) {
       const dialogText = messages.map(m => `${m.role === 'user' ? 'Пользователь' : 'AI'}: ${m.content || ''}`).join('\n\n');
       axios.post(`${API}/chats/${chatId}/save-context`, { dialogText })
-        .then(() => toast.success('Контекст авто-сохранён', { duration: 2000 }))
-        .catch(() => {});
+        .then(() => toast.success('Авто-сохранено → AI Profile (Settings → AI Profile)', { duration: 3000 }))
+        .catch(() => toast.error('Авто-сохранение не удалось', { duration: 2000 }));
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [messages.length]);

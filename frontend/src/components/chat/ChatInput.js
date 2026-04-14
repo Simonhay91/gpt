@@ -170,7 +170,7 @@ export const ChatInput = ({
                     </div>
                     <div>
                       <p className="font-medium">Save Context</p>
-                      <p className="text-xs text-muted-foreground">Save to AI Profile</p>
+                      <p className="text-xs text-muted-foreground">→ AI Profile (not Project Memory)</p>
                     </div>
                   </button>
 
