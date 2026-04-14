@@ -37,6 +37,7 @@ const ChatPage = () => {
   const [chat, setChat] = useState(null);
   const [projectSources, setProjectSources] = useState([]);
   const [activeSourceIds, setActiveSourceIds] = useState([]);
+  const [sourcesExplicitlySet, setSourcesExplicitlySet] = useState(false);
   const [currentProjectName, setCurrentProjectName] = useState('');
   const [sourceMode, setSourceMode] = useState('all');
   const [generatedImages, setGeneratedImages] = useState([]);
@@ -144,16 +145,16 @@ const ChatPage = () => {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [messages.length]);
 
-  // Sync active sources with debounce
+  // Sync active sources with debounce — only when user has explicitly set them
   useEffect(() => {
-    if (!chatId || isLoading) return;
+    if (!chatId || isLoading || !sourcesExplicitlySet) return;
     const timeout = setTimeout(async () => {
       try {
         await axios.post(`${API}/chats/${chatId}/active-sources`, { sourceIds: activeSourceIds });
       } catch { /* silent */ }
     }, 500);
     return () => clearTimeout(timeout);
-  }, [activeSourceIds, chatId, isLoading]);
+  }, [activeSourceIds, chatId, isLoading, sourcesExplicitlySet]);
 
   const scrollToBottom = () => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
 
@@ -162,7 +163,14 @@ const ChatPage = () => {
     try {
       const chatRes = await axios.get(`${API}/chats/${chatId}`);
       setChat(chatRes.data);
-      setActiveSourceIds(chatRes.data.activeSourceIds || []);
+      const dbActiveIds = chatRes.data.activeSourceIds;
+      if (dbActiveIds !== null && dbActiveIds !== undefined) {
+        setActiveSourceIds(dbActiveIds);
+        setSourcesExplicitlySet(true);
+      } else {
+        setActiveSourceIds([]);
+        setSourcesExplicitlySet(false);
+      }
       setSourceMode(chatRes.data.sourceMode || 'all');
 
       const messagesRes = await axios.get(`${API}/chats/${chatId}/messages`);
@@ -222,18 +230,21 @@ const ChatPage = () => {
   }, [projectSources]);
 
   // ── Source management ──
-  const toggleSourceSelection = (sourceId) =>
+  const toggleSourceSelection = (sourceId) => {
+    setSourcesExplicitlySet(true);
     setActiveSourceIds(prev => prev.includes(sourceId) ? prev.filter(id => id !== sourceId) : [...prev, sourceId]);
+  };
 
   const toggleGroupSelection = (sources) => {
+    setSourcesExplicitlySet(true);
     const sourceIds = sources.map(s => s.id);
     const allSelected = sourceIds.every(id => activeSourceIds.includes(id));
     if (allSelected) setActiveSourceIds(prev => prev.filter(id => !sourceIds.includes(id)));
     else setActiveSourceIds(prev => [...new Set([...prev, ...sourceIds])]);
   };
 
-  const selectAllSources = () => setActiveSourceIds(projectSources.map(s => s.id));
-  const deselectAllSources = () => setActiveSourceIds([]);
+  const selectAllSources = () => { setSourcesExplicitlySet(true); setActiveSourceIds(projectSources.map(s => s.id)); };
+  const deselectAllSources = () => { setSourcesExplicitlySet(true); setActiveSourceIds([]); };
   const toggleGroup = (groupKey) => setExpandedGroups(prev => ({ ...prev, [groupKey]: !prev[groupKey] }));
 
   const deleteSource = async (sourceId, e) => {
@@ -326,6 +337,7 @@ const ChatPage = () => {
           const newIds = [...new Set([...activeSourceIds, ...uploaded.map(s => s.id)])];
           await axios.post(`${API}/chats/${chatId}/active-sources`, { sourceIds: newIds });
           setActiveSourceIds(newIds);
+          setSourcesExplicitlySet(true);
           const badge = { name: validFiles.map(f => f.name).join(', '), fileType: 'file', multi: true };
           await sendMessage('Analyze this file and summarize the key points.', badge);
         }
@@ -341,6 +353,7 @@ const ChatPage = () => {
         const newIds = [...activeSourceIds, uploadedSource.id];
         await axios.post(`${API}/chats/${chatId}/active-sources`, { sourceIds: newIds });
         setActiveSourceIds(newIds);
+        setSourcesExplicitlySet(true);
         await sendMessage('Analyze this file and summarize the key points.', getFileBadge(file));
       }
     } catch (error) {
@@ -365,6 +378,7 @@ const ChatPage = () => {
       const newActiveIds = [...activeSourceIds, response.data.id];
       await axios.post(`${API}/chats/${chatId}/active-sources`, { sourceIds: newActiveIds });
       setActiveSourceIds(newActiveIds);
+      setSourcesExplicitlySet(true);
     } catch (error) { toast.error(error.response?.data?.detail || 'Failed to add URL'); }
     finally { setIsAddingUrl(false); }
   };
@@ -400,7 +414,10 @@ const finalContent = content || "Analyze this file and summarize the key points.
     setIsSending(true);
 
     try {
-      const payload = { content: finalContent, activeSourceIds };
+      // Send activeSourceIds only if user has explicitly interacted with checkboxes.
+      // null means "use all accessible sources" (new chat / never touched).
+      // []   means "user explicitly unchecked everything — no sources".
+      const payload = { content: finalContent, activeSourceIds: sourcesExplicitlySet ? activeSourceIds : null };
       if (activeTempFile) payload.temp_file_id = activeTempFile.id;
       const response = await axios.post(`${API}/chats/${chatId}/messages`, payload);
       const { user_message: userMsg, assistant_message: assistantMsg } = response.data;
@@ -409,7 +426,11 @@ const finalContent = content || "Analyze this file and summarize the key points.
         const sourcesRes = await axios.get(`${API}/projects/${chat.projectId}/sources`);
         setProjectSources(sourcesRes.data);
         const chatRes = await axios.get(`${API}/chats/${chatId}`);
-        setActiveSourceIds(chatRes.data.activeSourceIds || []);
+        const refreshedIds = chatRes.data.activeSourceIds;
+        if (refreshedIds !== null && refreshedIds !== undefined) {
+          setActiveSourceIds(refreshedIds);
+          setSourcesExplicitlySet(true);
+        }
         toast.success(`Auto-ingested ${assistantMsg.autoIngestedUrls.length} URL(s) from your message`);
       }
 
@@ -693,7 +714,9 @@ const finalContent = content || "Analyze this file and summarize the key points.
               )}
               <p className="text-sm text-muted-foreground">
                 {messages.length} {messages.length === 1 ? 'message' : 'messages'}
-                {!isQuickChat && activeSourceIds.length > 0 && <span className="ml-2 text-indigo-400">• {activeSourceIds.length} source{activeSourceIds.length !== 1 ? 's' : ''} active</span>}
+                {!isQuickChat && !sourcesExplicitlySet && projectSources.length > 0 && <span className="ml-2 text-indigo-400">• all sources</span>}
+                {!isQuickChat && sourcesExplicitlySet && activeSourceIds.length > 0 && <span className="ml-2 text-indigo-400">• {activeSourceIds.length} source{activeSourceIds.length !== 1 ? 's' : ''} active</span>}
+                {!isQuickChat && sourcesExplicitlySet && activeSourceIds.length === 0 && <span className="ml-2 text-amber-400">• no sources</span>}
                 {isQuickChat && <span className="ml-2 text-emerald-400">• Quick Chat</span>}
               </p>
             </div>
@@ -788,6 +811,7 @@ const finalContent = content || "Analyze this file and summarize the key points.
           <SourcePanel
             projectSources={projectSources}
             activeSourceIds={activeSourceIds}
+            sourcesExplicitlySet={sourcesExplicitlySet}
             currentProjectName={currentProjectName}
             currentUser={user}
             chat={chat}

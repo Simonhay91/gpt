@@ -29,6 +29,7 @@ const formatFileSize = (bytes) => {
 export const SourcePanel = ({
   projectSources,
   activeSourceIds,
+  sourcesExplicitlySet,
   currentProjectName,
   currentUser,
   chat,
@@ -186,7 +187,7 @@ export const SourcePanel = ({
         ) : (
           <div className="space-y-1">
             <div className="flex items-center justify-between mb-2 pb-2 border-b border-border">
-              <span className="text-xs text-muted-foreground">Выбрано: {activeSourceIds.length} из {projectSources.length}</span>
+              <span className="text-xs text-muted-foreground">{sourcesExplicitlySet ? `${activeSourceIds.length} / ${projectSources.length}` : `${projectSources.length} / ${projectSources.length} (all)`}</span>
               <div className="flex gap-1">
                 <Button variant="ghost" size="sm" className="h-6 text-xs px-2" onClick={onSelectAll} data-testid="select-all-sources">Все</Button>
                 <Button variant="ghost" size="sm" className="h-6 text-xs px-2" onClick={onDeselectAll} data-testid="deselect-all-sources">Сбросить</Button>
@@ -198,7 +199,7 @@ export const SourcePanel = ({
                 const GroupIcon = group.icon;
                 const isExpanded = expandedGroups[groupKey];
                 const groupSourceIds = group.sources.map(s => s.id);
-                const selectedInGroup = groupSourceIds.filter(id => activeSourceIds.includes(id)).length;
+                const selectedInGroup = !sourcesExplicitlySet ? group.sources.length : groupSourceIds.filter(id => activeSourceIds.includes(id)).length;
                 const allSelected = selectedInGroup === group.sources.length;
                 const someSelected = selectedInGroup > 0 && selectedInGroup < group.sources.length;
 
@@ -222,7 +223,7 @@ export const SourcePanel = ({
                     {isExpanded && (
                       <div className="border-t border-border">
                         {group.sources.map((source) => {
-                          const isSelected = activeSourceIds.includes(source.id);
+                          const isSelected = !sourcesExplicitlySet || activeSourceIds.includes(source.id);
                           return (
                             <div
                               key={source.id}
