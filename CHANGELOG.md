@@ -6,6 +6,19 @@ UI версия: `frontend/src/data/changelog.js`
 
 ---
 
+## 2026-04-14 — v2.9.11
+
+### Feature: animated thinking steps during AI response
+**Commit:** `ed0ba22`  
+**Файлы:** `frontend/src/pages/ChatPage.js`
+
+- Заменили спиннер на анимированные шаги: 📂 Reading sources → 🔍 Searching chunks → 🧠 Thinking → ✍️ Writing answer
+- Шаги появляются с задержкой (0 / 1.8 / 3.8 / 6.0 с) для имитации реального процесса
+- Адаптация: если нет источников — RAG-шаги пропускаются; если включён Web Search — первый шаг меняется на «Searching the web...»
+- Завершённые шаги помечаются ✅ и становятся тусклыми, активный шаг анимирован с bouncing dots
+
+---
+
 ## 2026-04-14 — v2.9.10
 
 ### Fix/Rollback: auto-save context not writing Project Memory
