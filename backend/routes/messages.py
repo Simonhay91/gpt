@@ -421,9 +421,14 @@ async def send_message(
     has_project_memory = bool(_project_memory_text and len(_project_memory_text.strip()) > 50)
 
     brave_key_exists = bool(os.environ.get('BRAVE_API_KEY', ''))
-    use_web_search = should_use_web_search(message_data.content, has_relevant_rag)
-    if source_mode == 'ai_only':
-        use_web_search = False
+
+    # User explicitly requested web search via Plus menu toggle
+    if message_data.forceWebSearch and brave_key_exists and source_mode != 'ai_only':
+        use_web_search = True
+    else:
+        use_web_search = should_use_web_search(message_data.content, has_relevant_rag)
+        if source_mode == 'ai_only':
+            use_web_search = False
 
     _words = message_data.content.strip().split()
     _msg_lower = message_data.content.lower()

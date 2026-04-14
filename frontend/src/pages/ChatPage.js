@@ -41,6 +41,7 @@ const ChatPage = () => {
   const [currentProjectName, setCurrentProjectName] = useState('');
   const [sourceMode, setSourceMode] = useState('all');
   const [generatedImages, setGeneratedImages] = useState([]);
+  const [webSearchEnabled, setWebSearchEnabled] = useState(false);
 
   // ── Upload state ──
   const [isUploading, setIsUploading] = useState(false);
@@ -425,7 +426,11 @@ const finalContent = content || "Analyze this file and summarize the key points.
       // Send activeSourceIds only if user has explicitly interacted with checkboxes.
       // null means "use all accessible sources" (new chat / never touched).
       // []   means "user explicitly unchecked everything — no sources".
-      const payload = { content: finalContent, activeSourceIds: sourcesExplicitlySet ? activeSourceIds : null };
+      const payload = {
+        content: finalContent,
+        activeSourceIds: sourcesExplicitlySet ? activeSourceIds : null,
+        forceWebSearch: webSearchEnabled || undefined,
+      };
       if (activeTempFile) payload.temp_file_id = activeTempFile.id;
       const response = await axios.post(`${API}/chats/${chatId}/messages`, payload);
       const { user_message: userMsg, assistant_message: assistantMsg } = response.data;
@@ -961,6 +966,8 @@ const finalContent = content || "Analyze this file and summarize the key points.
           onSaveContext={saveContext}
           onOpenMemory={() => setMemoryModalOpen(true)}
           onOpenMoveDialog={openMoveDialog}
+          webSearchEnabled={webSearchEnabled}
+          onToggleWebSearch={() => setWebSearchEnabled(v => !v)}
           textareaRef={textareaRef}
           plusMenuRef={plusMenuRef}
           showPlusMenu={showPlusMenu}

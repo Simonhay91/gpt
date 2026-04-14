@@ -3,7 +3,7 @@ import { Button } from '../ui/button';
 import { Textarea } from '../ui/textarea';
 import {
   Loader2, Send, Plus, Upload, Link, ImageIcon, Save, Brain, X,
-  FileText, FileSpreadsheet, File, MoveRight
+  FileText, FileSpreadsheet, File, MoveRight, Globe, Check
 } from 'lucide-react';
 
 const FILE_TYPE_ICON = {
@@ -33,6 +33,8 @@ export const ChatInput = ({
   onSaveContext,
   onOpenMemory,
   onOpenMoveDialog,
+  webSearchEnabled,
+  onToggleWebSearch,
   textareaRef,
   plusMenuRef,
   showPlusMenu,
@@ -189,7 +191,21 @@ export const ChatInput = ({
                   )}
 
                   <button
-                    className="w-full flex items-center gap-3 px-4 py-3 text-sm hover:bg-secondary transition-colors text-left border-t border-border"
+                    className={`w-full flex items-center gap-3 px-4 py-3 text-sm hover:bg-secondary transition-colors text-left border-t border-border ${webSearchEnabled ? 'bg-blue-500/5' : ''}`}
+                    onClick={() => { onToggleWebSearch(); }}
+                  >
+                    <div className={`flex items-center justify-center h-8 w-8 rounded-lg ${webSearchEnabled ? 'bg-blue-500/25' : 'bg-blue-500/15'}`}>
+                      <Globe className={`h-4 w-4 ${webSearchEnabled ? 'text-blue-400' : 'text-blue-400/60'}`} />
+                    </div>
+                    <div className="flex-1">
+                      <p className="font-medium">Web Search</p>
+                      <p className="text-xs text-muted-foreground">{webSearchEnabled ? 'ON — Brave search active' : 'OFF — auto only'}</p>
+                    </div>
+                    {webSearchEnabled && <Check className="h-4 w-4 text-blue-400 flex-shrink-0" />}
+                  </button>
+
+                  <button
+                    className="w-full flex items-center gap-3 px-4 py-3 text-sm hover:bg-secondary transition-colors text-left"
                     onClick={() => { onOpenMoveDialog?.(); onTogglePlusMenu(false); }}
                   >
                     <div className="flex items-center justify-center h-8 w-8 rounded-lg bg-orange-500/15">
@@ -206,13 +222,15 @@ export const ChatInput = ({
           )}
 
           {/* Pill input container */}
-          <div className="flex-1 flex items-end gap-2 rounded-2xl border border-border bg-background px-4 py-2 focus-within:ring-2 focus-within:ring-indigo-500/30 transition-shadow">
+          <div className={`flex-1 flex items-end gap-2 rounded-2xl border bg-background px-4 py-2 focus-within:ring-2 transition-shadow ${webSearchEnabled ? 'border-blue-500/50 focus-within:ring-blue-500/30' : 'border-border focus-within:ring-indigo-500/30'}`}>
             <Textarea
               ref={textareaRef}
               placeholder={
                 tempFile
                   ? `Ask about "${tempFile.filename}"...`
-                  : "Message..."
+                  : webSearchEnabled
+                    ? "Search the web..."
+                    : "Message..."
               }
               value={input}
               onChange={(e) => onInputChange(e.target.value)}

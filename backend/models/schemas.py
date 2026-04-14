@@ -113,6 +113,7 @@ class MessageCreate(BaseModel):
     content: str
     temp_file_id: Optional[str] = None  # ID of a temp file uploaded via /api/chat/upload-temp
     activeSourceIds: Optional[List[str]] = None  # Current checkbox state from frontend (avoids debounce race condition)
+    forceWebSearch: Optional[bool] = None  # If True, always run Brave web search regardless of auto-logic
 
 
 class MessageEditRequest(BaseModel):
