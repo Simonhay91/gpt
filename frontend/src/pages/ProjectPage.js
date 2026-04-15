@@ -568,8 +568,8 @@ const ProjectPage = () => {
                 </div>
                 <h3 className="text-lg font-semibold mb-2">No chats yet</h3>
                 <p className="text-muted-foreground text-center mb-4">Start a new conversation with the AI assistant</p>
-                <Button onClick={() => setIsDialogOpen(true)}>
-                  <Plus className="mr-2 h-4 w-4" />
+                <Button onClick={createChat} disabled={isCreating}>
+                  {isCreating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Plus className="mr-2 h-4 w-4" />}
                   New Chat
                 </Button>
               </CardContent>
