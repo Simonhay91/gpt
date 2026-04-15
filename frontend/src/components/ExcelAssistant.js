@@ -16,19 +16,8 @@ const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 const MAX_SIZE = 10 * 1024 * 1024; // 10MB
 const ACCEPTED_EXTS = ['.xlsx', '.xls', '.csv'];
 
-export default function ExcelAssistant({
-  chatId,
-  open: openProp,
-  onOpenChange,
-  hideTrigger = false,
-}) {
-  const [internalOpen, setInternalOpen] = useState(false);
-  const isControlled = openProp !== undefined;
-  const open = isControlled ? openProp : internalOpen;
-  const setOpen = (next) => {
-    if (isControlled) onOpenChange?.(next);
-    else setInternalOpen(next);
-  };
+export default function ExcelAssistant({ chatId }) {
+  const [open, setOpen] = useState(false);
   const [file, setFile] = useState(null);
   const [isDragging, setIsDragging] = useState(false);
   const [instruction, setInstruction] = useState('');
@@ -137,21 +126,19 @@ export default function ExcelAssistant({
 
   return (
     <>
-      {!hideTrigger && (
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => setOpen(true)}
-          className="gap-2"
-          data-testid="excel-assistant-btn"
-          title="Excel / CSV Assistant"
-        >
-          <FileSpreadsheet className="h-4 w-4 text-green-400" />
-          <span className="hidden sm:inline">Excel</span>
-        </Button>
-      )}
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={() => setOpen(true)}
+        className="gap-2"
+        data-testid="excel-assistant-btn"
+        title="Excel / CSV Assistant"
+      >
+        <FileSpreadsheet className="h-4 w-4 text-green-400" />
+        <span className="hidden sm:inline">Excel</span>
+      </Button>
 
-      <Dialog open={open} onOpenChange={(v) => { if (!v) handleClose(); else setOpen(true); }}>
+      <Dialog open={open} onOpenChange={handleClose}>
         <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
