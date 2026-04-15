@@ -6,6 +6,17 @@ UI версия: `frontend/src/data/changelog.js`
 
 ---
 
+## 2026-04-15 — v2.9.16
+
+### Fix: Excel source lookup by file extension fallback
+**Файлы:** `backend/services/excel_service.py`
+
+- Added extension-based fallback when mimeType lookup fails (storagePath or originalName ending in .xlsx/.xls/.csv)
+- Added `[EXCEL]` debug logging on all early-return paths for easier diagnosis
+- Fixes case where file was stored with wrong/unexpected mimeType in DB
+
+---
+
 ## 2026-04-15 — v2.9.15
 
 ### Feature: Full Excel editor — chart titles, font, merge, formulas

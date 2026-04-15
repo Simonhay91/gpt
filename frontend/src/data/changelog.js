@@ -1,6 +1,15 @@
-export const APP_VERSION = "2.9.15";
+export const APP_VERSION = "2.9.16";
 
 export const CHANGELOG = [
+  {
+    version: "2.9.16",
+    date: "Апрель 2026",
+    badge: "fix",
+    changes: [
+      "Excel: исправлен поиск источника — теперь ищет по расширению файла если mimeType не совпадает",
+      "Excel: добавлены debug логи для диагностики early exit-ов",
+    ]
+  },
   {
     version: "2.9.15",
     date: "Апрель 2026",
