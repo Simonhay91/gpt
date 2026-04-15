@@ -373,9 +373,13 @@ async def maybe_generate_excel(
     When a clarification question is asked, returns (None, None, clarif_text, True).
     """
     # If no temp file, require project + active sources
-    if not temp_file_path and (not project_id or not active_source_ids):
-        print(f"[EXCEL] early exit: temp_file_path={temp_file_path}, project_id={project_id}, active_source_ids_count={len(active_source_ids) if active_source_ids else 0}")
+    if not temp_file_path and not project_id:
+        print(f"[EXCEL] early exit: no temp_file and no project_id")
         return None, None, current_response_text, False
+
+    # If active_source_ids is empty but project_id exists, fall back to all project sources
+    effective_source_ids = active_source_ids or []
+    print(f"[EXCEL] start: project_id={project_id}, active_source_ids_count={len(effective_source_ids)}")
 
     if not is_excel_trigger(message_content):
         print(f"[EXCEL] no trigger found in message: {message_content[:80]}")
@@ -389,10 +393,13 @@ async def maybe_generate_excel(
             source_name = actual_file_path.name.split("_", 1)[-1]  # strip UUID prefix
             print(f"[EXCEL] using temp file: {source_name}")
         else:
+            # Build search filter: prefer active sources, but if empty fall back to all project sources
+            id_filter = {"id": {"$in": effective_source_ids}} if effective_source_ids else {"projectId": project_id}
+
             # 1. Try by mimeType (xlsx/xls)
             excel_source = await db.sources.find_one(
                 {
-                    "id": {"$in": active_source_ids},
+                    **id_filter,
                     "mimeType": {"$in": [
                         "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                         "application/vnd.ms-excel"
@@ -403,15 +410,12 @@ async def maybe_generate_excel(
             # 2. Try by mimeType (csv)
             if not excel_source:
                 excel_source = await db.sources.find_one(
-                    {"id": {"$in": active_source_ids}, "mimeType": {"$in": ["text/csv", "application/csv"]}},
+                    {**id_filter, "mimeType": {"$in": ["text/csv", "application/csv"]}},
                     {"_id": 0}
                 )
             # 3. Fallback: find by file extension in storagePath or originalName
             if not excel_source:
-                all_sources = await db.sources.find(
-                    {"id": {"$in": active_source_ids}},
-                    {"_id": 0}
-                ).to_list(100)
+                all_sources = await db.sources.find(id_filter, {"_id": 0}).to_list(100)
                 for s in all_sources:
                     sp = (s.get("storagePath") or "").lower()
                     on = (s.get("originalName") or "").lower()
