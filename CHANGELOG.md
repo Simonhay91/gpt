@@ -6,6 +6,16 @@ UI версия: `frontend/src/data/changelog.js`
 
 ---
 
+## 2026-04-14 — v2.9.14
+
+### Fix: Excel generated files saved permanently
+**Файлы:** `backend/services/excel_service.py`, `backend/routes/excel.py`
+
+- Все `excel_result_*.xlsx` теперь сохраняются в `/uploads/` вместо `/tmp/`
+- Download больше не ломается после перезапуска сервера
+
+---
+
 ## 2026-04-14 — v2.9.13
 
 ### Rollback: Excel Assistant from Plus menu

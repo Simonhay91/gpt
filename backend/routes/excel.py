@@ -166,9 +166,9 @@ async def excel_process(
         logger.error(f"DataFrame transformation error: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to apply transformations: {str(e)[:100]}")
 
-    # Save result to /tmp/
+    # Save result to uploads/ (permanent)
     file_id = str(uuid.uuid4())
-    result_path = f"/tmp/excel_result_{file_id}.xlsx"
+    result_path = str(ROOT_DIR / "uploads" / f"excel_{file_id}.xlsx")
     try:
         result_df.to_excel(result_path, index=False)
     except Exception as e:
@@ -287,9 +287,9 @@ async def excel_generate(
         col_map = result_data.get("column_mapping", {})
         result_df = df.rename(columns={k: v for k, v in col_map.items() if k in df.columns})
 
-    # Save to /tmp/
+    # Save to uploads/ (permanent)
     file_id = str(uuid.uuid4())
-    result_path = f"/tmp/excel_result_{file_id}.xlsx"
+    result_path = str(ROOT_DIR / "uploads" / f"excel_{file_id}.xlsx")
     try:
         result_df.to_excel(result_path, index=False)
     except Exception as e:
@@ -326,9 +326,9 @@ async def download_excel(
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid file ID")
 
-    result_path = f"/tmp/excel_result_{file_id}.xlsx"
+    result_path = str(ROOT_DIR / "uploads" / f"excel_{file_id}.xlsx")
     if not os.path.exists(result_path):
-        raise HTTPException(status_code=404, detail="Файл не найден или уже был удалён. Попросите AI создать файл заново.")
+        raise HTTPException(status_code=404, detail="Файл не найден. Попросите AI создать файл заново.")
 
     return FileResponse(
         path=result_path,

@@ -1,6 +1,14 @@
-export const APP_VERSION = "2.9.13";
+export const APP_VERSION = "2.9.14";
 
 export const CHANGELOG = [
+  {
+    version: "2.9.14",
+    date: "Апрель 2026",
+    badge: "fix",
+    changes: [
+      "Excel: сгенерированные файлы теперь сохраняются постоянно (uploads/), download не ломается после перезапуска сервера",
+    ]
+  },
   {
     version: "2.9.13",
     date: "Апрель 2026",

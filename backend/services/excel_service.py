@@ -210,9 +210,9 @@ async def targeted_excel_edit(source_file_path: str, instruction: str, claude_cl
     if not applied:
         return None, None, "No valid edits could be applied."
 
-    # 3. Save to /tmp/
+    # 3. Save to uploads/ (permanent)
     file_id = str(uuid.uuid4())
-    output_path = f"/tmp/excel_result_{file_id}.xlsx"
+    output_path = str(UPLOAD_DIR / f"excel_{file_id}.xlsx")
     wb.save(output_path)
     print(f"[EXCEL EDIT DEBUG] file_id={file_id}, output_path={output_path}, edits={edits}")
 
@@ -371,7 +371,7 @@ async def maybe_generate_excel(
             result_df = df.rename(columns={k: v for k, v in col_map.items() if k in df.columns})
 
         file_id = str(uuid.uuid4())
-        result_path = f"/tmp/excel_result_{file_id}.xlsx"
+        result_path = str(UPLOAD_DIR / f"excel_{file_id}.xlsx")
         result_df.to_excel(result_path, index=False)
 
         excel_preview = {
