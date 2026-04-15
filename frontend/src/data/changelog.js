@@ -1,6 +1,15 @@
-export const APP_VERSION = "2.9.17";
+export const APP_VERSION = "2.9.18";
 
 export const CHANGELOG = [
+  {
+    version: "2.9.18",
+    date: "Апрель 2026",
+    badge: "fix",
+    changes: [
+      "Web Search OFF теперь реально отключает поиск — больше не триггерится авто и fallback поиск",
+      "Метка в меню изменена: 'OFF — web search disabled' вместо 'OFF — auto only'",
+    ]
+  },
   {
     version: "2.9.17",
     date: "Апрель 2026",

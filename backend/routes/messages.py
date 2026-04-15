@@ -423,7 +423,14 @@ async def send_message(
     brave_key_exists = bool(os.environ.get('BRAVE_API_KEY', ''))
 
     # User explicitly requested web search via Plus menu toggle
-    if message_data.forceWebSearch and brave_key_exists and source_mode != 'ai_only':
+    # forceWebSearch=True  → always search
+    # forceWebSearch=False → user turned it OFF — never search (skip auto + fallback too)
+    # forceWebSearch=None  → legacy / not sent — use auto logic
+    user_disabled_web_search = (message_data.forceWebSearch is False)
+
+    if user_disabled_web_search:
+        use_web_search = False
+    elif message_data.forceWebSearch and brave_key_exists and source_mode != 'ai_only':
         use_web_search = True
     else:
         use_web_search = should_use_web_search(message_data.content, has_relevant_rag)
@@ -448,7 +455,8 @@ async def send_message(
     if any(w in _msg_lower for w in _ARMENIAN_EDIT_WORDS):
         use_web_search = False
 
-    if not use_web_search and not has_relevant_rag and not fetched_url_count \
+    if not use_web_search and not user_disabled_web_search \
+            and not has_relevant_rag and not fetched_url_count \
             and brave_key_exists and not _is_trivial and not has_project_memory \
             and not active_source_ids and source_mode != 'ai_only':
         use_web_search = True

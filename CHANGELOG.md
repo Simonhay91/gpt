@@ -6,6 +6,18 @@ UI версия: `frontend/src/data/changelog.js`
 
 ---
 
+## 2026-04-15 — v2.9.18
+
+### Fix: Web Search OFF now truly disables search
+**Файлы:** `frontend/src/pages/ChatPage.js`, `frontend/src/components/chat/ChatInput.js`, `backend/routes/messages.py`
+
+- Frontend now sends `forceWebSearch: false` (explicit) when toggle is OFF, instead of `undefined`
+- Backend: `forceWebSearch=False` → skip ALL web search: forced, auto (`should_use_web_search`), and fallback
+- Introduced `user_disabled_web_search` flag to cleanly block fallback trigger
+- UI label updated: "OFF — web search disabled" (was "OFF — auto only")
+
+---
+
 ## 2026-04-15 — v2.9.17
 
 ### Fix: Excel always uses targeted edit when source exists + expanded triggers

@@ -199,7 +199,7 @@ export const ChatInput = ({
                     </div>
                     <div className="flex-1">
                       <p className="font-medium">Web Search</p>
-                      <p className="text-xs text-muted-foreground">{webSearchEnabled ? 'ON — Brave search active' : 'OFF — auto only'}</p>
+                      <p className="text-xs text-muted-foreground">{webSearchEnabled ? 'ON — Brave search active' : 'OFF — web search disabled'}</p>
                     </div>
                     {webSearchEnabled && <Check className="h-4 w-4 text-blue-400 flex-shrink-0" />}
                   </button>

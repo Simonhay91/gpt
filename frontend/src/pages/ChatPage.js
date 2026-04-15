@@ -476,7 +476,7 @@ const finalContent = content || "Analyze this file and summarize the key points.
       const payload = {
         content: finalContent,
         activeSourceIds: sourcesExplicitlySet ? activeSourceIds : null,
-        forceWebSearch: webSearchEnabled || undefined,
+        forceWebSearch: webSearchEnabled ? true : false,
       };
       if (activeTempFile) payload.temp_file_id = activeTempFile.id;
       const response = await axios.post(`${API}/chats/${chatId}/messages`, payload);
