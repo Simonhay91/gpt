@@ -458,10 +458,17 @@ async def maybe_generate_excel(
             file_id, preview, text = await targeted_excel_edit(str(actual_file_path), message_content, claude_client)
             if file_id:
                 return file_id, preview, text, False
-            # Edit returned no ops — fall through to full generation only if __CONFIRM_EXCEL__
-            print(f"[EXCEL] targeted_edit returned no ops, text={text}")
+            # Edit returned no ops — ask user to clarify
+            clarif_text = (
+                text if text else
+                "Չհասկացա ինչ փոփոխություն կատարել։ Խնդրեմ կոնկրետ նկարագրիր — "
+                "օրինակ՝ «A2 բջիջում գրիր 100» կամ «Price սյունակի բոլոր արժեքները բազմապատկիր 1.2-ով»։"
+            )
+            print(f"[EXCEL] targeted_edit returned no ops, returning clarification")
+            return None, None, clarif_text, True
         except Exception as edit_err:
             logger.error(f"targeted_excel_edit error: {edit_err}")
+            return None, None, "Excel ֆայլի մշակման ժամանակ սխալ առաջացավ։ Խնդրեմ կրկին փորձիր։", True
 
         # ── Full generation path: only reached if edit produced nothing ──
         # (e.g. user confirmed scratch creation via __CONFIRM_EXCEL__ button)
