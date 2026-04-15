@@ -374,11 +374,11 @@ async def maybe_generate_excel(
     """
     # If no temp file, require project + active sources
     if not temp_file_path and (not project_id or not active_source_ids):
-        logger.info(f"[EXCEL] early exit: temp_file_path={temp_file_path}, project_id={project_id}, active_source_ids_count={len(active_source_ids) if active_source_ids else 0}")
+        print(f"[EXCEL] early exit: temp_file_path={temp_file_path}, project_id={project_id}, active_source_ids_count={len(active_source_ids) if active_source_ids else 0}")
         return None, None, current_response_text, False
 
     if not is_excel_trigger(message_content):
-        logger.info(f"[EXCEL] no trigger found in message: {message_content[:80]}")
+        print(f"[EXCEL] no trigger found in message: {message_content[:80]}")
         return None, None, current_response_text, False
 
     try:
@@ -387,7 +387,7 @@ async def maybe_generate_excel(
             actual_file_path = Path(temp_file_path)
             actual_ext = actual_file_path.suffix.lstrip(".").lower()
             source_name = actual_file_path.name.split("_", 1)[-1]  # strip UUID prefix
-            logger.info(f"[EXCEL] using temp file: {source_name}")
+            print(f"[EXCEL] using temp file: {source_name}")
         else:
             # 1. Try by mimeType (xlsx/xls)
             excel_source = await db.sources.find_one(
@@ -417,22 +417,22 @@ async def maybe_generate_excel(
                     on = (s.get("originalName") or "").lower()
                     if sp.endswith((".xlsx", ".xls", ".csv")) or on.endswith((".xlsx", ".xls", ".csv")):
                         excel_source = s
-                        logger.info(f"[EXCEL] found source by extension fallback: {on}, mimeType={s.get('mimeType')}")
+                        print(f"[EXCEL] found source by extension fallback: {on}, mimeType={s.get('mimeType')}")
                         break
 
             if not excel_source:
-                logger.info(f"[EXCEL] no excel source found among {len(active_source_ids)} active sources")
+                print(f"[EXCEL] no excel source found among {len(active_source_ids)} active sources")
                 return None, None, current_response_text, False
             if not excel_source.get("storagePath"):
-                logger.info(f"[EXCEL] source has no storagePath: {excel_source.get('id')}")
+                print(f"[EXCEL] source has no storagePath: {excel_source.get('id')}")
                 return None, None, current_response_text, False
             actual_file_path = UPLOAD_DIR / excel_source["storagePath"]
             actual_ext = excel_source["storagePath"].rsplit(".", 1)[-1].lower()
             source_name = excel_source.get("originalName", "file")
-            logger.info(f"[EXCEL] resolved source: {source_name}, path={actual_file_path}, exists={actual_file_path.exists()}")
+            print(f"[EXCEL] resolved source: {source_name}, path={actual_file_path}, exists={actual_file_path.exists()}")
 
         if not actual_file_path.exists():
-            logger.info(f"[EXCEL] file not found on disk: {actual_file_path}")
+            print(f"[EXCEL] file not found on disk: {actual_file_path}")
             return None, None, current_response_text, False
 
         # ── Targeted edit path (skips clarification flow) ──
