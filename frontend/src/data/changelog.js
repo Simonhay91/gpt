@@ -1,6 +1,16 @@
-export const APP_VERSION = "2.9.16";
+export const APP_VERSION = "2.9.17";
 
 export const CHANGELOG = [
+  {
+    version: "2.9.17",
+    date: "Апрель 2026",
+    badge: "fix",
+    changes: [
+      "Excel: при наличии файла в проекте всегда используется targeted edit (не full generation) — сохраняются форматирование, charts, формулы",
+      "Excel: расширены trigger-фразы — армянский (romanized + unicode), русский, английский (generacru, sarcru, download ara, скачай, generate и др.)",
+      "Excel: EXCEL_EDIT_MIN_WORDS снижен до 1 — короткие команды типа 'generacru' теперь работают",
+    ]
+  },
   {
     version: "2.9.16",
     date: "Апрель 2026",

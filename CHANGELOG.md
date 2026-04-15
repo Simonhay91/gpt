@@ -6,6 +6,17 @@ UI версия: `frontend/src/data/changelog.js`
 
 ---
 
+## 2026-04-15 — v2.9.17
+
+### Fix: Excel always uses targeted edit when source exists + expanded triggers
+**Файлы:** `backend/services/excel_service.py`
+
+- When an Excel source exists in the project, ALL requests (generate, download, edit) now route to `targeted_excel_edit` — full generation (which destroys formatting/charts) is no longer used
+- Expanded `EXCEL_TRIGGER_PHRASES` and `EXCEL_EDIT_PHRASES` with 30+ new phrases: Armenian romanized (generacru, sarcru, beri, download ara...), Armenian unicode (ստեղծիր, բեր, գեներացրու...), Russian (скачай, скачать, генерируй...), English (generate, download, export...)
+- `EXCEL_EDIT_MIN_WORDS` reduced from 4 to 1 — single-word commands now work
+
+---
+
 ## 2026-04-15 — v2.9.16
 
 ### Fix: Excel source lookup by file extension fallback

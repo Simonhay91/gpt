@@ -18,40 +18,51 @@ EXCEL_MIME_TYPES = [
 ]
 
 EXCEL_TRIGGER_PHRASES = [
-    # English
+    # ── English — generate ──
     "generate excel", "create excel", "make excel", "create spreadsheet",
     "make spreadsheet", "download excel", "export excel", "export to excel",
-    # Russian
+    "generate", "download", "export", "get file", "give me file", "save as excel",
+    # ── English — edit ──
+    "edit", "modify", "update", "change", "fix",
+    # ── Russian — generate ──
     "сгенерируй excel", "создай excel", "сделай excel", "скачать excel",
     "сгенерируй таблицу", "создай таблицу", "сделай таблицу",
-    # Armenian romanized
+    "скачай", "скачать", "сохрани", "экспортируй", "генерируй", "создай файл",
+    # ── Russian — edit ──
+    "редактируй", "измени", "обнови", "исправь", "поменяй",
+    # ── Armenian romanized — generate ──
     "excel generacru", "excel sarcru", "excel beri", "excel download ara",
     "avelacru excel", "excel poxi", "kercru excel",
-    # Armenian unicode
+    "generacru", "sarcru", "beri", "tui", "ktur", "bacer", "paterastirel",
+    "download ara", "paterastr", "excel baci", "excel kazmir",
+    # ── Armenian romanized — edit ──
+    "edit ara", "poxi", "kpoxes", "popoxir", "gri", "nerkayacru",
+    # ── Armenian unicode — generate ──
     "excel ստեղծիր", "excel բեր", "excel ներբեռնիր",
-    # edit / modify — English
-    "edit", "modify", "update", "change", "fix",
-    # edit / modify — Armenian romanized
-    "edit ara", "poxi", "kpoxes", "popoxir",
-    # edit / modify — Armenian unicode
-    "փոխիր", "խմբագրիր", "թարմացրու", "ուղղիր",
-    # edit / modify — Russian
-    "редактируй", "измени", "обнови", "исправь",
-    # Excel-specific row/column operations
+    "ստեղծիր", "բեր", "տուր", "ներբեռնիր", "պատրաստիր", "գեներացրու",
+    # ── Armenian unicode — edit ──
+    "փոխիր", "խմբագրիր", "թարմացրու", "ուղղիր", "գրիր",
+    # ── Excel-specific ──
     "arajin togh", "առաջին տող", "readme",
 ]
 
-# Subset that indicates targeted cell editing (not full regeneration).
+# When an existing Excel source is found, ALL trigger phrases route to targeted_edit.
+# Full generation only happens when there is NO existing file (scratch creation).
 EXCEL_EDIT_PHRASES = [
-    # English
+    # ── English ──
     "edit", "modify", "update", "change", "fix",
-    # Armenian romanized
-    "edit ara", "poxi", "kpoxes", "popoxir",
-    # Armenian unicode
-    "փոխիր", "խմբագրիր", "թարմացրու", "ուղղիր",
-    # Russian
-    "редактируй", "измени", "обнови", "исправь",
-    # Excel-specific
+    "generate", "download", "export", "get file", "give me file",
+    # ── Russian ──
+    "редактируй", "измени", "обнови", "исправь", "поменяй",
+    "скачай", "скачать", "сохрани", "экспортируй", "генерируй",
+    # ── Armenian romanized ──
+    "edit ara", "poxi", "kpoxes", "popoxir", "gri", "nerkayacru",
+    "generacru", "sarcru", "beri", "tui", "ktur", "bacer",
+    "download ara", "paterastr", "paterastirel",
+    # ── Armenian unicode ──
+    "փոխիր", "խմբագրիր", "թարմացրու", "ուղղիր", "գրիր",
+    "ստեղծիր", "բեր", "տուր", "ներբեռնիր", "պատրաստիր", "գեներացրու",
+    # ── Excel-specific ──
     "arajin togh", "առաջին տող", "readme",
 ]
 
@@ -76,8 +87,8 @@ EXCEL_EDIT_SKIP_WORDS = [
     "what is", "show me", "tell me", "list all",
 ]
 
-# Minimum word count for edit trigger — short questions never trigger edit.
-EXCEL_EDIT_MIN_WORDS = 4
+# Minimum word count for edit trigger — short messages like "generacru" (1 word) ARE valid.
+EXCEL_EDIT_MIN_WORDS = 1
 
 UPLOAD_DIR = Path(__file__).parent.parent / "uploads"
 
@@ -439,44 +450,28 @@ async def maybe_generate_excel(
             print(f"[EXCEL] file not found on disk: {actual_file_path}")
             return None, None, current_response_text, False
 
-        # ── Targeted edit path (skips clarification flow) ──
-        if is_edit_trigger(message_content):
-            try:
-                file_id, preview, text = await targeted_excel_edit(str(actual_file_path), message_content, claude_client)
+        # ── When an existing file is found → ALWAYS use targeted edit ──
+        # Full generation destroys original formatting/charts/formulas.
+        # The edit path handles everything: value changes, colors, chart titles, formulas, etc.
+        print(f"[EXCEL] routing to targeted_edit (source file exists)")
+        try:
+            file_id, preview, text = await targeted_excel_edit(str(actual_file_path), message_content, claude_client)
+            if file_id:
                 return file_id, preview, text, False
-            except Exception as edit_err:
-                logger.error(f"targeted_excel_edit error: {edit_err}")
-                return None, None, current_response_text, False
+            # Edit returned no ops — fall through to full generation only if __CONFIRM_EXCEL__
+            print(f"[EXCEL] targeted_edit returned no ops, text={text}")
+        except Exception as edit_err:
+            logger.error(f"targeted_excel_edit error: {edit_err}")
 
-        # ── Full generation path: two-step flow with clarification ──
+        # ── Full generation path: only reached if edit produced nothing ──
+        # (e.g. user confirmed scratch creation via __CONFIRM_EXCEL__ button)
         has_clarification = message_content.strip().startswith("__CONFIRM_EXCEL__")
         if has_clarification:
             message_content = message_content[len("__CONFIRM_EXCEL__"):].strip()
 
         if not has_clarification:
-            try:
-                clarif_resp = claude_client.messages.create(
-                    model="claude-sonnet-4-20250514",
-                    max_tokens=512,
-                    system=(
-                        "EXCEL CLARIFICATION REQUIRED: The user wants to generate an Excel file.\n"
-                        "DO NOT generate Excel yet.\n"
-                        "IMPORTANT: Detect the language of the user's message:\n"
-                        "- If Armenian (հայerен script or romanized like 'inch', 'vor', 'barev') → respond in Armenian\n"
-                        "- If Russian (\u043a\u0438\u0440\u0438\u043b\u043b\u0438\u0446\u0430) → respond in Russian\n"
-                        "- If English → respond in English\n\n"
-                        "Ask these 3 clarifying questions in the SAME language as the user's message:\n"
-                        "1. What data/columns should be included\n"
-                        "2. Approximately how many rows\n"
-                        "3. What is the purpose of the file\n\n"
-                        "Keep it short and friendly. Do not generate any file or code."
-                    ),
-                    messages=[{"role": "user", "content": message_content}]
-                )
-                return None, None, clarif_resp.content[0].text, True
-            except Exception as clarif_err:
-                logger.warning(f"Excel clarification call failed: {clarif_err}")
-                return None, None, current_response_text, False
+            # Return the edit's error/info text rather than asking clarification again
+            return None, None, current_response_text, False
 
         df = pd.read_excel(actual_file_path) if actual_ext in ("xlsx", "xls") else pd.read_csv(actual_file_path)
 
