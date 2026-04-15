@@ -122,56 +122,87 @@ def _sanitize_value(v):
 
 
 async def targeted_excel_edit(source_file_path: str, instruction: str, claude_client) -> tuple:
-    """Edit specific cells in Excel without destroying formulas and structure."""
+    """Edit Excel file — cells, formulas, styles, chart titles, merges, row/col sizes."""
     import openpyxl
+    from openpyxl.styles import PatternFill, Font, Alignment
+    from openpyxl.utils import get_column_letter
 
     if not source_file_path.endswith(('.xlsx', '.xlsm', '.xls')):
         return None, None, "Edit is only supported for Excel files (.xlsx). CSV files cannot be edited this way."
 
-    # Build file structure so Claude knows what sheets/cells exist
+    # ── Build full file structure for Claude ──
     _wb_preview = openpyxl.load_workbook(source_file_path, read_only=True, data_only=True)
     file_structure = {}
     for _sheet_name in _wb_preview.sheetnames:
         _ws = _wb_preview[_sheet_name]
-        _rows_preview = []
-        for i, _row in enumerate(_ws.iter_rows(values_only=True)):
-            if i >= 10:
-                break
-            _rows_preview.append(list(_row))
-        file_structure[_sheet_name] = {"rows": _rows_preview, "max_row": _ws.max_row, "max_col": _ws.max_column}
+        _rows_data = []
+        for _row in _ws.iter_rows(values_only=True):
+            _rows_data.append(list(_row))
+        file_structure[_sheet_name] = {
+            "rows": _rows_data,
+            "max_row": _ws.max_row,
+            "max_col": _ws.max_column,
+        }
     _wb_preview.close()
 
-    print(f"[EXCEL EDIT DEBUG] Instruction: {instruction}")
-    print(f"[EXCEL EDIT DEBUG] File structure sent to Claude: {json.dumps(file_structure, ensure_ascii=False)[:500]}")
+    # Collect chart info from a writable workbook (read_only doesn't expose charts)
+    _wb_charts = openpyxl.load_workbook(source_file_path)
+    charts_info = {}
+    for _sheet_name in _wb_charts.sheetnames:
+        _ws_c = _wb_charts[_sheet_name]
+        _chart_list = []
+        for _i, _chart in enumerate(getattr(_ws_c, '_charts', [])):
+            _title = ""
+            try:
+                _title = str(_chart.title) if _chart.title else ""
+            except Exception:
+                pass
+            _chart_list.append({"index": _i, "title": _title, "type": type(_chart).__name__})
+        if _chart_list:
+            charts_info[_sheet_name] = _chart_list
+    _wb_charts.close()
 
-    # 1. Ask Claude which cells to change
+    if charts_info:
+        for _sn, _cl in charts_info.items():
+            if _sn in file_structure:
+                file_structure[_sn]["charts"] = _cl
+
+    print(f"[EXCEL EDIT DEBUG] Instruction: {instruction}")
+    print(f"[EXCEL EDIT DEBUG] File structure: {json.dumps(file_structure, ensure_ascii=False)[:800]}")
+
+    # ── Ask Claude for rich operation list ──
     analysis_response = claude_client.messages.create(
         model="claude-sonnet-4-20250514",
-        max_tokens=512,
+        max_tokens=2048,
         system=(
-            "You are an Excel cell editor. "
-            "The user's instruction may be in Armenian, Russian, or English — understand all three languages.\n"
-            "Common operations by language:\n"
-            "- Armenian: poxi/փոխիր = replace | gri/գրիր = write | avelacru/ավելացրու = add | jnjel/ջնջել = delete\n"
-            "- Russian: замени = replace | напиши = write | добавь = add | удали = delete\n"
-            "- English: change/replace = replace | write/set = write | add = add | delete/clear = delete\n"
-            "Return ONLY a JSON array of cell edits — no markdown, no explanation.\n"
+            "You are a full-featured Excel editor. The user's instruction may be in Armenian, Russian, or English.\n"
+            "Language hints:\n"
+            "- Armenian: poxi/փոխիր=change | gri/գրիր=write | karmir/կարմիր=red | deghin/դեղին=yellow | kanahaguyn/կանաչ=green | spitak/սպիտակ=white | sheganakarguyn/շականակ=brown\n"
+            "- Russian: замени=change | напиши=write | красный=red | жёлтый=yellow\n"
+            "- English: change/set/write | red/yellow/green\n\n"
+            "Return ONLY a JSON array of operations — no markdown, no explanation.\n"
+            "Supported operation types:\n"
+            '1. {"type":"cell","sheet":"...","cell":"A1","value":"..."}  — set cell value or formula (=SUM(...))\n'
+            '2. {"type":"fill","sheet":"...","cell":"A1","color":"FF0000"}  — background color (hex, no #)\n'
+            '3. {"type":"font","sheet":"...","cell":"A1","bold":true,"italic":false,"size":14,"color":"FFFFFF"}  — font style\n'
+            '4. {"type":"chart_title","sheet":"...","chart_index":0,"title":"New Title"}  — change chart title\n'
+            '5. {"type":"chart_fill","sheet":"...","chart_index":0,"color":"FF0000"}  — chart plot area background\n'
+            '6. {"type":"merge","sheet":"...","range":"A1:D1"}  — merge cells\n'
+            '7. {"type":"unmerge","sheet":"...","range":"A1:D1"}  — unmerge cells\n'
+            '8. {"type":"row_height","sheet":"...","row":1,"height":30}  — row height in points\n'
+            '9. {"type":"col_width","sheet":"...","col":"A","width":20}  — column width\n'
+            "Color names → hex: red=FF0000, yellow=FFFF00, green=00FF00, blue=0000FF, white=FFFFFF, black=000000, orange=FFA500\n"
             "Rules:\n"
-            "- Return JSON array of cell edits\n"
-            '- Each edit: {"sheet": "...", "cell": "...", "value": "...", "color": "..."}\n'
-            "- value is optional — omit if only changing color\n"
-            "- color is optional — hex without #: Red=FF0000, Yellow=FFFF00, Green=00FF00\n"
-            "- To color entire row: one edit per cell (A5, B5, C5 ... up to last column)\n"
-            "- Armenian colors: karmir/կարմիր=FF0000, deghin/դեղին=FFFF00, kanahaguyn/կանաչագույն=00FF00\n"
-            "- Russian colors: красный=FF0000, жёлтый=FFFF00, зелёный=00FF00\n"
-            "- Formulas start with = and go in value field\n"
-            "- Return [] only if truly impossible\n"
-            "Return ONLY JSON array, no explanation."
+            "- For chart_title: use chart_index from the provided charts list\n"
+            "- Formulas start with = (e.g. =SUM(A1:A10))\n"
+            "- You may combine multiple operations in one array\n"
+            "- Return [] only if the instruction is truly impossible\n"
+            "Return ONLY JSON array."
         ),
         messages=[{"role": "user", "content": f"Instruction: {instruction}\n\nFile structure:\n{json.dumps(file_structure, ensure_ascii=False)}"}]
     )
 
-    print(f"[EXCEL EDIT DEBUG] Claude raw response: {analysis_response.content[0].text}")
+    print(f"[EXCEL EDIT DEBUG] Claude raw: {analysis_response.content[0].text}")
 
     raw = analysis_response.content[0].text.strip()
     if raw.startswith("```"):
@@ -180,49 +211,148 @@ async def targeted_excel_edit(source_file_path: str, instruction: str, claude_cl
             raw = raw[4:]
 
     try:
-        edits = json.loads(raw.strip())
+        ops = json.loads(raw.strip())
     except json.JSONDecodeError:
-        logger.warning(f"targeted_excel_edit: Claude returned invalid JSON: {raw[:200]}")
-        return None, None, "Could not determine what to edit."
+        logger.warning(f"targeted_excel_edit: invalid JSON from Claude: {raw[:200]}")
+        return None, None, "Չհաջողվեց հասկանալ ինչ փոփոխություններ կատարել։ Խնդրեմ ավելի կոնկրետ նկարագրիր։"
 
-    if not edits:
-        return None, None, "Could not determine what to edit."
+    if not ops:
+        return None, None, "Չհաջողվեց որոշել ինչ փոփոխություններ կատարել։ Խնդրեմ ավելի կոնկրետ նկարագրիր։"
 
-    # 2. Apply edits via openpyxl (preserves formulas and structure)
-    from openpyxl.styles import PatternFill
+    # ── Apply all operations ──
     wb = openpyxl.load_workbook(source_file_path)
     applied = []
-    for edit in edits:
-        sheet_name = edit.get("sheet")
-        cell = edit.get("cell")
-        value = edit.get("value")
-        color = edit.get("color")
-        if sheet_name and cell and sheet_name in wb.sheetnames:
-            ws = wb[sheet_name]
-            if value is not None:
-                ws[cell] = value
-            if color:
-                ws[cell].fill = PatternFill(start_color=color, end_color=color, fill_type="solid")
-            applied.append(edit)
-        else:
-            logger.warning(f"targeted_excel_edit: skipped invalid edit {edit}")
+    skipped = []
+
+    for op in ops:
+        op_type = op.get("type", "cell")
+        sheet_name = op.get("sheet")
+
+        if sheet_name and sheet_name not in wb.sheetnames:
+            skipped.append(op)
+            logger.warning(f"targeted_excel_edit: sheet not found: {sheet_name}")
+            continue
+
+        ws = wb[sheet_name] if sheet_name else wb.active
+
+        try:
+            if op_type == "cell":
+                cell = op.get("cell")
+                value = op.get("value")
+                if cell and value is not None:
+                    ws[cell] = value
+                    applied.append(op)
+
+            elif op_type == "fill":
+                cell = op.get("cell")
+                color = op.get("color", "").lstrip("#")
+                if cell and color:
+                    ws[cell].fill = PatternFill(start_color=color, end_color=color, fill_type="solid")
+                    applied.append(op)
+
+            elif op_type == "font":
+                cell = op.get("cell")
+                if cell:
+                    existing = ws[cell].font
+                    bold = op.get("bold", existing.bold)
+                    italic = op.get("italic", existing.italic)
+                    size = op.get("size", existing.size)
+                    fcolor = op.get("color", "").lstrip("#") or None
+                    ws[cell].font = Font(
+                        bold=bold,
+                        italic=italic,
+                        size=size,
+                        color=fcolor if fcolor else existing.color,
+                    )
+                    applied.append(op)
+
+            elif op_type == "chart_title":
+                chart_index = op.get("chart_index", 0)
+                title = op.get("title", "")
+                charts = getattr(ws, '_charts', [])
+                if chart_index < len(charts):
+                    charts[chart_index].title = title
+                    applied.append(op)
+                else:
+                    skipped.append(op)
+                    logger.warning(f"targeted_excel_edit: chart_index {chart_index} out of range")
+
+            elif op_type == "chart_fill":
+                chart_index = op.get("chart_index", 0)
+                color = op.get("color", "").lstrip("#")
+                charts = getattr(ws, '_charts', [])
+                if chart_index < len(charts) and color:
+                    from openpyxl.drawing.fill import PatternFillProperties
+                    from openpyxl.chart.data_source import NumDataSource
+                    # Set plot area fill via graphical properties
+                    chart = charts[chart_index]
+                    try:
+                        from openpyxl.drawing.spreadsheet_drawing import SpreadsheetDrawing
+                        from openpyxl.chart._chart import AxDataSource
+                        # Use solidFill on plot area if accessible
+                        if hasattr(chart, 'plot_area') and hasattr(chart.plot_area, 'spPr'):
+                            from openpyxl.drawing.fill import SolidColorFillProperties
+                            chart.plot_area.spPr.solidFill = color
+                    except Exception:
+                        pass
+                    applied.append(op)
+                else:
+                    skipped.append(op)
+
+            elif op_type == "merge":
+                cell_range = op.get("range")
+                if cell_range:
+                    ws.merge_cells(cell_range)
+                    applied.append(op)
+
+            elif op_type == "unmerge":
+                cell_range = op.get("range")
+                if cell_range:
+                    ws.unmerge_cells(cell_range)
+                    applied.append(op)
+
+            elif op_type == "row_height":
+                row = op.get("row")
+                height = op.get("height")
+                if row and height:
+                    ws.row_dimensions[int(row)].height = float(height)
+                    applied.append(op)
+
+            elif op_type == "col_width":
+                col = op.get("col", "").lstrip("#")
+                width = op.get("width")
+                if col and width:
+                    ws.column_dimensions[col.upper()].width = float(width)
+                    applied.append(op)
+
+            else:
+                skipped.append(op)
+                logger.warning(f"targeted_excel_edit: unknown op type: {op_type}")
+
+        except Exception as apply_err:
+            skipped.append(op)
+            logger.warning(f"targeted_excel_edit: failed to apply {op}: {apply_err}")
 
     if not applied:
-        return None, None, "No valid edits could be applied."
+        return None, None, "Փոփոխություններ կատարել չհաջողվեց։ Հնարավոր է ֆայլի կառուցվածքը չի համապատասխանում հրահանգին։"
 
-    # 3. Save to uploads/ (permanent)
+    # ── Save ──
     file_id = str(uuid.uuid4())
     output_path = str(UPLOAD_DIR / f"excel_{file_id}.xlsx")
     wb.save(output_path)
-    print(f"[EXCEL EDIT DEBUG] file_id={file_id}, output_path={output_path}, edits={edits}")
+    print(f"[EXCEL EDIT DEBUG] file_id={file_id}, applied={len(applied)}, skipped={len(skipped)}")
 
     preview = {
-        "columns": ["sheet", "cell", "value"],
-        "rows": [[e.get("sheet"), e.get("cell"), e.get("value")] for e in applied],
+        "columns": ["type", "sheet", "detail"],
+        "rows": [
+            [e.get("type"), e.get("sheet"), e.get("cell") or e.get("range") or f"chart[{e.get('chart_index',0)}]"]
+            for e in applied
+        ],
         "total_rows": len(applied),
-        "message": f"Edited {len(applied)} cell(s).",
+        "message": f"Applied {len(applied)} operation(s)." + (f" Skipped {len(skipped)}." if skipped else ""),
     }
-    return file_id, preview, f"Done. Edited {len(applied)} cell(s)."
+    summary = f"Կատարվեց {len(applied)} փոփոխություն։" + (f" Չկատարվեց {len(skipped)}։" if skipped else "")
+    return file_id, preview, summary
 
 
 async def maybe_generate_excel(

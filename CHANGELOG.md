@@ -6,6 +6,18 @@ UI версия: `frontend/src/data/changelog.js`
 
 ---
 
+## 2026-04-15 — v2.9.15
+
+### Feature: Full Excel editor — chart titles, font, merge, formulas
+**Файлы:** `backend/services/excel_service.py`
+
+- `targeted_excel_edit` полностью переписан: поддержка 9 типов операций (`cell`, `fill`, `font`, `chart_title`, `chart_fill`, `merge`, `unmerge`, `row_height`, `col_width`)
+- Claude получает полную структуру файла (все строки, не только 10) + информацию о charts (индекс, тип, текущий title)
+- Rich JSON schema с полем `type` — AI сам выбирает нужный тип операции
+- Исправлен silent fail: теперь пользователь видит армянское сообщение об ошибке вместо пустого ответа
+
+---
+
 ## 2026-04-14 — v2.9.14
 
 ### Fix: Excel generated files saved permanently

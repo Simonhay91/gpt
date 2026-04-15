@@ -1,6 +1,16 @@
-export const APP_VERSION = "2.9.14";
+export const APP_VERSION = "2.9.15";
 
 export const CHANGELOG = [
+  {
+    version: "2.9.15",
+    date: "Апрель 2026",
+    badge: "new",
+    changes: [
+      "Excel редактор: полная поддержка — chart title, цвет шрифта, bold/italic, merge, высота строк, ширина колонок, формулы",
+      "AI получает полную структуру файла (все строки + информация о charts)",
+      "Исправлен silent fail — теперь пользователь видит понятное сообщение об ошибке",
+    ]
+  },
   {
     version: "2.9.14",
     date: "Апрель 2026",
