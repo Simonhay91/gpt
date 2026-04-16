@@ -6,6 +6,20 @@ UI версия: `frontend/src/data/changelog.js`
 
 ---
 
+## 2026-04-16 — v2.9.19
+
+### New: Product Matching feature
+**Файлы:** `backend/routes/product_matching.py` (new), `backend/server.py`, `frontend/src/pages/ProductCatalogPage.js`, `frontend/src/data/changelog.js`
+
+- Новый backend route `POST /api/product-matching/match` — принимает файл + mode (global/oem)
+- Парсинг Excel/CSV (все ячейки), DOCX (параграфы + таблицы), PDF (построчно)
+- Claude claude-sonnet-4-20250514 matching: полный каталог + батчи по 50 элементов
+- Global mode → CRM код; OEM mode → article для OEM-вендоров, иначе CRM
+- Excel-ответ: 5 колонок, синий хедер, чередующиеся строки, жёлтые — несовпавшие
+- Обновлён Modal в ProductCatalogPage: drag & drop, кнопки Global/OEM, download-ссылка без закрытия
+
+---
+
 ## 2026-04-15 — v2.9.18
 
 ### Fix: Web Search OFF now truly disables search

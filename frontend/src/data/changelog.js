@@ -1,6 +1,17 @@
-export const APP_VERSION = "2.9.18";
+export const APP_VERSION = "2.9.19";
 
 export const CHANGELOG = [
+  {
+    version: "2.9.19",
+    date: "Апрель 2026",
+    badge: "new",
+    changes: [
+      "Product Matching: новый AI-инструмент для сопоставления клиентских файлов с каталогом",
+      "Поддержка форматов Excel, CSV, Word (включая таблицы), PDF",
+      "Режимы Global (CRM коды) и OEM (артикулы) — с учётом OEM-брендов",
+      "Обновлён UI модала 'Match Customer File': drag & drop загрузка, кнопки режима, скачивание без закрытия",
+    ]
+  },
   {
     version: "2.9.18",
     date: "Апрель 2026",

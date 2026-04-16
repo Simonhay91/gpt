@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { useAuth } from '../contexts/AuthContext';
@@ -20,7 +20,13 @@ import {
   AlertCircle,
   FileSearch,
   Download,
-  Loader2
+  Loader2,
+  Globe,
+  Tag,
+  CheckCircle2,
+  FileText,
+  FileSpreadsheet,
+  File
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -68,9 +74,12 @@ export default function ProductCatalogPage() {
   // Match File state
   const [showMatchModal, setShowMatchModal] = useState(false);
   const [matchFile, setMatchFile] = useState(null);
-  const [matchMode, setMatchMode] = useState('article');
-  const [matchColumn, setMatchColumn] = useState('0');
+  const [matchMode, setMatchMode] = useState('global');
   const [matching, setMatching] = useState(false);
+  const [matchDownloadUrl, setMatchDownloadUrl] = useState(null);
+  const [matchError, setMatchError] = useState(null);
+  const [matchIsDragging, setMatchIsDragging] = useState(false);
+  const matchFileInputRef = useRef(null);
   
   // Permission check - Admin or Manager can edit
   const canEdit = user?.isAdmin || user?.email?.endsWith('@admin.com');
@@ -212,36 +221,62 @@ export default function ProductCatalogPage() {
     }
   };
 
+  const handleMatchFileSelect = (f) => {
+    if (!f) return;
+    const name = f.name.toLowerCase();
+    const allowed = ['.xlsx', '.xls', '.csv', '.docx', '.pdf'];
+    if (!allowed.some(ext => name.endsWith(ext))) {
+      toast.error('Unsupported file type. Use xlsx, xls, csv, docx or pdf.');
+      return;
+    }
+    setMatchFile(f);
+    setMatchDownloadUrl(null);
+    setMatchError(null);
+  };
+
   const handleMatchFile = async () => {
     if (!matchFile) return;
     setMatching(true);
+    setMatchDownloadUrl(null);
+    setMatchError(null);
     try {
       const formData = new FormData();
       formData.append('file', matchFile);
       formData.append('mode', matchMode);
-      formData.append('name_column', matchColumn);
 
-      const response = await axios.post(`${API}/product-catalog/match-file`, formData, {
-        responseType: 'blob'
+      const response = await axios.post(`${API}/product-matching/match`, formData, {
+        responseType: 'blob',
+        timeout: 180000,
       });
 
-      const url = window.URL.createObjectURL(new Blob([response.data]));
-      const link = document.createElement('a');
-      link.href = url;
-      link.setAttribute('download', 'matched_products.xlsx');
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      window.URL.revokeObjectURL(url);
-
-      toast.success('Matching complete! File downloaded.');
-      setShowMatchModal(false);
-      setMatchFile(null);
-    } catch (error) {
-      toast.error('Matching failed. Please try again.');
+      const blob = new Blob([response.data], {
+        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      });
+      setMatchDownloadUrl(URL.createObjectURL(blob));
+      toast.success('Matching complete!');
+    } catch (err) {
+      let msg = 'Matching failed. Please try again.';
+      if (err.response?.data) {
+        try {
+          const text = await err.response.data.text();
+          const parsed = JSON.parse(text);
+          msg = parsed.detail || text;
+        } catch { /* keep default */ }
+      }
+      setMatchError(msg);
+      toast.error('Matching failed');
     } finally {
       setMatching(false);
     }
+  };
+
+  const handleMatchModalClose = () => {
+    setShowMatchModal(false);
+    setMatchFile(null);
+    setMatchDownloadUrl(null);
+    setMatchError(null);
+    setMatchIsDragging(false);
+    if (matchFileInputRef.current) matchFileInputRef.current.value = '';
   };
 
   return (
@@ -673,70 +708,150 @@ export default function ProductCatalogPage() {
             </div>
           </div>
         )}
-        {/* Match File Modal */}
+        {/* Match Customer File Modal */}
         {showMatchModal && (
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-            <div className="bg-background rounded-lg p-6 max-w-md w-full mx-4">
-              <div className="flex justify-between items-center mb-4">
-                <h2 className="text-xl font-bold flex items-center gap-2">
-                  <FileSearch className="h-5 w-5" />
-                  Match Customer File
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+            <div className="bg-background rounded-xl shadow-xl max-w-lg w-full">
+              {/* Header */}
+              <div className="flex justify-between items-center px-6 pt-5 pb-4 border-b border-border">
+                <h2 className="text-lg font-bold flex items-center gap-2">
+                  <FileSearch className="h-5 w-5 text-primary" />
+                  Product Matching
                 </h2>
-                <Button variant="ghost" size="sm" onClick={() => setShowMatchModal(false)}>
+                <Button variant="ghost" size="icon" onClick={handleMatchModalClose}>
                   <X className="h-4 w-4" />
                 </Button>
               </div>
 
-              <p className="text-sm text-muted-foreground mb-4">
-                Upload a customer file (Excel, CSV, DOCX, PDF) with product names.
-                AI will match them against our catalog and return an Excel with results.
-              </p>
-
-              <div className="space-y-4">
-                {/* File upload */}
-                <div>
-                  <label className="text-sm font-medium block mb-1">Customer File *</label>
-                  <input
-                    type="file"
-                    accept=".xlsx,.xls,.csv,.docx,.pdf"
-                    onChange={(e) => setMatchFile(e.target.files[0])}
-                    className="w-full text-sm border rounded-md px-3 py-2 bg-background"
-                  />
-                  {matchFile && (
-                    <p className="text-xs text-muted-foreground mt-1">{matchFile.name}</p>
-                  )}
-                </div>
-
+              <div className="px-6 py-5 space-y-5">
                 {/* Mode selector */}
                 <div>
-                  <label className="text-sm font-medium block mb-1">Output Code</label>
-                  <select
-                    value={matchMode}
-                    onChange={(e) => setMatchMode(e.target.value)}
-                    className="w-full px-3 py-2 rounded-md border bg-background text-sm"
-                  >
-                    <option value="article">Article Number (OEM)</option>
-                    <option value="crm">CRM Code</option>
-                  </select>
+                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">Output mode</p>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => setMatchMode('global')}
+                      className={`flex-1 flex items-center gap-2 px-3 py-2.5 rounded-lg border-2 text-sm font-medium transition-all ${
+                        matchMode === 'global'
+                          ? 'border-indigo-500 bg-indigo-500/10 text-indigo-600 dark:text-indigo-400'
+                          : 'border-border text-muted-foreground hover:text-foreground hover:border-border/60'
+                      }`}
+                    >
+                      <Globe className="h-4 w-4 flex-shrink-0" />
+                      <div className="text-left">
+                        <div className="leading-tight">Global</div>
+                        <div className="text-xs font-normal opacity-70">CRM codes</div>
+                      </div>
+                    </button>
+                    <button
+                      onClick={() => setMatchMode('oem')}
+                      className={`flex-1 flex items-center gap-2 px-3 py-2.5 rounded-lg border-2 text-sm font-medium transition-all ${
+                        matchMode === 'oem'
+                          ? 'border-emerald-500 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
+                          : 'border-border text-muted-foreground hover:text-foreground hover:border-border/60'
+                      }`}
+                    >
+                      <Tag className="h-4 w-4 flex-shrink-0" />
+                      <div className="text-left">
+                        <div className="leading-tight">OEM</div>
+                        <div className="text-xs font-normal opacity-70">Article numbers</div>
+                      </div>
+                    </button>
+                  </div>
                 </div>
 
-                {/* Column selector (for Excel/CSV) */}
+                {/* Drag & drop upload zone */}
                 <div>
-                  <label className="text-sm font-medium block mb-1">Product Name Column</label>
-                  <Input
-                    value={matchColumn}
-                    onChange={(e) => setMatchColumn(e.target.value)}
-                    placeholder="0 (first column) or column name"
-                    className="text-sm"
+                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">Customer file</p>
+                  <div
+                    onClick={() => !matchFile && matchFileInputRef.current?.click()}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      setMatchIsDragging(false);
+                      handleMatchFileSelect(e.dataTransfer.files[0]);
+                    }}
+                    onDragOver={(e) => { e.preventDefault(); setMatchIsDragging(true); }}
+                    onDragLeave={() => setMatchIsDragging(false)}
+                    className={`border-2 border-dashed rounded-xl p-6 text-center transition-all ${
+                      matchIsDragging
+                        ? 'border-indigo-500 bg-indigo-500/5'
+                        : matchFile
+                        ? 'border-emerald-500/50 bg-emerald-500/5 cursor-default'
+                        : 'border-border hover:border-indigo-400 hover:bg-accent/40 cursor-pointer'
+                    }`}
+                  >
+                    {matchFile ? (
+                      <div className="flex flex-col items-center gap-1.5">
+                        {matchFile.name.endsWith('.pdf')
+                          ? <FileText className="h-8 w-8 text-red-400" />
+                          : matchFile.name.endsWith('.docx')
+                          ? <File className="h-8 w-8 text-blue-400" />
+                          : <FileSpreadsheet className="h-8 w-8 text-green-500" />
+                        }
+                        <p className="text-sm font-medium">{matchFile.name}</p>
+                        <p className="text-xs text-muted-foreground">{(matchFile.size / 1024).toFixed(0)} KB</p>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setMatchFile(null);
+                            setMatchDownloadUrl(null);
+                            setMatchError(null);
+                            if (matchFileInputRef.current) matchFileInputRef.current.value = '';
+                          }}
+                          className="mt-1 text-xs text-muted-foreground hover:text-destructive flex items-center gap-1"
+                        >
+                          <X className="h-3 w-3" /> Remove
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="flex flex-col items-center gap-2 text-muted-foreground">
+                        <Upload className="h-8 w-8" />
+                        <div>
+                          <p className="text-sm font-medium text-foreground">Drop file here</p>
+                          <p className="text-xs mt-0.5">or click to browse</p>
+                        </div>
+                        <p className="text-xs">xlsx · xls · csv · docx · pdf</p>
+                      </div>
+                    )}
+                  </div>
+                  <input
+                    ref={matchFileInputRef}
+                    type="file"
+                    accept=".xlsx,.xls,.csv,.docx,.pdf"
+                    className="hidden"
+                    onChange={(e) => handleMatchFileSelect(e.target.files[0])}
                   />
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Enter column index (0 = first) or column header name. For PDF/DOCX, ignored.
-                  </p>
                 </div>
 
-                <div className="flex gap-2 pt-2">
-                  <Button variant="outline" onClick={() => setShowMatchModal(false)} className="flex-1">
-                    Cancel
+                {/* Error */}
+                {matchError && (
+                  <div className="flex items-start gap-2 p-3 rounded-lg bg-destructive/10 border border-destructive/30 text-sm text-destructive">
+                    <AlertCircle className="h-4 w-4 flex-shrink-0 mt-0.5" />
+                    {matchError}
+                  </div>
+                )}
+
+                {/* Success download box */}
+                {matchDownloadUrl && (
+                  <div className="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/30">
+                    <div className="flex items-center gap-2 mb-2">
+                      <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+                      <span className="text-sm font-semibold text-emerald-600 dark:text-emerald-400">Matching complete!</span>
+                    </div>
+                    <a
+                      href={matchDownloadUrl}
+                      download="product_matching_results.xlsx"
+                      className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-medium transition-colors"
+                    >
+                      <Download className="h-3.5 w-3.5" />
+                      Download Excel
+                    </a>
+                  </div>
+                )}
+
+                {/* Actions */}
+                <div className="flex gap-2 pt-1">
+                  <Button variant="outline" onClick={handleMatchModalClose} className="flex-1">
+                    Close
                   </Button>
                   <Button
                     onClick={handleMatchFile}
@@ -750,8 +865,8 @@ export default function ProductCatalogPage() {
                       </>
                     ) : (
                       <>
-                        <Download className="h-4 w-4 mr-2" />
-                        Match & Download
+                        <FileSearch className="h-4 w-4 mr-2" />
+                        Run Matching
                       </>
                     )}
                   </Button>
