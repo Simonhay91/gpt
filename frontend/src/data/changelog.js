@@ -1,6 +1,16 @@
-export const APP_VERSION = "2.9.19";
+export const APP_VERSION = "2.9.21";
 
 export const CHANGELOG = [
+  {
+    version: "2.9.21",
+    date: "Апрель 2026",
+    badge: "new",
+    changes: [
+      "Product Matching: кнопка «Download Template» — скачать шаблон Excel прямо из модала",
+      "Умный парсер Excel: автоматически находит колонку Product Name, игнорирует Qty/Price/Notes",
+      "Шаблон содержит правильную структуру с подсказками для заполнения",
+    ]
+  },
   {
     version: "2.9.19",
     date: "Апрель 2026",

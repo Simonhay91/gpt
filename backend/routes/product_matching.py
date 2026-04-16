@@ -27,28 +27,112 @@ MAX_CATALOG_PRODUCTS = 1000
 CLAUDE_BATCH_SIZE = 50             # customer items per Claude call
 
 
+# ==================== TEMPLATE BUILDER ====================
+
+# Keywords that identify the "product name" column in customer Excel files
+_PRODUCT_COL_KEYWORDS = (
+    "product", "name", "item", "description", "наименование",
+    "товар", "продукт", "անվանում", "ապրանք", "model", "модель",
+)
+
+_SKIP_VALUES = {"nan", "none", "", "qty", "quantity", "price", "notes", "note",
+                "колич", "цена", "примечание", "remarks", "კომენტარი"}
+
+
+def _build_template_excel() -> bytes:
+    """Generate the customer template Excel file and return as bytes."""
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Products"
+
+    header_fill = PatternFill("solid", fgColor="FFF2CC")   # soft yellow
+    header_font = Font(bold=True, size=12, color="1F4E79")
+    hint_font   = Font(italic=True, size=10, color="808080")
+    border_side = openpyxl.styles.Side(style="thin", color="BFBFBF")
+    border      = openpyxl.styles.Border(
+        left=border_side, right=border_side,
+        top=border_side, bottom=border_side,
+    )
+
+    headers = ["Product Name", "Qty", "Notes"]
+    col_widths = [45, 10, 30]
+
+    for col_idx, (h, w) in enumerate(zip(headers, col_widths), 1):
+        cell = ws.cell(row=1, column=col_idx, value=h)
+        cell.fill   = header_fill
+        cell.font   = header_font
+        cell.border = border
+        cell.alignment = Alignment(horizontal="center", vertical="center")
+        ws.column_dimensions[openpyxl.utils.get_column_letter(col_idx)].width = w
+
+    ws.row_dimensions[1].height = 22
+
+    # Hint row
+    hint_cell = ws.cell(row=2, column=1, value="← Paste your product names here (required)")
+    hint_cell.font = hint_font
+    hint_cell.alignment = Alignment(vertical="center")
+
+    ws.cell(row=2, column=2, value="").font = hint_font
+    ws.cell(row=2, column=3, value="").font = hint_font
+
+    # Freeze header row
+    ws.freeze_panes = "A2"
+
+    buf = io.BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+    return buf.read()
+
+
 # ==================== FILE PARSERS ====================
 
 def _parse_excel(content: bytes) -> List[str]:
     import pandas as pd
     buf = io.BytesIO(content)
+
+    # Try reading with header row first
     try:
-        df = pd.read_excel(buf, header=None)
+        df_with_header = pd.read_excel(buf, header=0)
     except Exception:
         buf.seek(0)
         try:
-            df = pd.read_csv(buf, header=None, on_bad_lines="skip")
+            df_with_header = pd.read_csv(buf, header=0, on_bad_lines="skip")
+        except Exception:
+            df_with_header = None
+
+    # Detect product name column by header keyword
+    target_col = None
+    if df_with_header is not None:
+        for col in df_with_header.columns:
+            col_lower = str(col).lower().strip()
+            if any(kw in col_lower for kw in _PRODUCT_COL_KEYWORDS):
+                target_col = col
+                break
+
+    if target_col is not None:
+        # Use the detected named column (skip header — already excluded by header=0)
+        series = df_with_header[target_col].dropna()
+    else:
+        # Fallback: use first column, read without header to include all rows
+        buf.seek(0)
+        try:
+            df_no_header = pd.read_excel(buf, header=None)
         except Exception:
             buf.seek(0)
-            df = pd.read_csv(buf, on_bad_lines="skip")
+            try:
+                df_no_header = pd.read_csv(buf, header=None, on_bad_lines="skip")
+            except Exception:
+                buf.seek(0)
+                df_no_header = pd.read_csv(buf, on_bad_lines="skip")
+        series = df_no_header.iloc[:, 0].dropna()
+
     seen: set = set()
     items: List[str] = []
-    for col in df.columns:
-        for val in df[col].dropna():
-            s = str(val).strip()
-            if s and s.lower() not in ("nan", "none", "") and s not in seen:
-                seen.add(s)
-                items.append(s)
+    for val in series:
+        s = str(val).strip()
+        if s and s.lower() not in _SKIP_VALUES and s not in seen:
+            seen.add(s)
+            items.append(s)
     return items
 
 
@@ -323,7 +407,22 @@ def _remove_file(path: str):
         pass
 
 
-# ==================== ENDPOINT ====================
+# ==================== ENDPOINTS ====================
+
+@router.get("/template")
+async def download_template(current_user: dict = Depends(get_current_user)):
+    """Return a pre-formatted customer Excel template for product matching."""
+    template_bytes = _build_template_excel()
+    path = f"/tmp/product_matching_template_{uuid.uuid4()}.xlsx"
+    with open(path, "wb") as f:
+        f.write(template_bytes)
+    return FileResponse(
+        path=path,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        filename="product_matching_template.xlsx",
+        background=BackgroundTask(_remove_file, path),
+    )
+
 
 @router.post("/match")
 async def match_products(

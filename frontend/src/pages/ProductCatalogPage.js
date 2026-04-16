@@ -761,7 +761,17 @@ export default function ProductCatalogPage() {
 
                 {/* Drag & drop upload zone */}
                 <div>
-                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">Customer file</p>
+                  <div className="flex items-center justify-between mb-2">
+                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Customer file</p>
+                    <a
+                      href={`${API}/product-matching/template`}
+                      download="product_matching_template.xlsx"
+                      className="inline-flex items-center gap-1 text-xs text-indigo-500 hover:text-indigo-600 transition-colors"
+                    >
+                      <Download className="h-3 w-3" />
+                      Download template
+                    </a>
+                  </div>
                   <div
                     onClick={() => !matchFile && matchFileInputRef.current?.click()}
                     onDrop={(e) => {

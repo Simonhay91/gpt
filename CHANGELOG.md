@@ -6,6 +6,18 @@ UI версия: `frontend/src/data/changelog.js`
 
 ---
 
+## 2026-04-16 — v2.9.21
+
+### New: Template download + smart Excel column detection
+**Файлы:** `backend/routes/product_matching.py`, `frontend/src/pages/ProductCatalogPage.js`, `frontend/src/data/changelog.js`
+
+- New `GET /api/product-matching/template` — returns styled Excel template (yellow header, hints, freeze pane)
+- `_parse_excel` now detects "Product Name" column by header keyword; falls back to first column
+- Skips Qty/Price/Notes columns automatically
+- Modal: "Download template" link above the upload zone
+
+---
+
 ## 2026-04-16 — v2.9.19
 
 ### New: Product Matching feature
