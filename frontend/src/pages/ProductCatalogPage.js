@@ -221,6 +221,24 @@ export default function ProductCatalogPage() {
     }
   };
 
+  const handleDownloadTemplate = async () => {
+    try {
+      const response = await axios.get(`${API}/product-matching/template`, {
+        responseType: 'blob',
+      });
+      const url = URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', 'product_matching_template.xlsx');
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+    } catch {
+      toast.error('Failed to download template');
+    }
+  };
+
   const handleMatchFileSelect = (f) => {
     if (!f) return;
     const name = f.name.toLowerCase();
@@ -763,14 +781,13 @@ export default function ProductCatalogPage() {
                 <div>
                   <div className="flex items-center justify-between mb-2">
                     <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Customer file</p>
-                    <a
-                      href={`${API}/product-matching/template`}
-                      download="product_matching_template.xlsx"
+                    <button
+                      onClick={handleDownloadTemplate}
                       className="inline-flex items-center gap-1 text-xs text-indigo-500 hover:text-indigo-600 transition-colors"
                     >
                       <Download className="h-3 w-3" />
                       Download template
-                    </a>
+                    </button>
                   </div>
                   <div
                     onClick={() => !matchFile && matchFileInputRef.current?.click()}
