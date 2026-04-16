@@ -107,6 +107,80 @@ def _format_catalog(catalog: List[dict]) -> str:
     return "\n".join(lines)
 
 
+OPTICAL_CABLE_DOMAIN = """
+OPTICAL FIBER CABLE NAMING CONVENTION (use this to interpret customer requests):
+
+MODEL FORMAT: [PREFIX]-[TUBE]([MODIFIER])-([FIBER_RANGE])FO([SPEC])-[STRENGTH]KN
+
+--- PREFIX (installation type) ---
+AS       = Aerial ADSS self-supporting
+AM       = Aerial Messenger / Drop outdoor (Fig-8 or flat)
+U-TIC    = Underground Steel Tape armored
+U-DIC    = Underground Steel Wire armored
+U-TBC    = Underground Air Blow Cable
+OM3      = Multimode OM3
+OM4      = Multimode OM4
+IR       = Indoor Riser
+ID       = Indoor Drop
+
+--- TUBE CONSTRUCTION ---
+L   = Central Loose Tube
+M   = Loose Tube + Central Strength member (mix)
+S   = Multi Tube / Central Strength member
+ST  = Single Tube (indoor)
+MT  = Multi Tube (indoor)
+FL  = Flat Drop cable
+OR  = O-ring / Fig-8 shape
+
+--- MODIFIERS (in parentheses after tube type) ---
+(A)    = Aramid yarns reinforcement
+(PA)   = Partial Aramid yarns
+(D)    = FRP messenger
+(W)    = Steel wire strength member
+(L)    = Double sheath (e.g. AS(L)-S = double-sheath ADSS)
+(KFRP) = Kevlar FRP reinforcement
+
+--- FIBER COUNT ---
+Written as (min-max)FO, e.g.:
+  (1-24)FO  = supports 1 to 24 fibers
+  (4-72)FO  = supports 4 to 72 fibers
+  (96-144)FO = supports 96 to 144 fibers
+  (2-480)FO = supports 2 to 480 fibers
+Match customer's fiber count to the range that contains it.
+
+--- FIBER SPEC SUFFIX ---
+(none)   = Standard SMF ITU-T G.652D
+LSZH     = Low Smoke Zero Halogen
+G657A2   = Bend-insensitive ITU-T G.657A2 (indoor/drop)
+Aqua     = OM3 indoor aqua color
+300m/1km = Drum length
+
+--- TENSILE STRENGTH (trailing KN) ---
+Common values: 0.5, 0.6, 0.8, 1, 1.5, 2, 2.7, 2.8, 3, 3.5, 4, 4.5, 5.5, 7, 7.5, 8, 9, 9.5, 20, 25 KN
+
+--- MATCHING EXAMPLES ---
+Customer says → Best model match:
+"ADSS 12 fiber 2KN"                    → AS-M-(4-12)FO-2KN      (12 falls in 4-12 range)
+"ADSS 48fo 3kn strength member"        → AS-S-(4-72)FO-3KN       (48 in 4-72, strength member)
+"aerial loose tube 24 fiber 1.5kn"     → AS-L-(1-24)FO-1.5KN
+"ADSS double sheath 96fo 20kn aramid"  → AS(L)-S-(8-96)FO-20KN
+"fig-8 loose tube 12fo 5.5kn"         → AM-L-(1-24)FO-5.5KN
+"drop flat FRP messenger 2fo 0.6kn"   → AM-L-FL(D)-(1-4)FO-0.6KN
+"drop o-ring aramid 4fo 1kn"          → AM-L-OR(A)-(1-4)FO-1KN
+"underground steel tape 24fo 2.7kn"   → U-TIC-L-(2-24)FO-2.7KN
+"underground steel wire multi 48fo"   → U-DIC-S-(8-96)FO-7KN
+"air blow cable 96 fiber"             → U-TBC-S-(2-480)FO
+"indoor riser 48fo single tube"       → IR-ST-(8-24)FO-G657A2
+"indoor riser multi tube 72fo"        → IR-MT-(14-96)FO-G657A2
+"indoor drop flat FRP 2fo"            → ID-FL(D)-(1-4)FO-G657A2
+"indoor drop flat steel wire 4fo"     → ID-FL(W)-(1-4)FO-G657A2
+"indoor drop o-ring 300m drum"        → ID-OR3MM-(1-4)FO-G657A2(300m)
+"om3 multimode 12fo 1kn lszh"         → OM3-L-(6-12)FO-1kN-LSZH
+"om4 multimode cable"                 → OM4-L-(6-12)FO-1kN-LSZH
+"drop adss aramid 12fo 1kn"           → AS-L(A)-(4-24)FO-1KN
+"""
+
+
 def _claude_match_batch(
     batch: List[str],
     catalog_text: str,
@@ -121,6 +195,8 @@ def _claude_match_batch(
 
     prompt = f"""You are a product matching assistant for a fiber optics and network equipment catalog.
 
+{OPTICAL_CABLE_DOMAIN}
+
 CATALOG ({catalog_len} products):
 {catalog_text}
 
@@ -128,6 +204,7 @@ CUSTOMER ITEMS ({len(batch)} items to match):
 {items_text}
 
 For each customer item find the best matching catalog product.
+Use the optical cable naming convention above to interpret both customer requests and catalog model codes.
 Return a JSON array with exactly {len(batch)} objects in the same order:
 [
   {{
@@ -137,13 +214,14 @@ Return a JSON array with exactly {len(batch)} objects in the same order:
     "crm_code": "<crm_code from catalog, empty string if no match>",
     "vendor": "<vendor from catalog, empty string if no match>",
     "datasheet_url": "<datasheet_url from catalog, empty string if no match>",
-    "comment": "<short English note if approximate match (different spec/length/version), null if exact match or no match>"
+    "comment": "<short English note if approximate match (different spec/fiber count/strength), null if exact match or no match>"
   }}
 ]
 
 Rules:
-- If no suitable match exists, leave matched_title/article_number/crm_code/vendor/datasheet_url as empty strings and set comment to a brief English reason.
-- If match is approximate (e.g. customer asked for 1.5m cable but catalog only has 2m), describe the difference in comment.
+- For optical cables: decode the customer's description using the naming convention, then find the catalog model whose fiber range contains the requested count and whose strength is closest.
+- If no suitable match exists, leave matched fields as empty strings and set comment to a brief English reason.
+- If match is approximate (e.g. customer asked for 1.5KN but catalog has 2KN), describe the difference in comment.
 - Return ONLY the JSON array, no extra text."""
 
     response = client.messages.create(
