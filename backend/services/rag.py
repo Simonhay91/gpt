@@ -14,7 +14,7 @@ voyage_client = voyageai.Client(api_key=VOYAGE_API_KEY)
 
 # RAG settings
 MAX_CONTEXT_CHARS = 20000
-MAX_CHUNKS_PER_QUERY = 5
+MAX_CHUNKS_PER_QUERY = 8  # increased from 5 for broader context coverage
 GLOBAL_PROJECT_ID = "__global__"
 
 
@@ -117,7 +117,6 @@ async def get_relevant_chunks(
     total_chars = 0
 
     MIN_SCORE_THRESHOLD = 0.45
-    RAG_SCORE_RELEVANT = 0.55
     relevant = [c for c in scored_chunks if c["score"] >= MIN_SCORE_THRESHOLD]
     for chunk in relevant[:MAX_CHUNKS_PER_QUERY]:
 
