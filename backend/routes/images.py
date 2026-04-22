@@ -185,9 +185,10 @@ async def edit_image(
     prompt: str = Form(...),
     current_user: dict = Depends(get_current_user)
 ):
-    """Edit/transform an image using gpt-image-1 with the uploaded photo as reference"""
+    """Transform/edit an image: Claude vision analyzes the reference, gpt-image-1 generates"""
     import base64
     import os
+    import anthropic
     from PIL import Image as PILImage
     db = get_db()
     await verify_project_ownership(project_id, current_user["id"])
@@ -204,33 +205,56 @@ async def edit_image(
     try:
         contents = await file.read()
 
-        # Convert uploaded image to RGBA PNG (required by OpenAI images.edit)
-        pil_img = PILImage.open(io.BytesIO(contents)).convert("RGBA")
+        # Convert to PNG for Claude vision
+        pil_img = PILImage.open(io.BytesIO(contents)).convert("RGB")
         png_buf = io.BytesIO()
         pil_img.save(png_buf, format="PNG")
         png_buf.seek(0)
-        png_bytes = png_buf.read()
+        img_b64 = base64.b64encode(png_buf.read()).decode()
 
-        # Use OpenAI images.edit with the reference photo
-        from openai import OpenAI
-        api_key = os.environ.get("EMERGENT_LLM_KEY") or os.environ.get("OPENAI_API_KEY", "")
-        if not api_key:
-            raise HTTPException(status_code=500, detail="OpenAI API key not configured")
-        client = OpenAI(api_key=api_key)
+        # Step 1: Claude vision — describe the reference image
+        claude_key = os.environ.get("CLAUDE_API_KEY", "")
+        if not claude_key:
+            raise HTTPException(status_code=500, detail="Claude API key not configured")
 
-        response = client.images.edit(
-            model="gpt-image-1",
-            image=("reference.png", png_bytes, "image/png"),
-            prompt=prompt,
-            n=1,
-            size="1024x1024",
+        claude_client = anthropic.Anthropic(api_key=claude_key)
+        analysis = claude_client.messages.create(
+            model="claude-sonnet-4-20250514",
+            max_tokens=250,
+            messages=[{
+                "role": "user",
+                "content": [
+                    {
+                        "type": "image",
+                        "source": {"type": "base64", "media_type": "image/png", "data": img_b64}
+                    },
+                    {
+                        "type": "text",
+                        "text": (
+                            "Describe this product image in detail for use as a reference in AI image generation. "
+                            "Include: object type, colors, materials, shape, texture, style. "
+                            "Be concise (2-3 sentences, no fluff)."
+                        )
+                    }
+                ]
+            }]
         )
+        image_description = analysis.content[0].text.strip()
 
-        # gpt-image-1 returns b64_json
-        image_b64 = response.data[0].b64_json
-        if not image_b64:
+        # Step 2: Enrich prompt with the visual description
+        enhanced_prompt = f"{prompt.strip()}. Reference image shows: {image_description}"
+
+        # Step 3: Generate with gpt-image-1 via Emergent proxy
+        image_gen = get_image_generator()
+        images = await image_gen.generate_images(
+            prompt=enhanced_prompt,
+            model="gpt-image-1",
+            number_of_images=1,
+            quality="medium"
+        )
+        if not images:
             raise HTTPException(status_code=500, detail="No image data returned")
-        image_bytes_out = base64.b64decode(image_b64)
+        image_bytes_out = images[0]
 
         image_id = str(uuid.uuid4())
         image_filename = f"{image_id}.png"
