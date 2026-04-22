@@ -659,19 +659,24 @@ async def send_message(
                 )
 
             # ── Inject persistent chat temp files (uploaded in earlier messages) ──
+            # Limit: max 3 files, max 15000 total chars to avoid prompt explosion
             chat_temp_files = chat.get("tempFiles") or []
             _current_id = message_data.temp_file_id or ""
             persistent_files = [f for f in chat_temp_files if f.get("id") != _current_id]
             if persistent_files:
-                for _ptf in persistent_files:
+                _ptf_chars = 0
+                _PTF_MAX_TOTAL = 15000
+                for _ptf in persistent_files[:3]:
                     _pname = _ptf.get("filename", "файл")
                     _pcontent = _ptf.get("content", "")
-                    if _pcontent:
+                    if _pcontent and _ptf_chars < _PTF_MAX_TOTAL:
+                        _slice = _pcontent[:_PTF_MAX_TOTAL - _ptf_chars]
                         system_prompt += (
                             f"\n\n===== ФАЙЛ ИЗ ЧАТА: {_pname} =====\n"
-                            f"{_pcontent[:8000]}\n"
+                            f"{_slice}\n"
                             "===== КОНЕЦ ФАЙЛА =====\n"
                         )
+                        _ptf_chars += len(_slice)
 
             messages = []
             for msg in history[:-1]:
