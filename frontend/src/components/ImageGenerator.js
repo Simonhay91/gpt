@@ -167,6 +167,7 @@ Requirements:
     setGeneratedImage(null);
     setImageUrl(null);
     try {
+      let result;
       if (referenceFile) {
         const bgInstruction = backgroundType === 'transparent'
           ? 'transparent background (PNG), remove all original background'
@@ -179,16 +180,17 @@ Requirements:
         const response = await axios.post(`${API}/projects/${projectId}/edit-image`, formData, {
           headers: { 'Content-Type': 'multipart/form-data' }
         });
-        setGeneratedImage(response.data);
+        result = response.data;
       } else {
         const response = await axios.post(`${API}/projects/${projectId}/generate-image`, {
           prompt: buildPrompt(),
           size: getEffectiveSize()
         });
-        setGeneratedImage(response.data);
+        result = response.data;
       }
+      setGeneratedImage(result);
       toast.success('Image generated successfully!');
-      if (onImageGenerated) onImageGenerated();
+      if (onImageGenerated) onImageGenerated(result);
     } catch (error) {
       toast.error(error.response?.data?.detail || 'Failed to generate image');
     } finally {
