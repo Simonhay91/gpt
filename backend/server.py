@@ -56,6 +56,7 @@ from routes.enterprise_sources import setup_enterprise_source_routes, router as 
 from routes.news import router as news_router
 from routes.excel import router as excel_router
 from routes.temp_files import router as temp_files_router
+from routes.reports import router as reports_router
 
 # Import services and dependencies needed for enterprise route setup
 from services.enterprise import AuditService, VersionService
@@ -172,6 +173,7 @@ app.include_router(enterprise_sources_router)
 app.include_router(news_router, prefix="/api")
 app.include_router(excel_router, prefix="/api")
 app.include_router(temp_files_router)
+app.include_router(reports_router)
 
 # ==================== MIDDLEWARE ====================
 
@@ -261,6 +263,58 @@ async def init_admin_user():
         logger.error(traceback.format_exc())
 
 
+async def cleanup_expired_chat_temp_files():
+    """Remove tempFiles entries older than 24h from chats and delete physical temp files."""
+    from datetime import timedelta
+    from pathlib import Path as _Path
+    try:
+        db = get_db()
+        cutoff = (datetime.now(timezone.utc) - timedelta(hours=24)).isoformat()
+        chats_with_temp = await db.chats.find(
+            {"tempFiles": {"$exists": True, "$not": {"$size": 0}}},
+            {"_id": 0, "id": 1, "tempFiles": 1}
+        ).to_list(10000)
+
+        _TEMP_DIR = _Path("/tmp/planet_temp_files")
+        removed_count = 0
+        for chat in chats_with_temp:
+            fresh = []
+            expired_names = []
+            for tf in (chat.get("tempFiles") or []):
+                if tf.get("uploadedAt", "") >= cutoff:
+                    fresh.append(tf)
+                else:
+                    # Delete physical file if still present
+                    for _f in _TEMP_DIR.glob(f"{tf.get('id', '__none__')}_*"):
+                        try:
+                            _f.unlink()
+                        except Exception:
+                            pass
+                    expired_names.append(tf.get("filename", "файл"))
+                    removed_count += 1
+            if expired_names:
+                await db.chats.update_one({"id": chat["id"]}, {"$set": {"tempFiles": fresh}})
+                # Insert a system notification message in the chat
+                names_str = ", ".join(expired_names)
+                await db.messages.insert_one({
+                    "id": str(uuid4()),
+                    "chatId": chat["id"],
+                    "role": "assistant",
+                    "content": f"🗑 Прикреплённые файлы удалены (истёк срок хранения 24ч): **{names_str}**\nЕсли нужно — загрузите их снова.",
+                    "citations": None,
+                    "usedSources": None,
+                    "senderName": "System",
+                    "agent_type": "system",
+                    "agent_name": "System",
+                    "createdAt": datetime.now(timezone.utc).isoformat(),
+                })
+
+        if removed_count:
+            logger.info(f"✓ Cleanup: removed {removed_count} expired chat temp file entries")
+    except Exception as e:
+        logger.error(f"Chat temp file cleanup error: {e}")
+
+
 @app.on_event("startup")
 async def startup_event():
     """Initialize database and start background scheduler"""
@@ -272,6 +326,13 @@ async def startup_event():
         auto_refresh_competitor_products,
         CronTrigger(hour=2, minute=0),
         id="auto_refresh_competitors",
+        replace_existing=True
+    )
+    # Cleanup expired chat temp files daily at 3 AM
+    scheduler.add_job(
+        cleanup_expired_chat_temp_files,
+        CronTrigger(hour=3, minute=0),
+        id="cleanup_chat_temp_files",
         replace_existing=True
     )
     scheduler.start()

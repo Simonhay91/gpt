@@ -648,7 +648,7 @@ async def send_message(
                 "Only when user explicitly asks: \"создай Excel\", \"сделай таблицу\", \"generate excel\", \"create spreadsheet\"."
             )
 
-            # ── Inject temp file content ──
+            # ── Inject current message's temp file ──
             if temp_file_content_text and not temp_file_image_b64:
                 _fname = temp_file_info.get("name", "файл") if temp_file_info else "файл"
                 system_prompt += (
@@ -657,6 +657,21 @@ async def send_message(
                     "===== КОНЕЦ ФАЙЛА =====\n"
                     "Используй содержимое этого файла для ответа на вопрос пользователя."
                 )
+
+            # ── Inject persistent chat temp files (uploaded in earlier messages) ──
+            chat_temp_files = chat.get("tempFiles") or []
+            _current_id = message_data.temp_file_id or ""
+            persistent_files = [f for f in chat_temp_files if f.get("id") != _current_id]
+            if persistent_files:
+                for _ptf in persistent_files:
+                    _pname = _ptf.get("filename", "файл")
+                    _pcontent = _ptf.get("content", "")
+                    if _pcontent:
+                        system_prompt += (
+                            f"\n\n===== ФАЙЛ ИЗ ЧАТА: {_pname} =====\n"
+                            f"{_pcontent[:8000]}\n"
+                            "===== КОНЕЦ ФАЙЛА =====\n"
+                        )
 
             messages = []
             for msg in history[:-1]:

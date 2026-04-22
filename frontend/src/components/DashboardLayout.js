@@ -27,7 +27,8 @@ import {
   Languages,
   TrendingUp,
   Package,
-  FileOutput
+  FileOutput,
+  Flag
 } from 'lucide-react';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
@@ -180,6 +181,11 @@ const DashboardLayout = ({ children }) => {
       name: 'OEM Brands',
       path: '/admin/oem-brands',
       icon: Building2
+    });
+    navItems.push({
+      name: 'Reports',
+      path: '/admin/reports',
+      icon: Flag
     });
   } else {
     // Non-admin users: always show Departments link for managers

@@ -32,6 +32,7 @@ import ProductCatalogPage from './pages/ProductCatalogPage';
 import ProductDetailPage from './pages/ProductDetailPage';
 import OemDatasheetPage from './pages/OemDatasheetPage';
 import AdminBrandsPage from './pages/AdminBrandsPage';
+import AdminReportsPage from './pages/AdminReportsPage';
 
 // Protected Route Component
 const ProtectedRoute = ({ children }) => {
@@ -227,6 +228,11 @@ function AppRoutes() {
         <ProtectedRoute>
           <OemDatasheetPage />
         </ProtectedRoute>
+      } />
+      <Route path="/admin/reports" element={
+        <AdminRoute>
+          <AdminReportsPage />
+        </AdminRoute>
       } />
       <Route path="/admin/oem-brands" element={
         <AdminRoute>

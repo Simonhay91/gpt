@@ -969,6 +969,7 @@ const finalContent = content || "Analyze this file and summarize the key points.
                   onToggleSourceExpansion={(id) => setExpandedSources(prev => ({ ...prev, [id]: !prev[id] }))}
                   chatId={chatId}
                   originalUserMessage={message.role === 'assistant' ? messages[index - 1]?.content : undefined}
+                  chatHistory={messages.slice(0, index + 1)}
                 />
               ))}
               {isSending && (

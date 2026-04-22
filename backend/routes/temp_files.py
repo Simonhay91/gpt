@@ -128,6 +128,24 @@ async def upload_temp_file(
         logger.error(f"Temp file extraction error ({file_type}): {e}")
         content_text = ""
 
+    # Persist extracted content to chat.tempFiles so subsequent messages can use it
+    if chat_id and content_text:
+        db = get_db()
+        await db.chats.update_one(
+            {"id": chat_id},
+            {
+                "$push": {
+                    "tempFiles": {
+                        "id": temp_file_id,
+                        "filename": file.filename,
+                        "fileType": file_type,
+                        "content": content_text[:12000],
+                        "uploadedAt": datetime.now(timezone.utc).isoformat(),
+                    }
+                }
+            }
+        )
+
     return {
         "temp_file_id": temp_file_id,
         "filename": file.filename,

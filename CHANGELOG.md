@@ -6,6 +6,29 @@ UI версия: `frontend/src/data/changelog.js`
 
 ---
 
+## 2026-04-22 — v2.9.25
+
+### New: Report feature + persistent chat temp files
+**Файлы:** `backend/routes/reports.py` (new), `backend/server.py`, `frontend/src/pages/AdminReportsPage.js` (new), `frontend/src/components/chat/MessageBubble.js`, `frontend/src/components/chat/MessageList.js`, `frontend/src/pages/ChatPage.js`, `frontend/src/components/DashboardLayout.js`, `frontend/src/App.js`, `frontend/src/data/changelog.js`
+
+- New `POST /api/reports` — user submits report with tags + optional comment + chat history snapshot
+- New `GET /api/admin/reports`, `PATCH /api/admin/reports/{id}` — admin views/resolves reports
+- 🚩 Flag button on assistant message hover → modal with 4 quick tags + free text
+- Admin `/admin/reports` page: expandable rows with Q, AI answer, sources, context history; Resolve/Ignore/Reopen actions
+- Temp files now persisted in `chat.tempFiles` (MongoDB) — AI remembers uploaded files for entire chat session
+- Daily APScheduler job at 3 AM cleans up temp files older than 24h and posts notification message in affected chats
+
+## 2026-04-22 — v2.9.22
+
+### New: markitdown PDF/DOCX extraction + RAG threshold tuning
+**Файлы:** `backend/services/file_processor.py`, `backend/services/rag.py`, `backend/requirements.txt`, `frontend/src/data/changelog.js`
+
+- markitdown integrated as primary extractor for PDF and DOCX; falls back to pdfplumber / python-docx
+- `MIN_SCORE_THRESHOLD` raised 0.3 → 0.45, added `RAG_SCORE_RELEVANT = 0.55`
+- `MAX_CHUNKS_PER_QUERY` lowered 8 → 5
+
+---
+
 ## 2026-04-16 — v2.9.21
 
 ### New: Template download + smart Excel column detection

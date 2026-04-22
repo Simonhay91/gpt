@@ -5,7 +5,7 @@ import { Button } from '../ui/button';
 import {
   Bot, User, Loader2, Globe, FileText, Quote,
   ImageIcon, Download, MessageSquare, Pencil, Check, X, Copy,
-  Save, Globe2, Link, TrendingUp, ChevronDown, ChevronUp
+  Save, Globe2, Link, TrendingUp, ChevronDown, ChevronUp, Flag
 } from 'lucide-react';
 import AuthImage from '../AuthImage';
 
@@ -36,6 +36,105 @@ const renderTextWithLinks = (text) => {
   return parts.length > 0 ? parts : text;
 };
 
+const REPORT_TAGS = [
+  { id: 'wrong_answer', label: '❌ Wrong answer' },
+  { id: 'missed_info', label: '🔍 Missed relevant info' },
+  { id: 'file_error', label: '📄 File read error' },
+  { id: 'format_issue', label: '🌀 Format issue' },
+];
+
+const ReportModal = ({ message, chatHistory, onClose }) => {
+  const [selectedTags, setSelectedTags] = useState([]);
+  const [comment, setComment] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [submitted, setSubmitted] = useState(false);
+
+  const toggleTag = (id) =>
+    setSelectedTags(prev => prev.includes(id) ? prev.filter(t => t !== id) : [...prev, id]);
+
+  const handleSubmit = async () => {
+    if (selectedTags.length === 0) { toast.error('Select at least one issue'); return; }
+    setSubmitting(true);
+    try {
+      const userQuestion = chatHistory?.findLast?.(m => m.role === 'user')?.content || '';
+      await axios.post(`${API}/reports`, {
+        messageId: message.id,
+        chatId: message.chatId,
+        tags: selectedTags,
+        comment,
+        messageContent: message.content,
+        userQuestion,
+        chatHistory: (chatHistory || []).slice(-6).map(m => ({ role: m.role, content: m.content?.slice(0, 500) })),
+        activeSources: message.usedSources?.map(s => s.sourceName) || [],
+        agentType: message.agent_type || '',
+      });
+      setSubmitted(true);
+      setTimeout(onClose, 1500);
+    } catch (err) {
+      if (err?.response?.status === 409) toast.error('Already reported');
+      else toast.error('Failed to submit report');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={onClose}>
+      <div
+        className="bg-background border border-border rounded-xl shadow-xl p-5 w-[340px] max-w-full"
+        onClick={e => e.stopPropagation()}
+      >
+        {submitted ? (
+          <div className="text-center py-4">
+            <div className="text-2xl mb-2">✅</div>
+            <p className="text-sm text-muted-foreground">Report submitted. Thank you!</p>
+          </div>
+        ) : (
+          <>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-semibold text-sm flex items-center gap-2">
+                <Flag className="h-4 w-4 text-red-400" /> Report issue
+              </h3>
+              <button onClick={onClose} className="text-muted-foreground hover:text-foreground">
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <div className="flex flex-wrap gap-2 mb-4">
+              {REPORT_TAGS.map(tag => (
+                <button
+                  key={tag.id}
+                  onClick={() => toggleTag(tag.id)}
+                  className={`px-3 py-1.5 rounded-full text-xs border transition-colors ${
+                    selectedTags.includes(tag.id)
+                      ? 'bg-red-500/20 border-red-500/50 text-red-400'
+                      : 'bg-secondary border-border text-muted-foreground hover:border-red-400/50'
+                  }`}
+                >
+                  {tag.label}
+                </button>
+              ))}
+            </div>
+            <textarea
+              value={comment}
+              onChange={e => setComment(e.target.value)}
+              placeholder="Additional details (optional)..."
+              className="w-full px-3 py-2 rounded-lg bg-secondary border border-border text-sm text-foreground placeholder:text-muted-foreground resize-none focus:outline-none focus:border-primary mb-4"
+              rows={3}
+            />
+            <div className="flex justify-end gap-2">
+              <Button variant="ghost" size="sm" onClick={onClose}>Cancel</Button>
+              <Button size="sm" onClick={handleSubmit} disabled={submitting}
+                className="bg-red-500/20 text-red-400 border border-red-500/30 hover:bg-red-500/30">
+                {submitting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : 'Submit report'}
+              </Button>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+};
+
 export const MessageBubble = ({
   message,
   index,
@@ -54,8 +153,10 @@ export const MessageBubble = ({
   onToggleSourceExpansion,
   chatId,
   originalUserMessage,
+  chatHistory,
 }) => {
   const [saveDropdownOpen, setSaveDropdownOpen] = useState(false);
+  const [reportOpen, setReportOpen] = useState(false);
   const dropdownRef = useRef(null);
 
   useEffect(() => {
@@ -242,6 +343,17 @@ export const MessageBubble = ({
                       data-testid={`copy-message-${index}`}
                     >
                       <Copy className="h-3.5 w-3.5" />
+                    </Button>
+
+                    {/* Report button */}
+                    <Button
+                      variant="ghost" size="icon"
+                      className="h-7 w-7 bg-background border border-border shadow-sm"
+                      onClick={() => setReportOpen(true)}
+                      title="Report issue"
+                      data-testid={`report-message-${index}`}
+                    >
+                      <Flag className="h-3.5 w-3.5 text-muted-foreground hover:text-red-400" />
                     </Button>
                   </div>
                 )}
@@ -462,6 +574,14 @@ export const MessageBubble = ({
         <div className="flex-shrink-0 rounded-full bg-emerald-500/20 p-2 h-fit">
           <User className="h-5 w-5 text-emerald-400" />
         </div>
+      )}
+
+      {reportOpen && (
+        <ReportModal
+          message={{ ...message, chatId }}
+          chatHistory={chatHistory}
+          onClose={() => setReportOpen(false)}
+        />
       )}
     </div>
   );

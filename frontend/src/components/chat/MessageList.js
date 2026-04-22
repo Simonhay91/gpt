@@ -38,6 +38,7 @@ export const MessageList = ({
               onSaveToKnowledge={onSaveToKnowledge}
               onDownloadImage={onDownloadImage}
               API={API}
+              chatHistory={messages.slice(0, index + 1)}
             />
           ))}
           
