@@ -185,7 +185,9 @@ async def edit_image(
     prompt: str = Form(...),
     current_user: dict = Depends(get_current_user)
 ):
-    """Edit an image using DALL-E 2 inpainting"""
+    """Edit/transform an image using gpt-image-1 with the uploaded photo as reference"""
+    import base64
+    import os
     from PIL import Image as PILImage
     db = get_db()
     await verify_project_ownership(project_id, current_user["id"])
@@ -199,19 +201,36 @@ async def edit_image(
     if not prompt or len(prompt.strip()) < 3:
         raise HTTPException(status_code=400, detail="Prompt must be at least 3 characters")
 
-    image_gen = get_image_generator()
-
     try:
         contents = await file.read()
 
-        images = await image_gen.generate_images(
-            prompt=prompt,
+        # Convert uploaded image to RGBA PNG (required by OpenAI images.edit)
+        pil_img = PILImage.open(io.BytesIO(contents)).convert("RGBA")
+        png_buf = io.BytesIO()
+        pil_img.save(png_buf, format="PNG")
+        png_buf.seek(0)
+        png_bytes = png_buf.read()
+
+        # Use OpenAI images.edit with the reference photo
+        from openai import OpenAI
+        api_key = os.environ.get("EMERGENT_LLM_KEY") or os.environ.get("OPENAI_API_KEY", "")
+        if not api_key:
+            raise HTTPException(status_code=500, detail="OpenAI API key not configured")
+        client = OpenAI(api_key=api_key)
+
+        response = client.images.edit(
             model="gpt-image-1",
-            number_of_images=1
+            image=("reference.png", png_bytes, "image/png"),
+            prompt=prompt,
+            n=1,
+            size="1024x1024",
         )
-        if not images:
+
+        # gpt-image-1 returns b64_json
+        image_b64 = response.data[0].b64_json
+        if not image_b64:
             raise HTTPException(status_code=500, detail="No image data returned")
-        image_bytes_out = images[0]
+        image_bytes_out = base64.b64decode(image_b64)
 
         image_id = str(uuid.uuid4())
         image_filename = f"{image_id}.png"
@@ -240,8 +259,10 @@ async def edit_image(
             size="1024x1024",
             createdAt=image_doc["createdAt"]
         )
+    except HTTPException:
+        raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to edit image: {str(e)[:100]}")
+        raise HTTPException(status_code=500, detail=f"Failed to edit image: {str(e)[:200]}")
 
 
 @router.post("/projects/{project_id}/upscale-image", response_model=GeneratedImageResponse)
