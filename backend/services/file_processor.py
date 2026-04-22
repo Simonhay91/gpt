@@ -8,8 +8,17 @@ from PIL import Image
 import pytesseract
 from bs4 import BeautifulSoup
 
-from markitdown import MarkItDown
-_markitdown = MarkItDown()
+_markitdown = None
+
+def _get_markitdown():
+    global _markitdown
+    if _markitdown is None:
+        try:
+            from markitdown import MarkItDown
+            _markitdown = MarkItDown()
+        except Exception:
+            pass
+    return _markitdown
 
 logger = logging.getLogger(__name__)
 
@@ -26,10 +35,12 @@ def extract_text_from_pdf(file_content: bytes) -> str:
             tmp.write(file_content)
             tmp_path = tmp.name
         try:
-            result = _markitdown.convert(tmp_path)
-            text = result.text_content.strip()
-            if text:
-                return text
+            md = _get_markitdown()
+            if md:
+                result = md.convert(tmp_path)
+                text = result.text_content.strip()
+                if text:
+                    return text
         except Exception:
             pass
         finally:
@@ -54,10 +65,12 @@ def extract_text_from_docx(file_content: bytes) -> str:
             tmp.write(file_content)
             tmp_path = tmp.name
         try:
-            result = _markitdown.convert(tmp_path)
-            text = result.text_content.strip()
-            if text:
-                return text
+            md = _get_markitdown()
+            if md:
+                result = md.convert(tmp_path)
+                text = result.text_content.strip()
+                if text:
+                    return text
         except Exception:
             pass
         finally:
