@@ -7,7 +7,7 @@ import { Textarea } from './ui/textarea';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from './ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { toast } from 'sonner';
-import { ImageIcon, Loader2, Download, Sparkles, Info, Upload, ZoomIn, Pencil } from 'lucide-react';
+import { ImageIcon, Loader2, Download, Sparkles, Info, Upload, ZoomIn, Pencil, Eraser } from 'lucide-react';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
@@ -47,6 +47,7 @@ const SIZE_PRESETS = [
 const TABS = [
   { id: 'generate', label: 'Generate', icon: Sparkles },
   { id: 'edit', label: 'Edit (AI)', icon: Pencil },
+  { id: 'removebg', label: 'Remove BG', icon: Eraser },
   { id: 'resize', label: 'Resize', icon: ImageIcon },
   { id: 'upscale', label: 'Upscale', icon: ZoomIn },
 ];
@@ -99,6 +100,15 @@ const ImageGenerator = ({ projectId, onImageGenerated }) => {
   const [upscaledImageUrl, setUpscaledImageUrl] = useState(null);
   const upscaleFileRef = useRef();
 
+  // Remove BG tab state
+  const [removeBgFile, setRemoveBgFile] = useState(null);
+  const [removeBgPreview, setRemoveBgPreview] = useState(null);
+  const [removeBgColor, setRemoveBgColor] = useState('transparent');
+  const [isRemovingBg, setIsRemovingBg] = useState(false);
+  const [removeBgImage, setRemoveBgImage] = useState(null);
+  const [removeBgImageUrl, setRemoveBgImageUrl] = useState(null);
+  const removeBgFileRef = useRef();
+
   useEffect(() => {
     if (generatedImage) fetchImageBlob(generatedImage.id, setImageUrl);
     return () => { if (imageUrl) URL.revokeObjectURL(imageUrl); };
@@ -118,6 +128,11 @@ const ImageGenerator = ({ projectId, onImageGenerated }) => {
     if (upscaledImage) fetchImageBlob(upscaledImage.id, setUpscaledImageUrl);
     return () => { if (upscaledImageUrl) URL.revokeObjectURL(upscaledImageUrl); };
   }, [upscaledImage]);
+
+  useEffect(() => {
+    if (removeBgImage) fetchImageBlob(removeBgImage.id, setRemoveBgImageUrl);
+    return () => { if (removeBgImageUrl) URL.revokeObjectURL(removeBgImageUrl); };
+  }, [removeBgImage]);
 
   const fetchImageBlob = async (imageId, setter) => {
     try {
@@ -285,6 +300,28 @@ Requirements:
     }
   };
 
+  const removeBackground = async () => {
+    if (!removeBgFile) { toast.error('Please upload an image'); return; }
+    setIsRemovingBg(true);
+    setRemoveBgImage(null);
+    setRemoveBgImageUrl(null);
+    try {
+      const formData = new FormData();
+      formData.append('file', removeBgFile);
+      formData.append('bg_color', removeBgColor);
+      const response = await axios.post(`${API}/projects/${projectId}/remove-bg`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
+      setRemoveBgImage(response.data);
+      toast.success('Background removed successfully!');
+      if (onImageGenerated) onImageGenerated(response.data);
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Failed to remove background');
+    } finally {
+      setIsRemovingBg(false);
+    }
+  };
+
   const handleClose = () => {
     setIsOpen(false);
     setPrompt('');
@@ -293,7 +330,8 @@ Requirements:
     setEditFile(null); setEditPreview(null); setEditPrompt(''); setEditedImage(null); setEditedImageUrl(null);
     setResizeFile(null); setResizePreview(null); setResizedImage(null); setResizedImageUrl(null);
     setUpscaleFile(null); setUpscalePreview(null); setUpscaledImage(null); setUpscaledImageUrl(null);
-    [imageUrl, editedImageUrl, resizedImageUrl, upscaledImageUrl].forEach(u => { if (u) URL.revokeObjectURL(u); });
+    setRemoveBgFile(null); setRemoveBgPreview(null); setRemoveBgImage(null); setRemoveBgImageUrl(null);
+    [imageUrl, editedImageUrl, resizedImageUrl, upscaledImageUrl, removeBgImageUrl].forEach(u => { if (u) URL.revokeObjectURL(u); });
   };
 
   const FileUploadArea = ({ preview, fileRef, onChange, disabled }) => (
@@ -576,6 +614,43 @@ Requirements:
                 {isEditing ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Editing...</> : <><Pencil className="mr-2 h-4 w-4" />Edit Image</>}
               </Button>
               <ResultPreview imageUrl={editedImageUrl} image={editedImage} filename={`edited_${editedImage?.id}.png`} />
+            </>
+          )}
+
+          {/* ── REMOVE BG TAB ── */}
+          {activeTab === 'removebg' && (
+            <>
+              <div className="rounded-lg bg-indigo-500/10 border border-indigo-500/20 p-3">
+                <p className="text-xs text-indigo-300">
+                  🪄 AI-powered background removal — keeps the exact original product, only removes the background.
+                  Perfect for Planet Image Standard (transparent PNG or white JPG).
+                </p>
+              </div>
+              <div className="space-y-2">
+                <Label>Upload Image</Label>
+                <FileUploadArea
+                  preview={removeBgPreview}
+                  fileRef={removeBgFileRef}
+                  onChange={(e) => handleFileChange(e, setRemoveBgFile, setRemoveBgPreview)}
+                  disabled={isRemovingBg}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Output Background</Label>
+                <Select value={removeBgColor} onValueChange={setRemoveBgColor} disabled={isRemovingBg}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="transparent">Transparent (PNG) — Planet Standard First Image</SelectItem>
+                    <SelectItem value="white">White (#FFFFFF) — Planet Standard Other Images</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <Button onClick={removeBackground} disabled={!removeBgFile || isRemovingBg} className="w-full bg-indigo-600 hover:bg-indigo-700">
+                {isRemovingBg
+                  ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Removing background...</>
+                  : <><Eraser className="mr-2 h-4 w-4" />Remove Background</>}
+              </Button>
+              <ResultPreview imageUrl={removeBgImageUrl} image={removeBgImage} filename={`no-bg_${removeBgImage?.id}.png`} />
             </>
           )}
 

@@ -347,6 +347,72 @@ async def upscale_image(
         raise HTTPException(status_code=500, detail=f"Failed to upscale image: {str(e)[:100]}")
 
 
+@router.post("/projects/{project_id}/remove-bg", response_model=GeneratedImageResponse)
+async def remove_background(
+    project_id: str,
+    file: UploadFile = File(...),
+    bg_color: str = Form("transparent"),  # "transparent" or "white"
+    current_user: dict = Depends(get_current_user)
+):
+    """Remove background from image using rembg AI. Returns transparent PNG or white background."""
+    from PIL import Image as PILImage
+    db = get_db()
+    await verify_project_ownership(project_id, current_user["id"])
+
+    try:
+        from rembg import remove as rembg_remove
+    except ImportError:
+        raise HTTPException(status_code=500, detail="rembg not installed. Run: pip install rembg")
+
+    try:
+        contents = await file.read()
+
+        # Remove background — output is always RGBA transparent PNG
+        output_bytes = rembg_remove(contents)
+
+        if bg_color == "white":
+            # Composite onto white background
+            fg = PILImage.open(io.BytesIO(output_bytes)).convert("RGBA")
+            white_bg = PILImage.new("RGBA", fg.size, (255, 255, 255, 255))
+            white_bg.paste(fg, mask=fg.split()[3])
+            buf = io.BytesIO()
+            white_bg.convert("RGB").save(buf, format="PNG")
+            output_bytes = buf.getvalue()
+
+        image_id = str(uuid.uuid4())
+        image_filename = f"{image_id}.png"
+        image_path = IMAGES_DIR / image_filename
+
+        async with aiofiles.open(image_path, 'wb') as f:
+            await f.write(output_bytes)
+
+        size_str = "transparent" if bg_color == "transparent" else "white-bg"
+        image_doc = {
+            "id": image_id,
+            "projectId": project_id,
+            "userId": current_user["id"],
+            "prompt": f"Background removed ({bg_color})",
+            "imagePath": image_filename,
+            "size": size_str,
+            "createdAt": datetime.now(timezone.utc).isoformat()
+        }
+        await db.generated_images.insert_one(image_doc)
+
+        return GeneratedImageResponse(
+            id=image_id,
+            projectId=project_id,
+            prompt=f"Background removed ({bg_color})",
+            imagePath=image_filename,
+            imageUrl=f"/api/images/{image_id}",
+            size=size_str,
+            createdAt=image_doc["createdAt"]
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to remove background: {str(e)[:200]}")
+
+
 @router.get("/images/{image_id}")
 async def get_image(image_id: str, current_user: dict = Depends(get_current_user)):
     """Get a generated image by ID"""

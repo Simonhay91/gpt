@@ -157,3 +157,4 @@ zipp==3.23.0
 zstandard==0.25.0
 pdfplumber==0.11.9
 markitdown[all]
+rembg
