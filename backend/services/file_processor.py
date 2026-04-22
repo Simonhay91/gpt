@@ -8,6 +8,9 @@ from PIL import Image
 import pytesseract
 from bs4 import BeautifulSoup
 
+from markitdown import MarkItDown
+_markitdown = MarkItDown()
+
 logger = logging.getLogger(__name__)
 
 # Chunk settings
@@ -17,8 +20,20 @@ CHUNK_OVERLAP = 200
 
 
 def extract_text_from_pdf(file_content: bytes) -> str:
-    """Extract text from PDF file content"""
     try:
+        import tempfile, os
+        with tempfile.NamedTemporaryFile(suffix='.pdf', delete=False) as tmp:
+            tmp.write(file_content)
+            tmp_path = tmp.name
+        try:
+            result = _markitdown.convert(tmp_path)
+            text = result.text_content.strip()
+            if text:
+                return text
+        except Exception:
+            pass
+        finally:
+            os.unlink(tmp_path)
         import pdfplumber
         text_parts = []
         with pdfplumber.open(io.BytesIO(file_content)) as pdf:
@@ -33,8 +48,20 @@ def extract_text_from_pdf(file_content: bytes) -> str:
 
 
 def extract_text_from_docx(file_content: bytes) -> str:
-    """Extract text from DOCX file content"""
     try:
+        import tempfile, os
+        with tempfile.NamedTemporaryFile(suffix='.docx', delete=False) as tmp:
+            tmp.write(file_content)
+            tmp_path = tmp.name
+        try:
+            result = _markitdown.convert(tmp_path)
+            text = result.text_content.strip()
+            if text:
+                return text
+        except Exception:
+            pass
+        finally:
+            os.unlink(tmp_path)
         doc = Document(io.BytesIO(file_content))
         paragraphs = [para.text for para in doc.paragraphs if para.text.strip()]
         return "\n\n".join(paragraphs)
