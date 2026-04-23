@@ -1,6 +1,18 @@
-export const APP_VERSION = "2.9.29";
+export const APP_VERSION = "2.9.30";
 
 export const CHANGELOG = [
+  {
+    version: "2.9.30",
+    date: "Апрель 2026",
+    badge: "new",
+    changes: [
+      "Product Matching: редактор Domain Rules — добавляйте vendor naming rules прямо из UI без деплоя",
+      "Кнопка «Matching Rules» (⚙️) в Product Catalog — доступна только admin/manager",
+      "Правила хранятся в MongoDB (matching_domain_rules), автоматически применяются при следующем матчинге",
+      "Поддержка категорий: general, vendor_naming, cable_type; флаг is_active включает/выключает правило",
+      "4 новых endpoint: GET/POST/PUT/DELETE /api/product-matching/domain-rules",
+    ]
+  },
   {
     version: "2.9.29",
     date: "Апрель 2026",

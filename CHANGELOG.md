@@ -6,6 +6,21 @@ UI версия: `frontend/src/data/changelog.js`
 
 ---
 
+## 2026-04-23 — v2.9.30
+
+### New: Product Matching — Domain Rules Editor
+**Файлы:** `backend/routes/product_matching.py`, `frontend/src/pages/ProductCatalogPage.js`, `frontend/src/data/changelog.js`
+
+- New `matching_domain_rules` MongoDB collection — stores custom vendor naming rules with title, content, category, is_active, created_by, updated_at
+- 4 new endpoints: `GET/POST /api/product-matching/domain-rules`, `PUT/DELETE /api/product-matching/domain-rules/{id}`
+- `/match` endpoint loads active rules from DB at request time, appends to `OPTICAL_CABLE_DOMAIN` as `full_domain` passed to both Claude functions
+- `_claude_match_with_candidates` and `_claude_match_batch` accept optional `domain` parameter (falls back to hardcoded constant)
+- Frontend: "Matching Rules" button (⚙️) in Product Catalog header — visible only to canEdit users
+- Modal with inline Add/Edit form (title, category dropdown, content textarea, active checkbox) + scrollable rules list
+- Per-rule: toggle active (CheckCircle/AlertCircle), edit (pencil), delete (trash) actions
+
+---
+
 ## 2026-04-23 — v2.9.29
 
 ### New: Product Detail — Learned Aliases section

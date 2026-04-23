@@ -382,6 +382,7 @@ def _format_candidates(candidates: List[dict]) -> str:
 
 def _claude_match_with_candidates(
     items_with_candidates: List[tuple],  # [(customer_item, [candidate_dicts]), ...]
+    domain: str = "",
 ) -> List[dict]:
     """
     Send ALL items + their TOP-k candidates to Claude in ONE request.
@@ -398,9 +399,10 @@ def _claude_match_with_candidates(
         )
     items_text = "\n\n".join(items_text_parts)
 
+    effective_domain = domain if domain else OPTICAL_CABLE_DOMAIN
     prompt = f"""You are a product matching assistant for a fiber optics and network equipment catalog.
 
-{OPTICAL_CABLE_DOMAIN}
+{effective_domain}
 
 For each customer item below I have pre-selected the TOP candidates from the catalog using semantic search.
 Choose the best matching candidate, or return no match if none fits.
@@ -563,6 +565,7 @@ def _claude_match_batch(
     batch: List[str],
     catalog_text: str,
     catalog_len: int,
+    domain: str = "",
 ) -> List[dict]:
     """
     Send one batch of customer items + full catalog to Claude.
@@ -571,9 +574,10 @@ def _claude_match_batch(
     client = anthropic.Anthropic(api_key=CLAUDE_API_KEY)
     items_text = "\n".join(f"[{i + 1}] {name}" for i, name in enumerate(batch))
 
+    effective_domain = domain if domain else OPTICAL_CABLE_DOMAIN
     prompt = f"""You are a product matching assistant for a fiber optics and network equipment catalog.
 
-{OPTICAL_CABLE_DOMAIN}
+{effective_domain}
 
 CATALOG ({catalog_len} products):
 {catalog_text}
@@ -715,7 +719,87 @@ class ResearchItemRequest(BaseModel):
     mode: str = "global"
 
 
+class DomainRuleCreate(BaseModel):
+    title: str
+    content: str
+    category: str = "general"   # "vendor_naming" | "cable_type" | "general"
+    is_active: bool = True
+
+
+class DomainRuleUpdate(BaseModel):
+    title: Optional[str] = None
+    content: Optional[str] = None
+    category: Optional[str] = None
+    is_active: Optional[bool] = None
+
+
 # ==================== ENDPOINTS ====================
+
+# ── Domain Rules CRUD ────────────────────────────────────────────────────────
+
+@router.get("/domain-rules")
+async def list_domain_rules(current_user: dict = Depends(get_current_user)):
+    """Return all matching domain rules."""
+    db = get_db()
+    rules = await db.matching_domain_rules.find(
+        {}, {"embedding": 0}
+    ).sort("updated_at", -1).to_list(200)
+    for r in rules:
+        r["_id"] = str(r["_id"])
+    return rules
+
+
+@router.post("/domain-rules", status_code=201)
+async def create_domain_rule(
+    body: DomainRuleCreate,
+    current_user: dict = Depends(get_current_user),
+):
+    """Create a new matching domain rule."""
+    db = get_db()
+    doc = {
+        **body.model_dump(),
+        "created_by": str(current_user.get("_id", "")),
+        "updated_at": datetime.now(timezone.utc).isoformat(),
+    }
+    result = await db.matching_domain_rules.insert_one(doc)
+    doc["_id"] = str(result.inserted_id)
+    return doc
+
+
+@router.put("/domain-rules/{rule_id}")
+async def update_domain_rule(
+    rule_id: str,
+    body: DomainRuleUpdate,
+    current_user: dict = Depends(get_current_user),
+):
+    """Update an existing matching domain rule."""
+    from bson import ObjectId
+    db = get_db()
+    updates = {k: v for k, v in body.model_dump().items() if v is not None}
+    if not updates:
+        raise HTTPException(status_code=400, detail="No fields to update")
+    updates["updated_at"] = datetime.now(timezone.utc).isoformat()
+    result = await db.matching_domain_rules.update_one(
+        {"_id": ObjectId(rule_id)}, {"$set": updates}
+    )
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Rule not found")
+    rule = await db.matching_domain_rules.find_one({"_id": ObjectId(rule_id)})
+    rule["_id"] = str(rule["_id"])
+    return rule
+
+
+@router.delete("/domain-rules/{rule_id}", status_code=204)
+async def delete_domain_rule(
+    rule_id: str,
+    current_user: dict = Depends(get_current_user),
+):
+    """Delete a matching domain rule."""
+    from bson import ObjectId
+    db = get_db()
+    result = await db.matching_domain_rules.delete_one({"_id": ObjectId(rule_id)})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Rule not found")
 
 @router.get("/template")
 async def download_template(current_user: dict = Depends(get_current_user)):
@@ -796,6 +880,16 @@ async def match_products(
     if mode == "oem":
         oem_brands = await db.oem_brands.find({}, {"_id": 0, "name": 1}).to_list(200)
         oem_vendor_names = {b["name"].lower() for b in oem_brands if b.get("name")}
+
+    # 4. Load active custom domain rules and build full domain context
+    custom_rules = await db.matching_domain_rules.find(
+        {"is_active": True}, {"_id": 0, "content": 1}
+    ).to_list(100)
+    if custom_rules:
+        custom_domain = "\n\n".join(r["content"] for r in custom_rules if r.get("content"))
+        full_domain = OPTICAL_CABLE_DOMAIN + "\n\n--- CUSTOM VENDOR RULES ---\n" + custom_domain
+    else:
+        full_domain = OPTICAL_CABLE_DOMAIN
 
     # ── STEP 0: Alias lookup ─────────────────────────────────────────────────
     # Build lookup from catalog inline aliases
@@ -878,7 +972,7 @@ async def match_products(
             for i in range(0, len(items_with_candidates), CLAUDE_BATCH_SIZE):
                 batch = items_with_candidates[i: i + CLAUDE_BATCH_SIZE]
                 try:
-                    batch_results = _claude_match_with_candidates(batch)
+                    batch_results = _claude_match_with_candidates(batch, domain=full_domain)
                 except Exception as exc:
                     logger.error(f"Claude (candidates) batch error: {exc}")
                     batch_results = _empty_batch([item for item, _ in batch], "Matching error")
@@ -891,7 +985,7 @@ async def match_products(
             for i in range(0, len(ai_items), CLAUDE_BATCH_SIZE):
                 batch = ai_items[i: i + CLAUDE_BATCH_SIZE]
                 try:
-                    batch_results = _claude_match_batch(batch, catalog_text, len(catalog))
+                    batch_results = _claude_match_batch(batch, catalog_text, len(catalog), domain=full_domain)
                 except Exception as exc:
                     logger.error(f"Claude (full-catalog) batch error: {exc}")
                     batch_results = _empty_batch(batch, "Matching error")

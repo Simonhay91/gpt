@@ -26,7 +26,8 @@ import {
   CheckCircle2,
   FileText,
   FileSpreadsheet,
-  File
+  File,
+  Settings
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -90,6 +91,14 @@ export default function ProductCatalogPage() {
   const [generatingExcel, setGeneratingExcel] = useState(false);
   const editSearchRef = useRef(null);
   const [researchingIdx, setResearchingIdx] = useState(null);
+
+  // Domain rules state
+  const [showRulesModal, setShowRulesModal] = useState(false);
+  const [domainRules, setDomainRules] = useState([]);
+  const [rulesLoading, setRulesLoading] = useState(false);
+  const [editingRule, setEditingRule] = useState(null);
+  const [ruleForm, setRuleForm] = useState({ title: '', content: '', category: 'general', is_active: true });
+  const [ruleSaving, setRuleSaving] = useState(false);
   
   // Permission check - Admin or Manager can edit
   const canEdit = user?.isAdmin || user?.email?.endsWith('@admin.com');
@@ -130,6 +139,78 @@ export default function ProductCatalogPage() {
       setCategories(response.data);
     } catch (error) {
       console.error('Failed to load categories:', error);
+    }
+  };
+
+  const loadDomainRules = async () => {
+    setRulesLoading(true);
+    try {
+      const res = await axios.get(`${API}/product-matching/domain-rules`);
+      setDomainRules(res.data);
+    } catch (err) {
+      toast.error('Failed to load domain rules');
+    } finally {
+      setRulesLoading(false);
+    }
+  };
+
+  const openRulesModal = () => {
+    setShowRulesModal(true);
+    setEditingRule(null);
+    setRuleForm({ title: '', content: '', category: 'general', is_active: true });
+    loadDomainRules();
+  };
+
+  const startEditRule = (rule) => {
+    setEditingRule(rule);
+    setRuleForm({ title: rule.title, content: rule.content, category: rule.category || 'general', is_active: rule.is_active });
+  };
+
+  const cancelEditRule = () => {
+    setEditingRule(null);
+    setRuleForm({ title: '', content: '', category: 'general', is_active: true });
+  };
+
+  const saveRule = async () => {
+    if (!ruleForm.title.trim() || !ruleForm.content.trim()) {
+      toast.error('Title and content are required');
+      return;
+    }
+    setRuleSaving(true);
+    try {
+      if (editingRule) {
+        await axios.put(`${API}/product-matching/domain-rules/${editingRule._id}`, ruleForm);
+        toast.success('Rule updated');
+      } else {
+        await axios.post(`${API}/product-matching/domain-rules`, ruleForm);
+        toast.success('Rule added');
+      }
+      cancelEditRule();
+      loadDomainRules();
+    } catch (err) {
+      toast.error('Failed to save rule');
+    } finally {
+      setRuleSaving(false);
+    }
+  };
+
+  const toggleRuleActive = async (rule) => {
+    try {
+      await axios.put(`${API}/product-matching/domain-rules/${rule._id}`, { is_active: !rule.is_active });
+      loadDomainRules();
+    } catch (err) {
+      toast.error('Failed to update rule');
+    }
+  };
+
+  const deleteRule = async (ruleId) => {
+    if (!window.confirm('Delete this rule?')) return;
+    try {
+      await axios.delete(`${API}/product-matching/domain-rules/${ruleId}`);
+      toast.success('Rule deleted');
+      loadDomainRules();
+    } catch (err) {
+      toast.error('Failed to delete rule');
     }
   };
 
@@ -416,6 +497,13 @@ export default function ProductCatalogPage() {
             </Button>
             {canEdit && (
               <>
+                <Button
+                  variant="outline"
+                  onClick={openRulesModal}
+                >
+                  <Settings className="h-4 w-4 mr-2" />
+                  Matching Rules
+                </Button>
                 <Button 
                   variant="outline" 
                   onClick={() => setShowImportModal(true)}
@@ -1167,6 +1255,162 @@ export default function ProductCatalogPage() {
                   </div>
                 </div>
               )}
+            </div>
+          </div>
+        )}
+
+        {/* Matching Domain Rules Modal */}
+        {showRulesModal && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+            <div className="bg-background rounded-xl shadow-xl w-full max-w-2xl max-h-[90vh] flex flex-col">
+              {/* Header */}
+              <div className="flex justify-between items-center px-6 pt-5 pb-4 border-b border-border shrink-0">
+                <h2 className="text-lg font-bold flex items-center gap-2">
+                  <Settings className="h-5 w-5 text-primary" />
+                  Matching Domain Rules
+                </h2>
+                <Button variant="ghost" size="icon" onClick={() => { setShowRulesModal(false); cancelEditRule(); }}>
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+
+              {/* Body */}
+              <div className="overflow-y-auto flex-1 px-6 py-4 space-y-4">
+
+                {/* Add / Edit form */}
+                <div className="border border-border rounded-lg p-4 space-y-3 bg-muted/30">
+                  <h3 className="text-sm font-semibold text-foreground">
+                    {editingRule ? 'Edit Rule' : 'Add New Rule'}
+                  </h3>
+                  <div className="flex gap-2">
+                    <input
+                      className="flex-1 border border-input rounded-md px-3 py-2 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-ring"
+                      placeholder="Rule title…"
+                      value={ruleForm.title}
+                      onChange={e => setRuleForm(f => ({ ...f, title: e.target.value }))}
+                    />
+                    <select
+                      className="border border-input rounded-md px-3 py-2 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-ring"
+                      value={ruleForm.category}
+                      onChange={e => setRuleForm(f => ({ ...f, category: e.target.value }))}
+                    >
+                      <option value="general">General</option>
+                      <option value="vendor_naming">Vendor Naming</option>
+                      <option value="cable_type">Cable Type</option>
+                    </select>
+                  </div>
+                  <textarea
+                    className="w-full border border-input rounded-md px-3 py-2 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-ring font-mono resize-none"
+                    rows={5}
+                    placeholder="Rule content — naming convention text, examples, patterns…"
+                    value={ruleForm.content}
+                    onChange={e => setRuleForm(f => ({ ...f, content: e.target.value }))}
+                  />
+                  <div className="flex items-center justify-between">
+                    <label className="flex items-center gap-2 text-sm cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        checked={ruleForm.is_active}
+                        onChange={e => setRuleForm(f => ({ ...f, is_active: e.target.checked }))}
+                        className="accent-primary"
+                      />
+                      Active (applied during matching)
+                    </label>
+                    <div className="flex gap-2">
+                      {editingRule && (
+                        <Button variant="ghost" size="sm" onClick={cancelEditRule}>
+                          Cancel
+                        </Button>
+                      )}
+                      <Button size="sm" onClick={saveRule} disabled={ruleSaving}>
+                        {ruleSaving ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : null}
+                        {editingRule ? 'Update Rule' : 'Add Rule'}
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Rules list */}
+                {rulesLoading ? (
+                  <div className="flex items-center justify-center py-8 text-muted-foreground">
+                    <Loader2 className="h-5 w-5 animate-spin mr-2" />
+                    Loading rules…
+                  </div>
+                ) : domainRules.length === 0 ? (
+                  <div className="text-center py-8 text-muted-foreground text-sm">
+                    No custom rules yet. Add one above to extend Claude's domain knowledge.
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {domainRules.map(rule => (
+                      <div
+                        key={rule._id}
+                        className={`border rounded-lg p-4 space-y-2 transition-colors ${rule.is_active ? 'border-border bg-background' : 'border-border/50 bg-muted/20 opacity-60'}`}
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="space-y-1 flex-1 min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="font-medium text-sm truncate">{rule.title}</span>
+                              <span className="text-xs px-1.5 py-0.5 rounded bg-muted text-muted-foreground shrink-0">
+                                {rule.category || 'general'}
+                              </span>
+                              {rule.is_active ? (
+                                <span className="text-xs px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 shrink-0">active</span>
+                              ) : (
+                                <span className="text-xs px-1.5 py-0.5 rounded bg-muted text-muted-foreground shrink-0">inactive</span>
+                              )}
+                            </div>
+                            <pre className="text-xs text-muted-foreground whitespace-pre-wrap font-mono leading-relaxed line-clamp-4">
+                              {rule.content}
+                            </pre>
+                          </div>
+                          <div className="flex gap-1 shrink-0">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7"
+                              title={rule.is_active ? 'Deactivate' : 'Activate'}
+                              onClick={() => toggleRuleActive(rule)}
+                            >
+                              {rule.is_active
+                                ? <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+                                : <AlertCircle className="h-4 w-4 text-muted-foreground" />}
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7"
+                              onClick={() => startEditRule(rule)}
+                            >
+                              <Edit className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7 text-destructive hover:text-destructive"
+                              onClick={() => deleteRule(rule._id)}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </div>
+                        {rule.updated_at && (
+                          <p className="text-xs text-muted-foreground">
+                            Updated {new Date(rule.updated_at).toLocaleDateString()}
+                          </p>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Footer */}
+              <div className="px-6 py-4 border-t border-border shrink-0 flex justify-end">
+                <Button variant="outline" onClick={() => { setShowRulesModal(false); cancelEditRule(); }}>
+                  Close
+                </Button>
+              </div>
             </div>
           </div>
         )}
