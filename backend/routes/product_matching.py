@@ -12,6 +12,7 @@ import logging
 from datetime import datetime, timezone
 from pydantic import BaseModel
 
+import numpy as np
 import anthropic
 import openpyxl
 from openpyxl.styles import Font, PatternFill, Alignment
@@ -23,10 +24,12 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/product-matching", tags=["product-matching"])
 
 CLAUDE_API_KEY = os.environ.get("CLAUDE_API_KEY", "")
+VOYAGE_API_KEY = os.environ.get("VOYAGE_API_KEY", "")
 MAX_FILE_SIZE = 20 * 1024 * 1024   # 20 MB
 MAX_CUSTOMER_ITEMS = 200
-MAX_CATALOG_PRODUCTS = 500
-CLAUDE_BATCH_SIZE = 30             # customer items per Claude call
+MAX_CATALOG_PRODUCTS = 5000        # load more — Voyage pre-filters, Claude never sees all
+VOYAGE_TOP_K = 5                   # candidates per item from Voyage similarity
+CLAUDE_BATCH_SIZE = 30             # customer items per Claude call (Phase 2)
 
 
 # ==================== TEMPLATE BUILDER ====================
@@ -175,6 +178,162 @@ def _parse_pdf(content: bytes) -> List[str]:
 
 
 # ==================== CLAUDE MATCHING ====================
+
+def _cosine_similarity(a: list, b: list) -> float:
+    va, vb = np.array(a, dtype=np.float32), np.array(b, dtype=np.float32)
+    denom = np.linalg.norm(va) * np.linalg.norm(vb)
+    return float(np.dot(va, vb) / denom) if denom > 0 else 0.0
+
+
+def _voyage_embed_batch(texts: List[str]) -> List[Optional[List[float]]]:
+    """Embed a list of texts via Voyage AI. Returns list of embeddings (same order)."""
+    import voyageai
+    client = voyageai.Client(api_key=VOYAGE_API_KEY)
+    result = client.embed(texts, model="voyage-3")
+    return result.embeddings
+
+
+def _text_fallback_top_k(item: str, catalog: List[dict], k: int) -> List[dict]:
+    """Simple case-insensitive text match fallback when embeddings are unavailable."""
+    item_lower = item.lower()
+    hits = []
+    for p in catalog:
+        haystack = " ".join(filter(None, [
+            p.get("title_en", ""),
+            p.get("article_number", ""),
+            " ".join(p.get("aliases") or []),
+        ])).lower()
+        if item_lower in haystack or any(w in haystack for w in item_lower.split() if len(w) > 3):
+            hits.append(p)
+        if len(hits) >= k:
+            break
+    return hits[:k]
+
+
+def _voyage_top_k(
+    items: List[str],
+    catalog: List[dict],
+    catalog_embeddings: List[Optional[List[float]]],
+    k: int,
+) -> List[List[dict]]:
+    """
+    For each item return TOP-k catalog products by cosine similarity.
+    Falls back to text search for items/products without embeddings.
+    """
+    try:
+        item_embeddings = _voyage_embed_batch(items)
+    except Exception as exc:
+        logger.warning(f"Voyage embed error for items: {exc}")
+        return [_text_fallback_top_k(item, catalog, k) for item in items]
+
+    results = []
+    for item, item_emb in zip(items, item_embeddings):
+        if not item_emb:
+            results.append(_text_fallback_top_k(item, catalog, k))
+            continue
+
+        scores = []
+        for i, (p, p_emb) in enumerate(zip(catalog, catalog_embeddings)):
+            if p_emb:
+                score = _cosine_similarity(item_emb, p_emb)
+            else:
+                # no embedding for this product → text fallback score
+                haystack = " ".join(filter(None, [
+                    p.get("title_en", ""), p.get("article_number", ""),
+                ])).lower()
+                score = 0.3 if item.lower() in haystack else 0.0
+            scores.append((score, i))
+
+        top_indices = [i for _, i in sorted(scores, reverse=True)[:k]]
+        results.append([catalog[i] for i in top_indices])
+
+    return results
+
+
+def _format_candidates(candidates: List[dict]) -> str:
+    """Format a small list of catalog candidates for the Claude prompt."""
+    lines = []
+    for i, p in enumerate(candidates):
+        aliases = ", ".join((p.get("aliases") or [])[:3])
+        parts = [
+            f"  [{i + 1}] title={p.get('title_en', '')}",
+            f"article={p.get('article_number', '')}",
+            f"crm={p.get('crm_code', '')}",
+            f"vendor={p.get('vendor', '')}",
+        ]
+        if p.get("product_model"):
+            parts.append(f"model={p['product_model']}")
+        if aliases:
+            parts.append(f"aliases={aliases}")
+        lines.append(" | ".join(parts))
+    return "\n".join(lines) if lines else "  (no candidates found)"
+
+
+def _claude_match_with_candidates(
+    items_with_candidates: List[tuple],  # [(customer_item, [candidate_dicts]), ...]
+) -> List[dict]:
+    """
+    Send ALL items + their TOP-k candidates to Claude in ONE request.
+    Returns list of match dicts in same order.
+    """
+    client = anthropic.Anthropic(api_key=CLAUDE_API_KEY)
+
+    items_text_parts = []
+    for i, (item, candidates) in enumerate(items_with_candidates):
+        cand_text = _format_candidates(candidates)
+        items_text_parts.append(
+            f"[{i + 1}] Customer item: \"{item}\"\n"
+            f"     Candidates:\n{cand_text}"
+        )
+    items_text = "\n\n".join(items_text_parts)
+
+    prompt = f"""You are a product matching assistant for a fiber optics and network equipment catalog.
+
+{OPTICAL_CABLE_DOMAIN}
+
+For each customer item below I have pre-selected the TOP candidates from the catalog using semantic search.
+Choose the best matching candidate, or return no match if none fits.
+
+{items_text}
+
+Return a JSON array with exactly {len(items_with_candidates)} objects in the same order:
+[
+  {{
+    "customer_item": "<original customer item text>",
+    "matched_title": "<chosen candidate title_en, empty string if no match>",
+    "article_number": "<chosen candidate article_number, empty string if no match>",
+    "crm_code": "<chosen candidate crm_code, empty string if no match>",
+    "vendor": "<chosen candidate vendor, empty string if no match>",
+    "datasheet_url": "",
+    "confidence": "<high|medium|low|none>",
+    "comment": "<short English note if approximate/uncertain match, null if exact or no match>"
+  }}
+]
+
+Rules:
+- confidence="high": very strong match, customer item clearly maps to the candidate
+- confidence="medium": reasonable match but some ambiguity (different spec, slightly different model)
+- confidence="low": weak match, best available but uncertain
+- confidence="none": no suitable match among candidates
+- If confidence is "none", set matched_title/article_number/crm_code to empty strings
+- Return ONLY the JSON array, no extra text."""
+
+    response = client.messages.create(
+        model="claude-sonnet-4-20250514",
+        max_tokens=8192,
+        messages=[{"role": "user", "content": prompt}],
+    )
+    raw = response.content[0].text.strip()
+    m = re.search(r"\[.*\]", raw, re.DOTALL)
+    if not m:
+        logger.error(f"Claude (candidates) returned no JSON array: {raw[:300]}")
+        return _empty_batch([item for item, _ in items_with_candidates], "Matching error")
+    try:
+        return json.loads(m.group(0))
+    except json.JSONDecodeError as exc:
+        logger.error(f"Claude (candidates) JSON decode error: {exc} | raw[:300]={raw[:300]}")
+        return _empty_batch([item for item, _ in items_with_candidates], "Matching error")
+
 
 def _format_catalog(catalog: List[dict]) -> str:
     lines = []
@@ -444,7 +603,12 @@ async def match_products(
     """
     Upload a customer file (xlsx/xls/csv/docx/pdf) with product names.
     Returns JSON preview results for user review before Excel generation.
-    mode='global' → CRM codes; mode='oem' → article for OEM vendors, else CRM.
+
+    3-phase pipeline:
+      Step 0  — alias lookup (instant, no AI)
+      Phase 1 — Voyage AI embedding pre-filter → TOP-5 candidates per item
+      Phase 2 — Claude picks best candidate from the small set
+    Fallback: if Voyage AI unavailable → full catalog sent to Claude (original logic).
     """
     db = get_db()
 
@@ -470,7 +634,7 @@ async def match_products(
 
     customer_items = customer_items[:MAX_CUSTOMER_ITEMS]
 
-    # 2. Load active catalog products
+    # 2. Load active catalog products (with embeddings for Voyage phase)
     catalog = await db.product_catalog.find(
         {"is_active": True},
         {
@@ -482,6 +646,7 @@ async def match_products(
             "product_model": 1,
             "datasheet_url": 1,
             "aliases": 1,
+            "embedding": 1,
         },
     ).limit(MAX_CATALOG_PRODUCTS).to_list(MAX_CATALOG_PRODUCTS)
 
@@ -494,31 +659,29 @@ async def match_products(
         oem_brands = await db.oem_brands.find({}, {"_id": 0, "name": 1}).to_list(200)
         oem_vendor_names = {b["name"].lower() for b in oem_brands if b.get("name")}
 
-    # 4. Build alias lookup: alias_text → catalog product
+    # ── STEP 0: Alias lookup ─────────────────────────────────────────────────
+    # Build lookup from catalog inline aliases
     alias_lookup: dict = {}
     for p in catalog:
         for alias in (p.get("aliases") or []):
             alias_lookup[alias.lower().strip()] = p
-    # Also load product_aliases collection
-    saved_aliases = await db.product_aliases.find(
-        {}, {"_id": 0}
-    ).to_list(10000)
-    # Build crm_code → catalog product map
+
+    # Also load saved product_aliases collection
     crm_to_product = {p.get("crm_code", ""): p for p in catalog if p.get("crm_code")}
     article_to_product = {p.get("article_number", ""): p for p in catalog if p.get("article_number")}
+    saved_aliases = await db.product_aliases.find({}, {"_id": 0}).to_list(10000)
     for sa in saved_aliases:
         key = (sa.get("alias") or "").lower().strip()
         if key and key not in alias_lookup:
-            prod = crm_to_product.get(sa.get("crm_code") or "") or article_to_product.get(sa.get("article_number") or "")
+            prod = (
+                crm_to_product.get(sa.get("crm_code") or "")
+                or article_to_product.get(sa.get("article_number") or "")
+            )
             if prod:
                 alias_lookup[key] = prod
 
-    # 5. Pre-format catalog once (reused across batches)
-    catalog_text = _format_catalog(catalog)
-
-    # 6. Split customer items: alias-matched vs needs Claude
-    alias_matched: dict = {}  # index → result dict
-    needs_claude: List[tuple] = []  # (original_index, item)
+    alias_matched: dict = {}   # orig_idx → result dict
+    needs_ai: List[tuple] = [] # (orig_idx, item)
 
     for idx, item in enumerate(customer_items):
         item_lower = item.lower().strip()
@@ -536,42 +699,90 @@ async def match_products(
                 "confidence": "high",
             }
         else:
-            needs_claude.append((idx, item))
+            needs_ai.append((idx, item))
 
-    # 7. Claude matching for unresolved items in batches
-    claude_items = [item for _, item in needs_claude]
-    raw_claude: List[dict] = []
-    for i in range(0, len(claude_items), CLAUDE_BATCH_SIZE):
-        batch = claude_items[i: i + CLAUDE_BATCH_SIZE]
-        try:
-            batch_results = _claude_match_batch(batch, catalog_text, len(catalog))
-        except Exception as exc:
-            logger.error(f"Claude batch {i // CLAUDE_BATCH_SIZE + 1} error: {exc}")
-            batch_results = _empty_batch(batch, "Matching error")
-        raw_claude.extend(batch_results)
+    logger.info(
+        f"Product matching: total={len(customer_items)}, "
+        f"alias_hit={len(alias_matched)}, needs_ai={len(needs_ai)}"
+    )
 
-    # 8. Merge alias-matched + Claude results in original order
-    claude_iter = iter(enumerate(raw_claude))
-    claude_map: dict = {}
-    for claude_idx, r in enumerate(raw_claude):
-        orig_idx = needs_claude[claude_idx][0]
-        claude_map[orig_idx] = r
+    # ── PHASE 1 + 2: Voyage pre-filter → Claude ──────────────────────────────
+    ai_map: dict = {}  # orig_idx → raw result dict
 
+    if needs_ai:
+        voyage_ok = bool(VOYAGE_API_KEY)
+        ai_items = [item for _, item in needs_ai]
+        ai_indices = [idx for idx, _ in needs_ai]
+
+        if voyage_ok:
+            # ── Phase 1: Voyage AI embedding → TOP-K candidates ──────────────
+            try:
+                catalog_embeddings = [p.get("embedding") for p in catalog]
+                items_candidates = _voyage_top_k(
+                    ai_items, catalog, catalog_embeddings, VOYAGE_TOP_K
+                )
+                logger.info(
+                    f"Phase 1 (Voyage) complete: {len(ai_items)} items → "
+                    f"{VOYAGE_TOP_K} candidates each"
+                )
+                use_candidates = True
+            except Exception as exc:
+                logger.warning(f"Voyage phase failed, falling back to full-catalog: {exc}")
+                use_candidates = False
+        else:
+            logger.warning("VOYAGE_API_KEY not set — falling back to full-catalog Claude")
+            use_candidates = False
+
+        if use_candidates:
+            # ── Phase 2: Claude with small candidate lists ────────────────────
+            items_with_candidates = list(zip(ai_items, items_candidates))
+            raw_claude: List[dict] = []
+            for i in range(0, len(items_with_candidates), CLAUDE_BATCH_SIZE):
+                batch = items_with_candidates[i: i + CLAUDE_BATCH_SIZE]
+                try:
+                    batch_results = _claude_match_with_candidates(batch)
+                except Exception as exc:
+                    logger.error(f"Claude (candidates) batch error: {exc}")
+                    batch_results = _empty_batch([item for item, _ in batch], "Matching error")
+                raw_claude.extend(batch_results)
+            logger.info(f"Phase 2 (Claude with candidates) complete: {len(raw_claude)} results")
+        else:
+            # ── Fallback: full catalog → Claude (original logic) ──────────────
+            catalog_text = _format_catalog(catalog)
+            raw_claude = []
+            for i in range(0, len(ai_items), CLAUDE_BATCH_SIZE):
+                batch = ai_items[i: i + CLAUDE_BATCH_SIZE]
+                try:
+                    batch_results = _claude_match_batch(batch, catalog_text, len(catalog))
+                except Exception as exc:
+                    logger.error(f"Claude (full-catalog) batch error: {exc}")
+                    batch_results = _empty_batch(batch, "Matching error")
+                raw_claude.extend(batch_results)
+            logger.info(f"Fallback (full-catalog Claude) complete: {len(raw_claude)} results")
+
+        for claude_idx, r in enumerate(raw_claude):
+            orig_idx = ai_indices[claude_idx]
+            ai_map[orig_idx] = r
+
+    # ── Merge & build final response ─────────────────────────────────────────
     results: List[dict] = []
     for idx, item in enumerate(customer_items):
         if idx in alias_matched:
             r = alias_matched[idx]
         else:
-            r = claude_map.get(idx, {"customer_item": item, "matched_title": "", "article_number": "", "crm_code": "", "vendor": "", "datasheet_url": "", "comment": "Matching error"})
-            # Determine confidence based on whether match found
-            has_match = bool(r.get("matched_title", "").strip())
-            comment = r.get("comment")
-            if not has_match:
-                confidence = None
-            elif comment:
-                confidence = "medium"
+            r = ai_map.get(idx, {
+                "customer_item": item,
+                "matched_title": "", "article_number": "",
+                "crm_code": "", "vendor": "", "datasheet_url": "",
+                "comment": "Matching error",
+            })
+            # Normalise confidence from Claude response
+            raw_conf = (r.get("confidence") or "").lower()
+            if raw_conf in ("high", "medium", "low"):
+                confidence = raw_conf
             else:
-                confidence = "high"
+                has_match = bool(r.get("matched_title", "").strip())
+                confidence = ("medium" if r.get("comment") else "high") if has_match else None
             r["match_type"] = "auto"
             r["confidence"] = confidence
 
@@ -600,6 +811,7 @@ async def match_products(
             "confidence": r.get("confidence"),
         })
 
+    logger.info(f"Product matching done: {len(results)} results returned")
     return {"results": results}
 
 
