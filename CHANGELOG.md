@@ -6,6 +6,19 @@ UI версия: `frontend/src/data/changelog.js`
 
 ---
 
+## 2026-04-23 — v2.9.27
+
+### Fix: Product Matching — manual web research button, remove auto Phase 3
+**Файлы:** `backend/routes/product_matching.py`, `frontend/src/pages/ProductCatalogPage.js`, `frontend/src/data/changelog.js`
+
+- Removed automatic Phase 3 web search from `/match` endpoint (was causing container crash/timeout)
+- New `POST /api/product-matching/research-item` endpoint — web search + Voyage re-embed + Claude re-match for a single item
+- Preview table: unmatched rows (no matched_title) now show a `🌐 Research` button
+- Clicking Research calls the new endpoint, updates that row in-place with result + web source URLs
+- `match_type: "web_research"` set on researched rows for tracking
+
+---
+
 ## 2026-04-23 — v2.9.26
 
 ### New: Product Matching — Phase 3 web research fallback + GYTA support

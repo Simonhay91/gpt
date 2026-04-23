@@ -89,6 +89,7 @@ export default function ProductCatalogPage() {
   const [editSearchLoading, setEditSearchLoading] = useState(false);
   const [generatingExcel, setGeneratingExcel] = useState(false);
   const editSearchRef = useRef(null);
+  const [researchingIdx, setResearchingIdx] = useState(null);
   
   // Permission check - Admin or Manager can edit
   const canEdit = user?.isAdmin || user?.email?.endsWith('@admin.com');
@@ -311,6 +312,28 @@ export default function ProductCatalogPage() {
       toast.error('Failed to generate Excel');
     } finally {
       setGeneratingExcel(false);
+    }
+  };
+
+  const handleResearchItem = async (idx) => {
+    const item = matchResults[idx]?.customer_item;
+    if (!item) return;
+    setResearchingIdx(idx);
+    try {
+      const { data } = await axios.post(`${API}/product-matching/research-item`, {
+        item,
+        mode: matchMode,
+      }, { timeout: 60000 });
+      setMatchResults(prev => prev.map((r, i) => i === idx ? { ...r, ...data } : r));
+      if (data.matched_title) {
+        toast.success('Web research found a match!');
+      } else {
+        toast.info('No match found via web research');
+      }
+    } catch {
+      toast.error('Web research failed');
+    } finally {
+      setResearchingIdx(null);
     }
   };
 
@@ -1076,23 +1099,40 @@ export default function ProductCatalogPage() {
                                 )}
                               </td>
                               <td className="p-2.5 text-right">
-                                <button
-                                  onClick={() => {
-                                    if (editingRowIdx === idx) {
-                                      setEditingRowIdx(null);
-                                      setEditSearch('');
-                                      setEditSearchResults([]);
-                                    } else {
-                                      setEditingRowIdx(idx);
-                                      setEditSearch('');
-                                      setEditSearchResults([]);
-                                    }
-                                  }}
-                                  className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground"
-                                  title="Change product"
-                                >
-                                  <Edit className="h-3.5 w-3.5" />
-                                </button>
+                                <div className="flex items-center justify-end gap-1">
+                                  {!row.matched_title && (
+                                    <button
+                                      onClick={() => handleResearchItem(idx)}
+                                      disabled={researchingIdx === idx}
+                                      className="flex items-center gap-1 px-1.5 py-0.5 rounded text-xs bg-blue-500/10 text-blue-600 dark:text-blue-400 hover:bg-blue-500/20 disabled:opacity-50 disabled:cursor-not-allowed"
+                                      title="Search the web to find this product"
+                                    >
+                                      {researchingIdx === idx ? (
+                                        <Loader2 className="h-3 w-3 animate-spin" />
+                                      ) : (
+                                        <Globe className="h-3 w-3" />
+                                      )}
+                                      {researchingIdx === idx ? '' : 'Research'}
+                                    </button>
+                                  )}
+                                  <button
+                                    onClick={() => {
+                                      if (editingRowIdx === idx) {
+                                        setEditingRowIdx(null);
+                                        setEditSearch('');
+                                        setEditSearchResults([]);
+                                      } else {
+                                        setEditingRowIdx(idx);
+                                        setEditSearch('');
+                                        setEditSearchResults([]);
+                                      }
+                                    }}
+                                    className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground"
+                                    title="Change product"
+                                  >
+                                    <Edit className="h-3.5 w-3.5" />
+                                  </button>
+                                </div>
                               </td>
                             </tr>
                           ))}

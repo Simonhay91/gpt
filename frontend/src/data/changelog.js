@@ -1,6 +1,16 @@
-export const APP_VERSION = "2.9.26";
+export const APP_VERSION = "2.9.27";
 
 export const CHANGELOG = [
+  {
+    version: "2.9.27",
+    date: "Апрель 2026",
+    badge: "new",
+    changes: [
+      "Product Matching: кнопка «Research» для ненайденных позиций — веб-поиск по одному товару вручную",
+      "Автоматический Phase 3 удалён — веб-поиск теперь запускается только по запросу пользователя",
+      "После Research результат обновляется прямо в строке таблицы превью",
+    ]
+  },
   {
     version: "2.9.26",
     date: "Апрель 2026",

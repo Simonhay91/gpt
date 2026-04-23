@@ -703,6 +703,11 @@ class GenerateRequest(BaseModel):
     results: List[dict]
 
 
+class ResearchItemRequest(BaseModel):
+    item: str
+    mode: str = "global"
+
+
 # ==================== ENDPOINTS ====================
 
 @router.get("/template")
@@ -890,45 +895,18 @@ async def match_products(
             orig_idx = ai_indices[claude_idx]
             ai_map[orig_idx] = r
 
-    # ── PHASE 3: Web research fallback for unmatched items ────────────────────
-    web3_map: dict = {}
-    if WEB_SEARCH_ENABLED and needs_ai:
-        # Collect items that Claude returned confidence="none" from Phase 2
-        phase3_items: List[tuple] = []
-        for orig_idx, item in needs_ai:
-            r = ai_map.get(orig_idx, {})
-            raw_conf = (r.get("confidence") or "").lower()
-            has_match = bool(r.get("matched_title", "").strip())
-            if raw_conf == "none" or (not has_match and raw_conf not in ("high", "medium", "low")):
-                phase3_items.append((orig_idx, item))
-
-        if phase3_items:
-            logger.info(f"Phase 3 (web research): {len(phase3_items)} unmatched items")
-            try:
-                cat_embs = [p.get("embedding") for p in catalog]
-                web3_map = _phase3_web_rematch(phase3_items, catalog, cat_embs)
-                logger.info(f"Phase 3 complete: {len(web3_map)} items processed")
-            except Exception as exc:
-                logger.error(f"Phase 3 error: {exc}")
-
     # ── Merge & build final response ─────────────────────────────────────────
     results: List[dict] = []
     for idx, item in enumerate(customer_items):
         if idx in alias_matched:
             r = alias_matched[idx]
         else:
-            # Phase 3 result takes priority over Phase 2 "none" result
-            if idx in web3_map:
-                r = web3_map[idx]
-                web_sources = r.get("web_sources") or []
-            else:
-                r = ai_map.get(idx, {
-                    "customer_item": item,
-                    "matched_title": "", "article_number": "",
-                    "crm_code": "", "vendor": "", "datasheet_url": "",
-                    "comment": "Matching error",
-                })
-                web_sources = []
+            r = ai_map.get(idx, {
+                "customer_item": item,
+                "matched_title": "", "article_number": "",
+                "crm_code": "", "vendor": "", "datasheet_url": "",
+                "comment": "Matching error",
+            })
 
             # Normalise confidence from Claude response
             raw_conf = (r.get("confidence") or "").lower()
@@ -939,16 +917,6 @@ async def match_products(
                 confidence = ("medium" if r.get("comment") else "high") if has_match else None
             r["match_type"] = "auto"
             r["confidence"] = confidence
-
-            # Annotate comment with web sources if Phase 3 was used
-            if web_sources and bool(r.get("matched_title", "").strip()):
-                source_str = " · ".join(web_sources[:3])
-                existing_comment = r.get("comment") or ""
-                r["comment"] = (
-                    f"Matched via web research. Sources: {source_str}"
-                    + (f" | {existing_comment}" if existing_comment else "")
-                )
-                r["web_sources"] = web_sources
 
         # Apply mode logic to pick code
         vendor_lower = (r.get("vendor") or "").lower()
@@ -971,13 +939,110 @@ async def match_products(
             "code": code or None,
             "datasheet_url": r.get("datasheet_url", "") or None,
             "comment": r.get("comment") or None,
-            "web_sources": r.get("web_sources") or [],
+            "web_sources": [],
             "match_type": r.get("match_type", "auto"),
             "confidence": r.get("confidence"),
         })
 
     logger.info(f"Product matching done: {len(results)} results returned")
     return {"results": results}
+
+
+@router.post("/research-item")
+async def research_item(
+    data: ResearchItemRequest,
+    current_user: dict = Depends(get_current_user),
+):
+    """
+    Web-research a single unmatched customer item, then re-match against catalog.
+    Called manually from the preview UI when the user clicks 'Research' on a row.
+    Returns a single match result dict (same shape as /match results[i]).
+    """
+    db = get_db()
+    item = (data.item or "").strip()
+    mode = data.mode
+
+    if not item:
+        raise HTTPException(status_code=400, detail="item is required")
+
+    # Load OEM vendor names if needed
+    oem_vendor_names: set = set()
+    if mode == "oem":
+        oem_brands = await db.oem_brands.find({}, {"_id": 0, "name": 1}).to_list(200)
+        oem_vendor_names = {b["name"].lower() for b in oem_brands if b.get("name")}
+
+    # Load catalog with embeddings
+    catalog = await db.product_catalog.find(
+        {"is_active": True},
+        {
+            "_id": 0, "article_number": 1, "title_en": 1, "crm_code": 1,
+            "vendor": 1, "product_model": 1, "datasheet_url": 1,
+            "aliases": 1, "embedding": 1,
+        },
+    ).limit(MAX_CATALOG_PRODUCTS).to_list(MAX_CATALOG_PRODUCTS)
+
+    if not catalog:
+        raise HTTPException(status_code=404, detail="Product catalog is empty")
+
+    # Web research
+    client = anthropic.Anthropic(api_key=CLAUDE_API_KEY)
+    logger.info(f"research-item: web research for '{item}'")
+    enriched_text, source_urls = _web_research_item(item, client)
+    logger.info(f"research-item: enriched='{enriched_text[:80]}' sources={source_urls}")
+
+    # Re-embed enriched description → TOP candidates
+    catalog_embeddings = [p.get("embedding") for p in catalog]
+    try:
+        candidates_list = _voyage_top_k([enriched_text], catalog, catalog_embeddings, PHASE3_TOP_K)
+        candidates = candidates_list[0] if candidates_list else []
+    except Exception as exc:
+        logger.warning(f"research-item Voyage failed: {exc}")
+        candidates = _text_fallback_top_k(enriched_text, catalog, PHASE3_TOP_K)
+
+    # Claude re-match
+    try:
+        claude_results = _claude_match_with_candidates([(item, candidates)])
+        r = claude_results[0] if claude_results else {}
+    except Exception as exc:
+        logger.error(f"research-item Claude failed: {exc}")
+        r = {}
+
+    # Normalise confidence
+    raw_conf = (r.get("confidence") or "").lower()
+    if raw_conf in ("high", "medium", "low"):
+        confidence = raw_conf
+    else:
+        has_match = bool(r.get("matched_title", "").strip())
+        confidence = ("medium" if r.get("comment") else "high") if has_match else None
+
+    # Build comment with sources
+    comment = r.get("comment") or ""
+    if source_urls and bool(r.get("matched_title", "").strip()):
+        source_str = " · ".join(source_urls[:3])
+        comment = f"Matched via web research. Sources: {source_str}" + (f" | {comment}" if comment else "")
+
+    # Pick code based on mode
+    vendor_lower = (r.get("vendor") or "").lower()
+    article = r.get("article_number") or ""
+    crm = r.get("crm_code") or ""
+
+    if mode == "global":
+        code = crm or article
+    else:
+        code = (article or crm) if (vendor_lower and vendor_lower in oem_vendor_names) else (crm or article)
+
+    return {
+        "customer_item": item,
+        "crm_code": crm or None,
+        "article_number": article or None,
+        "matched_title": r.get("matched_title", ""),
+        "code": code or None,
+        "datasheet_url": r.get("datasheet_url", "") or None,
+        "comment": comment or None,
+        "web_sources": source_urls,
+        "match_type": "web_research",
+        "confidence": confidence,
+    }
 
 
 @router.post("/generate")
