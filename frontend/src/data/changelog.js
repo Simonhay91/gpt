@@ -1,6 +1,17 @@
-export const APP_VERSION = "2.9.30";
+export const APP_VERSION = "2.9.31";
 
 export const CHANGELOG = [
+  {
+    version: "2.9.31",
+    date: "Апрель 2026",
+    badge: "new",
+    changes: [
+      "Новое разрешение «canEditProductCatalog» — выдаётся инженерам через Admin → User Detail",
+      "Product Detail: кнопка удаления learned aliases (🗑) для admin и canEditProductCatalog",
+      "Новый endpoint DELETE /api/product-matching/aliases/{id}",
+      "Новый endpoint PUT /api/admin/users/{id}/catalog-permission",
+    ]
+  },
   {
     version: "2.9.30",
     date: "Апрель 2026",

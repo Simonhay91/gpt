@@ -190,12 +190,19 @@ async def get_product_learned_aliases(product_id: str, current_user: dict = Depe
     if not query_parts:
         return []
 
-    aliases = await db.product_aliases.find(
+    raw = await db.product_aliases.find(
         {"$or": query_parts},
-        {"_id": 0, "alias": 1, "confidence": 1, "saved_at": 1},
     ).sort("saved_at", -1).to_list(200)
 
-    return aliases
+    return [
+        {
+            "id": str(a["_id"]),
+            "alias": a.get("alias", ""),
+            "confidence": a.get("confidence", "auto"),
+            "saved_at": a.get("saved_at"),
+        }
+        for a in raw
+    ]
 
 
 @router.post("/product-catalog", response_model=ProductCatalogResponse)

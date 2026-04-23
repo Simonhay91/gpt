@@ -21,6 +21,20 @@ UI версия: `frontend/src/data/changelog.js`
 
 ---
 
+## 2026-04-23 — v2.9.31
+
+### New: canEditProductCatalog permission + alias delete
+**Файлы:** `backend/models/schemas.py`, `backend/routes/admin.py`, `backend/routes/auth.py`, `backend/routes/product_matching.py`, `backend/routes/product_catalog.py`, `frontend/src/pages/AdminUserDetailPage.js`, `frontend/src/pages/ProductDetailPage.js`, `frontend/src/data/changelog.js`
+
+- New `canEditProductCatalog` field on UserResponse — default False for new users
+- New `PUT /api/admin/users/{id}/catalog-permission` endpoint
+- AdminUserDetailPage: "Product Catalog" permission card with grant/revoke toggle
+- `DELETE /api/product-matching/aliases/{alias_id}` — admin or canEditProductCatalog required
+- `GET /product-catalog/{id}/learned-aliases` now returns `id` field (ObjectId as str)
+- ProductDetailPage: 🗑 delete button on each learned alias row (visible to admin + canEditProductCatalog users)
+
+---
+
 ## 2026-04-23 — v2.9.29
 
 ### New: Product Detail — Learned Aliases section

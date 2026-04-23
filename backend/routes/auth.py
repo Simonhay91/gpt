@@ -70,6 +70,7 @@ async def get_me(current_user: dict = Depends(get_current_user)):
         isAdmin=is_admin(current_user["email"]),
         createdAt=current_user["createdAt"],
         canEditGlobalSources=current_user.get("canEditGlobalSources", False),
+        canEditProductCatalog=current_user.get("canEditProductCatalog", False),
         departments=current_user.get("departments", []),
         primaryDepartmentId=current_user.get("primaryDepartmentId"),
         mustChangePassword=current_user.get("mustChangePassword", False)

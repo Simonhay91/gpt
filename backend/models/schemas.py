@@ -21,6 +21,7 @@ class UserResponse(BaseModel):
     isAdmin: bool
     createdAt: str
     canEditGlobalSources: Optional[bool] = False
+    canEditProductCatalog: Optional[bool] = False
     departments: Optional[List[str]] = []
     primaryDepartmentId: Optional[str] = None
     mustChangePassword: Optional[bool] = False
@@ -34,10 +35,15 @@ class UserWithUsageResponse(BaseModel):
     totalTokensUsed: int
     totalMessagesCount: int
     canEditGlobalSources: Optional[bool] = False
+    canEditProductCatalog: Optional[bool] = False
 
 
 class UpdateUserGlobalPermissionRequest(BaseModel):
     canEditGlobalSources: bool
+
+
+class UpdateUserCatalogPermissionRequest(BaseModel):
+    canEditProductCatalog: bool
 
 
 class TokenResponse(BaseModel):

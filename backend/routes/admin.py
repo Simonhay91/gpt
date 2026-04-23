@@ -9,6 +9,7 @@ from models.schemas import (
     UserResponse, 
     UserWithUsageResponse,
     UpdateUserGlobalPermissionRequest,
+    UpdateUserCatalogPermissionRequest,
     GPTConfigUpdate,
     GPTConfigResponse,
     UserPromptUpdate,
@@ -244,6 +245,7 @@ async def admin_create_user(user_data: UserCreate, current_user: dict = Depends(
         "departments": [],
         "primaryDepartmentId": None,
         "canEditGlobalSources": False,
+        "canEditProductCatalog": False,
         "mustChangePassword": True  # User must change password on first login
     }
     await db.users.insert_one(user)
@@ -286,7 +288,8 @@ async def admin_list_users(current_user: dict = Depends(get_current_user)):
             createdAt=user["createdAt"],
             totalTokensUsed=total_tokens,
             totalMessagesCount=message_count,
-            canEditGlobalSources=user.get("canEditGlobalSources", False)
+            canEditGlobalSources=user.get("canEditGlobalSources", False),
+            canEditProductCatalog=user.get("canEditProductCatalog", False),
         ))
     
     return result
@@ -508,6 +511,29 @@ async def update_user_global_permission(    user_id: str,
     )
     
     return {"message": f"Global sources permission {'granted' if data.canEditGlobalSources else 'revoked'}"}
+
+
+@router.put("/admin/users/{user_id}/catalog-permission")
+async def update_user_catalog_permission(
+    user_id: str,
+    data: UpdateUserCatalogPermissionRequest,
+    current_user: dict = Depends(get_current_user)
+):
+    """Admin grants/revokes product catalog editing permission (aliases, domain rules)"""
+    db = get_db()
+    if not is_admin(current_user["email"]):
+        raise HTTPException(status_code=403, detail="Admin access required")
+
+    user = await db.users.find_one({"id": user_id}, {"_id": 0})
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    await db.users.update_one(
+        {"id": user_id},
+        {"$set": {"canEditProductCatalog": data.canEditProductCatalog}}
+    )
+
+    return {"message": f"Product catalog permission {'granted' if data.canEditProductCatalog else 'revoked'}"}
 
 
 @router.get("/admin/users/{user_id}/question-history")

@@ -1,5 +1,6 @@
 """Product Matching — upload customer file, AI-match against catalog, preview + Excel."""
 from fastapi import APIRouter, HTTPException, Depends, UploadFile, File, Form, Query
+from bson import ObjectId
 from fastapi.responses import FileResponse
 from starlette.background import BackgroundTask
 from typing import List, Optional
@@ -1144,6 +1145,31 @@ async def research_item(
         "match_type": "web_research",
         "confidence": confidence,
     }
+
+
+@router.delete("/aliases/{alias_id}")
+async def delete_alias(alias_id: str, current_user: dict = Depends(get_current_user)):
+    """
+    Delete a learned alias from product_aliases collection.
+    Requires isAdmin or canEditProductCatalog permission.
+    """
+    db = get_db()
+
+    is_admin_user = current_user.get("isAdmin") or current_user.get("email", "").endswith("@admin.com")
+    can_edit = current_user.get("canEditProductCatalog", False)
+    if not is_admin_user and not can_edit:
+        raise HTTPException(status_code=403, detail="Permission denied")
+
+    try:
+        oid = ObjectId(alias_id)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid alias id")
+
+    result = await db.product_aliases.delete_one({"_id": oid})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Alias not found")
+
+    return {"message": "Alias deleted"}
 
 
 @router.post("/generate")

@@ -17,7 +17,8 @@ import {
   Clock, 
   Save,
   Settings,
-  Globe2
+  Globe2,
+  Package
 } from 'lucide-react';
 import DashboardLayout from '../components/DashboardLayout';
 
@@ -31,9 +32,11 @@ const AdminUserDetailPage = () => {
   const [userPrompt, setUserPrompt] = useState('');
   const [userModel, setUserModel] = useState('');
   const [canEditGlobal, setCanEditGlobal] = useState(false);
+  const [canEditCatalog, setCanEditCatalog] = useState(false);
   const [isSavingPrompt, setIsSavingPrompt] = useState(false);
   const [isSavingModel, setIsSavingModel] = useState(false);
   const [isSavingGlobalPerm, setIsSavingGlobalPerm] = useState(false);
+  const [isSavingCatalogPerm, setIsSavingCatalogPerm] = useState(false);
 
   const gptModels = [
     { value: '', label: 'По умолчанию (глобальная настройка)' },
@@ -54,6 +57,7 @@ const AdminUserDetailPage = () => {
       setUserPrompt(response.data.prompt || '');
       setUserModel(response.data.gptModel || '');
       setCanEditGlobal(response.data.user?.canEditGlobalSources || false);
+      setCanEditCatalog(response.data.user?.canEditProductCatalog || false);
     } catch (error) {
       toast.error('Failed to load user details');
       navigate('/admin/users');
@@ -98,6 +102,21 @@ const AdminUserDetailPage = () => {
       toast.error('Ошибка сохранения');
     } finally {
       setIsSavingGlobalPerm(false);
+    }
+  };
+
+  const toggleCatalogPermission = async () => {
+    setIsSavingCatalogPerm(true);
+    try {
+      await axios.put(`${API}/admin/users/${userId}/catalog-permission`, {
+        canEditProductCatalog: !canEditCatalog,
+      });
+      setCanEditCatalog(!canEditCatalog);
+      toast.success(canEditCatalog ? 'Разрешение отозвано' : 'Разрешение выдано');
+    } catch (error) {
+      toast.error('Ошибка сохранения');
+    } finally {
+      setIsSavingCatalogPerm(false);
     }
   };
 
@@ -270,6 +289,43 @@ const AdminUserDetailPage = () => {
                     {isSavingGlobalPerm ? (
                       <div className="spinner h-4 w-4" />
                     ) : canEditGlobal ? (
+                      'Отозвать'
+                    ) : (
+                      'Выдать'
+                    )}
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Product Catalog Permission */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Package className="h-5 w-5" />
+                  Product Catalog
+                </CardTitle>
+                <CardDescription>
+                  Разрешение управлять алиасами и правилами матчинга
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="flex items-center justify-between p-3 bg-secondary/50 rounded-lg">
+                  <div>
+                    <p className="font-medium">Может редактировать каталог</p>
+                    <p className="text-sm text-muted-foreground">
+                      {canEditCatalog ? 'Может удалять алиасы и управлять правилами матчинга' : 'Только просмотр'}
+                    </p>
+                  </div>
+                  <Button
+                    variant={canEditCatalog ? "destructive" : "default"}
+                    size="sm"
+                    onClick={toggleCatalogPermission}
+                    disabled={isSavingCatalogPerm}
+                  >
+                    {isSavingCatalogPerm ? (
+                      <div className="spinner h-4 w-4" />
+                    ) : canEditCatalog ? (
                       'Отозвать'
                     ) : (
                       'Выдать'

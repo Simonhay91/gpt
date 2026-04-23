@@ -41,6 +41,7 @@ export default function ProductDetailPage() {
   
   // Permission check - Admin or Manager can edit
   const canEdit = user?.isAdmin || user?.email?.endsWith('@admin.com');
+  const canEditCatalog = canEdit || user?.canEditProductCatalog;
 
   useEffect(() => {
     loadProduct();
@@ -68,6 +69,17 @@ export default function ProductDetailPage() {
       navigate('/product-catalog');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleDeleteAlias = async (aliasId) => {
+    if (!window.confirm('Delete this alias?')) return;
+    try {
+      await axios.delete(`${API}/product-matching/aliases/${aliasId}`);
+      setLearnedAliases(prev => prev.filter(a => a.id !== aliasId));
+      toast.success('Alias deleted');
+    } catch {
+      toast.error('Failed to delete alias');
     }
   };
 
@@ -414,8 +426,8 @@ export default function ProductDetailPage() {
                   <span className="text-xs font-normal text-muted-foreground">(auto-saved from product matching)</span>
                 </h2>
                 <div className="space-y-2">
-                  {learnedAliases.map((a, i) => (
-                    <div key={i} className="flex items-center justify-between px-3 py-2 bg-blue-500/5 border border-blue-500/15 rounded-lg">
+                  {learnedAliases.map((a) => (
+                    <div key={a.id} className="flex items-center justify-between px-3 py-2 bg-blue-500/5 border border-blue-500/15 rounded-lg">
                       <span className="text-sm">{a.alias}</span>
                       <div className="flex items-center gap-2 shrink-0 ml-4">
                         <span className={`text-xs px-1.5 py-0.5 rounded-full ${
@@ -428,6 +440,15 @@ export default function ProductDetailPage() {
                         <span className="text-xs text-muted-foreground">
                           {a.saved_at ? new Date(a.saved_at).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short', year: 'numeric' }) : ''}
                         </span>
+                        {canEditCatalog && (
+                          <button
+                            onClick={() => handleDeleteAlias(a.id)}
+                            className="p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive"
+                            title="Delete alias"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        )}
                       </div>
                     </div>
                   ))}
