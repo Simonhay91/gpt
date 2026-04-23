@@ -1,14 +1,6 @@
-export const APP_VERSION = "2.9.31";
+export const APP_VERSION = "2.9.30";
 
 export const CHANGELOG = [
-  {
-    version: "2.9.31",
-    date: "Апрель 2026",
-    badge: "fix",
-    changes: [
-      "Matching Rules: категория теперь поддерживает свободный ввод — выбери «Other…» и введи свою категорию",
-    ]
-  },
   {
     version: "2.9.30",
     date: "Апрель 2026",
