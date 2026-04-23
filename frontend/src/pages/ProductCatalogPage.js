@@ -176,13 +176,14 @@ export default function ProductCatalogPage() {
       toast.error('Title and content are required');
       return;
     }
+    const payload = { ...ruleForm, category: ruleForm.category === '__custom__' ? 'general' : ruleForm.category };
     setRuleSaving(true);
     try {
       if (editingRule) {
-        await axios.put(`${API}/product-matching/domain-rules/${editingRule._id}`, ruleForm);
+        await axios.put(`${API}/product-matching/domain-rules/${editingRule._id}`, payload);
         toast.success('Rule updated');
       } else {
-        await axios.post(`${API}/product-matching/domain-rules`, ruleForm);
+        await axios.post(`${API}/product-matching/domain-rules`, payload);
         toast.success('Rule added');
       }
       cancelEditRule();
@@ -1289,13 +1290,13 @@ export default function ProductCatalogPage() {
                       value={ruleForm.title}
                       onChange={e => setRuleForm(f => ({ ...f, title: e.target.value }))}
                     />
-                    {['general', 'vendor_naming', 'cable_type'].includes(ruleForm.category) || ruleForm.category === '' ? (
+                    {['general', 'vendor_naming', 'cable_type'].includes(ruleForm.category) || ruleForm.category === '__custom__' ? (
                       <select
                         className="border border-input rounded-md px-3 py-2 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-ring"
-                        value={ruleForm.category}
+                        value={['general', 'vendor_naming', 'cable_type'].includes(ruleForm.category) ? ruleForm.category : '__other__'}
                         onChange={e => {
                           if (e.target.value === '__other__') {
-                            setRuleForm(f => ({ ...f, category: '' }));
+                            setRuleForm(f => ({ ...f, category: '__custom__' }));
                           } else {
                             setRuleForm(f => ({ ...f, category: e.target.value }));
                           }
@@ -1311,8 +1312,8 @@ export default function ProductCatalogPage() {
                         <input
                           className="border border-input rounded-md px-3 py-2 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-ring w-36"
                           placeholder="Category name…"
-                          value={ruleForm.category}
-                          onChange={e => setRuleForm(f => ({ ...f, category: e.target.value }))}
+                          value={ruleForm.category === '__custom__' ? '' : ruleForm.category}
+                          onChange={e => setRuleForm(f => ({ ...f, category: e.target.value || '__custom__' }))}
                           autoFocus
                         />
                         <button
