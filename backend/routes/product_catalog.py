@@ -169,6 +169,35 @@ async def get_product(product_id: str, current_user: dict = Depends(get_current_
     return product
 
 
+@router.get("/product-catalog/{product_id}/learned-aliases")
+async def get_product_learned_aliases(product_id: str, current_user: dict = Depends(get_current_user)):
+    """Return aliases from product_aliases collection for this product (crm_code or article_number match)."""
+    db = get_db()
+
+    product = await db.product_catalog.find_one({"id": product_id}, {"_id": 0, "crm_code": 1, "article_number": 1})
+    if not product:
+        raise HTTPException(status_code=404, detail="Product not found")
+
+    crm_code = product.get("crm_code")
+    article_number = product.get("article_number")
+
+    query_parts = []
+    if crm_code:
+        query_parts.append({"crm_code": crm_code})
+    if article_number:
+        query_parts.append({"article_number": article_number})
+
+    if not query_parts:
+        return []
+
+    aliases = await db.product_aliases.find(
+        {"$or": query_parts},
+        {"_id": 0, "alias": 1, "confidence": 1, "saved_at": 1},
+    ).sort("saved_at", -1).to_list(200)
+
+    return aliases
+
+
 @router.post("/product-catalog", response_model=ProductCatalogResponse)
 async def create_product(data: ProductCatalogCreate, current_user: dict = Depends(get_current_user)):
     """Create a new product (Admin/Manager only)"""

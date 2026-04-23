@@ -1,6 +1,15 @@
-export const APP_VERSION = "2.9.28";
+export const APP_VERSION = "2.9.29";
 
 export const CHANGELOG = [
+  {
+    version: "2.9.29",
+    date: "Апрель 2026",
+    badge: "new",
+    changes: [
+      "Product Detail: новая секция «Learned Aliases» — алиасы из product matching видны прямо на странице товара",
+      "Новый endpoint GET /product-catalog/{id}/learned-aliases",
+    ]
+  },
   {
     version: "2.9.28",
     date: "Апрель 2026",

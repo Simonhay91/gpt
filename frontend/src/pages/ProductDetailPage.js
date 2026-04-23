@@ -31,6 +31,7 @@ export default function ProductDetailPage() {
   const [editing, setEditing] = useState(false);
   const [editData, setEditData] = useState({});
   const [relatedProducts, setRelatedProducts] = useState([]);
+  const [learnedAliases, setLearnedAliases] = useState([]);
   
   // Add relation modal
   const [showAddRelation, setShowAddRelation] = useState(false);
@@ -47,9 +48,13 @@ export default function ProductDetailPage() {
 
   const loadProduct = async () => {
     try {
-      const response = await axios.get(`${API}/product-catalog/${productId}`);
+      const [response, aliasesResponse] = await Promise.all([
+        axios.get(`${API}/product-catalog/${productId}`),
+        axios.get(`${API}/product-catalog/${productId}/learned-aliases`),
+      ]);
       setProduct(response.data);
       setEditData(response.data);
+      setLearnedAliases(aliasesResponse.data || []);
       
       // Load related products
       if (response.data.relations?.length > 0) {
@@ -395,6 +400,36 @@ export default function ProductDetailPage() {
                     <span key={i} className="px-2 py-1 bg-muted rounded text-sm">
                       {alias}
                     </span>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Learned Aliases from product matching */}
+            {learnedAliases.length > 0 && (
+              <div className="border rounded-lg p-6 space-y-4">
+                <h2 className="text-lg font-semibold flex items-center gap-2">
+                  <Tag className="h-5 w-5 text-blue-500" />
+                  Learned Aliases
+                  <span className="text-xs font-normal text-muted-foreground">(auto-saved from product matching)</span>
+                </h2>
+                <div className="space-y-2">
+                  {learnedAliases.map((a, i) => (
+                    <div key={i} className="flex items-center justify-between px-3 py-2 bg-blue-500/5 border border-blue-500/15 rounded-lg">
+                      <span className="text-sm">{a.alias}</span>
+                      <div className="flex items-center gap-2 shrink-0 ml-4">
+                        <span className={`text-xs px-1.5 py-0.5 rounded-full ${
+                          a.confidence === 'confirmed'
+                            ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
+                            : 'bg-muted text-muted-foreground'
+                        }`}>
+                          {a.confidence}
+                        </span>
+                        <span className="text-xs text-muted-foreground">
+                          {a.saved_at ? new Date(a.saved_at).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short', year: 'numeric' }) : ''}
+                        </span>
+                      </div>
+                    </div>
                   ))}
                 </div>
               </div>

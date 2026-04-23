@@ -6,6 +6,17 @@ UI версия: `frontend/src/data/changelog.js`
 
 ---
 
+## 2026-04-23 — v2.9.29
+
+### New: Product Detail — Learned Aliases section
+**Файлы:** `backend/routes/product_catalog.py`, `frontend/src/pages/ProductDetailPage.js`, `frontend/src/data/changelog.js`
+
+- New `GET /api/product-catalog/{id}/learned-aliases` endpoint — queries `product_aliases` collection by crm_code/article_number
+- ProductDetailPage fetches learned aliases in parallel with product data
+- New "Learned Aliases" section (blue) shows alias text, confidence badge (auto/confirmed), and date saved
+
+---
+
 ## 2026-04-23 — v2.9.28
 
 ### Fix: Product Matching — comment always filled
