@@ -257,7 +257,6 @@ export default function ProductCatalogPage() {
       return;
     }
     setMatchFile(f);
-    setMatchDownloadUrl(null);
     setMatchError(null);
   };
 
@@ -981,18 +980,19 @@ export default function ProductCatalogPage() {
                       <table className="w-full text-sm">
                         <thead className="bg-muted/60 sticky top-0 z-10">
                           <tr>
-                            <th className="text-left p-2.5 font-medium w-[30%]">Customer Item</th>
-                            <th className="text-left p-2.5 font-medium w-[30%]">Matched Product</th>
-                            <th className="text-left p-2.5 font-medium w-[18%]">Code</th>
-                            <th className="text-left p-2.5 font-medium w-[12%]">Confidence</th>
-                            <th className="p-2.5 w-[10%]"></th>
+                            <th className="text-left p-2.5 font-medium w-[22%]">Customer Item</th>
+                            <th className="text-left p-2.5 font-medium w-[22%]">Matched Product</th>
+                            <th className="text-left p-2.5 font-medium w-[13%]">Code</th>
+                            <th className="text-left p-2.5 font-medium w-[11%]">Confidence</th>
+                            <th className="text-left p-2.5 font-medium w-[24%]">Comment</th>
+                            <th className="p-2.5 w-[8%]"></th>
                           </tr>
                         </thead>
                         <tbody>
                           {matchResults.map((row, idx) => (
                             <tr key={idx} className={`border-t hover:bg-muted/20 ${!row.code ? 'bg-destructive/5' : ''}`}>
-                              <td className="p-2.5 text-muted-foreground max-w-[1px] truncate" title={row.customer_item}>
-                                {row.customer_item}
+                              <td className="p-2.5 text-muted-foreground text-xs" title={row.customer_item}>
+                                <div className="truncate max-w-[160px]">{row.customer_item}</div>
                               </td>
                               <td className="p-2.5">
                                 {editingRowIdx === idx ? (
@@ -1036,9 +1036,12 @@ export default function ProductCatalogPage() {
                                     )}
                                   </div>
                                 ) : (
-                                  <span className={`truncate block max-w-[1px] w-full ${!row.matched_title ? 'text-muted-foreground italic' : ''}`} title={row.matched_title}>
+                                  <div
+                                    className={`text-xs truncate max-w-[160px] ${!row.matched_title ? 'text-muted-foreground italic' : ''}`}
+                                    title={row.matched_title}
+                                  >
                                     {row.matched_title || 'No match'}
-                                  </span>
+                                  </div>
                                 )}
                               </td>
                               <td className="p-2.5 font-mono text-xs">
@@ -1057,6 +1060,20 @@ export default function ProductCatalogPage() {
                                   <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-xs bg-muted text-muted-foreground">
                                     <X className="h-3 w-3" /> None
                                   </span>
+                                )}
+                              </td>
+                              <td className="p-2.5">
+                                {row.comment ? (
+                                  <span
+                                    className="text-xs text-yellow-600 dark:text-yellow-400 line-clamp-2 leading-tight"
+                                    title={row.comment}
+                                  >
+                                    {row.comment}
+                                  </span>
+                                ) : row.code ? (
+                                  <span className="text-xs text-muted-foreground/50">—</span>
+                                ) : (
+                                  <span className="text-xs text-destructive/70">No match found</span>
                                 )}
                               </td>
                               <td className="p-2.5 text-right">
