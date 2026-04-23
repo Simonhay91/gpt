@@ -6,6 +6,22 @@ UI версия: `frontend/src/data/changelog.js`
 
 ---
 
+## 2026-04-23 — v2.9.26
+
+### New: Product Matching — Phase 3 web research fallback + GYTA support
+**Файлы:** `backend/routes/product_matching.py`, `frontend/src/data/changelog.js`
+
+- Phase 3: items with `confidence="none"` after Phase 2 are now researched via Claude `web_search_20250305` built-in tool
+- `_web_research_item()` — Claude searches the web, returns enriched product description + source URLs
+- `_phase3_web_rematch()` — re-embeds enriched description via Voyage, fetches TOP-12 candidates, Claude re-matches
+- Matched items via web research show comment: "Matched via web research. Sources: url1 · url2 · url3"
+- Response includes `web_sources: [...]` field with up to 5 source URLs
+- `VOYAGE_TOP_K` increased 5 → 10 for broader candidate coverage in Phase 1
+- `PHASE3_TOP_K = 12` for post-web-research re-embedding
+- `OPTICAL_CABLE_DOMAIN` extended with GYTA/GYTS naming convention: modules×core = total fiber count (e.g. 6 modules/8 core = 48FO)
+
+---
+
 ## 2026-04-22 — v2.9.25
 
 ### New: Report feature + persistent chat temp files

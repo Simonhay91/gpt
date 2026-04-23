@@ -28,7 +28,9 @@ VOYAGE_API_KEY = os.environ.get("VOYAGE_API_KEY", "")
 MAX_FILE_SIZE = 20 * 1024 * 1024   # 20 MB
 MAX_CUSTOMER_ITEMS = 200
 MAX_CATALOG_PRODUCTS = 5000        # load more — Voyage pre-filters, Claude never sees all
-VOYAGE_TOP_K = 5                   # candidates per item from Voyage similarity
+VOYAGE_TOP_K = 10                  # candidates per item from Voyage similarity
+PHASE3_TOP_K = 12                  # candidates after web-research enrichment
+WEB_SEARCH_ENABLED = True          # Phase 3: web research fallback for unmatched items
 CLAUDE_BATCH_SIZE = 30             # customer items per Claude call (Phase 2)
 
 
@@ -208,6 +210,115 @@ def _text_fallback_top_k(item: str, catalog: List[dict], k: int) -> List[dict]:
         if len(hits) >= k:
             break
     return hits[:k]
+
+
+def _web_research_item(item: str, client: anthropic.Anthropic) -> tuple:
+    """
+    Use Claude with the built-in web_search tool to research an unknown product.
+    Returns (enriched_description: str, source_urls: List[str]).
+    """
+    try:
+        response = client.messages.create(
+            model="claude-sonnet-4-20250514",
+            max_tokens=1024,
+            tools=[{"type": "web_search_20250305", "name": "web_search"}],
+            messages=[{
+                "role": "user",
+                "content": (
+                    f'Research this product: "{item}". '
+                    f"Find its full technical name, manufacturer, product category, "
+                    f"key specifications (fiber count, construction type, armor, sheath, standard). "
+                    f"Return a concise technical product description in English (2-4 sentences)."
+                ),
+            }],
+        )
+
+        enriched = ""
+        source_urls: List[str] = []
+
+        for block in response.content:
+            if block.type == "text":
+                enriched = block.text.strip()
+            elif block.type == "tool_result":
+                # web_search returns list of results with url field
+                for entry in (block.content or []):
+                    url = (entry.get("url") or "") if isinstance(entry, dict) else ""
+                    if url and url not in source_urls:
+                        source_urls.append(url)
+
+        # Also check tool_use blocks for search result metadata
+        for block in response.content:
+            if hasattr(block, "type") and block.type == "tool_use":
+                pass  # search query visible here but URLs come from tool_result
+
+        if not enriched:
+            enriched = item  # fallback to original if Claude returned nothing
+
+        return enriched, source_urls[:5]
+
+    except Exception as exc:
+        logger.warning(f"Web research failed for '{item}': {exc}")
+        return item, []
+
+
+def _phase3_web_rematch(
+    unmatched_items: List[tuple],   # [(orig_idx, customer_item), ...]
+    catalog: List[dict],
+    catalog_embeddings: List[Optional[List[float]]],
+) -> dict:
+    """
+    Phase 3: for each unmatched item, run web research then re-match against catalog.
+    Returns dict: orig_idx → result dict (with web_sources field).
+    """
+    if not unmatched_items:
+        return {}
+
+    client = anthropic.Anthropic(api_key=CLAUDE_API_KEY)
+    results: dict = {}
+
+    # Research each item individually (web search is sequential by nature)
+    enriched_data: List[tuple] = []   # (orig_idx, item, enriched_text, source_urls)
+    for orig_idx, item in unmatched_items:
+        logger.info(f"Phase 3: web research for '{item}'")
+        enriched_text, source_urls = _web_research_item(item, client)
+        enriched_data.append((orig_idx, item, enriched_text, source_urls))
+
+    # Re-embed enriched descriptions and find new candidates
+    enriched_texts = [enriched for _, _, enriched, _ in enriched_data]
+    try:
+        enriched_candidates = _voyage_top_k(
+            enriched_texts, catalog, catalog_embeddings, PHASE3_TOP_K
+        )
+    except Exception as exc:
+        logger.warning(f"Phase 3 Voyage re-embed failed: {exc}")
+        enriched_candidates = [
+            _text_fallback_top_k(enriched, catalog, PHASE3_TOP_K)
+            for enriched in enriched_texts
+        ]
+
+    # Claude re-match with enriched context
+    items_with_candidates = [
+        (item, candidates)
+        for (_, item, _, _), candidates in zip(enriched_data, enriched_candidates)
+    ]
+
+    try:
+        claude_results = _claude_match_with_candidates(items_with_candidates)
+    except Exception as exc:
+        logger.error(f"Phase 3 Claude re-match failed: {exc}")
+        claude_results = _empty_batch([item for item, _ in items_with_candidates], "Web research failed")
+
+    for i, (orig_idx, item, enriched_text, source_urls) in enumerate(enriched_data):
+        r = claude_results[i] if i < len(claude_results) else {
+            "customer_item": item,
+            "matched_title": "", "article_number": "",
+            "crm_code": "", "vendor": "", "datasheet_url": "",
+            "confidence": "none", "comment": None,
+        }
+        r["web_sources"] = source_urls
+        results[orig_idx] = r
+
+    return results
 
 
 def _voyage_top_k(
@@ -404,6 +515,21 @@ Aqua     = OM3 indoor aqua color
 
 --- TENSILE STRENGTH (trailing KN) ---
 Common values: 0.5, 0.6, 0.8, 1, 1.5, 2, 2.7, 2.8, 3, 3.5, 4, 4.5, 5.5, 7, 7.5, 8, 9, 9.5, 20, 25 KN
+
+--- GYTA / GYTS / GYFTY CABLES (ITU-T standard naming) ---
+G  = Gel-filled loose tubes
+Y  = Polyethylene outer sheath
+T  = Steel tape armor
+A  = Aluminum moisture barrier
+S  = Steel wire strength member (GYTS = steel wire instead of tape)
+
+GYTA structure: central strength member + loose tubes (each tube holds 6–12 fibers)
+  "X modules / Y core" = X tubes × Y fibers per tube → total = X×Y fibers
+  e.g. "6 modules/8 core" = 6 tubes × 8 fibers = 48 fibers total → match to 48-fiber GYTA
+       "4 modules/6 core" = 4 tubes × 6 fibers = 24 fibers total → match to 24-fiber GYTA
+       "2 modules/8 core" = 2 tubes × 8 fibers = 16 fibers total → match to 16-fiber GYTA
+Outer diameter clue: 10.5mm ≈ 48FO, 9.5mm ≈ 16–24FO (use as tie-breaker only)
+When searching catalog for GYTA: use total fiber count as primary key.
 
 --- MATCHING EXAMPLES ---
 Customer says → Best model match:
@@ -764,18 +890,46 @@ async def match_products(
             orig_idx = ai_indices[claude_idx]
             ai_map[orig_idx] = r
 
+    # ── PHASE 3: Web research fallback for unmatched items ────────────────────
+    web3_map: dict = {}
+    if WEB_SEARCH_ENABLED and needs_ai:
+        # Collect items that Claude returned confidence="none" from Phase 2
+        phase3_items: List[tuple] = []
+        for orig_idx, item in needs_ai:
+            r = ai_map.get(orig_idx, {})
+            raw_conf = (r.get("confidence") or "").lower()
+            has_match = bool(r.get("matched_title", "").strip())
+            if raw_conf == "none" or (not has_match and raw_conf not in ("high", "medium", "low")):
+                phase3_items.append((orig_idx, item))
+
+        if phase3_items:
+            logger.info(f"Phase 3 (web research): {len(phase3_items)} unmatched items")
+            try:
+                cat_embs = [p.get("embedding") for p in catalog]
+                web3_map = _phase3_web_rematch(phase3_items, catalog, cat_embs)
+                logger.info(f"Phase 3 complete: {len(web3_map)} items processed")
+            except Exception as exc:
+                logger.error(f"Phase 3 error: {exc}")
+
     # ── Merge & build final response ─────────────────────────────────────────
     results: List[dict] = []
     for idx, item in enumerate(customer_items):
         if idx in alias_matched:
             r = alias_matched[idx]
         else:
-            r = ai_map.get(idx, {
-                "customer_item": item,
-                "matched_title": "", "article_number": "",
-                "crm_code": "", "vendor": "", "datasheet_url": "",
-                "comment": "Matching error",
-            })
+            # Phase 3 result takes priority over Phase 2 "none" result
+            if idx in web3_map:
+                r = web3_map[idx]
+                web_sources = r.get("web_sources") or []
+            else:
+                r = ai_map.get(idx, {
+                    "customer_item": item,
+                    "matched_title": "", "article_number": "",
+                    "crm_code": "", "vendor": "", "datasheet_url": "",
+                    "comment": "Matching error",
+                })
+                web_sources = []
+
             # Normalise confidence from Claude response
             raw_conf = (r.get("confidence") or "").lower()
             if raw_conf in ("high", "medium", "low"):
@@ -785,6 +939,16 @@ async def match_products(
                 confidence = ("medium" if r.get("comment") else "high") if has_match else None
             r["match_type"] = "auto"
             r["confidence"] = confidence
+
+            # Annotate comment with web sources if Phase 3 was used
+            if web_sources and bool(r.get("matched_title", "").strip()):
+                source_str = " · ".join(web_sources[:3])
+                existing_comment = r.get("comment") or ""
+                r["comment"] = (
+                    f"Matched via web research. Sources: {source_str}"
+                    + (f" | {existing_comment}" if existing_comment else "")
+                )
+                r["web_sources"] = web_sources
 
         # Apply mode logic to pick code
         vendor_lower = (r.get("vendor") or "").lower()
@@ -807,6 +971,7 @@ async def match_products(
             "code": code or None,
             "datasheet_url": r.get("datasheet_url", "") or None,
             "comment": r.get("comment") or None,
+            "web_sources": r.get("web_sources") or [],
             "match_type": r.get("match_type", "auto"),
             "confidence": r.get("confidence"),
         })
