@@ -1,6 +1,15 @@
-export const APP_VERSION = "2.9.27";
+export const APP_VERSION = "2.9.28";
 
 export const CHANGELOG = [
+  {
+    version: "2.9.28",
+    date: "Апрель 2026",
+    badge: "fix",
+    changes: [
+      "Product Matching: комментарий теперь всегда заполняется для каждой позиции",
+      "High → «Exact match: …», Medium → «Approximate: …», None → «No match: …»",
+    ]
+  },
   {
     version: "2.9.27",
     date: "Апрель 2026",

@@ -417,7 +417,7 @@ Return a JSON array with exactly {len(items_with_candidates)} objects in the sam
     "vendor": "<chosen candidate vendor, empty string if no match>",
     "datasheet_url": "",
     "confidence": "<high|medium|low|none>",
-    "comment": "<short English note if approximate/uncertain match, null if exact or no match>"
+    "comment": "<always required: one short English sentence explaining the match or why no match was found>"
   }}
 ]
 
@@ -427,6 +427,11 @@ Rules:
 - confidence="low": weak match, best available but uncertain
 - confidence="none": no suitable match among candidates
 - If confidence is "none", set matched_title/article_number/crm_code to empty strings
+- comment is ALWAYS required (never null or empty):
+  • high   → e.g. "Exact match: same model code and fiber count"
+  • medium → e.g. "Approximate: customer requested 24FO, matched 48FO variant"
+  • low    → e.g. "Weak match: closest available but different construction type"
+  • none   → e.g. "No match: GYTA 6-module/8-core variant not found in catalog"
 - Return ONLY the JSON array, no extra text."""
 
     response = client.messages.create(
@@ -587,14 +592,16 @@ Return a JSON array with exactly {len(batch)} objects in the same order:
     "crm_code": "<crm_code from catalog, empty string if no match>",
     "vendor": "<vendor from catalog, empty string if no match>",
     "datasheet_url": "<datasheet_url from catalog, empty string if no match>",
-    "comment": "<short English note if approximate match (different spec/fiber count/strength), null if exact match or no match>"
+    "comment": "<always required: one short English sentence explaining the match or why no match was found>"
   }}
 ]
 
 Rules:
 - For optical cables: decode the customer's description using the naming convention, then find the catalog model whose fiber range contains the requested count and whose strength is closest.
-- If no suitable match exists, leave matched fields as empty strings and set comment to a brief English reason.
-- If match is approximate (e.g. customer asked for 1.5KN but catalog has 2KN), describe the difference in comment.
+- comment is ALWAYS required (never null or empty):
+  • exact match   → e.g. "Exact match: same model and fiber count"
+  • approximate   → e.g. "Approximate: customer 1.5KN, matched 2KN variant"
+  • no match      → e.g. "No match: requested fiber count not available in catalog"
 - Return ONLY the JSON array, no extra text."""
 
     response = client.messages.create(

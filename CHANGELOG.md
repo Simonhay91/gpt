@@ -6,6 +6,16 @@ UI версия: `frontend/src/data/changelog.js`
 
 ---
 
+## 2026-04-23 — v2.9.28
+
+### Fix: Product Matching — comment always filled
+**Файлы:** `backend/routes/product_matching.py`, `frontend/src/data/changelog.js`
+
+- Claude prompt updated in both `_claude_match_with_candidates` and `_claude_match_batch`
+- `comment` is now always required (never null): high → "Exact match: …", medium → "Approximate: …", none → "No match: …"
+
+---
+
 ## 2026-04-23 — v2.9.27
 
 ### Fix: Product Matching — manual web research button, remove auto Phase 3
