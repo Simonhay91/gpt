@@ -76,10 +76,19 @@ export default function ProductCatalogPage() {
   const [matchFile, setMatchFile] = useState(null);
   const [matchMode, setMatchMode] = useState('global');
   const [matching, setMatching] = useState(false);
-  const [matchDownloadUrl, setMatchDownloadUrl] = useState(null);
   const [matchError, setMatchError] = useState(null);
   const [matchIsDragging, setMatchIsDragging] = useState(false);
   const matchFileInputRef = useRef(null);
+
+  // Preview step state
+  const [matchStep, setMatchStep] = useState('upload'); // 'upload' | 'preview'
+  const [matchResults, setMatchResults] = useState([]);
+  const [editingRowIdx, setEditingRowIdx] = useState(null);
+  const [editSearch, setEditSearch] = useState('');
+  const [editSearchResults, setEditSearchResults] = useState([]);
+  const [editSearchLoading, setEditSearchLoading] = useState(false);
+  const [generatingExcel, setGeneratingExcel] = useState(false);
+  const editSearchRef = useRef(null);
   
   // Permission check - Admin or Manager can edit
   const canEdit = user?.isAdmin || user?.email?.endsWith('@admin.com');
@@ -255,7 +264,6 @@ export default function ProductCatalogPage() {
   const handleMatchFile = async () => {
     if (!matchFile) return;
     setMatching(true);
-    setMatchDownloadUrl(null);
     setMatchError(null);
     try {
       const formData = new FormData();
@@ -263,23 +271,15 @@ export default function ProductCatalogPage() {
       formData.append('mode', matchMode);
 
       const response = await axios.post(`${API}/product-matching/match`, formData, {
-        responseType: 'blob',
         timeout: 180000,
       });
-
-      const blob = new Blob([response.data], {
-        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-      });
-      setMatchDownloadUrl(URL.createObjectURL(blob));
-      toast.success('Matching complete!');
+      setMatchResults(response.data.results || []);
+      setMatchStep('preview');
+      toast.success('Matching complete! Review results below.');
     } catch (err) {
       let msg = 'Matching failed. Please try again.';
-      if (err.response?.data) {
-        try {
-          const text = await err.response.data.text();
-          const parsed = JSON.parse(text);
-          msg = parsed.detail || text;
-        } catch { /* keep default */ }
+      if (err.response?.data?.detail) {
+        msg = err.response.data.detail;
       }
       setMatchError(msg);
       toast.error('Matching failed');
@@ -288,12 +288,83 @@ export default function ProductCatalogPage() {
     }
   };
 
+  const handleGenerateExcel = async () => {
+    setGeneratingExcel(true);
+    try {
+      const response = await axios.post(
+        `${API}/product-matching/generate`,
+        { mode: matchMode, results: matchResults },
+        { responseType: 'blob', timeout: 60000 }
+      );
+      const blob = new Blob([response.data], {
+        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', 'product_matching_results.xlsx');
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+      toast.success('Excel downloaded!');
+    } catch (err) {
+      toast.error('Failed to generate Excel');
+    } finally {
+      setGeneratingExcel(false);
+    }
+  };
+
+  const handleProductSearch = async (query) => {
+    if (!query || query.trim().length < 1) {
+      setEditSearchResults([]);
+      return;
+    }
+    setEditSearchLoading(true);
+    try {
+      const resp = await axios.get(`${API}/product-matching/search`, {
+        params: { q: query.trim() },
+      });
+      setEditSearchResults(resp.data || []);
+    } catch {
+      setEditSearchResults([]);
+    } finally {
+      setEditSearchLoading(false);
+    }
+  };
+
+  const handleSelectSearchResult = (rowIdx, product) => {
+    setMatchResults(prev => prev.map((r, i) => {
+      if (i !== rowIdx) return r;
+      const code = matchMode === 'oem'
+        ? (product.article_number || product.crm_code)
+        : (product.crm_code || product.article_number);
+      return {
+        ...r,
+        crm_code: product.crm_code || null,
+        article_number: product.article_number || null,
+        matched_title: product.title || '',
+        code: code || null,
+        match_type: 'confirmed',
+        confidence: 'high',
+        comment: null,
+      };
+    }));
+    setEditingRowIdx(null);
+    setEditSearch('');
+    setEditSearchResults([]);
+  };
+
   const handleMatchModalClose = () => {
     setShowMatchModal(false);
     setMatchFile(null);
-    setMatchDownloadUrl(null);
     setMatchError(null);
     setMatchIsDragging(false);
+    setMatchStep('upload');
+    setMatchResults([]);
+    setEditingRowIdx(null);
+    setEditSearch('');
+    setEditSearchResults([]);
     if (matchFileInputRef.current) matchFileInputRef.current.value = '';
   };
 
@@ -729,176 +800,317 @@ export default function ProductCatalogPage() {
         {/* Match Customer File Modal */}
         {showMatchModal && (
           <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-            <div className="bg-background rounded-xl shadow-xl max-w-lg w-full">
+            <div className={`bg-background rounded-xl shadow-xl w-full transition-all ${matchStep === 'preview' ? 'max-w-5xl' : 'max-w-lg'}`}>
               {/* Header */}
               <div className="flex justify-between items-center px-6 pt-5 pb-4 border-b border-border">
-                <h2 className="text-lg font-bold flex items-center gap-2">
-                  <FileSearch className="h-5 w-5 text-primary" />
-                  Product Matching
-                </h2>
+                <div className="flex items-center gap-3">
+                  <h2 className="text-lg font-bold flex items-center gap-2">
+                    <FileSearch className="h-5 w-5 text-primary" />
+                    Product Matching
+                  </h2>
+                  {/* Step indicator */}
+                  <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                    <span className={`w-5 h-5 rounded-full flex items-center justify-center font-bold ${matchStep === 'upload' ? 'bg-primary text-primary-foreground' : 'bg-emerald-500 text-white'}`}>
+                      {matchStep === 'upload' ? '1' : <Check className="h-3 w-3" />}
+                    </span>
+                    <span className={matchStep === 'upload' ? 'font-medium text-foreground' : ''}>Upload</span>
+                    <span className="mx-1">→</span>
+                    <span className={`w-5 h-5 rounded-full flex items-center justify-center font-bold ${matchStep === 'preview' ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'}`}>2</span>
+                    <span className={matchStep === 'preview' ? 'font-medium text-foreground' : ''}>Review & Export</span>
+                  </div>
+                </div>
                 <Button variant="ghost" size="icon" onClick={handleMatchModalClose}>
                   <X className="h-4 w-4" />
                 </Button>
               </div>
 
-              <div className="px-6 py-5 space-y-5">
-                {/* Mode selector */}
-                <div>
-                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">Output mode</p>
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => setMatchMode('global')}
-                      className={`flex-1 flex items-center gap-2 px-3 py-2.5 rounded-lg border-2 text-sm font-medium transition-all ${
-                        matchMode === 'global'
-                          ? 'border-indigo-500 bg-indigo-500/10 text-indigo-600 dark:text-indigo-400'
-                          : 'border-border text-muted-foreground hover:text-foreground hover:border-border/60'
-                      }`}
-                    >
-                      <Globe className="h-4 w-4 flex-shrink-0" />
-                      <div className="text-left">
-                        <div className="leading-tight">Global</div>
-                        <div className="text-xs font-normal opacity-70">CRM codes</div>
-                      </div>
-                    </button>
-                    <button
-                      onClick={() => setMatchMode('oem')}
-                      className={`flex-1 flex items-center gap-2 px-3 py-2.5 rounded-lg border-2 text-sm font-medium transition-all ${
-                        matchMode === 'oem'
-                          ? 'border-emerald-500 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
-                          : 'border-border text-muted-foreground hover:text-foreground hover:border-border/60'
-                      }`}
-                    >
-                      <Tag className="h-4 w-4 flex-shrink-0" />
-                      <div className="text-left">
-                        <div className="leading-tight">OEM</div>
-                        <div className="text-xs font-normal opacity-70">Article numbers</div>
-                      </div>
-                    </button>
-                  </div>
-                </div>
-
-                {/* Drag & drop upload zone */}
-                <div>
-                  <div className="flex items-center justify-between mb-2">
-                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Customer file</p>
-                    <button
-                      onClick={handleDownloadTemplate}
-                      className="inline-flex items-center gap-1 text-xs text-indigo-500 hover:text-indigo-600 transition-colors"
-                    >
-                      <Download className="h-3 w-3" />
-                      Download template
-                    </button>
-                  </div>
-                  <div
-                    onClick={() => !matchFile && matchFileInputRef.current?.click()}
-                    onDrop={(e) => {
-                      e.preventDefault();
-                      setMatchIsDragging(false);
-                      handleMatchFileSelect(e.dataTransfer.files[0]);
-                    }}
-                    onDragOver={(e) => { e.preventDefault(); setMatchIsDragging(true); }}
-                    onDragLeave={() => setMatchIsDragging(false)}
-                    className={`border-2 border-dashed rounded-xl p-6 text-center transition-all ${
-                      matchIsDragging
-                        ? 'border-indigo-500 bg-indigo-500/5'
-                        : matchFile
-                        ? 'border-emerald-500/50 bg-emerald-500/5 cursor-default'
-                        : 'border-border hover:border-indigo-400 hover:bg-accent/40 cursor-pointer'
-                    }`}
-                  >
-                    {matchFile ? (
-                      <div className="flex flex-col items-center gap-1.5">
-                        {matchFile.name.endsWith('.pdf')
-                          ? <FileText className="h-8 w-8 text-red-400" />
-                          : matchFile.name.endsWith('.docx')
-                          ? <File className="h-8 w-8 text-blue-400" />
-                          : <FileSpreadsheet className="h-8 w-8 text-green-500" />
-                        }
-                        <p className="text-sm font-medium">{matchFile.name}</p>
-                        <p className="text-xs text-muted-foreground">{(matchFile.size / 1024).toFixed(0)} KB</p>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setMatchFile(null);
-                            setMatchDownloadUrl(null);
-                            setMatchError(null);
-                            if (matchFileInputRef.current) matchFileInputRef.current.value = '';
-                          }}
-                          className="mt-1 text-xs text-muted-foreground hover:text-destructive flex items-center gap-1"
-                        >
-                          <X className="h-3 w-3" /> Remove
-                        </button>
-                      </div>
-                    ) : (
-                      <div className="flex flex-col items-center gap-2 text-muted-foreground">
-                        <Upload className="h-8 w-8" />
-                        <div>
-                          <p className="text-sm font-medium text-foreground">Drop file here</p>
-                          <p className="text-xs mt-0.5">or click to browse</p>
+              {/* ── STEP 1: Upload ── */}
+              {matchStep === 'upload' && (
+                <div className="px-6 py-5 space-y-5">
+                  {/* Mode selector */}
+                  <div>
+                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">Output mode</p>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => setMatchMode('global')}
+                        className={`flex-1 flex items-center gap-2 px-3 py-2.5 rounded-lg border-2 text-sm font-medium transition-all ${
+                          matchMode === 'global'
+                            ? 'border-indigo-500 bg-indigo-500/10 text-indigo-600 dark:text-indigo-400'
+                            : 'border-border text-muted-foreground hover:text-foreground hover:border-border/60'
+                        }`}
+                      >
+                        <Globe className="h-4 w-4 flex-shrink-0" />
+                        <div className="text-left">
+                          <div className="leading-tight">Global</div>
+                          <div className="text-xs font-normal opacity-70">CRM codes</div>
                         </div>
-                        <p className="text-xs">xlsx · xls · csv · docx · pdf</p>
-                      </div>
-                    )}
-                  </div>
-                  <input
-                    ref={matchFileInputRef}
-                    type="file"
-                    accept=".xlsx,.xls,.csv,.docx,.pdf"
-                    className="hidden"
-                    onChange={(e) => handleMatchFileSelect(e.target.files[0])}
-                  />
-                </div>
-
-                {/* Error */}
-                {matchError && (
-                  <div className="flex items-start gap-2 p-3 rounded-lg bg-destructive/10 border border-destructive/30 text-sm text-destructive">
-                    <AlertCircle className="h-4 w-4 flex-shrink-0 mt-0.5" />
-                    {matchError}
-                  </div>
-                )}
-
-                {/* Success download box */}
-                {matchDownloadUrl && (
-                  <div className="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/30">
-                    <div className="flex items-center gap-2 mb-2">
-                      <CheckCircle2 className="h-4 w-4 text-emerald-500" />
-                      <span className="text-sm font-semibold text-emerald-600 dark:text-emerald-400">Matching complete!</span>
+                      </button>
+                      <button
+                        onClick={() => setMatchMode('oem')}
+                        className={`flex-1 flex items-center gap-2 px-3 py-2.5 rounded-lg border-2 text-sm font-medium transition-all ${
+                          matchMode === 'oem'
+                            ? 'border-emerald-500 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
+                            : 'border-border text-muted-foreground hover:text-foreground hover:border-border/60'
+                        }`}
+                      >
+                        <Tag className="h-4 w-4 flex-shrink-0" />
+                        <div className="text-left">
+                          <div className="leading-tight">OEM</div>
+                          <div className="text-xs font-normal opacity-70">Article numbers</div>
+                        </div>
+                      </button>
                     </div>
-                    <a
-                      href={matchDownloadUrl}
-                      download="product_matching_results.xlsx"
-                      className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-medium transition-colors"
-                    >
-                      <Download className="h-3.5 w-3.5" />
-                      Download Excel
-                    </a>
                   </div>
-                )}
 
-                {/* Actions */}
-                <div className="flex gap-2 pt-1">
-                  <Button variant="outline" onClick={handleMatchModalClose} className="flex-1">
-                    Close
-                  </Button>
-                  <Button
-                    onClick={handleMatchFile}
-                    disabled={!matchFile || matching}
-                    className="flex-1"
-                  >
-                    {matching ? (
-                      <>
-                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                        Matching...
-                      </>
-                    ) : (
-                      <>
-                        <FileSearch className="h-4 w-4 mr-2" />
-                        Run Matching
-                      </>
-                    )}
-                  </Button>
+                  {/* Drag & drop upload zone */}
+                  <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Customer file</p>
+                      <button
+                        onClick={handleDownloadTemplate}
+                        className="inline-flex items-center gap-1 text-xs text-indigo-500 hover:text-indigo-600 transition-colors"
+                      >
+                        <Download className="h-3 w-3" />
+                        Download template
+                      </button>
+                    </div>
+                    <div
+                      onClick={() => !matchFile && matchFileInputRef.current?.click()}
+                      onDrop={(e) => {
+                        e.preventDefault();
+                        setMatchIsDragging(false);
+                        handleMatchFileSelect(e.dataTransfer.files[0]);
+                      }}
+                      onDragOver={(e) => { e.preventDefault(); setMatchIsDragging(true); }}
+                      onDragLeave={() => setMatchIsDragging(false)}
+                      className={`border-2 border-dashed rounded-xl p-6 text-center transition-all ${
+                        matchIsDragging
+                          ? 'border-indigo-500 bg-indigo-500/5'
+                          : matchFile
+                          ? 'border-emerald-500/50 bg-emerald-500/5 cursor-default'
+                          : 'border-border hover:border-indigo-400 hover:bg-accent/40 cursor-pointer'
+                      }`}
+                    >
+                      {matchFile ? (
+                        <div className="flex flex-col items-center gap-1.5">
+                          {matchFile.name.endsWith('.pdf')
+                            ? <FileText className="h-8 w-8 text-red-400" />
+                            : matchFile.name.endsWith('.docx')
+                            ? <File className="h-8 w-8 text-blue-400" />
+                            : <FileSpreadsheet className="h-8 w-8 text-green-500" />
+                          }
+                          <p className="text-sm font-medium">{matchFile.name}</p>
+                          <p className="text-xs text-muted-foreground">{(matchFile.size / 1024).toFixed(0)} KB</p>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setMatchFile(null);
+                              setMatchError(null);
+                              if (matchFileInputRef.current) matchFileInputRef.current.value = '';
+                            }}
+                            className="mt-1 text-xs text-muted-foreground hover:text-destructive flex items-center gap-1"
+                          >
+                            <X className="h-3 w-3" /> Remove
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="flex flex-col items-center gap-2 text-muted-foreground">
+                          <Upload className="h-8 w-8" />
+                          <div>
+                            <p className="text-sm font-medium text-foreground">Drop file here</p>
+                            <p className="text-xs mt-0.5">or click to browse</p>
+                          </div>
+                          <p className="text-xs">xlsx · xls · csv · docx · pdf</p>
+                        </div>
+                      )}
+                    </div>
+                    <input
+                      ref={matchFileInputRef}
+                      type="file"
+                      accept=".xlsx,.xls,.csv,.docx,.pdf"
+                      className="hidden"
+                      onChange={(e) => handleMatchFileSelect(e.target.files[0])}
+                    />
+                  </div>
+
+                  {matchError && (
+                    <div className="flex items-start gap-2 p-3 rounded-lg bg-destructive/10 border border-destructive/30 text-sm text-destructive">
+                      <AlertCircle className="h-4 w-4 flex-shrink-0 mt-0.5" />
+                      {matchError}
+                    </div>
+                  )}
+
+                  <div className="flex gap-2 pt-1">
+                    <Button variant="outline" onClick={handleMatchModalClose} className="flex-1">
+                      Close
+                    </Button>
+                    <Button onClick={handleMatchFile} disabled={!matchFile || matching} className="flex-1">
+                      {matching ? (
+                        <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Matching...</>
+                      ) : (
+                        <><FileSearch className="h-4 w-4 mr-2" />Run Matching</>
+                      )}
+                    </Button>
+                  </div>
                 </div>
-              </div>
+              )}
+
+              {/* ── STEP 2: Preview & Edit ── */}
+              {matchStep === 'preview' && (
+                <div className="px-6 py-5 space-y-4">
+                  {/* Summary */}
+                  <div className="flex items-center gap-4 text-sm">
+                    <span className="text-muted-foreground">{matchResults.length} items</span>
+                    <span className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400">
+                      <CheckCircle2 className="h-3.5 w-3.5" />
+                      {matchResults.filter(r => r.confidence === 'high').length} high confidence
+                    </span>
+                    <span className="flex items-center gap-1 text-yellow-600 dark:text-yellow-400">
+                      <AlertCircle className="h-3.5 w-3.5" />
+                      {matchResults.filter(r => r.confidence === 'medium').length} medium
+                    </span>
+                    <span className="flex items-center gap-1 text-muted-foreground">
+                      <X className="h-3.5 w-3.5" />
+                      {matchResults.filter(r => !r.confidence).length} unmatched
+                    </span>
+                  </div>
+
+                  {/* Scrollable table */}
+                  <div className="border rounded-lg overflow-hidden">
+                    <div className="overflow-y-auto max-h-[55vh]">
+                      <table className="w-full text-sm">
+                        <thead className="bg-muted/60 sticky top-0 z-10">
+                          <tr>
+                            <th className="text-left p-2.5 font-medium w-[30%]">Customer Item</th>
+                            <th className="text-left p-2.5 font-medium w-[30%]">Matched Product</th>
+                            <th className="text-left p-2.5 font-medium w-[18%]">Code</th>
+                            <th className="text-left p-2.5 font-medium w-[12%]">Confidence</th>
+                            <th className="p-2.5 w-[10%]"></th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {matchResults.map((row, idx) => (
+                            <tr key={idx} className={`border-t hover:bg-muted/20 ${!row.code ? 'bg-destructive/5' : ''}`}>
+                              <td className="p-2.5 text-muted-foreground max-w-[1px] truncate" title={row.customer_item}>
+                                {row.customer_item}
+                              </td>
+                              <td className="p-2.5">
+                                {editingRowIdx === idx ? (
+                                  <div className="relative">
+                                    <input
+                                      ref={editSearchRef}
+                                      autoFocus
+                                      value={editSearch}
+                                      onChange={(e) => {
+                                        setEditSearch(e.target.value);
+                                        handleProductSearch(e.target.value);
+                                      }}
+                                      onKeyDown={(e) => {
+                                        if (e.key === 'Escape') {
+                                          setEditingRowIdx(null);
+                                          setEditSearch('');
+                                          setEditSearchResults([]);
+                                        }
+                                      }}
+                                      placeholder="Search product..."
+                                      className="w-full px-2 py-1 rounded border bg-background text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                                    />
+                                    {(editSearchResults.length > 0 || editSearchLoading) && (
+                                      <div className="absolute top-full left-0 right-0 mt-1 bg-background border rounded-lg shadow-lg z-20 max-h-48 overflow-y-auto">
+                                        {editSearchLoading && (
+                                          <div className="p-2 text-xs text-muted-foreground flex items-center gap-1">
+                                            <Loader2 className="h-3 w-3 animate-spin" /> Searching...
+                                          </div>
+                                        )}
+                                        {editSearchResults.map((p, pi) => (
+                                          <button
+                                            key={pi}
+                                            onClick={() => handleSelectSearchResult(idx, p)}
+                                            className="w-full text-left px-3 py-2 hover:bg-muted/60 text-xs border-b last:border-0"
+                                          >
+                                            <div className="font-medium truncate">{p.title}</div>
+                                            <div className="text-muted-foreground">{p.code} {p.vendor ? `· ${p.vendor}` : ''}</div>
+                                          </button>
+                                        ))}
+                                      </div>
+                                    )}
+                                  </div>
+                                ) : (
+                                  <span className={`truncate block max-w-[1px] w-full ${!row.matched_title ? 'text-muted-foreground italic' : ''}`} title={row.matched_title}>
+                                    {row.matched_title || 'No match'}
+                                  </span>
+                                )}
+                              </td>
+                              <td className="p-2.5 font-mono text-xs">
+                                {row.code || <span className="text-destructive">—</span>}
+                              </td>
+                              <td className="p-2.5">
+                                {row.confidence === 'high' ? (
+                                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-xs bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+                                    <CheckCircle2 className="h-3 w-3" /> High
+                                  </span>
+                                ) : row.confidence === 'medium' ? (
+                                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-xs bg-yellow-500/10 text-yellow-600 dark:text-yellow-400">
+                                    <AlertCircle className="h-3 w-3" /> Medium
+                                  </span>
+                                ) : (
+                                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-xs bg-muted text-muted-foreground">
+                                    <X className="h-3 w-3" /> None
+                                  </span>
+                                )}
+                              </td>
+                              <td className="p-2.5 text-right">
+                                <button
+                                  onClick={() => {
+                                    if (editingRowIdx === idx) {
+                                      setEditingRowIdx(null);
+                                      setEditSearch('');
+                                      setEditSearchResults([]);
+                                    } else {
+                                      setEditingRowIdx(idx);
+                                      setEditSearch('');
+                                      setEditSearchResults([]);
+                                    }
+                                  }}
+                                  className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground"
+                                  title="Change product"
+                                >
+                                  <Edit className="h-3.5 w-3.5" />
+                                </button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+
+                  {/* Actions */}
+                  <div className="flex gap-2 pt-1">
+                    <Button
+                      variant="outline"
+                      onClick={() => {
+                        setMatchStep('upload');
+                        setMatchResults([]);
+                        setEditingRowIdx(null);
+                      }}
+                    >
+                      ← Back
+                    </Button>
+                    <div className="flex-1" />
+                    <Button variant="outline" onClick={handleMatchModalClose}>
+                      Close
+                    </Button>
+                    <Button onClick={handleGenerateExcel} disabled={generatingExcel}>
+                      {generatingExcel ? (
+                        <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Generating...</>
+                      ) : (
+                        <><Download className="h-4 w-4 mr-2" />Generate Excel</>
+                      )}
+                    </Button>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         )}

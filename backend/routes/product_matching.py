@@ -1,14 +1,16 @@
-"""Product Matching — upload customer file, AI-match against catalog, return Excel."""
-from fastapi import APIRouter, HTTPException, Depends, UploadFile, File, Form
+"""Product Matching — upload customer file, AI-match against catalog, preview + Excel."""
+from fastapi import APIRouter, HTTPException, Depends, UploadFile, File, Form, Query
 from fastapi.responses import FileResponse
 from starlette.background import BackgroundTask
-from typing import List
+from typing import List, Optional
 import io
 import os
 import re
 import json
 import uuid
 import logging
+from datetime import datetime, timezone
+from pydantic import BaseModel
 
 import anthropic
 import openpyxl
@@ -407,6 +409,13 @@ def _remove_file(path: str):
         pass
 
 
+# ==================== PYDANTIC MODELS ====================
+
+class GenerateRequest(BaseModel):
+    mode: str = "global"
+    results: List[dict]
+
+
 # ==================== ENDPOINTS ====================
 
 @router.get("/template")
@@ -432,7 +441,7 @@ async def match_products(
 ):
     """
     Upload a customer file (xlsx/xls/csv/docx/pdf) with product names.
-    Returns Excel with matched catalog products.
+    Returns JSON preview results for user review before Excel generation.
     mode='global' → CRM codes; mode='oem' → article for OEM vendors, else CRM.
     """
     db = get_db()
@@ -481,27 +490,90 @@ async def match_products(
     oem_vendor_names: set = set()
     if mode == "oem":
         oem_brands = await db.oem_brands.find({}, {"_id": 0, "name": 1}).to_list(200)
-        oem_vendor_names = {
-            b["name"].lower() for b in oem_brands if b.get("name")
-        }
+        oem_vendor_names = {b["name"].lower() for b in oem_brands if b.get("name")}
 
-    # 4. Pre-format catalog once (reused across batches)
+    # 4. Build alias lookup: alias_text → catalog product
+    alias_lookup: dict = {}
+    for p in catalog:
+        for alias in (p.get("aliases") or []):
+            alias_lookup[alias.lower().strip()] = p
+    # Also load product_aliases collection
+    saved_aliases = await db.product_aliases.find(
+        {}, {"_id": 0}
+    ).to_list(10000)
+    # Build crm_code → catalog product map
+    crm_to_product = {p.get("crm_code", ""): p for p in catalog if p.get("crm_code")}
+    article_to_product = {p.get("article_number", ""): p for p in catalog if p.get("article_number")}
+    for sa in saved_aliases:
+        key = (sa.get("alias") or "").lower().strip()
+        if key and key not in alias_lookup:
+            prod = crm_to_product.get(sa.get("crm_code") or "") or article_to_product.get(sa.get("article_number") or "")
+            if prod:
+                alias_lookup[key] = prod
+
+    # 5. Pre-format catalog once (reused across batches)
     catalog_text = _format_catalog(catalog)
 
-    # 5. Claude matching in batches of CLAUDE_BATCH_SIZE
-    raw_results: List[dict] = []
-    for i in range(0, len(customer_items), CLAUDE_BATCH_SIZE):
-        batch = customer_items[i: i + CLAUDE_BATCH_SIZE]
+    # 6. Split customer items: alias-matched vs needs Claude
+    alias_matched: dict = {}  # index → result dict
+    needs_claude: List[tuple] = []  # (original_index, item)
+
+    for idx, item in enumerate(customer_items):
+        item_lower = item.lower().strip()
+        if item_lower in alias_lookup:
+            p = alias_lookup[item_lower]
+            alias_matched[idx] = {
+                "customer_item": item,
+                "matched_title": p.get("title_en", ""),
+                "article_number": p.get("article_number", ""),
+                "crm_code": p.get("crm_code", ""),
+                "vendor": p.get("vendor", ""),
+                "datasheet_url": p.get("datasheet_url", ""),
+                "comment": None,
+                "match_type": "auto",
+                "confidence": "high",
+            }
+        else:
+            needs_claude.append((idx, item))
+
+    # 7. Claude matching for unresolved items in batches
+    claude_items = [item for _, item in needs_claude]
+    raw_claude: List[dict] = []
+    for i in range(0, len(claude_items), CLAUDE_BATCH_SIZE):
+        batch = claude_items[i: i + CLAUDE_BATCH_SIZE]
         try:
             batch_results = _claude_match_batch(batch, catalog_text, len(catalog))
         except Exception as exc:
             logger.error(f"Claude batch {i // CLAUDE_BATCH_SIZE + 1} error: {exc}")
             batch_results = _empty_batch(batch, "Matching error")
-        raw_results.extend(batch_results)
+        raw_claude.extend(batch_results)
 
-    # 6. Apply mode logic to pick the right code field
-    rows: List[dict] = []
-    for r in raw_results:
+    # 8. Merge alias-matched + Claude results in original order
+    claude_iter = iter(enumerate(raw_claude))
+    claude_map: dict = {}
+    for claude_idx, r in enumerate(raw_claude):
+        orig_idx = needs_claude[claude_idx][0]
+        claude_map[orig_idx] = r
+
+    results: List[dict] = []
+    for idx, item in enumerate(customer_items):
+        if idx in alias_matched:
+            r = alias_matched[idx]
+        else:
+            r = claude_map.get(idx, {"customer_item": item, "matched_title": "", "article_number": "", "crm_code": "", "vendor": "", "datasheet_url": "", "comment": "Matching error"})
+            # Determine confidence based on whether match found
+            has_match = bool(r.get("matched_title", "").strip())
+            comment = r.get("comment")
+            if not has_match:
+                confidence = None
+            elif comment:
+                confidence = "medium"
+            else:
+                confidence = "high"
+            r["match_type"] = "auto"
+            r["confidence"] = confidence
+
+        # Apply mode logic to pick code
         vendor_lower = (r.get("vendor") or "").lower()
         article = r.get("article_number") or ""
         crm = r.get("crm_code") or ""
@@ -509,23 +581,78 @@ async def match_products(
         if mode == "global":
             code = crm or article
         else:
-            # OEM mode: article for OEM-registered vendors, else CRM
             if vendor_lower and vendor_lower in oem_vendor_names:
                 code = article or crm
             else:
                 code = crm or article
 
-        rows.append(
-            {
-                "customer_item": r.get("customer_item", ""),
-                "code": code,
-                "matched_title": r.get("matched_title", ""),
-                "datasheet_url": r.get("datasheet_url", ""),
-                "comment": r.get("comment"),
-            }
-        )
+        results.append({
+            "customer_item": r.get("customer_item", ""),
+            "crm_code": crm or None,
+            "article_number": article or None,
+            "matched_title": r.get("matched_title", ""),
+            "code": code or None,
+            "datasheet_url": r.get("datasheet_url", "") or None,
+            "comment": r.get("comment") or None,
+            "match_type": r.get("match_type", "auto"),
+            "confidence": r.get("confidence"),
+        })
 
-    # 7. Build Excel and return
+    return {"results": results}
+
+
+@router.post("/generate")
+async def generate_excel(
+    data: GenerateRequest,
+    current_user: dict = Depends(get_current_user),
+):
+    """
+    Accept reviewed results, save aliases to product_aliases collection,
+    generate and return Excel file.
+    """
+    db = get_db()
+    results = data.results
+    mode = data.mode
+
+    # Save aliases (skip duplicates)
+    now = datetime.now(timezone.utc).isoformat()
+    for r in results:
+        customer_item = (r.get("customer_item") or "").strip()
+        crm_code = r.get("crm_code") or None
+        article_number = r.get("article_number") or None
+        if not customer_item:
+            continue
+        if not crm_code and not article_number:
+            continue
+
+        # Check for existing alias
+        existing = await db.product_aliases.find_one({
+            "alias": customer_item,
+            **({"crm_code": crm_code} if crm_code else {"article_number": article_number}),
+        })
+        if not existing:
+            confidence = "confirmed" if r.get("match_type") == "confirmed" else "auto"
+            alias_doc = {
+                "crm_code": crm_code,
+                "article_number": article_number,
+                "alias": customer_item,
+                "confidence": confidence,
+                "saved_at": now,
+            }
+            await db.product_aliases.insert_one(alias_doc)
+
+    # Build Excel rows from results
+    rows = [
+        {
+            "customer_item": r.get("customer_item", ""),
+            "code": r.get("code") or "",
+            "matched_title": r.get("matched_title") or "",
+            "datasheet_url": r.get("datasheet_url") or "",
+            "comment": r.get("comment") or "",
+        }
+        for r in results
+    ]
+
     try:
         excel_path = _build_excel(rows, mode)
     except Exception as exc:
@@ -538,3 +665,81 @@ async def match_products(
         filename="product_matching_results.xlsx",
         background=BackgroundTask(_remove_file, excel_path),
     )
+
+
+@router.get("/search")
+async def search_products(
+    q: str = Query(..., min_length=1),
+    current_user: dict = Depends(get_current_user),
+):
+    """
+    Search product_catalog by title, article_number, aliases.
+    Also searches product_aliases collection.
+    Returns max 10 deduplicated results.
+    """
+    db = get_db()
+    q_strip = q.strip()
+    regex = {"$regex": q_strip, "$options": "i"}
+
+    # Search catalog
+    catalog_results = await db.product_catalog.find(
+        {
+            "is_active": True,
+            "$or": [
+                {"title_en": regex},
+                {"article_number": regex},
+                {"aliases": regex},
+            ],
+        },
+        {"_id": 0, "crm_code": 1, "article_number": 1, "title_en": 1, "vendor": 1},
+    ).limit(10).to_list(10)
+
+    seen_crm: set = set()
+    results = []
+    for p in catalog_results:
+        key = p.get("crm_code") or p.get("article_number") or ""
+        if key and key not in seen_crm:
+            seen_crm.add(key)
+            results.append({
+                "crm_code": p.get("crm_code"),
+                "article_number": p.get("article_number"),
+                "title": p.get("title_en", ""),
+                "code": p.get("crm_code") or p.get("article_number"),
+                "vendor": p.get("vendor", ""),
+            })
+
+    # Search product_aliases if we have room
+    if len(results) < 10:
+        alias_hits = await db.product_aliases.find(
+            {"alias": regex},
+            {"_id": 0, "crm_code": 1, "article_number": 1},
+        ).limit(10).to_list(10)
+
+        crm_codes_from_aliases = list({a["crm_code"] for a in alias_hits if a.get("crm_code")} - seen_crm)
+        article_nums_from_aliases = list({a["article_number"] for a in alias_hits if a.get("article_number") and not a.get("crm_code")} - seen_crm)
+
+        if crm_codes_from_aliases or article_nums_from_aliases:
+            extra = await db.product_catalog.find(
+                {
+                    "is_active": True,
+                    "$or": [
+                        *({"crm_code": c} for c in crm_codes_from_aliases),
+                        *({"article_number": a} for a in article_nums_from_aliases),
+                    ],
+                },
+                {"_id": 0, "crm_code": 1, "article_number": 1, "title_en": 1, "vendor": 1},
+            ).limit(10 - len(results)).to_list(10)
+
+            for p in extra:
+                key = p.get("crm_code") or p.get("article_number") or ""
+                if key and key not in seen_crm:
+                    seen_crm.add(key)
+                    results.append({
+                        "crm_code": p.get("crm_code"),
+                        "article_number": p.get("article_number"),
+                        "title": p.get("title_en", ""),
+                        "code": p.get("crm_code") or p.get("article_number"),
+                        "vendor": p.get("vendor", ""),
+                    })
+
+    return results[:10]
