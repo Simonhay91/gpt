@@ -21,6 +21,15 @@ UI версия: `frontend/src/data/changelog.js`
 
 ---
 
+## 2026-04-23 — v2.9.32
+
+### Fix: Matching Rules button open for all users
+**Файлы:** `frontend/src/pages/ProductCatalogPage.js`, `frontend/src/data/changelog.js`
+
+- "Matching Rules" button moved outside `{canEdit && ...}` — visible to all authenticated users
+
+---
+
 ## 2026-04-23 — v2.9.31
 
 ### New: canEditProductCatalog permission + alias delete

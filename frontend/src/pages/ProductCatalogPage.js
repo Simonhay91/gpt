@@ -495,15 +495,15 @@ export default function ProductCatalogPage() {
               <FileSearch className="h-4 w-4 mr-2" />
               Match File
             </Button>
+            <Button
+              variant="outline"
+              onClick={openRulesModal}
+            >
+              <Settings className="h-4 w-4 mr-2" />
+              Matching Rules
+            </Button>
             {canEdit && (
               <>
-                <Button
-                  variant="outline"
-                  onClick={openRulesModal}
-                >
-                  <Settings className="h-4 w-4 mr-2" />
-                  Matching Rules
-                </Button>
                 <Button 
                   variant="outline" 
                   onClick={() => setShowImportModal(true)}

@@ -1,6 +1,14 @@
-export const APP_VERSION = "2.9.31";
+export const APP_VERSION = "2.9.32";
 
 export const CHANGELOG = [
+  {
+    version: "2.9.32",
+    date: "Апрель 2026",
+    badge: "fix",
+    changes: [
+      "Matching Rules: кнопка доступна всем авторизованным пользователям (не только admin)",
+    ]
+  },
   {
     version: "2.9.31",
     date: "Апрель 2026",
