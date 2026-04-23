@@ -991,8 +991,8 @@ export default function ProductCatalogPage() {
                         <tbody>
                           {matchResults.map((row, idx) => (
                             <tr key={idx} className={`border-t hover:bg-muted/20 ${!row.code ? 'bg-destructive/5' : ''}`}>
-                              <td className="p-2.5 text-muted-foreground text-xs" title={row.customer_item}>
-                                <div className="truncate max-w-[160px]">{row.customer_item}</div>
+                              <td className="p-2.5 text-muted-foreground text-xs">
+                                <div className="break-words whitespace-pre-wrap">{row.customer_item}</div>
                               </td>
                               <td className="p-2.5">
                                 {editingRowIdx === idx ? (
@@ -1037,8 +1037,7 @@ export default function ProductCatalogPage() {
                                   </div>
                                 ) : (
                                   <div
-                                    className={`text-xs truncate max-w-[160px] ${!row.matched_title ? 'text-muted-foreground italic' : ''}`}
-                                    title={row.matched_title}
+                                    className={`text-xs break-words whitespace-pre-wrap ${!row.matched_title ? 'text-muted-foreground italic' : ''}`}
                                   >
                                     {row.matched_title || 'No match'}
                                   </div>
