@@ -1289,15 +1289,40 @@ export default function ProductCatalogPage() {
                       value={ruleForm.title}
                       onChange={e => setRuleForm(f => ({ ...f, title: e.target.value }))}
                     />
-                    <select
-                      className="border border-input rounded-md px-3 py-2 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-ring"
-                      value={ruleForm.category}
-                      onChange={e => setRuleForm(f => ({ ...f, category: e.target.value }))}
-                    >
-                      <option value="general">General</option>
-                      <option value="vendor_naming">Vendor Naming</option>
-                      <option value="cable_type">Cable Type</option>
-                    </select>
+                    {['general', 'vendor_naming', 'cable_type'].includes(ruleForm.category) || ruleForm.category === '' ? (
+                      <select
+                        className="border border-input rounded-md px-3 py-2 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-ring"
+                        value={ruleForm.category}
+                        onChange={e => {
+                          if (e.target.value === '__other__') {
+                            setRuleForm(f => ({ ...f, category: '' }));
+                          } else {
+                            setRuleForm(f => ({ ...f, category: e.target.value }));
+                          }
+                        }}
+                      >
+                        <option value="general">General</option>
+                        <option value="vendor_naming">Vendor Naming</option>
+                        <option value="cable_type">Cable Type</option>
+                        <option value="__other__">Other…</option>
+                      </select>
+                    ) : (
+                      <div className="flex items-center gap-1">
+                        <input
+                          className="border border-input rounded-md px-3 py-2 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-ring w-36"
+                          placeholder="Category name…"
+                          value={ruleForm.category}
+                          onChange={e => setRuleForm(f => ({ ...f, category: e.target.value }))}
+                          autoFocus
+                        />
+                        <button
+                          type="button"
+                          className="text-xs text-muted-foreground hover:text-foreground px-1"
+                          onClick={() => setRuleForm(f => ({ ...f, category: 'general' }))}
+                          title="Back to list"
+                        >✕</button>
+                      </div>
+                    )}
                   </div>
                   <textarea
                     className="w-full border border-input rounded-md px-3 py-2 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-ring font-mono resize-none"

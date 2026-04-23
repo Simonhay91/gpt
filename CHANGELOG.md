@@ -6,6 +6,17 @@ UI версия: `frontend/src/data/changelog.js`
 
 ---
 
+## 2026-04-23 — v2.9.31
+
+### Fix: Matching Rules — free-text category input
+**Файлы:** `frontend/src/pages/ProductCatalogPage.js`, `frontend/src/data/changelog.js`
+
+- Category field is now a hybrid: dropdown (General / Vendor Naming / Cable Type) + "Other…" option
+- Selecting "Other…" switches to a free text input — engineer types any custom category name
+- ✕ button returns to the dropdown; existing rules with custom categories auto-show the text input on edit
+
+---
+
 ## 2026-04-23 — v2.9.30
 
 ### New: Product Matching — Domain Rules Editor
