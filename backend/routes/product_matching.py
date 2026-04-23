@@ -25,8 +25,8 @@ router = APIRouter(prefix="/api/product-matching", tags=["product-matching"])
 CLAUDE_API_KEY = os.environ.get("CLAUDE_API_KEY", "")
 MAX_FILE_SIZE = 20 * 1024 * 1024   # 20 MB
 MAX_CUSTOMER_ITEMS = 200
-MAX_CATALOG_PRODUCTS = 1000
-CLAUDE_BATCH_SIZE = 50             # customer items per Claude call
+MAX_CATALOG_PRODUCTS = 500
+CLAUDE_BATCH_SIZE = 30             # customer items per Claude call
 
 
 # ==================== TEMPLATE BUILDER ====================
@@ -179,17 +179,19 @@ def _parse_pdf(content: bytes) -> List[str]:
 def _format_catalog(catalog: List[dict]) -> str:
     lines = []
     for i, p in enumerate(catalog):
-        aliases = ", ".join(p.get("aliases") or [])
-        line = (
-            f"[{i + 1}] title={p.get('title_en', '')} | "
-            f"article={p.get('article_number', '')} | "
-            f"crm={p.get('crm_code', '')} | "
-            f"vendor={p.get('vendor', '')} | "
-            f"model={p.get('product_model', '')} | "
-            f"aliases={aliases} | "
-            f"datasheet={p.get('datasheet_url', '')}"
-        )
-        lines.append(line)
+        aliases = ", ".join((p.get("aliases") or [])[:5])  # max 5 aliases to save tokens
+        parts = [
+            f"[{i + 1}]",
+            f"title={p.get('title_en', '')}",
+            f"article={p.get('article_number', '')}",
+            f"crm={p.get('crm_code', '')}",
+            f"vendor={p.get('vendor', '')}",
+        ]
+        if p.get('product_model'):
+            parts.append(f"model={p['product_model']}")
+        if aliases:
+            parts.append(f"aliases={aliases}")
+        lines.append(" | ".join(parts))
     return "\n".join(lines)
 
 
@@ -312,7 +314,7 @@ Rules:
 
     response = client.messages.create(
         model="claude-sonnet-4-20250514",
-        max_tokens=4096,
+        max_tokens=8192,
         messages=[{"role": "user", "content": prompt}],
     )
     raw = response.content[0].text.strip()
