@@ -11,6 +11,8 @@ import os
 import re
 import json
 
+VOYAGE_API_KEY = os.environ.get("VOYAGE_API_KEY", "")
+
 from models.schemas import (
     ProductCatalogCreate,
     ProductCatalogUpdate,
@@ -25,6 +27,48 @@ from db.connection import get_db
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api", tags=["product_catalog"])
+
+
+# ==================== EMBEDDING HELPER ====================
+
+def _product_embedding_text(p: dict) -> str:
+    """Build a rich text representation of a product for Voyage embedding."""
+    parts = []
+    if p.get("title_en"):
+        parts.append(p["title_en"])
+    if p.get("article_number"):
+        parts.append(f"Article: {p['article_number']}")
+    if p.get("crm_code"):
+        parts.append(f"CRM: {p['crm_code']}")
+    if p.get("vendor"):
+        parts.append(f"Vendor: {p['vendor']}")
+    if p.get("product_model"):
+        parts.append(f"Model: {p['product_model']}")
+    if p.get("aliases"):
+        parts.append(f"Aliases: {', '.join(p['aliases'][:10])}")
+    if p.get("description"):
+        parts.append(p["description"][:500])
+    return " | ".join(parts)
+
+
+async def _embed_and_save(db, product_id: str, product: dict) -> None:
+    """Generate Voyage embedding for a product and save it to DB. Silently skips if no API key."""
+    if not VOYAGE_API_KEY:
+        return
+    text = _product_embedding_text(product)
+    if not text.strip():
+        return
+    try:
+        import voyageai
+        client = voyageai.Client(api_key=VOYAGE_API_KEY)
+        result = client.embed([text[:8000]], model="voyage-3")
+        embedding = result.embeddings[0]
+        await db.product_catalog.update_one(
+            {"id": product_id},
+            {"$set": {"embedding": embedding}},
+        )
+    except Exception as exc:
+        logger.warning(f"Voyage embedding failed for product {product_id}: {exc}")
 
 
 # ==================== HELPER FUNCTIONS ====================
@@ -253,7 +297,8 @@ async def create_product(data: ProductCatalogCreate, current_user: dict = Depend
     }
     
     await db.product_catalog.insert_one(product)
-    
+    await _embed_and_save(db, product["id"], product)
+
     return ProductCatalogResponse(**product)
 
 
@@ -281,12 +326,18 @@ async def update_product(
         if value is not None:
             update_data[field] = value
     
+    _EMBEDDING_FIELDS = {"title_en", "article_number", "crm_code", "vendor", "product_model", "aliases", "description"}
+    needs_reembed = bool(_EMBEDDING_FIELDS & set(update_data.keys()))
+
     await db.product_catalog.update_one(
         {"id": product_id},
         {"$set": update_data}
     )
-    
+
     updated_product = await db.product_catalog.find_one({"id": product_id}, {"_id": 0})
+    if needs_reembed:
+        await _embed_and_save(db, product_id, updated_product)
+
     return ProductCatalogResponse(**updated_product)
 
 
@@ -581,11 +632,14 @@ async def import_products(
                 product_data["extra_fields"] = merged_extra
             elif existing.get("extra_fields"):
                 preserve_fields["extra_fields"] = existing["extra_fields"]
-            
+
             await db.product_catalog.update_one(
                 {"id": existing["id"]},
                 {"$set": {**product_data, **preserve_fields}}
             )
+            merged = {**product_data, **preserve_fields}
+            merged["id"] = existing["id"]
+            await _embed_and_save(db, existing["id"], merged)
             updated += 1
         else:
             # Create new
@@ -594,8 +648,9 @@ async def import_products(
             product_data["aliases"] = []
             product_data["created_by"] = current_user["id"]
             product_data["created_at"] = now
-            
+
             await db.product_catalog.insert_one(product_data)
+            await _embed_and_save(db, product_data["id"], product_data)
             added += 1
     
     # Deactivate products not in this import

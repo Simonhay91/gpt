@@ -3,6 +3,11 @@ from fastapi import APIRouter, HTTPException, Depends
 from typing import List
 from datetime import datetime, timezone, timedelta
 import uuid
+import os
+import logging
+
+logger = logging.getLogger(__name__)
+VOYAGE_API_KEY = os.environ.get("VOYAGE_API_KEY", "")
 
 from models.schemas import (
     UserCreate, 
@@ -571,3 +576,81 @@ async def get_user_question_history(user_id: str, current_user: dict = Depends(g
         })
     
     return result
+
+
+# ==================== EMBEDDING BACKFILL ====================
+
+@router.post("/admin/backfill-embeddings")
+async def backfill_embeddings(current_user: dict = Depends(get_current_user)):
+    """
+    Generate Voyage AI embeddings for all active catalog products that are missing one.
+    Admin only. Safe to call multiple times — skips products that already have embeddings.
+    """
+    if not is_admin(current_user["email"]):
+        raise HTTPException(status_code=403, detail="Admin access required")
+
+    if not VOYAGE_API_KEY:
+        raise HTTPException(status_code=400, detail="VOYAGE_API_KEY is not configured on the server")
+
+    db = get_db()
+
+    products = await db.product_catalog.find(
+        {"is_active": True, "$or": [{"embedding": None}, {"embedding": {"$exists": False}}]},
+        {
+            "_id": 0, "id": 1, "title_en": 1, "article_number": 1, "crm_code": 1,
+            "vendor": 1, "product_model": 1, "aliases": 1, "description": 1,
+        },
+    ).to_list(10000)
+
+    if not products:
+        return {"message": "All products already have embeddings", "processed": 0, "errors": 0}
+
+    import voyageai
+    import time
+    voyage = voyageai.Client(api_key=VOYAGE_API_KEY)
+
+    BATCH_SIZE = 50
+    processed = 0
+    errors = 0
+
+    def _text(p: dict) -> str:
+        parts = []
+        if p.get("title_en"):
+            parts.append(p["title_en"])
+        if p.get("article_number"):
+            parts.append(f"Article: {p['article_number']}")
+        if p.get("crm_code"):
+            parts.append(f"CRM: {p['crm_code']}")
+        if p.get("vendor"):
+            parts.append(f"Vendor: {p['vendor']}")
+        if p.get("product_model"):
+            parts.append(f"Model: {p['product_model']}")
+        if p.get("aliases"):
+            parts.append(f"Aliases: {', '.join(p['aliases'][:10])}")
+        if p.get("description"):
+            parts.append(p["description"][:500])
+        return " | ".join(parts)
+
+    for i in range(0, len(products), BATCH_SIZE):
+        batch = products[i: i + BATCH_SIZE]
+        ids = [p["id"] for p in batch]
+        texts = [_text(p)[:8000] for p in batch]
+        try:
+            result = voyage.embed(texts, model="voyage-3")
+            for pid, emb in zip(ids, result.embeddings):
+                await db.product_catalog.update_one(
+                    {"id": pid}, {"$set": {"embedding": emb}}
+                )
+            processed += len(batch)
+            logger.info(f"Backfill embeddings: {processed}/{len(products)}")
+        except Exception as exc:
+            errors += len(batch)
+            logger.error(f"Backfill batch error: {exc}")
+        time.sleep(0.5)
+
+    return {
+        "message": "Backfill complete",
+        "total_without_embedding": len(products),
+        "processed": processed,
+        "errors": errors,
+    }
