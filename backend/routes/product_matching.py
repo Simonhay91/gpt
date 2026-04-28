@@ -720,6 +720,10 @@ class ResearchItemRequest(BaseModel):
     mode: str = "global"
 
 
+class PlanetSearchRequest(BaseModel):
+    query: str
+
+
 class DomainRuleCreate(BaseModel):
     title: str
     content: str
@@ -735,6 +739,102 @@ class DomainRuleUpdate(BaseModel):
 
 
 # ==================== ENDPOINTS ====================
+
+PLANET_SEARCH_TOP_K = 5   # max CRM codes returned to PlanetWorkspace
+
+
+# ── PlanetWorkspace fallback search ──────────────────────────────────────────
+
+@router.post("/planet-search")
+async def planet_search(data: PlanetSearchRequest):
+    """
+    Called by PlanetWorkspace when a user search returns no results.
+    Runs alias lookup → Voyage AI pre-filter → Claude match against catalog.
+    Returns an ordered array of CRM codes (best match first, max 5).
+    """
+
+    query = (data.query or "").strip()
+    if not query:
+        raise HTTPException(status_code=400, detail="query is required")
+
+    db = get_db()
+
+    # Load active catalog (with embeddings for Voyage phase)
+    catalog = await db.product_catalog.find(
+        {"is_active": True},
+        {
+            "_id": 0,
+            "article_number": 1,
+            "title_en": 1,
+            "crm_code": 1,
+            "vendor": 1,
+            "product_model": 1,
+            "datasheet_url": 1,
+            "aliases": 1,
+            "embedding": 1,
+        },
+    ).limit(MAX_CATALOG_PRODUCTS).to_list(MAX_CATALOG_PRODUCTS)
+
+    if not catalog:
+        raise HTTPException(status_code=404, detail="Product catalog is empty")
+
+    # ── Step 1: Alias lookup (instant, no AI) ────────────────────────────────
+    alias_lookup: dict = {}
+    for p in catalog:
+        for alias in (p.get("aliases") or []):
+            alias_lookup[alias.lower().strip()] = p
+
+    crm_to_product = {p.get("crm_code", ""): p for p in catalog if p.get("crm_code")}
+    article_to_product = {p.get("article_number", ""): p for p in catalog if p.get("article_number")}
+    saved_aliases = await db.product_aliases.find({}, {"_id": 0}).to_list(10000)
+    for sa in saved_aliases:
+        key = (sa.get("alias") or "").lower().strip()
+        if key and key not in alias_lookup:
+            prod = (
+                crm_to_product.get(sa.get("crm_code") or "")
+                or article_to_product.get(sa.get("article_number") or "")
+            )
+            if prod:
+                alias_lookup[key] = prod
+
+    query_lower = query.lower().strip()
+    if query_lower in alias_lookup:
+        p = alias_lookup[query_lower]
+        crm = p.get("crm_code")
+        logger.info(f"planet-search alias hit: '{query}' → {crm}")
+        return [crm] if crm else []
+
+    # ── Step 2: Voyage AI pre-filter → Claude match ───────────────────────────
+    catalog_embeddings = [p.get("embedding") for p in catalog]
+
+    try:
+        candidates_list = _voyage_top_k([query], catalog, catalog_embeddings, VOYAGE_TOP_K)
+        candidates = candidates_list[0] if candidates_list else []
+    except Exception as exc:
+        logger.warning(f"planet-search Voyage failed, using text fallback: {exc}")
+        candidates = _text_fallback_top_k(query, catalog, VOYAGE_TOP_K)
+
+    if not candidates:
+        logger.info(f"planet-search: no candidates found for '{query}'")
+        return []
+
+    try:
+        claude_results = _claude_match_with_candidates([(query, candidates)])
+        r = claude_results[0] if claude_results else {}
+    except Exception as exc:
+        logger.error(f"planet-search Claude failed: {exc}")
+        return []
+
+    confidence = (r.get("confidence") or "").lower()
+    crm = r.get("crm_code") or ""
+
+    if confidence == "none" or not crm:
+        logger.info(f"planet-search: no match for '{query}' (confidence={confidence})")
+        return []
+
+    logger.info(f"planet-search: '{query}' → {crm} (confidence={confidence})")
+    return [crm]
+
 
 # ── Domain Rules CRUD ────────────────────────────────────────────────────────
 
