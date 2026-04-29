@@ -1552,9 +1552,20 @@ export default function ProductCatalogPage() {
                       onChange={e => setRelRuleForm(f => ({ ...f, category_a: e.target.value }))}
                     >
                       <option value="">Category A…</option>
-                      {categories.root_categories.map(cat => (
-                        <option key={cat} value={cat}>{cat}</option>
-                      ))}
+                      {categories.root_categories.length > 0 && (
+                        <optgroup label="Root categories">
+                          {categories.root_categories.map(cat => (
+                            <option key={cat} value={cat}>{cat}</option>
+                          ))}
+                        </optgroup>
+                      )}
+                      {categories.lvl1_subcategories?.length > 0 && (
+                        <optgroup label="Subcategories (lvl1)">
+                          {categories.lvl1_subcategories.map(cat => (
+                            <option key={cat} value={cat}>{cat}</option>
+                          ))}
+                        </optgroup>
+                      )}
                     </select>
                     <span className="text-muted-foreground text-sm font-medium shrink-0">↔</span>
                     <select
@@ -1563,9 +1574,20 @@ export default function ProductCatalogPage() {
                       onChange={e => setRelRuleForm(f => ({ ...f, category_b: e.target.value }))}
                     >
                       <option value="">Category B…</option>
-                      {categories.root_categories.map(cat => (
-                        <option key={cat} value={cat}>{cat}</option>
-                      ))}
+                      {categories.root_categories.length > 0 && (
+                        <optgroup label="Root categories">
+                          {categories.root_categories.map(cat => (
+                            <option key={cat} value={cat}>{cat}</option>
+                          ))}
+                        </optgroup>
+                      )}
+                      {categories.lvl1_subcategories?.length > 0 && (
+                        <optgroup label="Subcategories (lvl1)">
+                          {categories.lvl1_subcategories.map(cat => (
+                            <option key={cat} value={cat}>{cat}</option>
+                          ))}
+                        </optgroup>
+                      )}
                     </select>
                   </div>
                   <textarea

@@ -1,6 +1,15 @@
-export const APP_VERSION = "2.9.34";
+export const APP_VERSION = "2.9.35";
 
 export const CHANGELOG = [
+  {
+    version: "2.9.35",
+    date: "Апрель 2026",
+    badge: "fix",
+    changes: [
+      "Relation Rules: категории показываются на всех 4 уровнях (root + lvl1 + lvl2 + lvl3) через optgroup",
+      "Backend: поиск продуктов по выбранной категории теперь проверяет все 4 уровня",
+    ]
+  },
   {
     version: "2.9.34",
     date: "Апрель 2026",

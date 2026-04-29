@@ -234,13 +234,24 @@ async def _run_rule_analysis(rule_id: str):
 
     logger.info(f"[relations] Running rule '{rule['title']}': {cat_a} ↔ {cat_b}")
 
+    def _category_query(cat: str) -> dict:
+        return {
+            "is_active": True,
+            "$or": [
+                {"root_category": cat},
+                {"lvl1_subcategory": cat},
+                {"lvl2_subcategory": cat},
+                {"lvl3_subcategory": cat},
+            ],
+        }
+
     products_a = await db.product_catalog.find(
-        {"is_active": True, "root_category": cat_a},
+        _category_query(cat_a),
         {"_id": 0, "id": 1, "title_en": 1, "article_number": 1, "crm_code": 1, "vendor": 1, "embedding": 1},
     ).to_list(1000)
 
     products_b = await db.product_catalog.find(
-        {"is_active": True, "root_category": cat_b},
+        _category_query(cat_b),
         {"_id": 0, "id": 1, "title_en": 1, "article_number": 1, "crm_code": 1, "vendor": 1, "embedding": 1},
     ).to_list(1000)
 

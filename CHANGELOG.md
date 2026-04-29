@@ -6,6 +6,17 @@ UI версия: `frontend/src/data/changelog.js`
 
 ---
 
+## 2026-04-29 — v2.9.35
+
+### Fix: Relation Rules — all 4 category levels in dropdowns
+
+**Файлы:** `frontend/src/pages/ProductCatalogPage.js`, `backend/routes/product_relations.py`, `frontend/src/data/changelog.js`
+
+- Dropdown now shows root_categories + lvl1_subcategories via `<optgroup>` (API already returns both)
+- Backend `_category_query()` helper: searches across all 4 levels (`root_category`, `lvl1_subcategory`, `lvl2_subcategory`, `lvl3_subcategory`) via `$or`
+
+---
+
 ## 2026-04-29 — v2.9.34
 
 ### Fix: Relation Rules — category dropdowns
