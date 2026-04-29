@@ -1,6 +1,14 @@
-export const APP_VERSION = "2.9.33";
+export const APP_VERSION = "2.9.34";
 
 export const CHANGELOG = [
+  {
+    version: "2.9.34",
+    date: "Апрель 2026",
+    badge: "fix",
+    changes: [
+      "Relation Rules: поля Category A и B заменены на dropdown с реальными категориями каталога",
+    ]
+  },
   {
     version: "2.9.33",
     date: "Апрель 2026",

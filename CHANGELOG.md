@@ -6,6 +6,16 @@ UI версия: `frontend/src/data/changelog.js`
 
 ---
 
+## 2026-04-29 — v2.9.34
+
+### Fix: Relation Rules — category dropdowns
+
+**Файлы:** `frontend/src/pages/ProductCatalogPage.js`, `frontend/src/data/changelog.js`
+
+- Category A / Category B text inputs replaced with `<select>` dropdowns populated from `categories.root_categories` (already loaded on page mount)
+
+---
+
 ## 2026-04-29 — v2.9.33
 
 ### New: Both Together — AI-powered product compatibility

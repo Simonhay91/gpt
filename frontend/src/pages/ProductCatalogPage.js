@@ -1545,20 +1545,28 @@ export default function ProductCatalogPage() {
                     value={relRuleForm.title}
                     onChange={e => setRelRuleForm(f => ({ ...f, title: e.target.value }))}
                   />
-                  <div className="flex gap-2">
-                    <input
+                  <div className="flex gap-2 items-center">
+                    <select
                       className="flex-1 border border-input rounded-md px-3 py-2 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-ring"
-                      placeholder="Category A (e.g. Optical Cables)"
                       value={relRuleForm.category_a}
                       onChange={e => setRelRuleForm(f => ({ ...f, category_a: e.target.value }))}
-                    />
-                    <span className="self-center text-muted-foreground text-sm font-medium">↔</span>
-                    <input
+                    >
+                      <option value="">Category A…</option>
+                      {categories.root_categories.map(cat => (
+                        <option key={cat} value={cat}>{cat}</option>
+                      ))}
+                    </select>
+                    <span className="text-muted-foreground text-sm font-medium shrink-0">↔</span>
+                    <select
                       className="flex-1 border border-input rounded-md px-3 py-2 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-ring"
-                      placeholder="Category B (e.g. Connectors)"
                       value={relRuleForm.category_b}
                       onChange={e => setRelRuleForm(f => ({ ...f, category_b: e.target.value }))}
-                    />
+                    >
+                      <option value="">Category B…</option>
+                      {categories.root_categories.map(cat => (
+                        <option key={cat} value={cat}>{cat}</option>
+                      ))}
+                    </select>
                   </div>
                   <textarea
                     className="w-full border border-input rounded-md px-3 py-2 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-ring resize-none"
