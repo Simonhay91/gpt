@@ -6,6 +6,20 @@ UI версия: `frontend/src/data/changelog.js`
 
 ---
 
+## 2026-04-29 — v2.9.37
+
+### New: Relation Rules — run status tracking + polling
+
+**Файлы:** `backend/routes/product_relations.py`, `frontend/src/pages/ProductCatalogPage.js`, `frontend/src/data/changelog.js`
+
+- Backend: `run_status` field on `relation_rules` — `running` → `completed` / `failed`; also tracks `run_saved` count and `run_error` message
+- Error handling wrapper in `_run_rule_analysis` catches any crash → writes `failed` status
+- Frontend: after clicking Run, polls `GET /rules` every 4s; updates rule card live
+- Rule card shows badge: blue "Running…" (spinner) / green "✓ Done (N saved)" / red "✗ Failed" (hover shows error)
+- Toast on completion with count or error message
+
+---
+
 ## 2026-04-29 — v2.9.36
 
 ### New: Relation Rules — cascading category selector + multiselect

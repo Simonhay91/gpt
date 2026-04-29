@@ -385,10 +385,30 @@ export default function ProductCatalogPage() {
     setRunningRuleId(ruleId);
     try {
       await axios.post(`${API}/product-relations/rules/${ruleId}/run`);
-      toast.success('Analysis started — runs in background');
+      toast.success('Analysis started');
+      // Optimistically set running status in local state
+      setRelationRules(prev => prev.map(r => r._id === ruleId ? { ...r, run_status: 'running' } : r));
+      // Poll every 4s until done
+      const poll = setInterval(async () => {
+        try {
+          const res = await axios.get(`${API}/product-relations/rules`);
+          const updated = res.data.find(r => r._id === ruleId);
+          if (updated) {
+            setRelationRules(res.data);
+            if (updated.run_status !== 'running') {
+              clearInterval(poll);
+              setRunningRuleId(null);
+              if (updated.run_status === 'completed') {
+                toast.success(`Done — ${updated.run_saved ?? 0} new relations saved`);
+              } else if (updated.run_status === 'failed') {
+                toast.error(`Failed: ${updated.run_error || 'unknown error'}`);
+              }
+            }
+          }
+        } catch { clearInterval(poll); setRunningRuleId(null); }
+      }, 4000);
     } catch {
       toast.error('Failed to start analysis');
-    } finally {
       setRunningRuleId(null);
     }
   };
@@ -1712,11 +1732,28 @@ export default function ProductCatalogPage() {
                               )}
                             </div>
                             <p className="text-xs text-muted-foreground line-clamp-2">{rule.description}</p>
-                            {rule.last_run_at && (
-                              <p className="text-xs text-muted-foreground">
-                                Last run: {new Date(rule.last_run_at).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
-                              </p>
-                            )}
+                            <div className="flex items-center gap-2 flex-wrap">
+                              {rule.run_status === 'running' && (
+                                <span className="flex items-center gap-1 text-xs px-1.5 py-0.5 rounded-full bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400">
+                                  <Loader2 className="h-3 w-3 animate-spin" /> Running…
+                                </span>
+                              )}
+                              {rule.run_status === 'completed' && (
+                                <span className="text-xs px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400">
+                                  ✓ Done {rule.run_saved != null ? `(${rule.run_saved} saved)` : ''}
+                                </span>
+                              )}
+                              {rule.run_status === 'failed' && (
+                                <span className="text-xs px-1.5 py-0.5 rounded-full bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400" title={rule.run_error}>
+                                  ✗ Failed
+                                </span>
+                              )}
+                              {rule.last_run_at && (
+                                <span className="text-xs text-muted-foreground">
+                                  {new Date(rule.last_run_at).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                                </span>
+                              )}
+                            </div>
                           </div>
                           <div className="flex gap-1 shrink-0">
                             <Button
@@ -1725,7 +1762,7 @@ export default function ProductCatalogPage() {
                               className="h-7 w-7 text-primary"
                               title="Run AI analysis"
                               onClick={() => runRelationRule(rule._id)}
-                              disabled={runningRuleId === rule._id}
+                              disabled={runningRuleId === rule._id || rule.run_status === 'running'}
                             >
                               {runningRuleId === rule._id
                                 ? <Loader2 className="h-4 w-4 animate-spin" />

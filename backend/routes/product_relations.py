@@ -228,6 +228,23 @@ async def _run_rule_analysis(rule_id: str):
         logger.error(f"relation rule {rule_id} not found")
         return
 
+    # Mark as running
+    await db.relation_rules.update_one(
+        {"_id": ObjectId(rule_id)},
+        {"$set": {"run_status": "running", "run_started_at": now_iso(), "run_error": None, "run_saved": None}},
+    )
+
+    try:
+        await _do_run_rule_analysis(rule_id, rule, db)
+    except Exception as exc:
+        logger.error(f"[relations] Rule '{rule.get('title')}' crashed: {exc}")
+        await db.relation_rules.update_one(
+            {"_id": ObjectId(rule_id)},
+            {"$set": {"run_status": "failed", "last_run_at": now_iso(), "run_error": str(exc)}},
+        )
+
+
+async def _do_run_rule_analysis(rule_id: str, rule: dict, db):
     # Support both old (str) and new (List[str]) schema
     cats_a = rule.get("categories_a") or ([rule["category_a"]] if rule.get("category_a") else [])
     cats_b = rule.get("categories_b") or ([rule["category_b"]] if rule.get("category_b") else [])
@@ -263,7 +280,8 @@ async def _run_rule_analysis(rule_id: str):
         logger.warning(f"[relations] No products found for categories: {cats_a}, {cats_b}")
         await db.relation_rules.update_one(
             {"_id": ObjectId(rule_id)},
-            {"$set": {"last_run_at": now_iso()}},
+            {"$set": {"run_status": "completed", "last_run_at": now_iso(), "run_saved": 0,
+                      "run_error": f"No products found for: {cats_a} ↔ {cats_b}"}},
         )
         return
 
@@ -337,7 +355,7 @@ async def _run_rule_analysis(rule_id: str):
 
     await db.relation_rules.update_one(
         {"_id": ObjectId(rule_id)},
-        {"$set": {"last_run_at": now_iso()}},
+        {"$set": {"run_status": "completed", "last_run_at": now_iso(), "run_saved": saved, "run_error": None}},
     )
     logger.info(f"[relations] Rule '{rule['title']}' done — {saved} new relations saved")
 

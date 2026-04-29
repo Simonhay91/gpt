@@ -1,6 +1,16 @@
-export const APP_VERSION = "2.9.36";
+export const APP_VERSION = "2.9.37";
 
 export const CHANGELOG = [
+  {
+    version: "2.9.37",
+    date: "Апрель 2026",
+    badge: "new",
+    changes: [
+      "Relation Rules: статус выполнения AI анализа — Running / Done (N saved) / Failed с polling каждые 4 сек",
+      "Кнопка Run блокируется пока анализ в процессе",
+      "Toast уведомление по завершении с количеством сохранённых связей или ошибкой",
+    ]
+  },
   {
     version: "2.9.36",
     date: "Апрель 2026",
