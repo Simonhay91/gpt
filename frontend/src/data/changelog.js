@@ -1,6 +1,16 @@
-export const APP_VERSION = "2.9.35";
+export const APP_VERSION = "2.9.36";
 
 export const CHANGELOG = [
+  {
+    version: "2.9.36",
+    date: "Апрель 2026",
+    badge: "new",
+    changes: [
+      "Relation Rules: каскадный выбор категорий (root → lvl1 → lvl2) с мультиселектом для обеих сторон",
+      "Новый endpoint GET /api/product-catalog/category-tree — полная иерархия категорий",
+      "Схема relation_rules обновлена: categories_a/b теперь массивы (поддержка нескольких категорий)",
+    ]
+  },
   {
     version: "2.9.35",
     date: "Апрель 2026",

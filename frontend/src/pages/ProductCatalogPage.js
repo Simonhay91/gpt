@@ -35,6 +35,73 @@ import { toast } from 'sonner';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
+// ── CategorySelector — cascading dropdowns + multi-tag selector ──────────────
+function CategorySelector({ label, tree, selected, selRoot, setSelRoot, selLvl1, setSelLvl1, onAdd, onRemove }) {
+  const roots = Object.keys(tree).sort();
+  const lvl1Options = selRoot ? Object.keys(tree[selRoot] || {}).sort() : [];
+  const lvl2Options = selRoot && selLvl1 ? Object.keys(tree[selRoot]?.[selLvl1] || {}).sort() : [];
+
+  const addCategory = (cat) => {
+    if (cat) onAdd(cat);
+  };
+
+  return (
+    <div className="space-y-2">
+      <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">{label}</p>
+      {/* Cascading selects */}
+      <div className="flex gap-1.5 flex-wrap">
+        <select
+          className="flex-1 min-w-0 border border-input rounded-md px-2 py-1.5 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-ring"
+          value={selRoot}
+          onChange={e => { setSelRoot(e.target.value); setSelLvl1(''); }}
+        >
+          <option value="">Root…</option>
+          {roots.map(r => <option key={r} value={r}>{r}</option>)}
+        </select>
+        {lvl1Options.length > 0 && (
+          <select
+            className="flex-1 min-w-0 border border-input rounded-md px-2 py-1.5 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-ring"
+            value={selLvl1}
+            onChange={e => setSelLvl1(e.target.value)}
+          >
+            <option value="">Lvl1…</option>
+            {lvl1Options.map(c => <option key={c} value={c}>{c}</option>)}
+          </select>
+        )}
+        {lvl2Options.length > 0 && (
+          <select
+            className="flex-1 min-w-0 border border-input rounded-md px-2 py-1.5 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-ring"
+            onChange={e => { if (e.target.value) addCategory(e.target.value); e.target.value = ''; }}
+            defaultValue=""
+          >
+            <option value="">Lvl2…</option>
+            {lvl2Options.map(c => <option key={c} value={c}>{c}</option>)}
+          </select>
+        )}
+        <button
+          type="button"
+          onClick={() => addCategory(selLvl1 || selRoot)}
+          disabled={!selRoot}
+          className="px-2.5 py-1.5 text-xs rounded-md bg-primary text-primary-foreground disabled:opacity-40 hover:bg-primary/90 shrink-0"
+        >
+          + Add
+        </button>
+      </div>
+      {/* Selected tags */}
+      {selected.length > 0 && (
+        <div className="flex flex-wrap gap-1.5">
+          {selected.map(cat => (
+            <span key={cat} className="flex items-center gap-1 px-2 py-0.5 bg-primary/10 border border-primary/20 rounded-full text-xs">
+              {cat}
+              <button type="button" onClick={() => onRemove(cat)} className="text-muted-foreground hover:text-destructive ml-0.5">×</button>
+            </span>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function ProductCatalogPage() {
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -107,9 +174,14 @@ export default function ProductCatalogPage() {
   const [relationRules, setRelationRules] = useState([]);
   const [relationRulesLoading, setRelationRulesLoading] = useState(false);
   const [editingRelRule, setEditingRelRule] = useState(null);
-  const [relRuleForm, setRelRuleForm] = useState({ title: '', category_a: '', category_b: '', description: '', is_active: true });
+  const [relRuleForm, setRelRuleForm] = useState({ title: '', categories_a: [], categories_b: [], description: '', is_active: true });
   const [relRuleSaving, setRelRuleSaving] = useState(false);
   const [runningRuleId, setRunningRuleId] = useState(null);
+  const [categoryTree, setCategoryTree] = useState({});
+  const [selRootA, setSelRootA] = useState('');
+  const [selLvl1A, setSelLvl1A] = useState('');
+  const [selRootB, setSelRootB] = useState('');
+  const [selLvl1B, setSelLvl1B] = useState('');
 
   // Permission check - Admin or Manager can edit
   const canEdit = user?.isAdmin || user?.email?.endsWith('@admin.com');
@@ -239,25 +311,35 @@ export default function ProductCatalogPage() {
     }
   };
 
-  const openRelationRulesModal = () => {
+  const openRelationRulesModal = async () => {
     setShowRelationRulesModal(true);
     setEditingRelRule(null);
-    setRelRuleForm({ title: '', category_a: '', category_b: '', description: '', is_active: true });
+    setRelRuleForm({ title: '', categories_a: [], categories_b: [], description: '', is_active: true });
+    setSelRootA(''); setSelLvl1A(''); setSelRootB(''); setSelLvl1B('');
     loadRelationRules();
+    try {
+      const res = await axios.get(`${API}/product-catalog/category-tree`);
+      setCategoryTree(res.data);
+    } catch { /* ignore */ }
   };
 
   const startEditRelRule = (rule) => {
     setEditingRelRule(rule);
-    setRelRuleForm({ title: rule.title, category_a: rule.category_a, category_b: rule.category_b, description: rule.description, is_active: rule.is_active });
+    // Support both old (category_a str) and new (categories_a []) schema
+    const catsA = rule.categories_a || (rule.category_a ? [rule.category_a] : []);
+    const catsB = rule.categories_b || (rule.category_b ? [rule.category_b] : []);
+    setRelRuleForm({ title: rule.title, categories_a: catsA, categories_b: catsB, description: rule.description, is_active: rule.is_active });
+    setSelRootA(''); setSelLvl1A(''); setSelRootB(''); setSelLvl1B('');
   };
 
   const cancelEditRelRule = () => {
     setEditingRelRule(null);
-    setRelRuleForm({ title: '', category_a: '', category_b: '', description: '', is_active: true });
+    setRelRuleForm({ title: '', categories_a: [], categories_b: [], description: '', is_active: true });
+    setSelRootA(''); setSelLvl1A(''); setSelRootB(''); setSelLvl1B('');
   };
 
   const saveRelationRule = async () => {
-    if (!relRuleForm.title.trim() || !relRuleForm.category_a.trim() || !relRuleForm.category_b.trim() || !relRuleForm.description.trim()) {
+    if (!relRuleForm.title.trim() || relRuleForm.categories_a.length === 0 || relRuleForm.categories_b.length === 0 || !relRuleForm.description.trim()) {
       toast.error('All fields are required');
       return;
     }
@@ -1545,51 +1627,31 @@ export default function ProductCatalogPage() {
                     value={relRuleForm.title}
                     onChange={e => setRelRuleForm(f => ({ ...f, title: e.target.value }))}
                   />
-                  <div className="flex gap-2 items-center">
-                    <select
-                      className="flex-1 border border-input rounded-md px-3 py-2 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-ring"
-                      value={relRuleForm.category_a}
-                      onChange={e => setRelRuleForm(f => ({ ...f, category_a: e.target.value }))}
-                    >
-                      <option value="">Category A…</option>
-                      {categories.root_categories.length > 0 && (
-                        <optgroup label="Root categories">
-                          {categories.root_categories.map(cat => (
-                            <option key={cat} value={cat}>{cat}</option>
-                          ))}
-                        </optgroup>
-                      )}
-                      {categories.lvl1_subcategories?.length > 0 && (
-                        <optgroup label="Subcategories (lvl1)">
-                          {categories.lvl1_subcategories.map(cat => (
-                            <option key={cat} value={cat}>{cat}</option>
-                          ))}
-                        </optgroup>
-                      )}
-                    </select>
-                    <span className="text-muted-foreground text-sm font-medium shrink-0">↔</span>
-                    <select
-                      className="flex-1 border border-input rounded-md px-3 py-2 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-ring"
-                      value={relRuleForm.category_b}
-                      onChange={e => setRelRuleForm(f => ({ ...f, category_b: e.target.value }))}
-                    >
-                      <option value="">Category B…</option>
-                      {categories.root_categories.length > 0 && (
-                        <optgroup label="Root categories">
-                          {categories.root_categories.map(cat => (
-                            <option key={cat} value={cat}>{cat}</option>
-                          ))}
-                        </optgroup>
-                      )}
-                      {categories.lvl1_subcategories?.length > 0 && (
-                        <optgroup label="Subcategories (lvl1)">
-                          {categories.lvl1_subcategories.map(cat => (
-                            <option key={cat} value={cat}>{cat}</option>
-                          ))}
-                        </optgroup>
-                      )}
-                    </select>
-                  </div>
+                  {/* Category A selector */}
+                  <CategorySelector
+                    label="Side A"
+                    tree={categoryTree}
+                    selected={relRuleForm.categories_a}
+                    selRoot={selRootA}
+                    setSelRoot={setSelRootA}
+                    selLvl1={selLvl1A}
+                    setSelLvl1={setSelLvl1A}
+                    onAdd={cat => setRelRuleForm(f => ({ ...f, categories_a: f.categories_a.includes(cat) ? f.categories_a : [...f.categories_a, cat] }))}
+                    onRemove={cat => setRelRuleForm(f => ({ ...f, categories_a: f.categories_a.filter(c => c !== cat) }))}
+                  />
+                  <div className="flex items-center justify-center text-muted-foreground text-sm font-medium">↔</div>
+                  {/* Category B selector */}
+                  <CategorySelector
+                    label="Side B"
+                    tree={categoryTree}
+                    selected={relRuleForm.categories_b}
+                    selRoot={selRootB}
+                    setSelRoot={setSelRootB}
+                    selLvl1={selLvl1B}
+                    setSelLvl1={setSelLvl1B}
+                    onAdd={cat => setRelRuleForm(f => ({ ...f, categories_b: f.categories_b.includes(cat) ? f.categories_b : [...f.categories_b, cat] }))}
+                    onRemove={cat => setRelRuleForm(f => ({ ...f, categories_b: f.categories_b.filter(c => c !== cat) }))}
+                  />
                   <textarea
                     className="w-full border border-input rounded-md px-3 py-2 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-ring resize-none"
                     rows={4}
@@ -1641,7 +1703,7 @@ export default function ProductCatalogPage() {
                             <div className="flex items-center gap-2 flex-wrap">
                               <span className="font-medium text-sm">{rule.title}</span>
                               <span className="text-xs px-1.5 py-0.5 rounded bg-muted text-muted-foreground">
-                                {rule.category_a} ↔ {rule.category_b}
+                                {(rule.categories_a || (rule.category_a ? [rule.category_a] : [])).join(', ')} ↔ {(rule.categories_b || (rule.category_b ? [rule.category_b] : [])).join(', ')}
                               </span>
                               {rule.is_active ? (
                                 <span className="text-xs px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400">active</span>

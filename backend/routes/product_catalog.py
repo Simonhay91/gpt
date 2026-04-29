@@ -177,6 +177,51 @@ async def get_categories(current_user: dict = Depends(get_current_user)):
     return {"root_categories": [], "lvl1_subcategories": [], "vendors": []}
 
 
+@router.get("/product-catalog/category-tree")
+async def get_category_tree(current_user: dict = Depends(get_current_user)):
+    """Return full category hierarchy as a nested dict for cascading dropdowns."""
+    db = get_db()
+    pipeline = [
+        {"$match": {"is_active": True}},
+        {"$group": {
+            "_id": {
+                "root": "$root_category",
+                "lvl1": "$lvl1_subcategory",
+                "lvl2": "$lvl2_subcategory",
+                "lvl3": "$lvl3_subcategory",
+            }
+        }}
+    ]
+    rows = await db.product_catalog.aggregate(pipeline).to_list(5000)
+
+    # Build nested structure: tree[root][lvl1][lvl2] = [lvl3, ...]
+    tree: dict = {}
+    for row in rows:
+        g = row["_id"]
+        root = g.get("root") or ""
+        lvl1 = g.get("lvl1") or ""
+        lvl2 = g.get("lvl2") or ""
+        lvl3 = g.get("lvl3") or ""
+        if not root:
+            continue
+        if root not in tree:
+            tree[root] = {}
+        if lvl1:
+            if lvl1 not in tree[root]:
+                tree[root][lvl1] = {}
+            if lvl2:
+                if lvl2 not in tree[root][lvl1]:
+                    tree[root][lvl1][lvl2] = []
+                if lvl3 and lvl3 not in tree[root][lvl1][lvl2]:
+                    tree[root][lvl1][lvl2].append(lvl3)
+
+    # Sort everything
+    def sort_tree(d):
+        return {k: sort_tree(v) if isinstance(v, dict) else sorted(v) for k, v in sorted(d.items())}
+
+    return sort_tree(tree)
+
+
 @router.get("/product-catalog/stats")
 async def get_stats(current_user: dict = Depends(get_current_user)):
     """Get product catalog statistics"""

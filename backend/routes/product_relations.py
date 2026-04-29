@@ -140,16 +140,16 @@ def now_iso() -> str:
 
 class RelationRuleCreate(BaseModel):
     title: str
-    category_a: str
-    category_b: str
+    categories_a: List[str]   # one or more categories on side A
+    categories_b: List[str]   # one or more categories on side B
     description: str
     is_active: bool = True
 
 
 class RelationRuleUpdate(BaseModel):
     title: Optional[str] = None
-    category_a: Optional[str] = None
-    category_b: Optional[str] = None
+    categories_a: Optional[List[str]] = None
+    categories_b: Optional[List[str]] = None
     description: Optional[str] = None
     is_active: Optional[bool] = None
 
@@ -228,38 +228,39 @@ async def _run_rule_analysis(rule_id: str):
         logger.error(f"relation rule {rule_id} not found")
         return
 
-    cat_a = rule["category_a"]
-    cat_b = rule["category_b"]
+    # Support both old (str) and new (List[str]) schema
+    cats_a = rule.get("categories_a") or ([rule["category_a"]] if rule.get("category_a") else [])
+    cats_b = rule.get("categories_b") or ([rule["category_b"]] if rule.get("category_b") else [])
     description = rule.get("description", "")
 
-    logger.info(f"[relations] Running rule '{rule['title']}': {cat_a} ↔ {cat_b}")
+    logger.info(f"[relations] Running rule '{rule['title']}': {cats_a} ↔ {cats_b}")
 
-    def _category_query(cat: str) -> dict:
-        return {
-            "is_active": True,
-            "$or": [
+    def _categories_query(cats: List[str]) -> dict:
+        clauses = []
+        for cat in cats:
+            clauses.extend([
                 {"root_category": cat},
                 {"lvl1_subcategory": cat},
                 {"lvl2_subcategory": cat},
                 {"lvl3_subcategory": cat},
-            ],
-        }
+            ])
+        return {"is_active": True, "$or": clauses}
 
     products_a = await db.product_catalog.find(
-        _category_query(cat_a),
+        _categories_query(cats_a),
         {"_id": 0, "id": 1, "title_en": 1, "article_number": 1, "crm_code": 1, "vendor": 1, "embedding": 1},
     ).to_list(1000)
 
     products_b = await db.product_catalog.find(
-        _category_query(cat_b),
+        _categories_query(cats_b),
         {"_id": 0, "id": 1, "title_en": 1, "article_number": 1, "crm_code": 1, "vendor": 1, "embedding": 1},
     ).to_list(1000)
 
-    # Handle same-category case: use full list for both sides
-    same_category = cat_a == cat_b
+    # Handle same-category case
+    same_category = set(cats_a) == set(cats_b)
 
     if not products_a or not products_b:
-        logger.warning(f"[relations] No products found for categories: {cat_a}, {cat_b}")
+        logger.warning(f"[relations] No products found for categories: {cats_a}, {cats_b}")
         await db.relation_rules.update_one(
             {"_id": ObjectId(rule_id)},
             {"$set": {"last_run_at": now_iso()}},

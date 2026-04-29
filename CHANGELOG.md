@@ -6,6 +6,20 @@ UI версия: `frontend/src/data/changelog.js`
 
 ---
 
+## 2026-04-29 — v2.9.36
+
+### New: Relation Rules — cascading category selector + multiselect
+
+**Файлы:** `backend/routes/product_catalog.py`, `backend/routes/product_relations.py`, `frontend/src/pages/ProductCatalogPage.js`, `frontend/src/data/changelog.js`
+
+- New `GET /api/product-catalog/category-tree` endpoint — returns full nested hierarchy `{root: {lvl1: {lvl2: [lvl3]}}}`
+- `RelationRuleCreate`/`Update` schema: `category_a/b: str` → `categories_a/b: List[str]` (backward compatible — old rules still work)
+- `_run_rule_analysis` now queries all 4 category levels for each selected category via `$or`
+- Frontend: new `CategorySelector` component — root → lvl1 → lvl2 cascading dropdowns, "+ Add" button, selected categories shown as removable tags
+- Both Side A and Side B support multiple categories
+
+---
+
 ## 2026-04-29 — v2.9.35
 
 ### Fix: Relation Rules — all 4 category levels in dropdowns
