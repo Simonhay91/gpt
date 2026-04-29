@@ -27,7 +27,9 @@ import {
   FileText,
   FileSpreadsheet,
   File,
-  Settings
+  Settings,
+  Link2,
+  Play
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -99,7 +101,16 @@ export default function ProductCatalogPage() {
   const [editingRule, setEditingRule] = useState(null);
   const [ruleForm, setRuleForm] = useState({ title: '', content: '', category: 'general', is_active: true });
   const [ruleSaving, setRuleSaving] = useState(false);
-  
+
+  // Relation rules state
+  const [showRelationRulesModal, setShowRelationRulesModal] = useState(false);
+  const [relationRules, setRelationRules] = useState([]);
+  const [relationRulesLoading, setRelationRulesLoading] = useState(false);
+  const [editingRelRule, setEditingRelRule] = useState(null);
+  const [relRuleForm, setRelRuleForm] = useState({ title: '', category_a: '', category_b: '', description: '', is_active: true });
+  const [relRuleSaving, setRelRuleSaving] = useState(false);
+  const [runningRuleId, setRunningRuleId] = useState(null);
+
   // Permission check - Admin or Manager can edit
   const canEdit = user?.isAdmin || user?.email?.endsWith('@admin.com');
 
@@ -211,6 +222,92 @@ export default function ProductCatalogPage() {
       loadDomainRules();
     } catch (err) {
       toast.error('Failed to delete rule');
+    }
+  };
+
+  // ── Relation Rules ──────────────────────────────────────────────────────────
+
+  const loadRelationRules = async () => {
+    setRelationRulesLoading(true);
+    try {
+      const res = await axios.get(`${API}/product-relations/rules`);
+      setRelationRules(res.data);
+    } catch {
+      toast.error('Failed to load relation rules');
+    } finally {
+      setRelationRulesLoading(false);
+    }
+  };
+
+  const openRelationRulesModal = () => {
+    setShowRelationRulesModal(true);
+    setEditingRelRule(null);
+    setRelRuleForm({ title: '', category_a: '', category_b: '', description: '', is_active: true });
+    loadRelationRules();
+  };
+
+  const startEditRelRule = (rule) => {
+    setEditingRelRule(rule);
+    setRelRuleForm({ title: rule.title, category_a: rule.category_a, category_b: rule.category_b, description: rule.description, is_active: rule.is_active });
+  };
+
+  const cancelEditRelRule = () => {
+    setEditingRelRule(null);
+    setRelRuleForm({ title: '', category_a: '', category_b: '', description: '', is_active: true });
+  };
+
+  const saveRelationRule = async () => {
+    if (!relRuleForm.title.trim() || !relRuleForm.category_a.trim() || !relRuleForm.category_b.trim() || !relRuleForm.description.trim()) {
+      toast.error('All fields are required');
+      return;
+    }
+    setRelRuleSaving(true);
+    try {
+      if (editingRelRule) {
+        await axios.put(`${API}/product-relations/rules/${editingRelRule._id}`, relRuleForm);
+        toast.success('Rule updated');
+      } else {
+        await axios.post(`${API}/product-relations/rules`, relRuleForm);
+        toast.success('Rule created');
+      }
+      cancelEditRelRule();
+      loadRelationRules();
+    } catch {
+      toast.error('Failed to save rule');
+    } finally {
+      setRelRuleSaving(false);
+    }
+  };
+
+  const toggleRelRuleActive = async (rule) => {
+    try {
+      await axios.put(`${API}/product-relations/rules/${rule._id}`, { is_active: !rule.is_active });
+      loadRelationRules();
+    } catch {
+      toast.error('Failed to update rule');
+    }
+  };
+
+  const deleteRelationRule = async (ruleId) => {
+    if (!window.confirm('Delete this relation rule?')) return;
+    try {
+      await axios.delete(`${API}/product-relations/rules/${ruleId}`);
+      toast.success('Rule deleted');
+      loadRelationRules();
+    } catch {
+      toast.error('Failed to delete rule');
+    }
+  };
+
+  const runRelationRule = async (ruleId) => {
+    setRunningRuleId(ruleId);
+    try {
+      await axios.post(`${API}/product-relations/rules/${ruleId}/run`);
+      toast.success('Analysis started — runs in background');
+    } catch {
+      toast.error('Failed to start analysis');
+    } finally {
+      setRunningRuleId(null);
     }
   };
 
@@ -501,6 +598,13 @@ export default function ProductCatalogPage() {
             >
               <Settings className="h-4 w-4 mr-2" />
               Matching Rules
+            </Button>
+            <Button
+              variant="outline"
+              onClick={openRelationRulesModal}
+            >
+              <Link2 className="h-4 w-4 mr-2" />
+              Relation Rules
             </Button>
             {canEdit && (
               <>
@@ -1408,6 +1512,170 @@ export default function ProductCatalogPage() {
               {/* Footer */}
               <div className="px-6 py-4 border-t border-border shrink-0 flex justify-end">
                 <Button variant="outline" onClick={() => { setShowRulesModal(false); cancelEditRule(); }}>
+                  Close
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Relation Rules Modal */}
+        {showRelationRulesModal && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+            <div className="bg-background rounded-xl shadow-xl w-full max-w-2xl max-h-[90vh] flex flex-col">
+              <div className="flex justify-between items-center px-6 pt-5 pb-4 border-b border-border shrink-0">
+                <h2 className="text-lg font-bold flex items-center gap-2">
+                  <Link2 className="h-5 w-5 text-primary" />
+                  Both Together — Relation Rules
+                </h2>
+                <Button variant="ghost" size="icon" onClick={() => { setShowRelationRulesModal(false); cancelEditRelRule(); }}>
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+
+              <div className="overflow-y-auto flex-1 px-6 py-4 space-y-4">
+                {/* Add / Edit form */}
+                <div className="border border-border rounded-lg p-4 space-y-3 bg-muted/30">
+                  <h3 className="text-sm font-semibold text-foreground">
+                    {editingRelRule ? 'Edit Rule' : 'Add New Rule'}
+                  </h3>
+                  <input
+                    className="w-full border border-input rounded-md px-3 py-2 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-ring"
+                    placeholder="Rule title (e.g. Cables ↔ Connectors)…"
+                    value={relRuleForm.title}
+                    onChange={e => setRelRuleForm(f => ({ ...f, title: e.target.value }))}
+                  />
+                  <div className="flex gap-2">
+                    <input
+                      className="flex-1 border border-input rounded-md px-3 py-2 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-ring"
+                      placeholder="Category A (e.g. Optical Cables)"
+                      value={relRuleForm.category_a}
+                      onChange={e => setRelRuleForm(f => ({ ...f, category_a: e.target.value }))}
+                    />
+                    <span className="self-center text-muted-foreground text-sm font-medium">↔</span>
+                    <input
+                      className="flex-1 border border-input rounded-md px-3 py-2 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-ring"
+                      placeholder="Category B (e.g. Connectors)"
+                      value={relRuleForm.category_b}
+                      onChange={e => setRelRuleForm(f => ({ ...f, category_b: e.target.value }))}
+                    />
+                  </div>
+                  <textarea
+                    className="w-full border border-input rounded-md px-3 py-2 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-ring resize-none"
+                    rows={4}
+                    placeholder="Describe compatibility logic for AI — e.g. 'A cable is compatible with a connector if the connector type (LC, SC) matches the cable's specified connector type.'"
+                    value={relRuleForm.description}
+                    onChange={e => setRelRuleForm(f => ({ ...f, description: e.target.value }))}
+                  />
+                  <div className="flex items-center justify-between">
+                    <label className="flex items-center gap-2 text-sm cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        checked={relRuleForm.is_active}
+                        onChange={e => setRelRuleForm(f => ({ ...f, is_active: e.target.checked }))}
+                        className="accent-primary"
+                      />
+                      Active
+                    </label>
+                    <div className="flex gap-2">
+                      {editingRelRule && (
+                        <Button variant="ghost" size="sm" onClick={cancelEditRelRule}>Cancel</Button>
+                      )}
+                      <Button size="sm" onClick={saveRelationRule} disabled={relRuleSaving}>
+                        {relRuleSaving ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : null}
+                        {editingRelRule ? 'Update Rule' : 'Add Rule'}
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Rules list */}
+                {relationRulesLoading ? (
+                  <div className="flex items-center justify-center py-8 text-muted-foreground">
+                    <Loader2 className="h-5 w-5 animate-spin mr-2" />
+                    Loading…
+                  </div>
+                ) : relationRules.length === 0 ? (
+                  <div className="text-center py-8 text-muted-foreground text-sm">
+                    No relation rules yet. Add one above to start auto-detecting compatible products.
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {relationRules.map(rule => (
+                      <div
+                        key={rule._id}
+                        className={`border rounded-lg p-4 space-y-2 transition-colors ${rule.is_active ? 'border-border bg-background' : 'border-border/50 bg-muted/20 opacity-60'}`}
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="space-y-1 flex-1 min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="font-medium text-sm">{rule.title}</span>
+                              <span className="text-xs px-1.5 py-0.5 rounded bg-muted text-muted-foreground">
+                                {rule.category_a} ↔ {rule.category_b}
+                              </span>
+                              {rule.is_active ? (
+                                <span className="text-xs px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400">active</span>
+                              ) : (
+                                <span className="text-xs px-1.5 py-0.5 rounded bg-muted text-muted-foreground">inactive</span>
+                              )}
+                            </div>
+                            <p className="text-xs text-muted-foreground line-clamp-2">{rule.description}</p>
+                            {rule.last_run_at && (
+                              <p className="text-xs text-muted-foreground">
+                                Last run: {new Date(rule.last_run_at).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                              </p>
+                            )}
+                          </div>
+                          <div className="flex gap-1 shrink-0">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7 text-primary"
+                              title="Run AI analysis"
+                              onClick={() => runRelationRule(rule._id)}
+                              disabled={runningRuleId === rule._id}
+                            >
+                              {runningRuleId === rule._id
+                                ? <Loader2 className="h-4 w-4 animate-spin" />
+                                : <Play className="h-4 w-4" />}
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7"
+                              title={rule.is_active ? 'Deactivate' : 'Activate'}
+                              onClick={() => toggleRelRuleActive(rule)}
+                            >
+                              {rule.is_active
+                                ? <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+                                : <AlertCircle className="h-4 w-4 text-muted-foreground" />}
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7"
+                              onClick={() => startEditRelRule(rule)}
+                            >
+                              <Edit className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7 text-destructive hover:text-destructive"
+                              onClick={() => deleteRelationRule(rule._id)}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div className="px-6 py-4 border-t border-border shrink-0 flex justify-end">
+                <Button variant="outline" onClick={() => { setShowRelationRulesModal(false); cancelEditRelRule(); }}>
                   Close
                 </Button>
               </div>

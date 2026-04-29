@@ -1,6 +1,19 @@
-export const APP_VERSION = "2.9.32";
+export const APP_VERSION = "2.9.33";
 
 export const CHANGELOG = [
+  {
+    version: "2.9.33",
+    date: "Апрель 2026",
+    badge: "new",
+    changes: [
+      "Both Together: AI автоматически определяет совместимые продукты по настраиваемым правилам",
+      "Product Catalog: новая кнопка «Relation Rules» — настройка категорий и логики совместимости",
+      "Relation Rules: запуск AI анализа по кнопке ▶ Run (Voyage pre-filter + Claude compatibility check)",
+      "Product Detail: новая секция «Both Together» — AI-предложения совместимых продуктов с confidence и reason",
+      "Новый API /api/product-relations/* — CRUD правил, запуск анализа, получение совместимых продуктов",
+      "Публичный endpoint GET /api/product-relations/{crm_code}/public — для внешнего сайта без авторизации",
+    ]
+  },
   {
     version: "2.9.32",
     date: "Апрель 2026",

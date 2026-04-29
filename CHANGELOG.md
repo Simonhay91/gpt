@@ -6,6 +6,25 @@ UI версия: `frontend/src/data/changelog.js`
 
 ---
 
+## 2026-04-29 — v2.9.33
+
+### New: Both Together — AI-powered product compatibility
+
+**Файлы:** `backend/routes/product_relations.py` (new), `backend/server.py`, `frontend/src/pages/ProductCatalogPage.js`, `frontend/src/pages/ProductDetailPage.js`, `frontend/src/data/changelog.js`
+
+- New `relation_rules` MongoDB collection — stores category pairs + compatibility description for AI
+- New `product_relations` MongoDB collection — stores AI-detected compatible pairs (product_id_a/b, crm_code, confidence, reason, rule_id)
+- 6 new endpoints under `/api/product-relations/*`:
+  - `GET/POST/PUT/DELETE /api/product-relations/rules` — CRUD for relation rules (Admin/Manager only)
+  - `POST /api/product-relations/rules/{id}/run` — triggers background AI analysis (Voyage pre-filter → Claude batch compatibility check)
+  - `GET /api/product-relations/{crm_code}` — returns compatible products for a given CRM code (authenticated)
+  - `GET /api/product-relations/{crm_code}/public` — same but no auth required (for external website)
+- AI logic: Voyage top-5 semantic pre-filter per product → Claude checks compatibility in batches of 20 → high/medium confidence auto-saved, low/none discarded
+- ProductCatalogPage: "Relation Rules" button → modal with category pair config, description field, Run/edit/delete/toggle per rule
+- ProductDetailPage: "Both Together" section in sidebar — AI-suggested compatible products with confidence badge (high/medium) and Claude's reason
+
+---
+
 ## 2026-04-23 — v2.9.30
 
 ### New: Product Matching — Domain Rules Editor

@@ -16,7 +16,9 @@ import {
   Trash2,
   ExternalLink,
   MessageSquare,
-  Tag
+  Tag,
+  Sparkles,
+  Loader2
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -32,6 +34,8 @@ export default function ProductDetailPage() {
   const [editData, setEditData] = useState({});
   const [relatedProducts, setRelatedProducts] = useState([]);
   const [learnedAliases, setLearnedAliases] = useState([]);
+  const [aiRelations, setAiRelations] = useState([]);
+  const [aiRelationsLoading, setAiRelationsLoading] = useState(false);
   
   // Add relation modal
   const [showAddRelation, setShowAddRelation] = useState(false);
@@ -57,12 +61,26 @@ export default function ProductDetailPage() {
       setEditData(response.data);
       setLearnedAliases(aliasesResponse.data || []);
       
-      // Load related products
+      // Load related products (manual)
       if (response.data.relations?.length > 0) {
         const relatedIds = response.data.relations.map(r => r.product_id);
         const relatedResponse = await axios.get(`${API}/product-catalog?limit=100`);
         const related = relatedResponse.data.filter(p => relatedIds.includes(p.id));
         setRelatedProducts(related);
+      }
+
+      // Load AI-generated "Both Together" relations
+      const crmCode = response.data.crm_code;
+      if (crmCode) {
+        setAiRelationsLoading(true);
+        try {
+          const aiRes = await axios.get(`${API}/product-relations/${crmCode}`);
+          setAiRelations(aiRes.data || []);
+        } catch {
+          // silently ignore — may not have any relations yet
+        } finally {
+          setAiRelationsLoading(false);
+        }
       }
     } catch (error) {
       toast.error('Продукт не найден');
@@ -474,6 +492,52 @@ export default function ProductDetailPage() {
 
           {/* Relations Sidebar */}
           <div className="space-y-6">
+
+            {/* Both Together — AI Relations */}
+            {(aiRelationsLoading || aiRelations.length > 0) && (
+              <div className="border rounded-lg p-6">
+                <div className="flex items-center gap-2 mb-4">
+                  <Sparkles className="h-5 w-5 text-primary" />
+                  <h2 className="text-lg font-semibold">Both Together</h2>
+                  <span className="text-xs text-muted-foreground font-normal">AI suggested</span>
+                </div>
+                {aiRelationsLoading ? (
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Loading…
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {aiRelations.map((rel) => (
+                      <div
+                        key={rel.id}
+                        className="flex items-start gap-3 p-3 bg-primary/5 border border-primary/10 rounded-lg cursor-pointer hover:bg-primary/10 transition-colors"
+                        onClick={() => navigate(`/product-catalog/${rel.id}`)}
+                      >
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium text-sm truncate">{rel.title_en}</p>
+                          {rel.article_number && (
+                            <p className="text-xs text-muted-foreground">{rel.article_number}</p>
+                          )}
+                          {rel.reason && (
+                            <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{rel.reason}</p>
+                          )}
+                        </div>
+                        <span className={`text-xs px-1.5 py-0.5 rounded shrink-0 ${
+                          rel.confidence === 'high'
+                            ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400'
+                            : 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'
+                        }`}>
+                          {rel.confidence}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Manual Relations */}
             <div className="border rounded-lg p-6">
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-lg font-semibold flex items-center gap-2">
