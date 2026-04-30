@@ -4,85 +4,58 @@ import axios from 'axios';
 import { useAuth } from '../contexts/AuthContext';
 import DashboardLayout from '../components/DashboardLayout';
 import { Button } from '../components/ui/button';
-import { Input } from '../components/ui/input';
-import { 
-  Package, 
-  ArrowLeft, 
-  Edit, 
-  Save,
-  X,
-  Link2,
-  Plus,
-  Trash2,
+import {
+  Package,
+  ArrowLeft,
   ExternalLink,
   MessageSquare,
   Tag,
   Sparkles,
-  Loader2
+  Loader2,
+  Trash2,
+  ChevronRight,
 } from 'lucide-react';
 import { toast } from 'sonner';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
 export default function ProductDetailPage() {
-  const { productId } = useParams();
+  const slug = useParams()['*'];
   const navigate = useNavigate();
   const { user } = useAuth();
+
   const [product, setProduct] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [editing, setEditing] = useState(false);
-  const [editData, setEditData] = useState({});
-  const [relatedProducts, setRelatedProducts] = useState([]);
   const [learnedAliases, setLearnedAliases] = useState([]);
   const [aiRelations, setAiRelations] = useState([]);
   const [aiRelationsLoading, setAiRelationsLoading] = useState(false);
-  
-  // Add relation modal
-  const [showAddRelation, setShowAddRelation] = useState(false);
-  const [relationSearch, setRelationSearch] = useState('');
-  const [searchResults, setSearchResults] = useState([]);
-  const [selectedRelationType, setSelectedRelationType] = useState('compatible');
-  
-  // Permission check - Admin or Manager can edit
-  const canEdit = user?.isAdmin || user?.email?.endsWith('@admin.com');
-  const canEditCatalog = canEdit || user?.canEditProductCatalog;
+
+  const canDelete = user?.isAdmin || user?.canEditProductCatalog;
 
   useEffect(() => {
-    loadProduct();
-  }, [productId]);
+    if (slug) loadProduct();
+  }, [slug]);
 
   const loadProduct = async () => {
+    setLoading(true);
     try {
-      const [response, aliasesResponse] = await Promise.all([
-        axios.get(`${API}/product-catalog/${productId}`),
-        axios.get(`${API}/product-catalog/${productId}/learned-aliases`),
-      ]);
-      setProduct(response.data);
-      setEditData(response.data);
-      setLearnedAliases(aliasesResponse.data || []);
-      
-      // Load related products (manual)
-      if (response.data.relations?.length > 0) {
-        const relatedIds = response.data.relations.map(r => r.product_id);
-        const relatedResponse = await axios.get(`${API}/product-catalog?limit=100`);
-        const related = relatedResponse.data.filter(p => relatedIds.includes(p.id));
-        setRelatedProducts(related);
-      }
+      const res = await axios.get(`${API}/planet/products/${slug}`);
+      const p = res.data;
+      setProduct(p);
 
-      // Load AI-generated "Both Together" relations
-      const crmCode = response.data.crm_code;
+      const crmCode = p.crmCode;
       if (crmCode) {
+        // Load aliases and relations in parallel
         setAiRelationsLoading(true);
-        try {
-          const aiRes = await axios.get(`${API}/product-relations/${crmCode}`);
-          setAiRelations(aiRes.data || []);
-        } catch {
-          // silently ignore — may not have any relations yet
-        } finally {
-          setAiRelationsLoading(false);
-        }
+        const [aliasesRes, relationsRes] = await Promise.allSettled([
+          axios.get(`${API}/planet/by-crm/${crmCode}/aliases`),
+          axios.get(`${API}/planet/by-crm/${crmCode}/relations`),
+        ]);
+        if (aliasesRes.status === 'fulfilled') setLearnedAliases(aliasesRes.value.data || []);
+        if (relationsRes.status === 'fulfilled') setAiRelations(relationsRes.value.data || []);
+        setAiRelationsLoading(false);
       }
-    } catch (error) {
+    } catch {
       toast.error('Продукт не найден');
       navigate('/product-catalog');
     } finally {
@@ -101,74 +74,15 @@ export default function ProductDetailPage() {
     }
   };
 
-  const handleSave = async () => {
-    try {
-      await axios.put(`${API}/product-catalog/${productId}`, editData);
-      toast.success('Продукт обновлён');
-      setEditing(false);
-      loadProduct();
-    } catch (error) {
-      toast.error('Ошибка сохранения');
-    }
-  };
-
-  const searchProducts = async (query) => {
-    if (!query || query.length < 2) {
-      setSearchResults([]);
-      return;
-    }
-    
-    try {
-      const response = await axios.get(`${API}/product-catalog?search=${query}&limit=10`);
-      // Filter out current product and already related products
-      const existingRelationIds = product.relations?.map(r => r.product_id) || [];
-      const filtered = response.data.filter(
-        p => p.id !== productId && !existingRelationIds.includes(p.id)
-      );
-      setSearchResults(filtered);
-    } catch (error) {
-      console.error('Search error:', error);
-    }
-  };
-
-  const addRelation = async (relatedProductId) => {
-    try {
-      await axios.post(`${API}/product-catalog/${productId}/relations`, {
-        product_id: relatedProductId,
-        relation_type: selectedRelationType
-      });
-      toast.success('Связь добавлена');
-      setShowAddRelation(false);
-      setRelationSearch('');
-      setSearchResults([]);
-      loadProduct();
-    } catch (error) {
-      toast.error(error.response?.data?.detail || 'Ошибка добавления связи');
-    }
-  };
-
-  const removeRelation = async (relatedProductId) => {
-    if (!window.confirm('Удалить эту связь?')) return;
-    
-    try {
-      await axios.delete(`${API}/product-catalog/${productId}/relations/${relatedProductId}`);
-      toast.success('Связь удалена');
-      loadProduct();
-    } catch (error) {
-      toast.error('Ошибка удаления связи');
-    }
-  };
-
   const openChatWithProduct = () => {
-    // Navigate to chat with product context
-    navigate('/dashboard', { 
-      state: { 
+    navigate('/dashboard', {
+      state: {
         productContext: {
-          id: product.id,
-          article_number: product.article_number,
-          title_en: product.title_en
-        }
-      }
+          crm_code: product.crmCode,
+          title_en: product.name,
+          article_number: product.model,
+        },
+      },
     });
   };
 
@@ -176,7 +90,7 @@ export default function ProductDetailPage() {
     return (
       <DashboardLayout>
         <div className="flex items-center justify-center h-64">
-          <div className="text-muted-foreground">Загрузка...</div>
+          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
         </div>
       </DashboardLayout>
     );
@@ -184,264 +98,176 @@ export default function ProductDetailPage() {
 
   if (!product) return null;
 
-  const getRelationLabel = (type) => {
-    switch (type) {
-      case 'compatible': return 'Совместим';
-      case 'bundle': return 'В комплекте';
-      case 'requires': return 'Требует';
-      default: return type;
-    }
-  };
+  // Derive image URL
+  const images = product.images || [];
+  const mainImage = images[0]?.url || images[0]?.large || null;
 
-  const getRelationColor = (type) => {
-    switch (type) {
-      case 'compatible': return 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400';
-      case 'bundle': return 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400';
-      case 'requires': return 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-400';
-      default: return 'bg-gray-100 text-gray-800';
-    }
+  // Attributes
+  const attributes = (product.attributeValues || []).filter(
+    av => av.textValue || av.numericValue != null
+  );
+
+  // Category breadcrumb from slug
+  const slugParts = (product.slug || slug || '').split('/');
+
+  const confidenceBadge = (level) => {
+    if (level === 'high') return 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400';
+    if (level === 'medium') return 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400';
+    return 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400';
   };
 
   return (
     <DashboardLayout>
-      <div className="space-y-6" data-testid="product-detail-page">
+      <div className="space-y-6 max-w-6xl mx-auto" data-testid="product-detail-page">
+
         {/* Header */}
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <Button variant="ghost" onClick={() => navigate('/product-catalog')}>
+        <div className="flex items-start justify-between gap-4">
+          <div className="flex items-start gap-4">
+            <Button variant="ghost" size="sm" onClick={() => navigate('/product-catalog')}>
               <ArrowLeft className="h-4 w-4" />
             </Button>
             <div>
+              {/* Breadcrumb */}
+              {slugParts.length > 1 && (
+                <div className="flex items-center gap-1 text-xs text-muted-foreground mb-1 flex-wrap">
+                  {slugParts.slice(0, -1).map((part, i) => (
+                    <React.Fragment key={i}>
+                      <span className="capitalize">{part.replace(/-/g, ' ')}</span>
+                      {i < slugParts.length - 2 && <ChevronRight className="h-3 w-3" />}
+                    </React.Fragment>
+                  ))}
+                </div>
+              )}
               <h1 className="text-2xl font-bold flex items-center gap-2">
-                <Package className="h-6 w-6" />
-                {product.title_en}
+                <Package className="h-6 w-6 shrink-0" />
+                {product.name}
               </h1>
-              <p className="text-sm text-muted-foreground font-mono">{product.article_number}</p>
+              {product.model && (
+                <p className="text-sm text-muted-foreground font-mono mt-0.5">{product.model}</p>
+              )}
             </div>
           </div>
-          
-          <div className="flex gap-2">
-            <Button variant="outline" onClick={openChatWithProduct}>
+
+          <div className="flex gap-2 shrink-0">
+            <Button variant="outline" size="sm" onClick={openChatWithProduct}>
               <MessageSquare className="h-4 w-4 mr-2" />
               Chat with AI
             </Button>
-            {canEdit && !editing && (
-              <Button onClick={() => setEditing(true)}>
-                <Edit className="h-4 w-4 mr-2" />
-                Редактировать
-              </Button>
-            )}
-            {editing && (
-              <>
-                <Button variant="outline" onClick={() => { setEditing(false); setEditData(product); }}>
-                  <X className="h-4 w-4 mr-2" />
-                  Отмена
-                </Button>
-                <Button onClick={handleSave}>
-                  <Save className="h-4 w-4 mr-2" />
-                  Сохранить
-                </Button>
-              </>
-            )}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => window.open(`https://planetworkspace.com/web/product/${product.slug || slug}`, '_blank')}
+            >
+              <ExternalLink className="h-4 w-4 mr-2" />
+              PlanetWorkspace
+            </Button>
           </div>
         </div>
 
         {/* Status badges */}
         <div className="flex flex-wrap gap-2">
-          {!product.is_active && (
-            <span className="px-2 py-1 bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400 rounded text-sm">
-              Неактивен
-            </span>
+          {product.isNew && (
+            <span className="px-2 py-1 bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400 rounded text-xs font-medium">New</span>
           )}
-          {product.source === 'csv_import' && (
-            <span className="px-2 py-1 bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400 rounded text-sm">
-              Импорт CSV
-            </span>
+          {product.isHot && (
+            <span className="px-2 py-1 bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-400 rounded text-xs font-medium">Hot</span>
           )}
-          {product.vendor && (
-            <span className="px-2 py-1 bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400 rounded text-sm">
-              {product.vendor}
+          {product.isDiscontinued && (
+            <span className="px-2 py-1 bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400 rounded text-xs font-medium">Discontinued</span>
+          )}
+          {product.brandName && (
+            <span className="px-2 py-1 bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400 rounded text-xs font-medium">
+              {product.brandName}
             </span>
           )}
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Main Info */}
+          {/* Left — Main Info */}
           <div className="lg:col-span-2 space-y-6">
-            {/* Basic Info Card */}
+
+            {/* Image */}
+            {mainImage && (
+              <div className="border rounded-lg overflow-hidden bg-muted/30 flex items-center justify-center p-4">
+                <img
+                  src={mainImage}
+                  alt={product.name}
+                  className="max-h-64 object-contain"
+                  onError={(e) => { e.target.style.display = 'none'; }}
+                />
+              </div>
+            )}
+
+            {/* Basic info */}
             <div className="border rounded-lg p-6 space-y-4">
               <h2 className="text-lg font-semibold">Основная информация</h2>
-              
               <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="text-sm text-muted-foreground">Название</label>
-                  {editing ? (
-                    <Input
-                      value={editData.title_en || ''}
-                      onChange={(e) => setEditData({...editData, title_en: e.target.value})}
-                    />
-                  ) : (
-                    <p className="font-medium">{product.title_en}</p>
-                  )}
-                </div>
-                
-                <div>
-                  <label className="text-sm text-muted-foreground">CRM Code</label>
-                  {editing ? (
-                    <Input
-                      value={editData.crm_code || ''}
-                      onChange={(e) => setEditData({...editData, crm_code: e.target.value})}
-                    />
-                  ) : (
-                    <p className="font-medium">{product.crm_code || '-'}</p>
-                  )}
-                </div>
-                
-                <div>
-                  <label className="text-sm text-muted-foreground">Вендор</label>
-                  {editing ? (
-                    <Input
-                      value={editData.vendor || ''}
-                      onChange={(e) => setEditData({...editData, vendor: e.target.value})}
-                    />
-                  ) : (
-                    <p className="font-medium">{product.vendor || '-'}</p>
-                  )}
-                </div>
-                
-                <div>
-                  <label className="text-sm text-muted-foreground">Модель</label>
-                  {editing ? (
-                    <Input
-                      value={editData.product_model || ''}
-                      onChange={(e) => setEditData({...editData, product_model: e.target.value})}
-                    />
-                  ) : (
-                    <p className="font-medium">{product.product_model || '-'}</p>
-                  )}
-                </div>
-                
-                <div>
-                  <label className="text-sm text-muted-foreground">Цена</label>
-                  {editing ? (
-                    <Input
-                      type="number"
-                      value={editData.price || ''}
-                      onChange={(e) => setEditData({...editData, price: parseFloat(e.target.value) || null})}
-                    />
-                  ) : (
-                    <p className="font-medium">{product.price ? `$${product.price.toFixed(2)}` : '-'}</p>
-                  )}
-                </div>
-                
-                <div>
-                  <label className="text-sm text-muted-foreground">Datasheet</label>
-                  {editing ? (
-                    <Input
-                      value={editData.datasheet_url || ''}
-                      onChange={(e) => setEditData({...editData, datasheet_url: e.target.value})}
-                      placeholder="https://..."
-                    />
-                  ) : product.datasheet_url ? (
-                    <a 
-                      href={product.datasheet_url} 
-                      target="_blank" 
-                      rel="noopener noreferrer"
-                      className="text-primary hover:underline flex items-center gap-1"
-                    >
-                      Открыть <ExternalLink className="h-3 w-3" />
-                    </a>
-                  ) : (
-                    <p className="text-muted-foreground">-</p>
-                  )}
-                </div>
+                <InfoField label="Название" value={product.name} />
+                <InfoField label="CRM Code" value={product.crmCode} mono />
+                <InfoField label="Модель" value={product.model} mono />
+                <InfoField label="Артикул" value={product.articleCode || product.model} mono />
+                <InfoField label="Вендор / Бренд" value={product.brandName} />
+                {product.moq != null && <InfoField label="MOQ" value={String(product.moq)} />}
+                {product.productionDays != null && <InfoField label="Production days" value={String(product.productionDays)} />}
+                {product.stockAmount != null && <InfoField label="Остаток" value={String(product.stockAmount)} />}
               </div>
             </div>
 
-            {/* Categories */}
-            <div className="border rounded-lg p-6 space-y-4">
-              <h2 className="text-lg font-semibold">Категории</h2>
-              
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="text-sm text-muted-foreground">Root Category</label>
-                  {editing ? (
-                    <Input
-                      value={editData.root_category || ''}
-                      onChange={(e) => setEditData({...editData, root_category: e.target.value})}
-                    />
-                  ) : (
-                    <p className="font-medium">{product.root_category || '-'}</p>
-                  )}
-                </div>
-                
-                <div>
-                  <label className="text-sm text-muted-foreground">LVL 1</label>
-                  <p className="font-medium">{product.lvl1_subcategory || '-'}</p>
-                </div>
-                
-                <div>
-                  <label className="text-sm text-muted-foreground">LVL 2</label>
-                  <p className="font-medium">{product.lvl2_subcategory || '-'}</p>
-                </div>
-                
-                <div>
-                  <label className="text-sm text-muted-foreground">LVL 3</label>
-                  <p className="font-medium">{product.lvl3_subcategory || '-'}</p>
-                </div>
-              </div>
-            </div>
-
-            {/* Description & Features */}
-            <div className="border rounded-lg p-6 space-y-4">
-              <h2 className="text-lg font-semibold">Описание и характеристики</h2>
-              
-              {product.description && (
-                <div>
-                  <label className="text-sm text-muted-foreground">Описание</label>
-                  <p className="mt-1 whitespace-pre-wrap">{product.description}</p>
-                </div>
-              )}
-              
-              {product.features && (
-                <div>
-                  <label className="text-sm text-muted-foreground">Features</label>
-                  <p className="mt-1 whitespace-pre-wrap">{product.features}</p>
-                </div>
-              )}
-              
-              {product.attribute_values && (
-                <div>
-                  <label className="text-sm text-muted-foreground">Атрибуты</label>
-                  <p className="mt-1 whitespace-pre-wrap">{product.attribute_values}</p>
-                </div>
-              )}
-            </div>
-
-            {/* Aliases */}
-            {product.aliases?.length > 0 && (
-              <div className="border rounded-lg p-6 space-y-4">
-                <h2 className="text-lg font-semibold flex items-center gap-2">
-                  <Tag className="h-5 w-5" />
-                  Алиасы
-                </h2>
+            {/* Category path */}
+            {slugParts.length > 1 && (
+              <div className="border rounded-lg p-6 space-y-3">
+                <h2 className="text-lg font-semibold">Категории</h2>
                 <div className="flex flex-wrap gap-2">
-                  {product.aliases.map((alias, i) => (
-                    <span key={i} className="px-2 py-1 bg-muted rounded text-sm">
-                      {alias}
-                    </span>
+                  {slugParts.slice(0, -1).map((part, i) => (
+                    <React.Fragment key={i}>
+                      <span className="px-2 py-1 bg-muted rounded text-sm capitalize">
+                        {part.replace(/-/g, ' ')}
+                      </span>
+                      {i < slugParts.length - 2 && <ChevronRight className="h-4 w-4 text-muted-foreground self-center" />}
+                    </React.Fragment>
                   ))}
                 </div>
               </div>
             )}
 
-            {/* Learned Aliases from product matching */}
+            {/* Description */}
+            {(product.description || product.shortDescription) && (
+              <div className="border rounded-lg p-6 space-y-3">
+                <h2 className="text-lg font-semibold">Описание</h2>
+                {product.shortDescription && (
+                  <p className="text-sm text-muted-foreground">{product.shortDescription}</p>
+                )}
+                {product.description && (
+                  <p className="text-sm whitespace-pre-wrap">{product.description}</p>
+                )}
+              </div>
+            )}
+
+            {/* Technical attributes */}
+            {attributes.length > 0 && (
+              <div className="border rounded-lg p-6 space-y-3">
+                <h2 className="text-lg font-semibold">Технические характеристики</h2>
+                <div className="divide-y">
+                  {attributes.map((av, i) => (
+                    <div key={i} className="flex justify-between py-2 text-sm">
+                      <span className="text-muted-foreground">{av.attribute?.name || `Attr ${av.attributeId}`}</span>
+                      <span className="font-medium text-right ml-4">
+                        {av.textValue || (av.numericValue != null ? String(av.numericValue) : '')}
+                        {av.attribute?.unit_id ? ` ${av.attribute.unit_id}` : ''}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Learned Aliases */}
             {learnedAliases.length > 0 && (
-              <div className="border rounded-lg p-6 space-y-4">
+              <div className="border rounded-lg p-6 space-y-3">
                 <h2 className="text-lg font-semibold flex items-center gap-2">
                   <Tag className="h-5 w-5 text-blue-500" />
                   Learned Aliases
-                  <span className="text-xs font-normal text-muted-foreground">(auto-saved from product matching)</span>
+                  <span className="text-xs font-normal text-muted-foreground">(из product matching)</span>
                 </h2>
                 <div className="space-y-2">
                   {learnedAliases.map((a) => (
@@ -458,7 +284,7 @@ export default function ProductDetailPage() {
                         <span className="text-xs text-muted-foreground">
                           {a.saved_at ? new Date(a.saved_at).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short', year: 'numeric' }) : ''}
                         </span>
-                        {canEditCatalog && (
+                        {canDelete && (
                           <button
                             onClick={() => handleDeleteAlias(a.id)}
                             className="p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive"
@@ -473,205 +299,85 @@ export default function ProductDetailPage() {
                 </div>
               </div>
             )}
+          </div>
 
-            {/* Extra Fields */}
-            {product.extra_fields && Object.keys(product.extra_fields).length > 0 && (
-              <div className="border rounded-lg p-6 space-y-4">
-                <h2 className="text-lg font-semibold">Дополнительные поля</h2>
-                <div className="grid grid-cols-2 gap-4">
-                  {Object.entries(product.extra_fields).map(([key, value]) => (
-                    <div key={key}>
-                      <label className="text-sm text-muted-foreground capitalize">{key}</label>
-                      <p className="font-medium">{value}</p>
+          {/* Right — sidebar */}
+          <div className="space-y-6">
+
+            {/* AI Relations */}
+            <div className="border rounded-lg p-6">
+              <div className="flex items-center gap-2 mb-4">
+                <Sparkles className="h-5 w-5 text-primary" />
+                <h2 className="text-lg font-semibold">Both Together</h2>
+                <span className="text-xs text-muted-foreground font-normal">AI suggested</span>
+              </div>
+              {aiRelationsLoading ? (
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <Loader2 className="h-4 w-4 animate-spin" /> Loading…
+                </div>
+              ) : aiRelations.length === 0 ? (
+                <p className="text-sm text-muted-foreground">Нет AI-связей</p>
+              ) : (
+                <div className="space-y-3">
+                  {aiRelations.map((rel, i) => (
+                    <div
+                      key={i}
+                      className="p-3 bg-primary/5 border border-primary/10 rounded-lg"
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <p className="font-medium text-sm">{rel.title || rel.crm_code}</p>
+                        {rel.confidence && (
+                          <span className={`text-xs px-1.5 py-0.5 rounded shrink-0 ${confidenceBadge(rel.confidence)}`}>
+                            {rel.confidence}
+                          </span>
+                        )}
+                      </div>
+                      {rel.crm_code && (
+                        <p className="text-xs text-muted-foreground font-mono mt-0.5">{rel.crm_code}</p>
+                      )}
+                      {rel.reason && (
+                        <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{rel.reason}</p>
+                      )}
+                      {rel.rule_title && (
+                        <p className="text-xs text-muted-foreground/60 mt-1">Rule: {rel.rule_title}</p>
+                      )}
                     </div>
                   ))}
                 </div>
-              </div>
-            )}
-          </div>
-
-          {/* Relations Sidebar */}
-          <div className="space-y-6">
-
-            {/* Both Together — AI Relations */}
-            {(aiRelationsLoading || aiRelations.length > 0) && (
-              <div className="border rounded-lg p-6">
-                <div className="flex items-center gap-2 mb-4">
-                  <Sparkles className="h-5 w-5 text-primary" />
-                  <h2 className="text-lg font-semibold">Both Together</h2>
-                  <span className="text-xs text-muted-foreground font-normal">AI suggested</span>
-                </div>
-                {aiRelationsLoading ? (
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    Loading…
-                  </div>
-                ) : (
-                  <div className="space-y-3">
-                    {aiRelations.map((rel) => (
-                      <div
-                        key={rel.id}
-                        className="flex items-start gap-3 p-3 bg-primary/5 border border-primary/10 rounded-lg cursor-pointer hover:bg-primary/10 transition-colors"
-                        onClick={() => navigate(`/product-catalog/${rel.id}`)}
-                      >
-                        <div className="flex-1 min-w-0">
-                          <p className="font-medium text-sm truncate">{rel.title_en}</p>
-                          {rel.article_number && (
-                            <p className="text-xs text-muted-foreground">{rel.article_number}</p>
-                          )}
-                          {rel.reason && (
-                            <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{rel.reason}</p>
-                          )}
-                        </div>
-                        <span className={`text-xs px-1.5 py-0.5 rounded shrink-0 ${
-                          rel.confidence === 'high'
-                            ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400'
-                            : 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'
-                        }`}>
-                          {rel.confidence}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* Manual Relations */}
-            <div className="border rounded-lg p-6">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-lg font-semibold flex items-center gap-2">
-                  <Link2 className="h-5 w-5" />
-                  Связи
-                </h2>
-                {canEdit && (
-                  <Button size="sm" variant="outline" onClick={() => setShowAddRelation(true)}>
-                    <Plus className="h-4 w-4" />
-                  </Button>
-                )}
-              </div>
-              
-              {product.relations?.length > 0 ? (
-                <div className="space-y-3">
-                  {product.relations.map((relation) => {
-                    const relatedProduct = relatedProducts.find(p => p.id === relation.product_id);
-                    return (
-                      <div 
-                        key={relation.product_id}
-                        className="flex items-center justify-between p-3 bg-muted/50 rounded-lg"
-                      >
-                        <div className="flex-1 min-w-0">
-                          <span className={`inline-block px-2 py-0.5 rounded text-xs mb-1 ${getRelationColor(relation.relation_type)}`}>
-                            {getRelationLabel(relation.relation_type)}
-                          </span>
-                          {relatedProduct ? (
-                            <p 
-                              className="font-medium truncate cursor-pointer hover:text-primary"
-                              onClick={() => navigate(`/product-catalog/${relation.product_id}`)}
-                            >
-                              {relatedProduct.title_en}
-                            </p>
-                          ) : (
-                            <p className="text-muted-foreground text-sm">ID: {relation.product_id}</p>
-                          )}
-                        </div>
-                        {canEdit && (
-                          <Button 
-                            variant="ghost" 
-                            size="sm"
-                            onClick={() => removeRelation(relation.product_id)}
-                            className="text-destructive"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              ) : (
-                <p className="text-muted-foreground text-sm">Нет связанных продуктов</p>
               )}
             </div>
 
             {/* Meta Info */}
-            <div className="border rounded-lg p-6 space-y-3 text-sm">
-              <h2 className="font-semibold">Метаданные</h2>
-              <div className="space-y-2 text-muted-foreground">
-                <p>Создан: {new Date(product.created_at).toLocaleDateString()}</p>
-                {product.updated_at && (
-                  <p>Обновлён: {new Date(product.updated_at).toLocaleDateString()}</p>
-                )}
-                {product.last_synced_at && (
-                  <p>Синхронизация: {new Date(product.last_synced_at).toLocaleDateString()}</p>
-                )}
-                <p>Источник: {product.source === 'csv_import' ? 'CSV импорт' : 'Вручную'}</p>
-              </div>
+            <div className="border rounded-lg p-6 space-y-2 text-sm">
+              <h2 className="font-semibold mb-3">Метаданные</h2>
+              {product.id && <MetaRow label="ID" value={String(product.id)} />}
+              {product.crmCode && <MetaRow label="CRM Code" value={product.crmCode} />}
+              {product.slug && <MetaRow label="Slug" value={product.slug} small />}
+              {product.createdAt && <MetaRow label="Создан" value={new Date(product.createdAt).toLocaleDateString('ru-RU')} />}
+              {product.updatedAt && <MetaRow label="Обновлён" value={new Date(product.updatedAt).toLocaleDateString('ru-RU')} />}
             </div>
           </div>
         </div>
-
-        {/* Add Relation Modal */}
-        {showAddRelation && (
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-            <div className="bg-background rounded-lg p-6 max-w-md w-full mx-4">
-              <div className="flex justify-between items-center mb-4">
-                <h2 className="text-xl font-bold">Добавить связь</h2>
-                <Button variant="ghost" size="sm" onClick={() => {
-                  setShowAddRelation(false);
-                  setRelationSearch('');
-                  setSearchResults([]);
-                }}>
-                  <X className="h-4 w-4" />
-                </Button>
-              </div>
-              
-              <div className="space-y-4">
-                <div>
-                  <label className="text-sm font-medium">Тип связи</label>
-                  <select
-                    value={selectedRelationType}
-                    onChange={(e) => setSelectedRelationType(e.target.value)}
-                    className="w-full px-3 py-2 rounded-md border bg-background mt-1"
-                  >
-                    <option value="compatible">Совместим (compatible)</option>
-                    <option value="bundle">В комплекте (bundle)</option>
-                    <option value="requires">Требует (requires)</option>
-                  </select>
-                </div>
-                
-                <div>
-                  <label className="text-sm font-medium">Поиск продукта</label>
-                  <Input
-                    value={relationSearch}
-                    onChange={(e) => {
-                      setRelationSearch(e.target.value);
-                      searchProducts(e.target.value);
-                    }}
-                    placeholder="Введите название или артикул..."
-                    className="mt-1"
-                  />
-                </div>
-                
-                {searchResults.length > 0 && (
-                  <div className="border rounded-lg max-h-60 overflow-y-auto">
-                    {searchResults.map(p => (
-                      <div
-                        key={p.id}
-                        className="p-3 hover:bg-muted cursor-pointer border-b last:border-b-0"
-                        onClick={() => addRelation(p.id)}
-                      >
-                        <p className="font-medium">{p.title_en}</p>
-                        <p className="text-sm text-muted-foreground">{p.article_number}</p>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        )}
       </div>
     </DashboardLayout>
+  );
+}
+
+function InfoField({ label, value, mono = false, small = false }) {
+  if (!value) return null;
+  return (
+    <div>
+      <p className="text-xs text-muted-foreground mb-0.5">{label}</p>
+      <p className={`font-medium ${mono ? 'font-mono text-sm' : ''} ${small ? 'text-xs' : ''}`}>{value}</p>
+    </div>
+  );
+}
+
+function MetaRow({ label, value, small = false }) {
+  return (
+    <div className="flex justify-between gap-2">
+      <span className="text-muted-foreground">{label}</span>
+      <span className={`text-right ${small ? 'text-xs break-all' : ''}`}>{value}</span>
+    </div>
   );
 }

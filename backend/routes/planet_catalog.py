@@ -61,13 +61,61 @@ async def products(
         raise HTTPException(status_code=502, detail="Upstream catalog error")
 
 
-@router.get("/products/{slug}")
+@router.get("/products/{slug:path}")
 async def product_detail(slug: str, current_user: dict = Depends(get_current_user)):
     try:
         return await _get(f"/web/product/{slug}")
     except Exception as exc:
         logger.error(f"planet product detail error: {exc}")
         raise HTTPException(status_code=502, detail="Upstream catalog error")
+
+
+@router.get("/by-crm/{crm_code}/aliases")
+async def aliases_by_crm(crm_code: str, current_user: dict = Depends(get_current_user)):
+    """Return saved aliases for a product by CRM code (from product_aliases collection)."""
+    db = get_db()
+    raw = await db.product_aliases.find(
+        {"crm_code": crm_code}
+    ).sort("saved_at", -1).to_list(200)
+    return [
+        {
+            "id": str(a["_id"]),
+            "alias": a.get("alias", ""),
+            "confidence": a.get("confidence", "auto"),
+            "saved_at": a.get("saved_at"),
+        }
+        for a in raw
+    ]
+
+
+@router.get("/by-crm/{crm_code}/relations")
+async def relations_by_crm(crm_code: str, current_user: dict = Depends(get_current_user)):
+    """Return AI-generated relations for a product by CRM code."""
+    db = get_db()
+    raw = await db.product_relations.find(
+        {"$or": [{"crm_code_a": crm_code}, {"crm_code_b": crm_code}]},
+        {"_id": 0},
+    ).to_list(100)
+
+    result = []
+    for r in raw:
+        if r.get("crm_code_a") == crm_code:
+            other_crm = r.get("crm_code_b", "")
+            other_title = r.get("title_b", "")
+        else:
+            other_crm = r.get("crm_code_a", "")
+            other_title = r.get("title_a", "")
+        result.append({
+            "crm_code": other_crm,
+            "title": other_title,
+            "confidence": r.get("confidence"),
+            "reason": r.get("reason"),
+            "rule_title": r.get("rule_title", ""),
+        })
+
+    order = {"high": 0, "medium": 1, "low": 2}
+    result.sort(key=lambda x: order.get(x.get("confidence", "low"), 2))
+    return result
 
 
 @router.get("/sections")

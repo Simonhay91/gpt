@@ -135,7 +135,7 @@ function AppRoutes() {
           <ProductCatalogPage />
         </ProtectedRoute>
       } />
-      <Route path="/product-catalog/:productId" element={
+      <Route path="/product-catalog/*" element={
         <ProtectedRoute>
           <ProductDetailPage />
         </ProtectedRoute>

@@ -684,7 +684,6 @@ export default function ProductCatalogPage() {
                 <th className="text-left p-3 font-medium">Название</th>
                 <th className="text-left p-3 font-medium hidden md:table-cell">Вендор</th>
                 <th className="text-left p-3 font-medium hidden lg:table-cell">Категория</th>
-                <th className="text-left p-3 font-medium hidden lg:table-cell">Цена</th>
                 <th className="text-right p-3 font-medium">Действия</th>
               </tr>
             </thead>
@@ -714,8 +713,9 @@ export default function ProductCatalogPage() {
                   return (
                     <tr
                       key={product.external_id || product.id || idx}
-                      className="border-t hover:bg-muted/30"
+                      className="border-t hover:bg-muted/30 cursor-pointer"
                       data-testid={`product-row-${product.article_number}`}
+                      onClick={() => product.slug && navigate(`/product-catalog/${product.slug}`)}
                     >
                       <td className="p-3 font-mono text-sm">{product.article_number || product.model || '-'}</td>
                       <td className="p-3">
@@ -733,16 +733,14 @@ export default function ProductCatalogPage() {
                       </td>
                       <td className="p-3 hidden md:table-cell">{product.vendor || product.brandName || '-'}</td>
                       <td className="p-3 hidden lg:table-cell">{product.category_name || product.categoryName || '-'}</td>
-                      <td className="p-3 hidden lg:table-cell">
-                        {product.price != null ? `$${Number(product.price).toFixed(2)}` : '-'}
-                      </td>
                       <td className="p-3 text-right">
                         <div className="flex justify-end gap-1">
                           {product.slug && (
                             <Button
                               variant="ghost"
                               size="sm"
-                              onClick={() => window.open(`https://planetworkspace.com/web/product/${product.slug}`, '_blank')}
+                              onClick={(e) => { e.stopPropagation(); window.open(`https://planetworkspace.com/web/product/${product.slug}`, '_blank'); }}
+                              title="Open on PlanetWorkspace"
                             >
                               <ExternalLink className="h-4 w-4" />
                             </Button>
