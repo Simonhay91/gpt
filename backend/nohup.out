@@ -1,0 +1,188 @@
+/usr/local/bin/python: No module named uvicorn
+ERROR:    Error loading ASGI app. Could not import module "main".
+Traceback (most recent call last):
+  File "<frozen runpy>", line 198, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "/usr/local/lib/python3.11/site-packages/uvicorn/__main__.py", line 4, in <module>
+    uvicorn.main()
+  File "/usr/local/lib/python3.11/site-packages/click/core.py", line 1485, in __call__
+    return self.main(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/click/core.py", line 1406, in main
+    rv = self.invoke(ctx)
+         ^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/click/core.py", line 1269, in invoke
+    return ctx.invoke(self.callback, **ctx.params)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/click/core.py", line 824, in invoke
+    return callback(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/uvicorn/main.py", line 433, in main
+    run(
+  File "/usr/local/lib/python3.11/site-packages/uvicorn/main.py", line 606, in run
+    server.run()
+  File "/usr/local/lib/python3.11/site-packages/uvicorn/server.py", line 75, in run
+    return asyncio_run(self.serve(sockets=sockets), loop_factory=self.config.get_loop_factory())
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/uvicorn/_compat.py", line 30, in asyncio_run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/asyncio/runners.py", line 118, in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/asyncio/base_events.py", line 654, in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/uvicorn/server.py", line 79, in serve
+    await self._serve(sockets)
+  File "/usr/local/lib/python3.11/site-packages/uvicorn/server.py", line 86, in _serve
+    config.load()
+  File "/usr/local/lib/python3.11/site-packages/uvicorn/config.py", line 441, in load
+    self.loaded_app = import_from_string(self.app)
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/uvicorn/importer.py", line 22, in import_from_string
+    raise exc from None
+  File "/usr/local/lib/python3.11/site-packages/uvicorn/importer.py", line 19, in import_from_string
+    module = importlib.import_module(module_str)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/importlib/__init__.py", line 126, in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "<frozen importlib._bootstrap>", line 1204, in _gcd_import
+  File "<frozen importlib._bootstrap>", line 1176, in _find_and_load
+  File "<frozen importlib._bootstrap>", line 1147, in _find_and_load_unlocked
+  File "<frozen importlib._bootstrap>", line 690, in _load_unlocked
+  File "<frozen importlib._bootstrap_external>", line 940, in exec_module
+  File "<frozen importlib._bootstrap>", line 241, in _call_with_frames_removed
+  File "/app/backend/server.py", line 5, in <module>
+    from fastapi import FastAPI
+ModuleNotFoundError: No module named 'fastapi'
+INFO:     Started server process [11392]
+INFO:     Waiting for application startup.
+INFO:server:✓ Admin user already exists: admin@ai.planetworkspace.com
+INFO:apscheduler.scheduler:Adding job tentatively -- it will be properly scheduled when the scheduler starts
+INFO:apscheduler.scheduler:Added job "auto_refresh_competitor_products" to job store "default"
+INFO:apscheduler.scheduler:Scheduler started
+INFO:server:✓ Planet Knowledge API started
+INFO:server:✓ Scheduler started - Auto-refresh will run daily at 2:00 AM
+INFO:     Application startup complete.
+ERROR:    [Errno 98] error while attempting to bind on address ('0.0.0.0', 8001): address already in use
+INFO:     Waiting for application shutdown.
+INFO:server:✓ Planet Knowledge API shutdown complete
+INFO:apscheduler.scheduler:Scheduler has been shut down
+INFO:     Application shutdown complete.
+INFO:     Started server process [11774]
+INFO:     Waiting for application startup.
+INFO:server:✓ Admin user already exists: admin@ai.planetworkspace.com
+INFO:apscheduler.scheduler:Adding job tentatively -- it will be properly scheduled when the scheduler starts
+INFO:apscheduler.scheduler:Added job "auto_refresh_competitor_products" to job store "default"
+INFO:apscheduler.scheduler:Scheduler started
+INFO:server:✓ Planet Knowledge API started
+INFO:server:✓ Scheduler started - Auto-refresh will run daily at 2:00 AM
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://0.0.0.0:8001 (Press CTRL+C to quit)
+INFO:     10.208.134.66:33746 - "POST /api/chat/upload-temp HTTP/1.1" 200 OK
+INFO:httpx:HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+INFO:routes.messages:Agent selected: Assistant
+INFO:httpx:HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[EXCEL RESULT DEBUG] excel_file_id=None, excel_preview=None, is_clarification=False
+INFO:     10.208.133.66:50400 - "POST /api/chats/0e2a299c-1bbc-44bd-bc47-7529e9e428f0/messages HTTP/1.1" 200 OK
+INFO:httpx:HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+INFO:routes.messages:Agent selected: Assistant
+INFO:httpx:HTTP Request: POST https://api.anthropic.com/v1/messages "HTTP/1.1 200 OK"
+[EXCEL RESULT DEBUG] excel_file_id=None, excel_preview=None, is_clarification=False
+INFO:     10.208.134.66:54030 - "POST /api/chats/0e2a299c-1bbc-44bd-bc47-7529e9e428f0/messages HTTP/1.1" 200 OK
+INFO:     10.208.133.66:39216 - "POST /api/chat/save-temp-to-source HTTP/1.1" 200 OK
+INFO:     10.208.134.66:42842 - "GET /api/projects/560694a9-6522-4dda-bc5e-f8d81f329cbe/sources HTTP/1.1" 200 OK
+INFO:     10.208.134.66:58014 - "GET /api/departments/pending-count HTTP/1.1" 200 OK
+INFO:     10.208.133.66:46200 - "GET /api/departments/pending-count HTTP/1.1" 200 OK
+INFO:     10.208.134.66:59690 - "GET /api/departments/pending-count HTTP/1.1" 200 OK
+/usr/local/bin/python3: No module named uvicorn
+/usr/local/bin/python3: No module named uvicorn
+/usr/local/bin/python3: No module named uvicorn
+/usr/local/bin/python3: No module named uvicorn
+Traceback (most recent call last):
+  File "<frozen runpy>", line 198, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "/usr/local/lib/python3.11/site-packages/uvicorn/__main__.py", line 4, in <module>
+    uvicorn.main()
+  File "/usr/local/lib/python3.11/site-packages/click/core.py", line 1485, in __call__
+    return self.main(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/click/core.py", line 1406, in main
+    rv = self.invoke(ctx)
+         ^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/click/core.py", line 1269, in invoke
+    return ctx.invoke(self.callback, **ctx.params)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/click/core.py", line 824, in invoke
+    return callback(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/uvicorn/main.py", line 433, in main
+    run(
+  File "/usr/local/lib/python3.11/site-packages/uvicorn/main.py", line 606, in run
+    server.run()
+  File "/usr/local/lib/python3.11/site-packages/uvicorn/server.py", line 75, in run
+    return asyncio_run(self.serve(sockets=sockets), loop_factory=self.config.get_loop_factory())
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/uvicorn/_compat.py", line 30, in asyncio_run
+    return runner.run(main)
+           ^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/asyncio/runners.py", line 118, in run
+    return self._loop.run_until_complete(task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/asyncio/base_events.py", line 654, in run_until_complete
+    return future.result()
+           ^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/uvicorn/server.py", line 79, in serve
+    await self._serve(sockets)
+  File "/usr/local/lib/python3.11/site-packages/uvicorn/server.py", line 86, in _serve
+    config.load()
+  File "/usr/local/lib/python3.11/site-packages/uvicorn/config.py", line 441, in load
+    self.loaded_app = import_from_string(self.app)
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/site-packages/uvicorn/importer.py", line 22, in import_from_string
+    raise exc from None
+  File "/usr/local/lib/python3.11/site-packages/uvicorn/importer.py", line 19, in import_from_string
+    module = importlib.import_module(module_str)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.11/importlib/__init__.py", line 126, in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "<frozen importlib._bootstrap>", line 1204, in _gcd_import
+  File "<frozen importlib._bootstrap>", line 1176, in _find_and_load
+  File "<frozen importlib._bootstrap>", line 1147, in _find_and_load_unlocked
+  File "<frozen importlib._bootstrap>", line 690, in _load_unlocked
+  File "<frozen importlib._bootstrap_external>", line 940, in exec_module
+  File "<frozen importlib._bootstrap>", line 241, in _call_with_frames_removed
+  File "/app/backend/server.py", line 5, in <module>
+    from fastapi import FastAPI
+ModuleNotFoundError: No module named 'fastapi'
+INFO:     Started server process [5956]
+INFO:     Waiting for application startup.
+INFO:server:✓ Admin user already exists: admin@ai.planetworkspace.com
+INFO:apscheduler.scheduler:Adding job tentatively -- it will be properly scheduled when the scheduler starts
+INFO:apscheduler.scheduler:Added job "auto_refresh_competitor_products" to job store "default"
+INFO:apscheduler.scheduler:Scheduler started
+INFO:server:✓ Planet Knowledge API started
+INFO:server:✓ Scheduler started - Auto-refresh will run daily at 2:00 AM
+INFO:     Application startup complete.
+ERROR:    [Errno 98] error while attempting to bind on address ('0.0.0.0', 8001): address already in use
+INFO:     Waiting for application shutdown.
+INFO:server:✓ Planet Knowledge API shutdown complete
+INFO:apscheduler.scheduler:Scheduler has been shut down
+INFO:     Application shutdown complete.
+INFO:     Started server process [6489]
+INFO:     Waiting for application startup.
+INFO:server:✓ Admin user already exists: admin@ai.planetworkspace.com
+INFO:apscheduler.scheduler:Adding job tentatively -- it will be properly scheduled when the scheduler starts
+INFO:apscheduler.scheduler:Added job "auto_refresh_competitor_products" to job store "default"
+INFO:apscheduler.scheduler:Scheduler started
+INFO:server:✓ Planet Knowledge API started
+INFO:server:✓ Scheduler started - Auto-refresh will run daily at 2:00 AM
+INFO:     Application startup complete.
+ERROR:    [Errno 98] error while attempting to bind on address ('0.0.0.0', 8001): address already in use
+INFO:     Waiting for application shutdown.
+INFO:server:✓ Planet Knowledge API shutdown complete
+INFO:apscheduler.scheduler:Scheduler has been shut down
+INFO:     Application shutdown complete.
