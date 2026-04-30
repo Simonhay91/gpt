@@ -1,6 +1,15 @@
-export const APP_VERSION = "2.9.37";
+export const APP_VERSION = "2.9.38";
 
 export const CHANGELOG = [
+  {
+    version: "2.9.38",
+    date: "Апрель 2026",
+    badge: "fix",
+    changes: [
+      "Reports: исправлена ошибка 403 при открытии страницы — проверка прав теперь использует email домен как везде",
+      "Sidebar: бейдж с количеством открытых репортов рядом с пунктом Reports для администраторов",
+    ]
+  },
   {
     version: "2.9.37",
     date: "Апрель 2026",

@@ -6,6 +6,17 @@ UI версия: `frontend/src/data/changelog.js`
 
 ---
 
+## 2026-04-30 — v2.9.38
+
+### Fix: Admin Reports — 403 fix + sidebar badge
+
+**Файлы:** `backend/routes/reports.py`, `frontend/src/components/DashboardLayout.js`, `frontend/src/data/changelog.js`
+
+- `GET /api/admin/reports` and `PATCH /api/admin/reports/{id}`: replaced `current_user.get("isAdmin")` (always `None` in MongoDB) with `is_admin(current_user["email"])` — consistent with all other admin routes
+- Sidebar: admins now see an amber badge on the Reports nav item showing the count of open reports (fetched alongside other sidebar data, refreshed every 5 min)
+
+---
+
 ## 2026-04-29 — v2.9.37
 
 ### New: Relation Rules — run status tracking + polling

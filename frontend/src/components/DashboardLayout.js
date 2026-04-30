@@ -44,6 +44,7 @@ const DashboardLayout = ({ children }) => {
   // Pending approvals count for managers
   const [pendingCount, setPendingCount] = useState(0);
   const [isManager, setIsManager] = useState(false);
+  const [openReportsCount, setOpenReportsCount] = useState(0);
   const [showChangelog, setShowChangelog] = useState(false);
   const [hasCompetitorAccess, setHasCompetitorAccess] = useState(() => {
     // Initialize from localStorage to prevent flicker
@@ -73,6 +74,16 @@ const DashboardLayout = ({ children }) => {
         }
       }
       
+      // Fetch open reports count for admins
+      if (user?.isAdmin) {
+        try {
+          const reportsRes = await axios.get(`${API}/admin/reports`, { params: { status: 'open', limit: 1 } });
+          if (isMounted) setOpenReportsCount(reportsRes.data.total || 0);
+        } catch {
+          if (isMounted) setOpenReportsCount(0);
+        }
+      }
+
       // Check competitor tracker access (only if not already loaded)
       if (!competitorAccessLoaded && isMounted) {
         try {
@@ -185,7 +196,8 @@ const DashboardLayout = ({ children }) => {
     navItems.push({
       name: 'Reports',
       path: '/admin/reports',
-      icon: Flag
+      icon: Flag,
+      badge: openReportsCount > 0 ? openReportsCount : null
     });
   } else {
     // Non-admin users: always show Departments link for managers
