@@ -18,7 +18,7 @@ load_dotenv(Path(__file__).parent.parent / ".env")
 import httpx
 
 PARTNER_KEY = os.environ.get("PLANET_PARTNER_KEY", "")
-BASE_URL = "https://api-prod.planetworkspace.com"
+BASE_URL = os.environ.get("PLANET_API_URL", "https://api-prod.planetworkspace.com")
 HEADERS = {"x-partner-key": PARTNER_KEY}
 
 BACKEND_URL = os.environ.get("REACT_APP_BACKEND_URL", "http://localhost:8001")

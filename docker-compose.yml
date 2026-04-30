@@ -25,6 +25,7 @@ services:
       VOYAGE_API_KEY: ${VOYAGE_API_KEY}
       BRAVE_API_KEY: ${BRAVE_API_KEY}
       PLANET_PARTNER_KEY: ${PLANET_PARTNER_KEY}
+      PLANET_API_URL: ${PLANET_API_URL:-https://api-prod.planetworkspace.com}
       JWT_SECRET: ${JWT_SECRET}
       CORS_ORIGINS: ${CORS_ORIGINS:-*}
     volumes:

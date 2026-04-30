@@ -18,14 +18,15 @@ import asyncio
 import logging
 from datetime import datetime, timezone, timedelta
 from typing import List, Optional, Dict, Any
+from functools import partial
 
-import httpx
+import requests as _requests
 
 logger = logging.getLogger(__name__)
 
 # ── Config ────────────────────────────────────────────────────────────────────
 
-BASE_URL = "https://api-prod.planetworkspace.com"
+BASE_URL = os.environ.get("PLANET_API_URL", "https://planetworkspace.com/api")
 PARTNER_KEY = os.environ.get("PLANET_PARTNER_KEY", "")
 
 CATEGORY_TTL_HOURS = 5
@@ -37,23 +38,33 @@ VOYAGE_API_KEY = os.environ.get("VOYAGE_API_KEY", "")
 VOYAGE_BATCH_SIZE = 128       # Voyage rate-limit-friendly batch size
 
 # ── HTTP helpers ──────────────────────────────────────────────────────────────
+# Uses synchronous `requests` in a thread-pool executor to bypass async DNS
+# resolution failures that occur in some containerised environments.
 
 def _headers() -> dict:
     return {"x-partner-key": PARTNER_KEY, "Content-Type": "application/json"}
 
 
+def _sync_get(path: str, params: dict = None) -> Any:
+    r = _requests.get(f"{BASE_URL}{path}", headers=_headers(), params=params, timeout=30)
+    r.raise_for_status()
+    return r.json()
+
+
+def _sync_post(path: str, body: dict) -> Any:
+    r = _requests.post(f"{BASE_URL}{path}", headers=_headers(), json=body, timeout=30)
+    r.raise_for_status()
+    return r.json()
+
+
 async def _get(path: str, params: dict = None) -> Any:
-    async with httpx.AsyncClient(timeout=30) as client:
-        r = await client.get(f"{BASE_URL}{path}", headers=_headers(), params=params)
-        r.raise_for_status()
-        return r.json()
+    loop = asyncio.get_event_loop()
+    return await loop.run_in_executor(None, partial(_sync_get, path, params))
 
 
 async def _post(path: str, body: dict) -> Any:
-    async with httpx.AsyncClient(timeout=30) as client:
-        r = await client.post(f"{BASE_URL}{path}", headers=_headers(), json=body)
-        r.raise_for_status()
-        return r.json()
+    loop = asyncio.get_event_loop()
+    return await loop.run_in_executor(None, partial(_sync_post, path, body))
 
 
 # ── Normalizer ────────────────────────────────────────────────────────────────
