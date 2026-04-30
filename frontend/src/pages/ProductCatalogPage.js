@@ -8,16 +8,11 @@ import { Input } from '../components/ui/input';
 import { 
   Package, 
   Search, 
-  Plus, 
-  Upload, 
   Filter,
   ChevronDown,
   ExternalLink,
-  Edit,
-  Trash2,
   X,
   Check,
-  AlertCircle,
   FileSearch,
   Download,
   Loader2,
@@ -107,39 +102,20 @@ export default function ProductCatalogPage() {
   const { user } = useAuth();
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [stats, setStats] = useState({ total: 0, active: 0, inactive: 0 });
-  const [categories, setCategories] = useState({ root_categories: [], vendors: [] });
-  
+  const [totalProducts, setTotalProducts] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
+  const [categoryList, setCategoryList] = useState([]);  // flat list for filter dropdown
+  const [brandList, setBrandList] = useState([]);
+
   // Filters
   const [search, setSearch] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState('');
-  const [selectedVendor, setSelectedVendor] = useState('');
-  const [showInactive, setShowInactive] = useState(false);
+  const [selectedCategoryId, setSelectedCategoryId] = useState('');
+  const [selectedBrandId, setSelectedBrandId] = useState('');
   const [showFilters, setShowFilters] = useState(false);
-  
-  // Modals
-  const [showImportModal, setShowImportModal] = useState(false);
-  const [showCreateModal, setShowCreateModal] = useState(false);
-  
-  // Import state
-  const [importFile, setImportFile] = useState(null);
-  const [importPreview, setImportPreview] = useState(null);
-  const [selectedExtraColumns, setSelectedExtraColumns] = useState([]);
-  const [importing, setImporting] = useState(false);
-  
-  // Create form
-  const [newProduct, setNewProduct] = useState({
-    article_number: '',
-    title_en: '',
-    vendor: '',
-    root_category: '',
-    description: ''
-  });
-  
+
   // Pagination
   const [page, setPage] = useState(1);
-  const [totalProducts, setTotalProducts] = useState(0);
-  const pageSize = 20;
+  const pageSize = 24;
 
   // Match File state
   const [showMatchModal, setShowMatchModal] = useState(false);
@@ -183,47 +159,60 @@ export default function ProductCatalogPage() {
   const [selRootB, setSelRootB] = useState('');
   const [selLvl1B, setSelLvl1B] = useState('');
 
-  // Permission check - Admin or Manager can edit
-  const canEdit = user?.isAdmin || user?.email?.endsWith('@admin.com');
-
   const loadProducts = useCallback(async () => {
     try {
       setLoading(true);
-      const params = new URLSearchParams();
-      if (search) params.append('search', search);
-      if (selectedCategory) params.append('root_category', selectedCategory);
-      if (selectedVendor) params.append('vendor', selectedVendor);
-      if (!showInactive) params.append('is_active', 'true');
-      params.append('limit', pageSize.toString());
-      params.append('offset', ((page - 1) * pageSize).toString());
-      
-      const response = await axios.get(`${API}/product-catalog?${params}`);
-      setProducts(response.data);
+      const body = { page, limit: pageSize };
+      if (search) body.productName = search;
+      if (selectedCategoryId) body.categoryId = selectedCategoryId;
+      if (selectedBrandId) body.brandId = selectedBrandId;
+
+      const response = await axios.post(`${API}/planet/products`, body);
+      const data = response.data;
+      const items = data.products || data.items || (Array.isArray(data) ? data : []);
+      setProducts(items);
+      setTotalProducts(data.total ?? items.length);
+      setTotalPages(data.totalPages ?? Math.ceil((data.total ?? items.length) / pageSize));
     } catch (error) {
-      toast.error('Не удалось загрузить продукты');
+      toast.error('Failed to load products');
     } finally {
       setLoading(false);
     }
-  }, [search, selectedCategory, selectedVendor, showInactive, page]);
+  }, [search, selectedCategoryId, selectedBrandId, page]);
 
-  const loadStats = async () => {
+  const loadCategories = useCallback(async () => {
     try {
-      const response = await axios.get(`${API}/product-catalog/stats`);
-      setStats(response.data);
-      setTotalProducts(showInactive ? response.data.total : response.data.active);
+      const [catRes, brandRes] = await Promise.all([
+        axios.get(`${API}/planet/categories`),
+        axios.get(`${API}/planet/brands`),
+      ]);
+      // Flatten category tree for dropdown
+      const flat = [];
+      const flatten = (nodes, depth = 0) => {
+        for (const n of (nodes || [])) {
+          flat.push({ id: String(n.id), name: ('  '.repeat(depth)) + n.name, slug: n.slug });
+          if (n.children?.length) flatten(n.children, depth + 1);
+        }
+      };
+      flatten(catRes.data);
+      setCategoryList(flat);
+      // Build categoryTree for relation rules modal: { rootName: { lvl1Name: {} } }
+      const tree = {};
+      for (const root of (catRes.data || [])) {
+        tree[root.name] = {};
+        for (const lvl1 of (root.children || [])) {
+          tree[root.name][lvl1.name] = {};
+          for (const lvl2 of (lvl1.children || [])) {
+            tree[root.name][lvl1.name][lvl2.name] = {};
+          }
+        }
+      }
+      setCategoryTree(tree);
+      setBrandList(brandRes.data || []);
     } catch (error) {
-      console.error('Failed to load stats:', error);
+      console.error('Failed to load categories', error);
     }
-  };
-
-  const loadCategories = async () => {
-    try {
-      const response = await axios.get(`${API}/product-catalog/categories`);
-      setCategories(response.data);
-    } catch (error) {
-      console.error('Failed to load categories:', error);
-    }
-  };
+  }, []);
 
   const loadDomainRules = async () => {
     setRulesLoading(true);
@@ -414,15 +403,17 @@ export default function ProductCatalogPage() {
   };
 
   useEffect(() => {
-    loadProducts();
-    loadStats();
     loadCategories();
+  }, [loadCategories]);
+
+  useEffect(() => {
+    loadProducts();
   }, [loadProducts]);
 
   // Reset page when filters change
   useEffect(() => {
     setPage(1);
-  }, [search, selectedCategory, selectedVendor, showInactive]);
+  }, [search, selectedCategoryId, selectedBrandId]);
 
   // Debounced search
   useEffect(() => {
@@ -432,84 +423,6 @@ export default function ProductCatalogPage() {
     return () => clearTimeout(timer);
   }, [search, loadProducts]);
 
-  const handleImportPreview = async () => {
-    if (!importFile) return;
-    
-    const formData = new FormData();
-    formData.append('file', importFile);
-    
-    try {
-      const response = await axios.post(`${API}/product-catalog/import/preview`, formData);
-      setImportPreview(response.data);
-    } catch (error) {
-      toast.error('Не удалось прочитать файл');
-    }
-  };
-
-  const handleImport = async () => {
-    if (!importFile) return;
-    
-    setImporting(true);
-    const formData = new FormData();
-    formData.append('file', importFile);
-    
-    const extraCols = selectedExtraColumns.join(',');
-    
-    try {
-      const response = await axios.post(
-        `${API}/product-catalog/import${extraCols ? `?extra_columns=${extraCols}` : ''}`,
-        formData
-      );
-      
-      const result = response.data;
-      toast.success(
-        `Импорт завершён: добавлено ${result.added}, обновлено ${result.updated}, деактивировано ${result.deactivated}`
-      );
-      
-      setShowImportModal(false);
-      setImportFile(null);
-      setImportPreview(null);
-      setSelectedExtraColumns([]);
-      loadProducts();
-      loadStats();
-      loadCategories();
-    } catch (error) {
-      toast.error('Ошибка импорта');
-    } finally {
-      setImporting(false);
-    }
-  };
-
-  const handleCreate = async () => {
-    if (!newProduct.article_number || !newProduct.title_en) {
-      toast.error('Заполните обязательные поля');
-      return;
-    }
-    
-    try {
-      await axios.post(`${API}/product-catalog`, newProduct);
-      toast.success('Продукт создан');
-      setShowCreateModal(false);
-      setNewProduct({ article_number: '', title_en: '', vendor: '', root_category: '', description: '' });
-      loadProducts();
-      loadStats();
-    } catch (error) {
-      toast.error(error.response?.data?.detail || 'Ошибка создания');
-    }
-  };
-
-  const handleDelete = async (productId) => {
-    if (!window.confirm('Деактивировать этот продукт?')) return;
-    
-    try {
-      await axios.delete(`${API}/product-catalog/${productId}`);
-      toast.success('Продукт деактивирован');
-      loadProducts();
-      loadStats();
-    } catch (error) {
-      toast.error('Ошибка удаления');
-    }
-  };
 
   const handleDownloadTemplate = async () => {
     try {
@@ -681,10 +594,10 @@ export default function ProductCatalogPage() {
               Product Catalog
             </h1>
             <p className="text-sm text-muted-foreground mt-1">
-              {stats.active} активных · {stats.inactive} неактивных · {stats.total} всего
+              {totalProducts > 0 ? `${totalProducts} products` : 'Loading…'}
             </p>
           </div>
-          
+
           <div className="flex gap-2">
             <Button
               variant="outline"
@@ -708,22 +621,6 @@ export default function ProductCatalogPage() {
               <Link2 className="h-4 w-4 mr-2" />
               Relation Rules
             </Button>
-            {canEdit && (
-              <>
-                <Button 
-                  variant="outline" 
-                  onClick={() => setShowImportModal(true)}
-                  data-testid="import-btn"
-                >
-                  <Upload className="h-4 w-4 mr-2" />
-                  Импорт CSV
-                </Button>
-                <Button onClick={() => setShowCreateModal(true)} data-testid="create-product-btn">
-                  <Plus className="h-4 w-4 mr-2" />
-                  Добавить
-                </Button>
-              </>
-            )}
           </div>
         </div>
 
@@ -754,35 +651,26 @@ export default function ProductCatalogPage() {
           {showFilters && (
             <div className="flex flex-wrap gap-4 p-4 bg-muted/50 rounded-lg">
               <select
-                value={selectedCategory}
-                onChange={(e) => setSelectedCategory(e.target.value)}
-                className="px-3 py-2 rounded-md border bg-background"
+                value={selectedCategoryId}
+                onChange={(e) => setSelectedCategoryId(e.target.value)}
+                className="px-3 py-2 rounded-md border bg-background min-w-[180px]"
               >
-                <option value="">Все категории</option>
-                {categories.root_categories.map(cat => (
-                  <option key={cat} value={cat}>{cat}</option>
+                <option value="">All categories</option>
+                {categoryList.map(cat => (
+                  <option key={cat.id} value={cat.id}>{cat.name}</option>
                 ))}
               </select>
-              
+
               <select
-                value={selectedVendor}
-                onChange={(e) => setSelectedVendor(e.target.value)}
-                className="px-3 py-2 rounded-md border bg-background"
+                value={selectedBrandId}
+                onChange={(e) => setSelectedBrandId(e.target.value)}
+                className="px-3 py-2 rounded-md border bg-background min-w-[150px]"
               >
-                <option value="">Все вендоры</option>
-                {categories.vendors.map(v => (
-                  <option key={v} value={v}>{v}</option>
+                <option value="">All brands</option>
+                {brandList.map(b => (
+                  <option key={b.id} value={String(b.id)}>{b.name}</option>
                 ))}
               </select>
-              
-              <label className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  checked={showInactive}
-                  onChange={(e) => setShowInactive(e.target.checked)}
-                />
-                Показать неактивные
-              </label>
             </div>
           )}
         </div>
@@ -814,69 +702,66 @@ export default function ProductCatalogPage() {
                   </td>
                 </tr>
               ) : (
-                products.map(product => (
-                  <tr 
-                    key={product.id} 
-                    className={`border-t hover:bg-muted/30 cursor-pointer ${!product.is_active ? 'opacity-50' : ''}`}
-                    onClick={() => navigate(`/product-catalog/${product.id}`)}
-                    data-testid={`product-row-${product.article_number}`}
-                  >
-                    <td className="p-3 font-mono text-sm">{product.article_number}</td>
-                    <td className="p-3">
-                      <div className="font-medium">{product.title_en}</div>
-                      {product.product_model && (
-                        <div className="text-xs text-muted-foreground">{product.product_model}</div>
-                      )}
-                    </td>
-                    <td className="p-3 hidden md:table-cell">{product.vendor || '-'}</td>
-                    <td className="p-3 hidden lg:table-cell">{product.root_category || '-'}</td>
-                    <td className="p-3 hidden lg:table-cell">
-                      {product.price ? `$${product.price.toFixed(2)}` : '-'}
-                    </td>
-                    <td className="p-3 text-right">
-                      <div className="flex justify-end gap-1" onClick={e => e.stopPropagation()}>
-                        {product.datasheet_url && (
-                          <Button 
-                            variant="ghost" 
-                            size="sm"
-                            onClick={() => window.open(product.datasheet_url, '_blank')}
-                          >
-                            <ExternalLink className="h-4 w-4" />
-                          </Button>
-                        )}
-                        {canEdit && (
-                          <>
-                            <Button 
-                              variant="ghost" 
+                products.map((product, idx) => {
+                  const imgSrc = product.images?.[0]
+                    ? (() => {
+                        const img = product.images[0];
+                        return img.optimizedPath?.startsWith('public/')
+                          ? `https://api-prod.planetworkspace.com/${img.optimizedPath}`
+                          : `https://api-prod.planetworkspace.com/public/${img.path636px || img.optimizedPath}`;
+                      })()
+                    : null;
+                  return (
+                    <tr
+                      key={product.external_id || product.id || idx}
+                      className="border-t hover:bg-muted/30"
+                      data-testid={`product-row-${product.article_number}`}
+                    >
+                      <td className="p-3 font-mono text-sm">{product.article_number || product.model || '-'}</td>
+                      <td className="p-3">
+                        <div className="flex items-center gap-2">
+                          {imgSrc && (
+                            <img src={imgSrc} alt="" className="w-8 h-8 object-contain rounded shrink-0" />
+                          )}
+                          <div>
+                            <div className="font-medium">{product.title_en || product.name}</div>
+                            {product.product_model && product.product_model !== product.article_number && (
+                              <div className="text-xs text-muted-foreground">{product.product_model}</div>
+                            )}
+                          </div>
+                        </div>
+                      </td>
+                      <td className="p-3 hidden md:table-cell">{product.vendor || product.brandName || '-'}</td>
+                      <td className="p-3 hidden lg:table-cell">{product.category_name || product.categoryName || '-'}</td>
+                      <td className="p-3 hidden lg:table-cell">
+                        {product.price != null ? `$${Number(product.price).toFixed(2)}` : '-'}
+                      </td>
+                      <td className="p-3 text-right">
+                        <div className="flex justify-end gap-1">
+                          {product.slug && (
+                            <Button
+                              variant="ghost"
                               size="sm"
-                              onClick={() => navigate(`/product-catalog/${product.id}`)}
+                              onClick={() => window.open(`https://api-prod.planetworkspace.com/web/product/${product.slug}`, '_blank')}
                             >
-                              <Edit className="h-4 w-4" />
+                              <ExternalLink className="h-4 w-4" />
                             </Button>
-                            <Button 
-                              variant="ghost" 
-                              size="sm"
-                              onClick={() => handleDelete(product.id)}
-                              className="text-destructive"
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                ))
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })
               )}
             </tbody>
           </table>
         </div>
 
         {/* Pagination */}
-        {totalProducts > pageSize && (
+        {totalPages > 1 && (
           <div className="flex items-center justify-between px-4 py-3 border rounded-lg bg-muted/30">
             <div className="text-sm text-muted-foreground">
-              Показано {((page - 1) * pageSize) + 1} - {Math.min(page * pageSize, totalProducts)} из {totalProducts}
+              Page {page} of {totalPages} · {totalProducts} products
             </div>
             <div className="flex items-center gap-2">
               <Button
@@ -885,11 +770,10 @@ export default function ProductCatalogPage() {
                 onClick={() => setPage(p => Math.max(1, p - 1))}
                 disabled={page === 1}
               >
-                ← Назад
+                ← Prev
               </Button>
               <div className="flex items-center gap-1">
-                {Array.from({ length: Math.min(5, Math.ceil(totalProducts / pageSize)) }, (_, i) => {
-                  const totalPages = Math.ceil(totalProducts / pageSize);
+                {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
                   let pageNum;
                   if (totalPages <= 5) {
                     pageNum = i + 1;
@@ -916,26 +800,22 @@ export default function ProductCatalogPage() {
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => setPage(p => Math.min(Math.ceil(totalProducts / pageSize), p + 1))}
-                disabled={page >= Math.ceil(totalProducts / pageSize)}
+                onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                disabled={page >= totalPages}
               >
-                Вперёд →
+                Next →
               </Button>
             </div>
           </div>
         )}
 
-        {/* Import Modal */}
-        {showImportModal && (
+        {/* Match Customer File Modal */}
+        {false && (
           <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
             <div className="bg-background rounded-lg p-6 max-w-2xl w-full mx-4 max-h-[80vh] overflow-y-auto">
               <div className="flex justify-between items-center mb-4">
-                <h2 className="text-xl font-bold">Импорт продуктов из CSV</h2>
-                <Button variant="ghost" size="sm" onClick={() => {
-                  setShowImportModal(false);
-                  setImportFile(null);
-                  setImportPreview(null);
-                }}>
+                <h2 className="text-xl font-bold">Removed</h2>
+                <Button variant="ghost" size="sm">
                   <X className="h-4 w-4" />
                 </Button>
               </div>
@@ -1043,76 +923,6 @@ export default function ProductCatalogPage() {
           </div>
         )}
 
-        {/* Create Modal */}
-        {showCreateModal && (
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-            <div className="bg-background rounded-lg p-6 max-w-md w-full mx-4">
-              <div className="flex justify-between items-center mb-4">
-                <h2 className="text-xl font-bold">Новый продукт</h2>
-                <Button variant="ghost" size="sm" onClick={() => setShowCreateModal(false)}>
-                  <X className="h-4 w-4" />
-                </Button>
-              </div>
-              
-              <div className="space-y-4">
-                <div>
-                  <label className="text-sm font-medium">Артикул *</label>
-                  <Input
-                    value={newProduct.article_number}
-                    onChange={(e) => setNewProduct({...newProduct, article_number: e.target.value})}
-                    placeholder="TEST-001"
-                  />
-                </div>
-                
-                <div>
-                  <label className="text-sm font-medium">Название *</label>
-                  <Input
-                    value={newProduct.title_en}
-                    onChange={(e) => setNewProduct({...newProduct, title_en: e.target.value})}
-                    placeholder="Product Name"
-                  />
-                </div>
-                
-                <div>
-                  <label className="text-sm font-medium">Вендор</label>
-                  <Input
-                    value={newProduct.vendor}
-                    onChange={(e) => setNewProduct({...newProduct, vendor: e.target.value})}
-                    placeholder="Vendor Name"
-                  />
-                </div>
-                
-                <div>
-                  <label className="text-sm font-medium">Категория</label>
-                  <Input
-                    value={newProduct.root_category}
-                    onChange={(e) => setNewProduct({...newProduct, root_category: e.target.value})}
-                    placeholder="Network"
-                  />
-                </div>
-                
-                <div>
-                  <label className="text-sm font-medium">Описание</label>
-                  <textarea
-                    value={newProduct.description}
-                    onChange={(e) => setNewProduct({...newProduct, description: e.target.value})}
-                    className="w-full px-3 py-2 rounded-md border bg-background min-h-[100px]"
-                    placeholder="Описание продукта..."
-                  />
-                </div>
-                
-                <div className="flex gap-2 pt-4">
-                  <Button variant="outline" onClick={() => setShowCreateModal(false)} className="flex-1">
-                    Отмена
-                  </Button>
-                  <Button onClick={handleCreate} className="flex-1">
-                    Создать
-                  </Button>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
         {/* Match Customer File Modal */}
         {showMatchModal && (
           <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">

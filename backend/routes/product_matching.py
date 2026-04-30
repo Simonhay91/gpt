@@ -1,6 +1,7 @@
 """Product Matching — upload customer file, AI-match against catalog, preview + Excel."""
 from fastapi import APIRouter, HTTPException, Depends, UploadFile, File, Form, Query
 from bson import ObjectId
+from services.planet_api import get_catalog as _planet_get_catalog
 from fastapi.responses import FileResponse
 from starlette.background import BackgroundTask
 from typing import List, Optional
@@ -759,21 +760,7 @@ async def planet_search(data: PlanetSearchRequest):
 
     db = get_db()
 
-    # Load active catalog (with embeddings for Voyage phase)
-    catalog = await db.product_catalog.find(
-        {"is_active": True},
-        {
-            "_id": 0,
-            "article_number": 1,
-            "title_en": 1,
-            "crm_code": 1,
-            "vendor": 1,
-            "product_model": 1,
-            "datasheet_url": 1,
-            "aliases": 1,
-            "embedding": 1,
-        },
-    ).limit(MAX_CATALOG_PRODUCTS).to_list(MAX_CATALOG_PRODUCTS)
+    catalog = await _planet_get_catalog(db)
 
     if not catalog:
         raise HTTPException(status_code=404, detail="Product catalog is empty")
@@ -957,21 +944,8 @@ async def match_products(
 
     customer_items = customer_items[:MAX_CUSTOMER_ITEMS]
 
-    # 2. Load active catalog products (with embeddings for Voyage phase)
-    catalog = await db.product_catalog.find(
-        {"is_active": True},
-        {
-            "_id": 0,
-            "article_number": 1,
-            "title_en": 1,
-            "crm_code": 1,
-            "vendor": 1,
-            "product_model": 1,
-            "datasheet_url": 1,
-            "aliases": 1,
-            "embedding": 1,
-        },
-    ).limit(MAX_CATALOG_PRODUCTS).to_list(MAX_CATALOG_PRODUCTS)
+    # 2. Load catalog from PlanetWorkspace API (normalized + embeddings)
+    catalog = await _planet_get_catalog(db)
 
     if not catalog:
         raise HTTPException(status_code=404, detail="Product catalog is empty")

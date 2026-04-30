@@ -49,6 +49,7 @@ from routes.competitors import router as competitors_router, auto_refresh_compet
 from routes.product_catalog import router as product_catalog_router
 from routes.oem_datasheet import router as oem_router
 from routes.product_matching import router as product_matching_router
+from routes.planet_catalog import router as planet_catalog_router
 from routes.product_relations import router as product_relations_router
 
 # Enterprise routes with setup functions
@@ -168,6 +169,7 @@ app.include_router(product_catalog_router)
 app.include_router(oem_router)
 app.include_router(product_matching_router)
 app.include_router(product_relations_router)
+app.include_router(planet_catalog_router)
 
 # Enterprise routes
 app.include_router(departments_router)

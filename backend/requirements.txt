@@ -11,7 +11,7 @@ APScheduler==3.11.2
 attrs==25.4.0
 bcrypt==4.1.3
 beautifulsoup4==4.14.3
-black==26.1.0
+black==25.1.0
 boto3==1.42.54
 botocore==1.42.54
 certifi==2026.1.4
@@ -24,7 +24,7 @@ dnspython==2.8.0
 docstring_parser==0.17.0
 ecdsa==0.19.1
 email-validator==2.3.0
-emergentintegrations==0.1.0
+# emergentintegrations==0.1.0  # private package — install separately if needed
 et_xmlfile==2.0.0
 fastapi==0.110.1
 fastuuid==0.14.0

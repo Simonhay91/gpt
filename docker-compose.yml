@@ -17,11 +17,14 @@ services:
     ports:
       - "8001:8001"
     environment:
-      MONGO_URL: mongodb://mongodb:27017/gpt
-      # Copy your API keys into a .env file at project root — see .env.example
+      MONGO_URL: mongodb://mongodb:27017
+      DB_NAME: gpt
       OPENAI_API_KEY: ${OPENAI_API_KEY}
       CLAUDE_API_KEY: ${CLAUDE_API_KEY}
       EMERGENT_LLM_KEY: ${EMERGENT_LLM_KEY}
+      VOYAGE_API_KEY: ${VOYAGE_API_KEY}
+      BRAVE_API_KEY: ${BRAVE_API_KEY}
+      PLANET_PARTNER_KEY: ${PLANET_PARTNER_KEY}
       JWT_SECRET: ${JWT_SECRET}
       CORS_ORIGINS: ${CORS_ORIGINS:-*}
     volumes:

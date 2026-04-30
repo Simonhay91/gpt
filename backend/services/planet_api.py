@@ -1,0 +1,329 @@
+"""
+PlanetWorkspace external catalog integration.
+
+Responsibilities:
+- Fetch categories (with attributes) from api-prod.planetworkspace.com
+- Fetch all products (paginated) and normalize field names to match
+  the existing matching pipeline conventions (title_en, article_number, etc.)
+- Cache normalized products + Voyage embeddings in MongoDB so the
+  matching pipeline works without any changes.
+
+Collections used:
+  planet_category_cache   — full category tree, TTL = CATEGORY_TTL_HOURS
+  planet_embedding_cache  — {external_id, crm_code, embedding, updated_at}, TTL = EMBED_TTL_HOURS
+"""
+
+import os
+import asyncio
+import logging
+from datetime import datetime, timezone, timedelta
+from typing import List, Optional, Dict, Any
+
+import httpx
+
+logger = logging.getLogger(__name__)
+
+# ── Config ────────────────────────────────────────────────────────────────────
+
+BASE_URL = "https://api-prod.planetworkspace.com"
+PARTNER_KEY = os.environ.get("PLANET_PARTNER_KEY", "")
+
+CATEGORY_TTL_HOURS = 5
+EMBED_TTL_HOURS = 24
+FETCH_PAGE_LIMIT = 500        # max allowed by the API
+MAX_CATALOG_PRODUCTS = 5000   # safety cap
+
+VOYAGE_API_KEY = os.environ.get("VOYAGE_API_KEY", "")
+VOYAGE_BATCH_SIZE = 128       # Voyage rate-limit-friendly batch size
+
+# ── HTTP helpers ──────────────────────────────────────────────────────────────
+
+def _headers() -> dict:
+    return {"x-partner-key": PARTNER_KEY, "Content-Type": "application/json"}
+
+
+async def _get(path: str, params: dict = None) -> Any:
+    async with httpx.AsyncClient(timeout=30) as client:
+        r = await client.get(f"{BASE_URL}{path}", headers=_headers(), params=params)
+        r.raise_for_status()
+        return r.json()
+
+
+async def _post(path: str, body: dict) -> Any:
+    async with httpx.AsyncClient(timeout=30) as client:
+        r = await client.post(f"{BASE_URL}{path}", headers=_headers(), json=body)
+        r.raise_for_status()
+        return r.json()
+
+
+# ── Normalizer ────────────────────────────────────────────────────────────────
+
+def _normalize(p: dict) -> dict:
+    """
+    Map external API field names to the conventions used by the matching pipeline.
+    The pipeline expects: title_en, article_number, crm_code, vendor, product_model,
+    datasheet_url, aliases, embedding.
+    """
+    pricing = p.get("pricingInfo") or {}
+    tiers = pricing.get("tiers") or []
+    price = tiers[0].get("price") if tiers else None
+
+    return {
+        # identity
+        "external_id": str(p.get("id", "")),
+        "slug": p.get("slug", ""),
+        # pipeline-expected fields
+        "title_en": p.get("name", ""),
+        "article_number": p.get("articleCode") or p.get("model") or "",
+        "crm_code": p.get("crmCode") or "",
+        "vendor": p.get("brandName") or "",
+        "product_model": p.get("model") or "",
+        "datasheet_url": "",          # not provided by the API
+        "aliases": [],                # populated separately via product_aliases collection
+        # extra fields (useful for UI / future matching)
+        "category_id": str(p.get("categoryId") or ""),
+        "category_name": p.get("categoryName") or "",
+        "brand_id": str(p.get("brandId") or ""),
+        "is_new": p.get("isNew", False),
+        "is_hot": p.get("isHot", False),
+        "is_discontinued": p.get("isDiscontinued", False),
+        "stock_amount": p.get("stockAmount") or 0,
+        "price": price,
+        "description": p.get("description") or "",
+        "images": p.get("images") or [],
+        "attribute_values": p.get("attributeValues") or [],
+        # embedding filled later
+        "embedding": None,
+    }
+
+
+# ── Category fetch & cache ────────────────────────────────────────────────────
+
+async def get_categories(db) -> List[dict]:
+    """
+    Return the full category tree. Uses MongoDB cache (TTL = CATEGORY_TTL_HOURS).
+    """
+    cutoff = (datetime.now(timezone.utc) - timedelta(hours=CATEGORY_TTL_HOURS)).isoformat()
+    cached = await db.planet_category_cache.find_one({"cached_at": {"$gte": cutoff}})
+    if cached:
+        return cached.get("tree", [])
+
+    try:
+        tree = await _get("/web/category")
+    except Exception as exc:
+        logger.error(f"planet_api: category fetch failed: {exc}")
+        # Return stale cache if available
+        stale = await db.planet_category_cache.find_one({})
+        return stale.get("tree", []) if stale else []
+
+    now = datetime.now(timezone.utc).isoformat()
+    await db.planet_category_cache.replace_one(
+        {}, {"tree": tree, "cached_at": now}, upsert=True
+    )
+    return tree
+
+
+async def get_category_attributes(db, slug: str) -> List[dict]:
+    """
+    Return filterable attributes for a category slug.
+    Stored inside the category cache document under planet_attr_cache.
+    Returns [] if slug gives 404.
+    """
+    cached = await db.planet_attr_cache.find_one({"slug": slug})
+    if cached:
+        cutoff = (datetime.now(timezone.utc) - timedelta(hours=CATEGORY_TTL_HOURS)).isoformat()
+        if cached.get("cached_at", "") >= cutoff:
+            return cached.get("attributes", [])
+
+    try:
+        attrs = await _get(f"/web/category/{slug}/attributes")
+    except httpx.HTTPStatusError as exc:
+        if exc.response.status_code == 404:
+            attrs = []
+        else:
+            raise
+    except Exception as exc:
+        logger.warning(f"planet_api: attribute fetch failed for {slug}: {exc}")
+        return cached.get("attributes", []) if cached else []
+
+    now = datetime.now(timezone.utc).isoformat()
+    await db.planet_attr_cache.replace_one(
+        {"slug": slug},
+        {"slug": slug, "attributes": attrs, "cached_at": now},
+        upsert=True,
+    )
+    return attrs
+
+
+# ── Product fetch ─────────────────────────────────────────────────────────────
+
+async def _fetch_all_products_raw(category_id: str = None) -> List[dict]:
+    """Paginate through /web/product/explore and return all raw product dicts."""
+    all_items: List[dict] = []
+    page = 1
+
+    body: Dict[str, Any] = {"page": page, "limit": FETCH_PAGE_LIMIT}
+    if category_id:
+        body["categoryId"] = str(category_id)
+
+    while len(all_items) < MAX_CATALOG_PRODUCTS:
+        body["page"] = page
+        try:
+            r = await _post("/web/product/explore", body)
+        except Exception as exc:
+            logger.error(f"planet_api: product fetch page {page} failed: {exc}")
+            break
+
+        # normalize response key (can be products or items)
+        items = r.get("products") or r.get("items") or (r if isinstance(r, list) else [])
+        if not items:
+            break
+
+        all_items.extend(items)
+
+        total_pages = r.get("totalPages") if isinstance(r, dict) else None
+        if total_pages and page >= total_pages:
+            break
+        if len(items) < FETCH_PAGE_LIMIT:
+            break
+
+        page += 1
+
+    return all_items[:MAX_CATALOG_PRODUCTS]
+
+
+# ── Embedding helpers ─────────────────────────────────────────────────────────
+
+def _embedding_text(p: dict) -> str:
+    """Build rich text for Voyage embedding from a normalized product."""
+    parts = []
+    if p.get("title_en"):
+        parts.append(p["title_en"])
+    if p.get("article_number"):
+        parts.append(f"Article: {p['article_number']}")
+    if p.get("product_model"):
+        parts.append(f"Model: {p['product_model']}")
+    if p.get("crm_code"):
+        parts.append(f"CRM: {p['crm_code']}")
+    if p.get("vendor"):
+        parts.append(f"Vendor: {p['vendor']}")
+    if p.get("category_name"):
+        parts.append(f"Category: {p['category_name']}")
+    # Include selection attribute values (e.g. Form Factor: SFP+)
+    for av in (p.get("attribute_values") or []):
+        attr = av.get("attribute") or {}
+        val = av.get("textValue") or (str(av.get("numericValue")) if av.get("numericValue") is not None else None)
+        if attr.get("name") and val:
+            parts.append(f"{attr['name']}: {val}")
+    if p.get("description"):
+        parts.append(p["description"][:400])
+    return " | ".join(parts)
+
+
+def _voyage_embed_batch(texts: List[str]) -> List[Optional[List[float]]]:
+    if not VOYAGE_API_KEY:
+        return [None] * len(texts)
+    import voyageai
+    client = voyageai.Client(api_key=VOYAGE_API_KEY)
+    result = client.embed(texts, model="voyage-3")
+    return result.embeddings
+
+
+async def _fill_embeddings(db, products: List[dict]) -> List[dict]:
+    """
+    For each product look up cached embedding from planet_embedding_cache.
+    Compute and store embeddings for products that don't have one yet.
+    Returns the same list with .embedding field populated where possible.
+    """
+    if not VOYAGE_API_KEY:
+        return products
+
+    cutoff = (datetime.now(timezone.utc) - timedelta(hours=EMBED_TTL_HOURS)).isoformat()
+
+    # Load all cached embeddings in one query
+    external_ids = [p["external_id"] for p in products if p.get("external_id")]
+    cached_docs = await db.planet_embedding_cache.find(
+        {"external_id": {"$in": external_ids}, "updated_at": {"$gte": cutoff}},
+        {"_id": 0, "external_id": 1, "embedding": 1},
+    ).to_list(len(external_ids))
+    embed_map = {d["external_id"]: d["embedding"] for d in cached_docs}
+
+    # Split into cached vs needs-compute
+    needs_embed = [p for p in products if not embed_map.get(p.get("external_id"))]
+
+    if needs_embed:
+        texts = [_embedding_text(p) for p in needs_embed]
+        now = datetime.now(timezone.utc).isoformat()
+        # Batch to respect Voyage limits
+        for i in range(0, len(texts), VOYAGE_BATCH_SIZE):
+            batch_products = needs_embed[i: i + VOYAGE_BATCH_SIZE]
+            batch_texts = texts[i: i + VOYAGE_BATCH_SIZE]
+            try:
+                embeddings = _voyage_embed_batch(batch_texts)
+            except Exception as exc:
+                logger.warning(f"planet_api: Voyage batch embed failed: {exc}")
+                embeddings = [None] * len(batch_texts)
+
+            # Upsert to cache + fill embed_map
+            for p, emb in zip(batch_products, embeddings):
+                eid = p.get("external_id")
+                if eid and emb:
+                    embed_map[eid] = emb
+                    await db.planet_embedding_cache.replace_one(
+                        {"external_id": eid},
+                        {
+                            "external_id": eid,
+                            "crm_code": p.get("crm_code", ""),
+                            "embedding": emb,
+                            "updated_at": now,
+                        },
+                        upsert=True,
+                    )
+
+    # Attach embeddings to products
+    for p in products:
+        p["embedding"] = embed_map.get(p.get("external_id"))
+
+    return products
+
+
+# ── Main public API ───────────────────────────────────────────────────────────
+
+async def get_catalog(db, category_id: str = None) -> List[dict]:
+    """
+    Return the full normalized product catalog with embeddings.
+    This is the drop-in replacement for:
+        db.product_catalog.find({"is_active": True}, {...}).to_list(...)
+    """
+    if not PARTNER_KEY:
+        logger.warning("planet_api: PLANET_PARTNER_KEY not set — returning empty catalog")
+        return []
+
+    raw = await _fetch_all_products_raw(category_id=category_id)
+    if not raw:
+        return []
+
+    normalized = [_normalize(p) for p in raw]
+    normalized = await _fill_embeddings(db, normalized)
+    return normalized
+
+
+async def get_brands(db) -> List[dict]:
+    """Fetch brand list with 5-min in-memory cache."""
+    cutoff = (datetime.now(timezone.utc) - timedelta(minutes=5)).isoformat()
+    cached = await db.planet_brand_cache.find_one({"cached_at": {"$gte": cutoff}})
+    if cached:
+        return cached.get("brands", [])
+
+    try:
+        brands = await _get("/web/brand")
+    except Exception as exc:
+        logger.error(f"planet_api: brand fetch failed: {exc}")
+        stale = await db.planet_brand_cache.find_one({})
+        return stale.get("brands", []) if stale else []
+
+    now = datetime.now(timezone.utc).isoformat()
+    await db.planet_brand_cache.replace_one(
+        {}, {"brands": brands, "cached_at": now}, upsert=True
+    )
+    return brands
