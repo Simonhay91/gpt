@@ -1,6 +1,14 @@
-export const APP_VERSION = "2.9.38";
+export const APP_VERSION = "2.9.39";
 
 export const CHANGELOG = [
+  {
+    version: "2.9.39",
+    date: "Апрель 2026",
+    badge: "fix",
+    changes: [
+      "Sidebar: бейдж с количеством репортов кешируется в localStorage — больше не мигает при переключении разделов",
+    ]
+  },
   {
     version: "2.9.38",
     date: "Апрель 2026",

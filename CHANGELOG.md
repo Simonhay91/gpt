@@ -6,6 +6,17 @@ UI версия: `frontend/src/data/changelog.js`
 
 ---
 
+## 2026-04-30 — v2.9.39
+
+### Fix: Reports badge — cache in localStorage to prevent flicker
+
+**Файлы:** `frontend/src/components/DashboardLayout.js`, `frontend/src/data/changelog.js`
+
+- `openReportsCount` now initializes from `localStorage` so the badge renders immediately on navigation without flash
+- After each fetch the new count is written back to `localStorage`
+
+---
+
 ## 2026-04-30 — v2.9.38
 
 ### Fix: Admin Reports — 403 fix + sidebar badge

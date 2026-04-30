@@ -44,7 +44,9 @@ const DashboardLayout = ({ children }) => {
   // Pending approvals count for managers
   const [pendingCount, setPendingCount] = useState(0);
   const [isManager, setIsManager] = useState(false);
-  const [openReportsCount, setOpenReportsCount] = useState(0);
+  const [openReportsCount, setOpenReportsCount] = useState(() => {
+    return parseInt(localStorage.getItem('openReportsCount') || '0', 10);
+  });
   const [showChangelog, setShowChangelog] = useState(false);
   const [hasCompetitorAccess, setHasCompetitorAccess] = useState(() => {
     // Initialize from localStorage to prevent flicker
@@ -78,7 +80,11 @@ const DashboardLayout = ({ children }) => {
       if (user?.isAdmin) {
         try {
           const reportsRes = await axios.get(`${API}/admin/reports`, { params: { status: 'open', limit: 1 } });
-          if (isMounted) setOpenReportsCount(reportsRes.data.total || 0);
+          const count = reportsRes.data.total || 0;
+          if (isMounted) {
+            setOpenReportsCount(count);
+            localStorage.setItem('openReportsCount', count.toString());
+          }
         } catch {
           if (isMounted) setOpenReportsCount(0);
         }
