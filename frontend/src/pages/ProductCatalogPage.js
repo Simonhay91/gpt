@@ -742,7 +742,7 @@ export default function ProductCatalogPage() {
                             <Button
                               variant="ghost"
                               size="sm"
-                              onClick={() => window.open(`https://api-prod.planetworkspace.com/web/product/${product.slug}`, '_blank')}
+                              onClick={() => window.open(`https://planetworkspace.com/web/product/${product.slug}`, '_blank')}
                             >
                               <ExternalLink className="h-4 w-4" />
                             </Button>
