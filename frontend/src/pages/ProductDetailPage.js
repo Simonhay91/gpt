@@ -14,10 +14,21 @@ import {
   Loader2,
   Trash2,
   ChevronRight,
+  Image as ImageIcon,
 } from 'lucide-react';
 import { toast } from 'sonner';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
+const IMG_BASE = 'https://api-prod.planetworkspace.com';
+
+function getImgSrc(img) {
+  if (!img) return null;
+  if (img.optimizedPath?.startsWith('public/')) return `${IMG_BASE}/${img.optimizedPath}`;
+  if (img.optimizedPath) return `${IMG_BASE}/public/${img.optimizedPath}`;
+  if (img.path636px) return `${IMG_BASE}/public/${img.path636px}`;
+  if (img.url) return img.url;
+  return null;
+}
 
 export default function ProductDetailPage() {
   const slug = useParams()['*'];
@@ -29,6 +40,7 @@ export default function ProductDetailPage() {
   const [learnedAliases, setLearnedAliases] = useState([]);
   const [aiRelations, setAiRelations] = useState([]);
   const [aiRelationsLoading, setAiRelationsLoading] = useState(false);
+  const [activeImg, setActiveImg] = useState(0);
 
   const canDelete = user?.isAdmin || user?.canEditProductCatalog;
 
@@ -42,10 +54,10 @@ export default function ProductDetailPage() {
       const res = await axios.get(`${API}/planet/products/${slug}`);
       const p = res.data;
       setProduct(p);
+      setActiveImg(0);
 
       const crmCode = p.crmCode;
       if (crmCode) {
-        // Load aliases and relations in parallel
         setAiRelationsLoading(true);
         const [aliasesRes, relationsRes] = await Promise.allSettled([
           axios.get(`${API}/planet/by-crm/${crmCode}/aliases`),
@@ -98,17 +110,15 @@ export default function ProductDetailPage() {
 
   if (!product) return null;
 
-  // Derive image URL
-  const images = product.images || [];
-  const mainImage = images[0]?.url || images[0]?.large || null;
+  const images = (product.images || []).map(getImgSrc).filter(Boolean);
+  const currentImg = images[activeImg] || null;
 
-  // Attributes
-  const attributes = (product.attributeValues || []).filter(
-    av => av.textValue || av.numericValue != null
-  );
+  // All attributes with a name (show even if value is empty)
+  const attributes = (product.attributeValues || []).filter(av => av.attribute?.name);
 
   // Category breadcrumb from slug
   const slugParts = (product.slug || slug || '').split('/');
+  const categoryParts = slugParts.slice(0, -1);
 
   const confidenceBadge = (level) => {
     if (level === 'high') return 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400';
@@ -120,34 +130,30 @@ export default function ProductDetailPage() {
     <DashboardLayout>
       <div className="space-y-6 max-w-6xl mx-auto" data-testid="product-detail-page">
 
-        {/* Header */}
-        <div className="flex items-start justify-between gap-4">
-          <div className="flex items-start gap-4">
+        {/* Top bar */}
+        <div className="flex items-center justify-between gap-4">
+          <div className="flex items-center gap-3 min-w-0">
             <Button variant="ghost" size="sm" onClick={() => navigate('/product-catalog')}>
               <ArrowLeft className="h-4 w-4" />
             </Button>
-            <div>
-              {/* Breadcrumb */}
-              {slugParts.length > 1 && (
-                <div className="flex items-center gap-1 text-xs text-muted-foreground mb-1 flex-wrap">
-                  {slugParts.slice(0, -1).map((part, i) => (
-                    <React.Fragment key={i}>
-                      <span className="capitalize">{part.replace(/-/g, ' ')}</span>
-                      {i < slugParts.length - 2 && <ChevronRight className="h-3 w-3" />}
-                    </React.Fragment>
-                  ))}
-                </div>
-              )}
-              <h1 className="text-2xl font-bold flex items-center gap-2">
-                <Package className="h-6 w-6 shrink-0" />
-                {product.name}
-              </h1>
-              {product.model && (
-                <p className="text-sm text-muted-foreground font-mono mt-0.5">{product.model}</p>
-              )}
-            </div>
+            {/* Breadcrumb */}
+            {categoryParts.length > 0 && (
+              <div className="hidden sm:flex items-center gap-1 text-xs text-muted-foreground flex-wrap">
+                <span
+                  className="hover:text-foreground cursor-pointer"
+                  onClick={() => navigate('/product-catalog')}
+                >
+                  Catalog
+                </span>
+                {categoryParts.map((part, i) => (
+                  <React.Fragment key={i}>
+                    <ChevronRight className="h-3 w-3 shrink-0" />
+                    <span className="capitalize">{part.replace(/-/g, ' ')}</span>
+                  </React.Fragment>
+                ))}
+              </div>
+            )}
           </div>
-
           <div className="flex gap-2 shrink-0">
             <Button variant="outline" size="sm" onClick={openChatWithProduct}>
               <MessageSquare className="h-4 w-4 mr-2" />
@@ -164,82 +170,88 @@ export default function ProductDetailPage() {
           </div>
         </div>
 
-        {/* Status badges */}
-        <div className="flex flex-wrap gap-2">
-          {product.isNew && (
-            <span className="px-2 py-1 bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400 rounded text-xs font-medium">New</span>
-          )}
-          {product.isHot && (
-            <span className="px-2 py-1 bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-400 rounded text-xs font-medium">Hot</span>
-          )}
-          {product.isDiscontinued && (
-            <span className="px-2 py-1 bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400 rounded text-xs font-medium">Discontinued</span>
-          )}
-          {product.brandName && (
-            <span className="px-2 py-1 bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400 rounded text-xs font-medium">
-              {product.brandName}
-            </span>
-          )}
+        {/* Hero: Image + Key Info */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+
+          {/* Image panel */}
+          <div className="space-y-2">
+            <div className="border rounded-xl bg-white dark:bg-muted/10 flex items-center justify-center min-h-64 p-6">
+              {currentImg ? (
+                <img
+                  src={currentImg}
+                  alt={product.name}
+                  className="max-h-72 max-w-full object-contain"
+                  onError={(e) => { e.target.style.display = 'none'; e.target.nextSibling?.style.removeProperty('display'); }}
+                />
+              ) : (
+                <div className="flex flex-col items-center gap-2 text-muted-foreground">
+                  <ImageIcon className="h-12 w-12 opacity-30" />
+                  <span className="text-sm">Нет изображения</span>
+                </div>
+              )}
+              {/* hidden fallback */}
+              <span style={{ display: 'none' }} className="flex flex-col items-center gap-2 text-muted-foreground">
+                <ImageIcon className="h-12 w-12 opacity-30" />
+              </span>
+            </div>
+            {/* Thumbnails */}
+            {images.length > 1 && (
+              <div className="flex gap-2 flex-wrap">
+                {images.map((src, i) => (
+                  <button
+                    key={i}
+                    onClick={() => setActiveImg(i)}
+                    className={`w-14 h-14 border-2 rounded-lg overflow-hidden bg-white dark:bg-muted/10 p-1 transition-colors ${
+                      i === activeImg ? 'border-primary' : 'border-transparent hover:border-border'
+                    }`}
+                  >
+                    <img src={src} alt="" className="w-full h-full object-contain" />
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Key info */}
+          <div className="space-y-4">
+            {/* Status badges */}
+            <div className="flex flex-wrap gap-2">
+              {product.isNew && <Badge color="green">New</Badge>}
+              {product.isHot && <Badge color="orange">Hot</Badge>}
+              {product.isDiscontinued && <Badge color="red">Discontinued</Badge>}
+              {product.brandName && <Badge color="purple">{product.brandName}</Badge>}
+            </div>
+
+            <h1 className="text-2xl font-bold leading-tight">{product.name}</h1>
+
+            {product.shortDescription && (
+              <p className="text-muted-foreground text-sm">{product.shortDescription}</p>
+            )}
+
+            <div className="grid grid-cols-2 gap-x-6 gap-y-3 pt-2">
+              <KV label="CRM Code" value={product.crmCode} mono />
+              <KV label="Модель" value={product.model} mono />
+              <KV label="Артикул" value={product.articleCode} mono />
+              <KV label="Бренд" value={product.brandName} />
+              {product.moq != null && <KV label="MOQ" value={String(product.moq)} />}
+              {product.productionDays != null && <KV label="Production days" value={String(product.productionDays)} />}
+              {product.stockAmount != null && <KV label="На складе" value={String(product.stockAmount)} />}
+              {product.id && <KV label="ID" value={String(product.id)} mono />}
+            </div>
+          </div>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Left — Main Info */}
+          {/* Left column */}
           <div className="lg:col-span-2 space-y-6">
 
-            {/* Image */}
-            {mainImage && (
-              <div className="border rounded-lg overflow-hidden bg-muted/30 flex items-center justify-center p-4">
-                <img
-                  src={mainImage}
-                  alt={product.name}
-                  className="max-h-64 object-contain"
-                  onError={(e) => { e.target.style.display = 'none'; }}
-                />
-              </div>
-            )}
-
-            {/* Basic info */}
-            <div className="border rounded-lg p-6 space-y-4">
-              <h2 className="text-lg font-semibold">Основная информация</h2>
-              <div className="grid grid-cols-2 gap-4">
-                <InfoField label="Название" value={product.name} />
-                <InfoField label="CRM Code" value={product.crmCode} mono />
-                <InfoField label="Модель" value={product.model} mono />
-                <InfoField label="Артикул" value={product.articleCode || product.model} mono />
-                <InfoField label="Вендор / Бренд" value={product.brandName} />
-                {product.moq != null && <InfoField label="MOQ" value={String(product.moq)} />}
-                {product.productionDays != null && <InfoField label="Production days" value={String(product.productionDays)} />}
-                {product.stockAmount != null && <InfoField label="Остаток" value={String(product.stockAmount)} />}
-              </div>
-            </div>
-
-            {/* Category path */}
-            {slugParts.length > 1 && (
-              <div className="border rounded-lg p-6 space-y-3">
-                <h2 className="text-lg font-semibold">Категории</h2>
-                <div className="flex flex-wrap gap-2">
-                  {slugParts.slice(0, -1).map((part, i) => (
-                    <React.Fragment key={i}>
-                      <span className="px-2 py-1 bg-muted rounded text-sm capitalize">
-                        {part.replace(/-/g, ' ')}
-                      </span>
-                      {i < slugParts.length - 2 && <ChevronRight className="h-4 w-4 text-muted-foreground self-center" />}
-                    </React.Fragment>
-                  ))}
-                </div>
-              </div>
-            )}
-
             {/* Description */}
-            {(product.description || product.shortDescription) && (
-              <div className="border rounded-lg p-6 space-y-3">
+            {product.description && (
+              <div className="border rounded-lg p-6 space-y-2">
                 <h2 className="text-lg font-semibold">Описание</h2>
-                {product.shortDescription && (
-                  <p className="text-sm text-muted-foreground">{product.shortDescription}</p>
-                )}
-                {product.description && (
-                  <p className="text-sm whitespace-pre-wrap">{product.description}</p>
-                )}
+                <p className="text-sm leading-relaxed whitespace-pre-wrap text-muted-foreground">
+                  {product.description}
+                </p>
               </div>
             )}
 
@@ -248,15 +260,16 @@ export default function ProductDetailPage() {
               <div className="border rounded-lg p-6 space-y-3">
                 <h2 className="text-lg font-semibold">Технические характеристики</h2>
                 <div className="divide-y">
-                  {attributes.map((av, i) => (
-                    <div key={i} className="flex justify-between py-2 text-sm">
-                      <span className="text-muted-foreground">{av.attribute?.name || `Attr ${av.attributeId}`}</span>
-                      <span className="font-medium text-right ml-4">
-                        {av.textValue || (av.numericValue != null ? String(av.numericValue) : '')}
-                        {av.attribute?.unit_id ? ` ${av.attribute.unit_id}` : ''}
-                      </span>
-                    </div>
-                  ))}
+                  {attributes.map((av, i) => {
+                    const val = av.textValue || (av.numericValue != null ? String(av.numericValue) : '—');
+                    const unit = av.attribute?.unit_id ? ` ${av.attribute.unit_id}` : '';
+                    return (
+                      <div key={i} className="flex justify-between py-2.5 text-sm gap-4">
+                        <span className="text-muted-foreground shrink-0">{av.attribute.name}</span>
+                        <span className="font-medium text-right">{val}{unit}</span>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             )}
@@ -301,31 +314,28 @@ export default function ProductDetailPage() {
             )}
           </div>
 
-          {/* Right — sidebar */}
+          {/* Right sidebar */}
           <div className="space-y-6">
 
             {/* AI Relations */}
-            <div className="border rounded-lg p-6">
+            <div className="border rounded-lg p-5">
               <div className="flex items-center gap-2 mb-4">
                 <Sparkles className="h-5 w-5 text-primary" />
-                <h2 className="text-lg font-semibold">Both Together</h2>
-                <span className="text-xs text-muted-foreground font-normal">AI suggested</span>
+                <h2 className="font-semibold">Both Together</h2>
+                <span className="text-xs text-muted-foreground">AI suggested</span>
               </div>
               {aiRelationsLoading ? (
                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
                   <Loader2 className="h-4 w-4 animate-spin" /> Loading…
                 </div>
               ) : aiRelations.length === 0 ? (
-                <p className="text-sm text-muted-foreground">Нет AI-связей</p>
+                <p className="text-sm text-muted-foreground">Нет AI-связей для этого продукта</p>
               ) : (
                 <div className="space-y-3">
                   {aiRelations.map((rel, i) => (
-                    <div
-                      key={i}
-                      className="p-3 bg-primary/5 border border-primary/10 rounded-lg"
-                    >
+                    <div key={i} className="p-3 bg-primary/5 border border-primary/10 rounded-lg">
                       <div className="flex items-start justify-between gap-2">
-                        <p className="font-medium text-sm">{rel.title || rel.crm_code}</p>
+                        <p className="font-medium text-sm leading-tight">{rel.title || rel.crm_code}</p>
                         {rel.confidence && (
                           <span className={`text-xs px-1.5 py-0.5 rounded shrink-0 ${confidenceBadge(rel.confidence)}`}>
                             {rel.confidence}
@@ -336,10 +346,7 @@ export default function ProductDetailPage() {
                         <p className="text-xs text-muted-foreground font-mono mt-0.5">{rel.crm_code}</p>
                       )}
                       {rel.reason && (
-                        <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{rel.reason}</p>
-                      )}
-                      {rel.rule_title && (
-                        <p className="text-xs text-muted-foreground/60 mt-1">Rule: {rel.rule_title}</p>
+                        <p className="text-xs text-muted-foreground mt-1.5 line-clamp-3 leading-relaxed">{rel.reason}</p>
                       )}
                     </div>
                   ))}
@@ -347,14 +354,18 @@ export default function ProductDetailPage() {
               )}
             </div>
 
-            {/* Meta Info */}
-            <div className="border rounded-lg p-6 space-y-2 text-sm">
+            {/* Meta */}
+            <div className="border rounded-lg p-5 space-y-2 text-sm">
               <h2 className="font-semibold mb-3">Метаданные</h2>
               {product.id && <MetaRow label="ID" value={String(product.id)} />}
               {product.crmCode && <MetaRow label="CRM Code" value={product.crmCode} />}
-              {product.slug && <MetaRow label="Slug" value={product.slug} small />}
               {product.createdAt && <MetaRow label="Создан" value={new Date(product.createdAt).toLocaleDateString('ru-RU')} />}
               {product.updatedAt && <MetaRow label="Обновлён" value={new Date(product.updatedAt).toLocaleDateString('ru-RU')} />}
+              {product.slug && (
+                <div className="pt-2 border-t">
+                  <p className="text-muted-foreground text-xs break-all">{product.slug}</p>
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -363,21 +374,36 @@ export default function ProductDetailPage() {
   );
 }
 
-function InfoField({ label, value, mono = false, small = false }) {
+function Badge({ color, children }) {
+  const colors = {
+    green: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400',
+    orange: 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-400',
+    red: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400',
+    purple: 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400',
+    blue: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400',
+  };
+  return (
+    <span className={`px-2 py-0.5 rounded text-xs font-medium ${colors[color] || colors.blue}`}>
+      {children}
+    </span>
+  );
+}
+
+function KV({ label, value, mono = false }) {
   if (!value) return null;
   return (
     <div>
-      <p className="text-xs text-muted-foreground mb-0.5">{label}</p>
-      <p className={`font-medium ${mono ? 'font-mono text-sm' : ''} ${small ? 'text-xs' : ''}`}>{value}</p>
+      <p className="text-xs text-muted-foreground">{label}</p>
+      <p className={`font-medium mt-0.5 ${mono ? 'font-mono text-sm' : 'text-sm'}`}>{value}</p>
     </div>
   );
 }
 
-function MetaRow({ label, value, small = false }) {
+function MetaRow({ label, value }) {
   return (
     <div className="flex justify-between gap-2">
       <span className="text-muted-foreground">{label}</span>
-      <span className={`text-right ${small ? 'text-xs break-all' : ''}`}>{value}</span>
+      <span>{value}</span>
     </div>
   );
 }
