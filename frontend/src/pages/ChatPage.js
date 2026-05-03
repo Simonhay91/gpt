@@ -212,30 +212,39 @@ const ChatPage = () => {
       const chatRes = await axios.get(`${API}/chats/${chatId}`);
       setChat(chatRes.data);
       const dbActiveIds = chatRes.data.activeSourceIds;
-      if (dbActiveIds !== null && dbActiveIds !== undefined) {
-        setActiveSourceIds(dbActiveIds);
-        setSourcesExplicitlySet(true);
-      } else {
-        setActiveSourceIds([]);
-        setSourcesExplicitlySet(false);
-      }
       setSourceMode(chatRes.data.sourceMode || 'all');
 
       const messagesRes = await axios.get(`${API}/chats/${chatId}/messages`);
       setMessages(messagesRes.data.items || messagesRes.data);
 
+      let allProjectSourceIds = [];
       if (chatRes.data.projectId) {
         const [sourcesRes, projRes] = await Promise.all([
           axios.get(`${API}/projects/${chatRes.data.projectId}/sources`),
           axios.get(`${API}/projects/${chatRes.data.projectId}`)
         ]);
-        setProjectSources(sourcesRes.data.items || sourcesRes.data);
+        const projectSourceList = sourcesRes.data.items || sourcesRes.data;
+        setProjectSources(projectSourceList);
+        allProjectSourceIds = projectSourceList.map(s => s.id);
         setCurrentProjectName(projRes.data.name || '');
         const imagesRes = await axios.get(`${API}/projects/${chatRes.data.projectId}/images`);
         setGeneratedImages(imagesRes.data.items || imagesRes.data);
       } else {
         setProjectSources([]);
         setGeneratedImages([]);
+      }
+
+      // Set active sources AFTER loading project sources so SourcePanel shows the correct state:
+      // null (never set) → show ALL project sources as checked, backend also uses all sources
+      // []   (explicitly cleared) → show NONE checked, backend uses 0 sources
+      // [ids] → show those specific sources checked
+      if (dbActiveIds !== null && dbActiveIds !== undefined) {
+        setActiveSourceIds(dbActiveIds);
+        setSourcesExplicitlySet(true);
+      } else {
+        // null = never set → show all project sources as active (consistent with backend behavior)
+        setActiveSourceIds(allProjectSourceIds);
+        setSourcesExplicitlySet(false);
       }
     } catch {
       toast.error('Failed to load chat');
@@ -599,7 +608,10 @@ const finalContent = content || "Analyze this file and summarize the key points.
 
       setIsSending(true);
       try {
-        const aiResponse = await axios.post(`${API}/chats/${chatId}/messages?regen=true`, { content: editedContent });
+        const aiResponse = await axios.post(`${API}/chats/${chatId}/messages?regen=true`, {
+          content: editedContent,
+          activeSourceIds: sourcesExplicitlySet ? activeSourceIds : null,
+        });
         setMessages(prev => [...prev, aiResponse.data.assistant_message]);
         setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
       } catch { toast.error('Не удалось получить ответ AI'); }

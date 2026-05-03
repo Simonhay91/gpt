@@ -30,7 +30,7 @@ async def get_quick_chats(current_user: dict = Depends(get_current_user)):
         "ownerId": current_user["id"],
         "projectId": None
     }, {"_id": 0}).to_list(1000)
-    return [ChatResponse(**{**c, "activeSourceIds": c.get("activeSourceIds", [])}) for c in chats]
+    return [ChatResponse(**{**c, "activeSourceIds": c.get("activeSourceIds")}) for c in chats]
 
 
 @router.post("/quick-chats", response_model=ChatResponse)
@@ -72,7 +72,7 @@ async def move_chat_to_project(chat_id: str, data: MoveChatRequest, current_user
     )
     
     updated_chat = await db.chats.find_one({"id": chat_id}, {"_id": 0})
-    return ChatResponse(**{**updated_chat, "activeSourceIds": updated_chat.get("activeSourceIds", [])})
+    return ChatResponse(**{**updated_chat, "activeSourceIds": updated_chat.get("activeSourceIds")})
 
 
 @router.put("/chats/{chat_id}/rename", response_model=ChatResponse)
@@ -94,7 +94,7 @@ async def rename_chat(chat_id: str, data: RenameChatRequest, current_user: dict 
     )
     
     updated_chat = await db.chats.find_one({"id": chat_id}, {"_id": 0})
-    return ChatResponse(**{**updated_chat, "activeSourceIds": updated_chat.get("activeSourceIds", [])})
+    return ChatResponse(**{**updated_chat, "activeSourceIds": updated_chat.get("activeSourceIds")})
 
 
 # ==================== PROJECT CHATS ====================
@@ -107,13 +107,13 @@ async def get_chats(project_id: str, current_user: dict = Depends(get_current_us
     chats = await db.chats.find({"projectId": project_id}, {"_id": 0}).to_list(1000)
     
     if project["ownerId"] == current_user["id"]:
-        return [ChatResponse(**{**c, "activeSourceIds": c.get("activeSourceIds", []), "sharedWithUsers": c.get("sharedWithUsers")}) for c in chats]
+        return [ChatResponse(**{**c, "activeSourceIds": c.get("activeSourceIds"), "sharedWithUsers": c.get("sharedWithUsers")}) for c in chats]
     
     visible_chats = []
     for c in chats:
         shared_with = c.get("sharedWithUsers")
         if shared_with is None or current_user["id"] in shared_with:
-            visible_chats.append(ChatResponse(**{**c, "activeSourceIds": c.get("activeSourceIds", []), "sharedWithUsers": shared_with}))
+            visible_chats.append(ChatResponse(**{**c, "activeSourceIds": c.get("activeSourceIds"), "sharedWithUsers": shared_with}))
     
     return visible_chats
 
@@ -148,7 +148,7 @@ async def get_chat(chat_id: str, current_user: dict = Depends(get_current_user))
     elif chat.get("ownerId") != current_user["id"]:
         raise HTTPException(status_code=403, detail="Not authorized")
     
-    return ChatResponse(**{**chat, "activeSourceIds": chat.get("activeSourceIds", []), "sharedWithUsers": chat.get("sharedWithUsers")})
+    return ChatResponse(**{**chat, "activeSourceIds": chat.get("activeSourceIds"), "sharedWithUsers": chat.get("sharedWithUsers")})
 
 
 @router.put("/chats/{chat_id}/visibility")
@@ -172,7 +172,7 @@ async def update_chat_visibility(chat_id: str, data: UpdateChatVisibilityRequest
     )
     
     updated_chat = await db.chats.find_one({"id": chat_id}, {"_id": 0})
-    return ChatResponse(**{**updated_chat, "activeSourceIds": updated_chat.get("activeSourceIds", []), "sharedWithUsers": updated_chat.get("sharedWithUsers")})
+    return ChatResponse(**{**updated_chat, "activeSourceIds": updated_chat.get("activeSourceIds"), "sharedWithUsers": updated_chat.get("sharedWithUsers")})
 
 
 @router.delete("/chats/{chat_id}")
