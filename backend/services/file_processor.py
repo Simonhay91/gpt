@@ -59,22 +59,30 @@ def extract_text_from_pdf(file_content: bytes) -> str:
 
         # OCR fallback for image-based/scanned PDFs
         logger.info("No text found via standard extraction, attempting OCR fallback")
-        import fitz
         try:
-            available_langs = pytesseract.get_languages()
-            lang = "+".join(l for l in ["eng", "rus"] if l in available_langs) or "eng"
-        except Exception:
-            lang = "eng"
-        ocr_parts = []
-        doc = fitz.open(stream=file_content, filetype="pdf")
-        for page in doc:
-            pix = page.get_pixmap(dpi=200)
-            img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
-            page_text = pytesseract.image_to_string(img, lang=lang)
-            if page_text.strip():
-                ocr_parts.append(page_text.strip())
-        doc.close()
-        return "\n\n".join(ocr_parts).strip()
+            import fitz
+            pytesseract.pytesseract.tesseract_cmd = '/usr/bin/tesseract'
+            try:
+                available_langs = pytesseract.get_languages()
+                lang = "+".join(l for l in ["eng", "rus"] if l in available_langs) or "eng"
+            except Exception:
+                lang = "eng"
+            ocr_parts = []
+            doc = fitz.open(stream=file_content, filetype="pdf")
+            for page in doc:
+                pix = page.get_pixmap(dpi=200)
+                img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
+                try:
+                    page_text = pytesseract.image_to_string(img, lang=lang)
+                    if page_text.strip():
+                        ocr_parts.append(page_text.strip())
+                except Exception as ocr_err:
+                    logger.warning(f"OCR failed for page: {ocr_err}")
+            doc.close()
+            return "\n\n".join(ocr_parts).strip()
+        except Exception as e:
+            logger.warning(f"OCR fallback unavailable: {e}")
+            return ""
 
     except Exception as e:
         logger.error(f"PDF extraction error: {str(e)}")

@@ -322,6 +322,20 @@ async def cleanup_expired_chat_temp_files():
 @app.on_event("startup")
 async def startup_event():
     """Initialize database and start background scheduler"""
+    # Auto-install tesseract if missing (needed for OCR on scanned PDFs)
+    import subprocess, shutil
+    if not shutil.which("tesseract"):
+        try:
+            logger.info("Tesseract not found, installing...")
+            subprocess.run(
+                ["apt-get", "install", "-y", "-q", "tesseract-ocr", "tesseract-ocr-rus", "tesseract-ocr-eng"],
+                check=True, capture_output=True, timeout=120
+            )
+            logger.info("✓ Tesseract installed successfully")
+        except Exception as e:
+            logger.warning(f"Could not install tesseract (OCR unavailable): {e}")
+    else:
+        logger.info("✓ Tesseract already available")
     # Create admin user if database is empty
     await init_admin_user()
     
