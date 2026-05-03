@@ -34,9 +34,9 @@ GLOBAL_PROJECT_ID = "__global__"
 MAX_CHUNKS_PER_QUERY = 5
 
 # RAG score thresholds
-RAG_SCORE_MIN = 0.35          # Default minimum chunk score
-RAG_SCORE_MIN_EXCEL = 0.25   # Lower threshold for xlsx/csv sources
-RAG_SCORE_RELEVANT = 0.45     # Threshold to consider RAG "relevant" (skip web search)
+RAG_SCORE_MIN = 0.20          # Default minimum chunk score (lowered — generic queries score lower)
+RAG_SCORE_MIN_EXCEL = 0.15   # Lower threshold for xlsx/csv sources
+RAG_SCORE_RELEVANT = 0.40     # Threshold to consider RAG "relevant" (skip web search)
 
 EXCEL_MIME_TYPES = {
     "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",

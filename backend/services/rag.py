@@ -128,8 +128,15 @@ async def get_relevant_chunks(
     selected = []
     total_chars = 0
 
-    MIN_SCORE_THRESHOLD = 0.45
+    MIN_SCORE_THRESHOLD = 0.30  # lowered from 0.45 — generic queries (summarize/analyze) score lower
     relevant = [c for c in scored_chunks if c["score"] >= MIN_SCORE_THRESHOLD]
+
+    # If no chunks pass threshold but sources exist, include top chunks anyway
+    # (handles "summarize this file" type queries that score low semantically)
+    if not relevant and scored_chunks:
+        relevant = scored_chunks[:MAX_CHUNKS_PER_QUERY]
+        logger.info(f"RAG: no chunks above threshold, using top {len(relevant)} by score (best: {scored_chunks[0]['score']:.3f})")
+
     for chunk in relevant[:MAX_CHUNKS_PER_QUERY]:
 
         if total_chars + len(chunk["content"]) > MAX_CONTEXT_CHARS:

@@ -13,6 +13,7 @@ from middleware.auth import get_current_user
 from db.connection import get_db
 from services.rag import get_embedding
 from services.file_processor import (
+    extract_text_from_pdf,
     extract_text_from_docx,
     extract_text_from_xlsx,
     extract_text_from_csv,
@@ -62,18 +63,6 @@ TYPE_TO_MIME = {
 }
 
 
-def _extract_pdf_pdfplumber(content: bytes) -> str:
-    """Extract text from PDF using pdfplumber."""
-    import pdfplumber
-    text_parts = []
-    with pdfplumber.open(BytesIO(content)) as pdf:
-        for page in pdf.pages:
-            page_text = page.extract_text() or ""
-            if page_text.strip():
-                text_parts.append(page_text)
-    return "\n\n".join(text_parts)
-
-
 def _resolve_type(mime: str, filename: str) -> str:
     """Determine internal file_type from mime or filename extension."""
     if mime in MIME_TO_TYPE:
@@ -117,7 +106,8 @@ async def upload_temp_file(
         if file_type == "image":
             content_text = "[Изображение прикреплено]"
         elif file_type == "pdf":
-            content_text = _extract_pdf_pdfplumber(content)
+            # Use unified PDF extractor with OCR fallback for scanned PDFs
+            content_text = extract_text_from_pdf(content)
         elif file_type in ("xlsx", "xls"):
             content_text = extract_text_from_xlsx(content)
         elif file_type == "csv":
@@ -183,7 +173,8 @@ async def save_temp_to_source(
 
     # Extract text for chunking
     if data.file_type == "pdf":
-        extracted_text = _extract_pdf_pdfplumber(content)
+        # Unified PDF extractor includes OCR fallback for scanned PDFs
+        extracted_text = extract_text_from_pdf(content)
     elif data.file_type in ("xlsx", "xls"):
         extracted_text = extract_text_from_xlsx(content)
     elif data.file_type == "csv":
