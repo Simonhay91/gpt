@@ -1069,6 +1069,11 @@ PUT    /api/user/prompt
 - `/app/backend/routes/messages.py` — removed double RAG-score filter that
   killed `rag.py`'s low-score fallback for generic "summarize/analyze" queries.
   Threshold reduced to 0.05 (only truly empty matches dropped).
+- `/app/backend/services/rag.py` — added `is_summary_query()` + `get_document_overview_chunks()` (first N chunks per source)
+- `/app/backend/routes/sources.py` — added `{"$type": "array"}` guard for `$pull` to fix delete crash on chats with `activeSourceIds: null`
+- `/app/backend/services/excel_service.py` — mirror generated Excel files to MongoDB `excel_files` collection
+- `/app/backend/routes/excel.py` — download endpoint falls back to MongoDB mirror when disk copy is missing (e.g. after pod restart); excel-process and excel-generate endpoints also mirror to DB
+- `/app/.gitignore` — removed 44 duplicate `*.env` / `*.env.*` entries (unblocks deployment)
 
 ### Pending P1/P2 (carry-over)
 - Admin role assignment on fresh production deploy (`init_admin_user`)

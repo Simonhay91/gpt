@@ -3,12 +3,35 @@ import json
 import math
 import uuid
 import logging
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional, Tuple
 
 import pandas as pd
 
 logger = logging.getLogger(__name__)
+
+
+async def _persist_excel_to_db(db, file_id: str, file_path: str, source_name: str = "result.xlsx"):
+    """Mirror the generated Excel into MongoDB so the file survives pod restarts.
+    Files are typically <1 MB; well within the 16 MB BSON document limit."""
+    try:
+        with open(file_path, "rb") as f:
+            blob = f.read()
+        await db.excel_files.update_one(
+            {"id": file_id},
+            {"$set": {
+                "id": file_id,
+                "filename": source_name,
+                "mimeType": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                "size": len(blob),
+                "data": blob,
+                "createdAt": datetime.now(timezone.utc).isoformat(),
+            }},
+            upsert=True,
+        )
+    except Exception as e:
+        logger.error(f"persist_excel_to_db failed for {file_id}: {e}")
 
 EXCEL_MIME_TYPES = [
     "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -457,6 +480,8 @@ async def maybe_generate_excel(
         try:
             file_id, preview, text = await targeted_excel_edit(str(actual_file_path), message_content, claude_client)
             if file_id:
+                # Mirror to MongoDB so file survives pod restarts
+                await _persist_excel_to_db(db, file_id, str(UPLOAD_DIR / f"excel_{file_id}.xlsx"), source_name)
                 return file_id, preview, text, False
             # Edit returned no ops — ask user to clarify
             clarif_text = (
@@ -530,6 +555,8 @@ async def maybe_generate_excel(
         file_id = str(uuid.uuid4())
         result_path = str(UPLOAD_DIR / f"excel_{file_id}.xlsx")
         result_df.to_excel(result_path, index=False)
+        # Mirror to MongoDB so file survives pod restarts
+        await _persist_excel_to_db(db, file_id, result_path, "result.xlsx")
 
         excel_preview = {
             "columns": [str(c) for c in result_df.columns],

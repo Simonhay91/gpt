@@ -1,6 +1,6 @@
 """Excel / CSV Assistant route"""
 from fastapi import APIRouter, HTTPException, Depends, UploadFile, File, Form
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response
 from pydantic import BaseModel
 from datetime import datetime, timezone
 import os
@@ -16,6 +16,7 @@ import anthropic
 from db.connection import get_db
 from middleware.auth import get_current_user
 from routes.projects import check_project_access
+from services.excel_service import _persist_excel_to_db
 from pathlib import Path
 
 router = APIRouter()
@@ -174,6 +175,9 @@ async def excel_process(
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to save result: {str(e)[:100]}")
 
+    # Mirror to MongoDB so file survives pod restarts
+    await _persist_excel_to_db(get_db(), file_id, result_path, "result.xlsx")
+
     # Build preview — sanitize NaN/Inf which are not JSON serializable
     import math
 
@@ -295,6 +299,9 @@ async def excel_generate(
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to save result: {str(e)[:100]}")
 
+    # Mirror to MongoDB so file survives pod restarts
+    await _persist_excel_to_db(get_db(), file_id, result_path, "result.xlsx")
+
     def _sanitize(v):
         if v is None:
             return None
@@ -320,18 +327,35 @@ async def download_excel(
     file_id: str,
     current_user: dict = Depends(get_current_user)
 ):
-    """Download processed Excel file"""
+    """Download processed Excel file. Falls back to MongoDB-stored copy if disk is empty (after pod restart)."""
     try:
         uuid.UUID(file_id)
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid file ID")
 
     result_path = str(ROOT_DIR / "uploads" / f"excel_{file_id}.xlsx")
-    if not os.path.exists(result_path):
+    if os.path.exists(result_path):
+        return FileResponse(
+            path=result_path,
+            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            filename="result.xlsx"
+        )
+
+    # Disk copy missing — pod was restarted. Serve from MongoDB mirror.
+    db = get_db()
+    doc = await db.excel_files.find_one({"id": file_id}, {"_id": 0, "data": 1, "filename": 1})
+    if not doc or not doc.get("data"):
         raise HTTPException(status_code=404, detail="Файл не найден. Попросите AI создать файл заново.")
 
-    return FileResponse(
-        path=result_path,
+    # Restore to disk for subsequent fast access (best-effort)
+    try:
+        with open(result_path, "wb") as f:
+            f.write(doc["data"])
+    except Exception:
+        pass
+
+    return Response(
+        content=doc["data"],
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        filename="result.xlsx"
+        headers={"Content-Disposition": f"attachment; filename=\"{doc.get('filename', 'result.xlsx')}\""}
     )
