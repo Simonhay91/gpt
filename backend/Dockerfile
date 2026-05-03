@@ -3,6 +3,7 @@ FROM python:3.11-slim
 # Install system dependencies (tesseract for pytesseract, etc.)
 RUN apt-get update && apt-get install -y \
     tesseract-ocr \
+    tesseract-ocr-rus \
     libglib2.0-0 \
     libsm6 \
     libxext6 \

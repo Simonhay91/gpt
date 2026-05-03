@@ -1,6 +1,15 @@
-export const APP_VERSION = "2.9.39";
+export const APP_VERSION = "2.9.40";
 
 export const CHANGELOG = [
+  {
+    version: "2.9.40",
+    date: "Май 2026",
+    badge: "fix",
+    changes: [
+      "Загрузка PDF: добавлен OCR-фолбэк для отсканированных/image-based PDF через PyMuPDF + Tesseract",
+      "Dockerfile: добавлен пакет tesseract-ocr-rus для распознавания русскоязычных документов",
+    ]
+  },
   {
     version: "2.9.39",
     date: "Апрель 2026",

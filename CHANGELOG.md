@@ -6,6 +6,18 @@ UI версия: `frontend/src/data/changelog.js`
 
 ---
 
+## 2026-05-03 — v2.9.40
+
+### Fix: OCR fallback for scanned/image-based PDF uploads
+
+**Файлы:** `backend/services/file_processor.py`, `backend/Dockerfile`, `frontend/src/data/changelog.js`, `CHANGELOG.md`
+
+- `extract_text_from_pdf` now falls back to PyMuPDF + pytesseract OCR when MarkItDown and pdfplumber extract no text (image-based PDFs)
+- Auto-detects available Tesseract languages (`eng+rus` if both present, else `eng`)
+- Added `tesseract-ocr-rus` to Dockerfile for Russian-language document support
+
+---
+
 ## 2026-04-30 — v2.9.39
 
 ### Fix: Reports badge — cache in localStorage to prevent flicker
