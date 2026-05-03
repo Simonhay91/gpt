@@ -43,7 +43,7 @@ async def create_quick_chat(chat_data: QuickChatCreate, current_user: dict = Dep
         "projectId": None,
         "ownerId": current_user["id"],
         "name": chat_data.name or "Quick Chat",
-        "activeSourceIds": [],
+        "activeSourceIds": None,
         "sourceMode": "all",
         "createdAt": datetime.now(timezone.utc).isoformat()
     }
@@ -128,7 +128,7 @@ async def create_chat(project_id: str, chat_data: ChatCreate, current_user: dict
         "id": chat_id,
         "projectId": project_id,
         "name": chat_data.name or "New Chat",
-        "activeSourceIds": [],
+        "activeSourceIds": None,
         "sourceMode": "all",
         "createdAt": datetime.now(timezone.utc).isoformat()
     }

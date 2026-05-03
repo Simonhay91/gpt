@@ -236,15 +236,10 @@ async def send_message(
                     temp_file_mime = "image/jpeg" if _ext in ("jpg", "jpeg") else "image/png"
                     temp_file_content_text = "[Изображение прикреплено]"
                 elif _ext == "pdf":
-                    import pdfplumber as _plumber
-                    from io import BytesIO as _BIO
-                    _parts = []
-                    with _plumber.open(_BIO(_content)) as _pdf:
-                        for _pg in _pdf.pages:
-                            _t = _pg.extract_text() or ""
-                            if _t.strip():
-                                _parts.append(_t)
-                    temp_file_content_text = "\n\n".join(_parts)
+                    from services.file_processor import extract_text_from_pdf as _pdfread
+                    import asyncio as _asyncio
+                    loop = _asyncio.get_event_loop()
+                    temp_file_content_text = await loop.run_in_executor(None, _pdfread, _content)
                 elif _ext in ("xlsx", "xls"):
                     from services.file_processor import extract_text_from_xlsx as _xread
                     temp_file_content_text = _xread(_content)
