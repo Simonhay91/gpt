@@ -478,7 +478,7 @@ async def delete_source(project_id: str, source_id: str, current_user: dict = De
     await db.sources.delete_one({"id": source_id})
     
     await db.chats.update_many(
-        {"projectId": project_id},
+        {"projectId": project_id, "activeSourceIds": {"$type": "array"}},
         {"$pull": {"activeSourceIds": source_id}}
     )
     
