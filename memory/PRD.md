@@ -1066,6 +1066,9 @@ PUT    /api/user/prompt
 
 ### Files changed
 - `/app/backend/routes/temp_files.py` — use unified extractor, drop dead helper
+- `/app/backend/routes/messages.py` — removed double RAG-score filter that
+  killed `rag.py`'s low-score fallback for generic "summarize/analyze" queries.
+  Threshold reduced to 0.05 (only truly empty matches dropped).
 
 ### Pending P1/P2 (carry-over)
 - Admin role assignment on fresh production deploy (`init_admin_user`)

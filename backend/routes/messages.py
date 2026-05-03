@@ -343,9 +343,8 @@ async def send_message(
             for chunk in relevant_chunks:
                 score = chunk.get("score", 0)
                 source_id = chunk["sourceId"]
-                # Use lower threshold for excel sources
-                min_score = RAG_SCORE_MIN_EXCEL if source_id in excel_source_ids else RAG_SCORE_MIN
-                if score <= min_score:
+                # rag.py already filters/falls-back; only drop truly empty matches here
+                if score <= 0.05:
                     continue
 
                 source_name = source_names.get(source_id, "Unknown")
