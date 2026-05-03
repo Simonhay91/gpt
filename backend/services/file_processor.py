@@ -57,10 +57,10 @@ def extract_text_from_pdf(file_content: bytes) -> str:
         if text:
             return text
 
-        # OCR fallback for image-based/scanned PDFs
+        # OCR fallback for image-based/scanned PDFs — max 10 pages, 150 DPI for speed
         logger.info("No text found via standard extraction, attempting OCR fallback")
         try:
-            import fitz
+            import fitz, signal
             pytesseract.pytesseract.tesseract_cmd = '/usr/bin/tesseract'
             try:
                 available_langs = pytesseract.get_languages()
@@ -69,17 +69,28 @@ def extract_text_from_pdf(file_content: bytes) -> str:
                 lang = "eng"
             ocr_parts = []
             doc = fitz.open(stream=file_content, filetype="pdf")
-            for page in doc:
-                pix = page.get_pixmap(dpi=200)
+            page_count = len(doc)
+            MAX_OCR_PAGES = 10
+            if page_count > MAX_OCR_PAGES:
+                logger.warning(f"PDF has {page_count} pages, OCR limited to first {MAX_OCR_PAGES}")
+            for i, page in enumerate(doc):
+                if i >= MAX_OCR_PAGES:
+                    break
+                pix = page.get_pixmap(dpi=150)  # 150 dpi is faster, still readable
                 img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
                 try:
-                    page_text = pytesseract.image_to_string(img, lang=lang)
+                    page_text = pytesseract.image_to_string(
+                        img, lang=lang,
+                        config='--psm 3 --oem 1 -c tessedit_do_invert=0'  # LSTM engine, faster
+                    )
                     if page_text.strip():
                         ocr_parts.append(page_text.strip())
                 except Exception as ocr_err:
-                    logger.warning(f"OCR failed for page: {ocr_err}")
+                    logger.warning(f"OCR failed for page {i}: {ocr_err}")
             doc.close()
-            return "\n\n".join(ocr_parts).strip()
+            result = "\n\n".join(ocr_parts).strip()
+            logger.info(f"OCR complete: extracted {len(result)} chars from {min(page_count, MAX_OCR_PAGES)} pages")
+            return result
         except Exception as e:
             logger.warning(f"OCR fallback unavailable: {e}")
             return ""

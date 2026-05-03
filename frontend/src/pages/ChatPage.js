@@ -85,6 +85,7 @@ const ChatPage = () => {
   const [projectSources, setProjectSources] = useState([]);
   const [activeSourceIds, setActiveSourceIds] = useState([]);
   const [sourcesExplicitlySet, setSourcesExplicitlySet] = useState(false);
+  const sourcesJustLoaded = useRef(false); // prevents saving back to DB what we just loaded
   const [currentProjectName, setCurrentProjectName] = useState('');
   const [sourceMode, setSourceMode] = useState('all');
   const [generatedImages, setGeneratedImages] = useState([]);
@@ -193,9 +194,13 @@ const ChatPage = () => {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [messages.length]);
 
-  // Sync active sources with debounce — only when user has explicitly set them
+  // Sync active sources with debounce — only when user has explicitly set them (not on initial load)
   useEffect(() => {
     if (!chatId || isLoading || !sourcesExplicitlySet) return;
+    if (sourcesJustLoaded.current) {
+      sourcesJustLoaded.current = false;
+      return; // skip saving what we just loaded from DB
+    }
     const timeout = setTimeout(async () => {
       try {
         await axios.post(`${API}/chats/${chatId}/active-sources`, { sourceIds: activeSourceIds });
@@ -239,6 +244,7 @@ const ChatPage = () => {
       // []   (explicitly cleared) → show NONE checked, backend uses 0 sources
       // [ids] → show those specific sources checked
       if (dbActiveIds !== null && dbActiveIds !== undefined) {
+        sourcesJustLoaded.current = true; // mark as loaded, skip debounce save
         setActiveSourceIds(dbActiveIds);
         setSourcesExplicitlySet(true);
       } else {
