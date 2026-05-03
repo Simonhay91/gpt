@@ -15,7 +15,10 @@ from models.schemas import MessageCreate, MessageResponse, SaveToKnowledgeReques
 from middleware.auth import get_current_user
 from db.connection import get_db
 from routes.projects import check_project_access, can_edit_chats, verify_project_ownership
-from services.rag import get_relevant_chunks, get_embedding, get_openai_client
+from services.rag import (
+    get_relevant_chunks, get_embedding, get_openai_client,
+    is_summary_query, get_document_overview_chunks,
+)
 from services.cache import build_cache_key_context, find_cached_answer, save_to_cache
 from services.file_processor import chunk_text
 from services.web_search import (
@@ -326,10 +329,17 @@ async def send_message(
 
         rag_source_ids = mentioned_source_ids if mentioned_source_ids else active_source_ids
 
-        relevant_chunks = await get_relevant_chunks(
-            db, rag_source_ids, project_id, message_data.content, user_department_ids,
-            mentioned_source_ids=mentioned_source_ids
-        )
+        # Generic summary/analyze queries: embeddings are weak signal — fetch the
+        # first chunks of each active source instead (covers TOC, intro, abstract).
+        if is_summary_query(message_data.content):
+            relevant_chunks = await get_document_overview_chunks(
+                db, rag_source_ids, chunks_per_source=6
+            )
+        else:
+            relevant_chunks = await get_relevant_chunks(
+                db, rag_source_ids, project_id, message_data.content, user_department_ids,
+                mentioned_source_ids=mentioned_source_ids
+            )
 
         if relevant_chunks:
             def chunk_priority(chunk):
