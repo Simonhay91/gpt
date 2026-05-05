@@ -1064,8 +1064,10 @@ async def process_datasheet(
         "createdAt": datetime.now(timezone.utc).isoformat(),
     })
 
+    import urllib.parse
+    encoded_filename = urllib.parse.quote(output_filename)
     return StreamingResponse(
         io.BytesIO(output_bytes),
         media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-        headers={"Content-Disposition": f'attachment; filename="{output_filename}"'}
+        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{encoded_filename}"}
     )
