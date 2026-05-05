@@ -128,8 +128,15 @@ async def get_relevant_chunks(
     selected = []
     total_chars = 0
 
-    MIN_SCORE_THRESHOLD = 0.45
+    MIN_SCORE_THRESHOLD = 0.30  # lowered from 0.45 — generic queries (summarize/analyze) score lower
     relevant = [c for c in scored_chunks if c["score"] >= MIN_SCORE_THRESHOLD]
+
+    # If no chunks pass threshold but sources exist, include top chunks anyway
+    # (handles "summarize this file" type queries that score low semantically)
+    if not relevant and scored_chunks:
+        relevant = scored_chunks[:MAX_CHUNKS_PER_QUERY]
+        logger.info(f"RAG: no chunks above threshold, using top {len(relevant)} by score (best: {scored_chunks[0]['score']:.3f})")
+
     for chunk in relevant[:MAX_CHUNKS_PER_QUERY]:
 
         if total_chars + len(chunk["content"]) > MAX_CONTEXT_CHARS:
@@ -146,3 +153,73 @@ async def get_relevant_chunks(
 def get_openai_client():
     """Returns None - OpenAI replaced by Voyage AI"""
     return None
+
+
+# ==================== SUMMARY INTENT DETECTION ====================
+
+# Phrases that indicate user wants a high-level overview, not a specific question.
+# Embedding similarity is weak for these queries — semantic search picks random
+# chunks, so we instead serve the FIRST N chunks of the document (intro/TOC).
+_SUMMARY_PATTERNS = [
+    # English
+    r"\b(summari[sz]e|summary|analy[sz]e|overview|tldr|key\s+points)\b",
+    r"\bwhat(?:'s|\s+is)\s+(?:in|about|this)\s+(?:the\s+)?(?:file|document|pdf)\b",
+    r"\b(?:tell|explain)\s+me\s+about\s+(?:the\s+)?(?:file|document|pdf)\b",
+    # Russian
+    r"\b(саммари|резюме|кратко\s+о|расскажи\s+о|расскажи\s+про|что\s+в\s+(?:этом\s+)?файле|"
+    r"проанализируй|анализ|обзор|пересказ|краткое\s+содержание)\b",
+    # Armenian (transliterated)
+    r"\b(amphop|amfop|verluc|verlucutyun|hamarot|inch\s+ka\s+ays)\b",
+]
+
+_SUMMARY_RE = re.compile("|".join(_SUMMARY_PATTERNS), re.IGNORECASE)
+
+
+def is_summary_query(query: str) -> bool:
+    """True when the query is a generic summary/overview request."""
+    if not query:
+        return False
+    return bool(_SUMMARY_RE.search(query))
+
+
+async def get_document_overview_chunks(
+    db,
+    source_ids: List[str],
+    chunks_per_source: int = 6,
+) -> List[dict]:
+    """
+    Return the FIRST N chunks (by chunkIndex) of each active source.
+    Used for generic summary queries where embedding similarity is unreliable.
+    """
+    if not source_ids:
+        return []
+
+    selected: List[dict] = []
+    total_chars = 0
+
+    for sid in source_ids:
+        chunks = await db.source_chunks.find(
+            {"sourceId": sid},
+            {"_id": 0, "sourceId": 1, "content": 1, "text": 1,
+             "chunkIndex": 1, "sourceName": 1, "sourceType": 1}
+        ).sort("chunkIndex", 1).to_list(chunks_per_source)
+
+        for chunk in chunks:
+            content = chunk.get("content") or chunk.get("text", "")
+            if not content:
+                continue
+            if total_chars + len(content) > MAX_CONTEXT_CHARS:
+                break
+            # Use a synthetic high score so downstream "relevant" checks see this
+            # context as substantive, equivalent to an above-threshold semantic match.
+            selected.append({**chunk, "content": content, "score": 0.80})
+            total_chars += len(content)
+
+        if total_chars >= MAX_CONTEXT_CHARS:
+            break
+
+    logger.info(
+        f"RAG (overview): selected {len(selected)} first-chunks from "
+        f"{len(source_ids)} sources, {total_chars} chars"
+    )
+    return selected

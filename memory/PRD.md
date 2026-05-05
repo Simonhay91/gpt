@@ -1043,6 +1043,47 @@ PUT    /api/user/prompt
 
 ---
 
-**Document Version:** 1.5
-**Last Updated:** 2026-04-07
+## 17. Session Updates (2026-05-03)
+
+### Bug Fix: Scanned PDF temp-file analysis
+- **Issue (P0):** AI replied "I cannot access the content of your PDF file" when users
+  uploaded scanned/image-based PDFs and asked "Analyze this file".
+- **Root cause:** `routes/temp_files.py::upload_temp_file` used a local
+  `_extract_pdf_pdfplumber` helper with NO OCR fallback. For scanned PDFs the helper
+  returned an empty string, so:
+  - `chat.tempFiles` was never populated (guarded by `if chat_id and content_text`)
+  - UI showed empty preview
+  - Follow-up messages without re-uploading lost all file context
+- **Fix:** Switched temp upload + `save-temp-to-source` to the unified
+  `services.file_processor.extract_text_from_pdf` which runs the full
+  pipeline: markitdown → pdfplumber → pytesseract OCR (capped 10 pages, 150 DPI).
+  Removed the duplicated `_extract_pdf_pdfplumber` helper.
+- **Verified end-to-end** with a 42-page scanned PDF:
+  - Upload now returns 500-char preview (was 0)
+  - First message "Analyze this file" returns full structured summary
+  - Follow-up message without `temp_file_id` still answers correctly via persisted
+    `chat.tempFiles`
+
+### Files changed
+- `/app/backend/routes/temp_files.py` — use unified extractor, drop dead helper
+- `/app/backend/routes/messages.py` — removed double RAG-score filter that
+  killed `rag.py`'s low-score fallback for generic "summarize/analyze" queries.
+  Threshold reduced to 0.05 (only truly empty matches dropped).
+- `/app/backend/services/rag.py` — added `is_summary_query()` + `get_document_overview_chunks()` (first N chunks per source)
+- `/app/backend/routes/sources.py` — added `{"$type": "array"}` guard for `$pull` to fix delete crash on chats with `activeSourceIds: null`
+- `/app/backend/services/excel_service.py` — mirror generated Excel files to MongoDB `excel_files` collection
+- `/app/backend/routes/excel.py` — download endpoint falls back to MongoDB mirror when disk copy is missing (e.g. after pod restart); excel-process and excel-generate endpoints also mirror to DB
+- `/app/.gitignore` — removed 44 duplicate `*.env` / `*.env.*` entries (unblocks deployment)
+
+### Pending P1/P2 (carry-over)
+- Admin role assignment on fresh production deploy (`init_admin_user`)
+- Persist generated Excel files in object storage (currently `/tmp` → 404 after restart)
+- Apply DB query optimizations from deployment_agent
+- Complete i18n
+- Login page slogan change (blocked on user input)
+
+---
+
+**Document Version:** 1.6
+**Last Updated:** 2026-05-03
 **Author:** Planet Knowledge Team

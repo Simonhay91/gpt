@@ -289,7 +289,9 @@ export const SourcePanel = ({
         {projectSources.length > 0 && (
           <p className="text-xs text-muted-foreground mt-3 flex items-center gap-1">
             <span className="inline-block w-2 h-2 rounded-full bg-indigo-500"></span>
-            Checked sources are used as AI context
+            {!sourcesExplicitlySet
+              ? 'Все источники активны по умолчанию. Личные источники ("Мои источники") также включены.'
+              : 'Checked sources are used as AI context'}
           </p>
         )}
       </div>

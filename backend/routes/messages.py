@@ -15,7 +15,10 @@ from models.schemas import MessageCreate, MessageResponse, SaveToKnowledgeReques
 from middleware.auth import get_current_user
 from db.connection import get_db
 from routes.projects import check_project_access, can_edit_chats, verify_project_ownership
-from services.rag import get_relevant_chunks, get_embedding, get_openai_client
+from services.rag import (
+    get_relevant_chunks, get_embedding, get_openai_client,
+    is_summary_query, get_document_overview_chunks,
+)
 from services.cache import build_cache_key_context, find_cached_answer, save_to_cache
 from services.file_processor import chunk_text
 from services.web_search import (
@@ -34,9 +37,9 @@ GLOBAL_PROJECT_ID = "__global__"
 MAX_CHUNKS_PER_QUERY = 5
 
 # RAG score thresholds
-RAG_SCORE_MIN = 0.35          # Default minimum chunk score
-RAG_SCORE_MIN_EXCEL = 0.25   # Lower threshold for xlsx/csv sources
-RAG_SCORE_RELEVANT = 0.45     # Threshold to consider RAG "relevant" (skip web search)
+RAG_SCORE_MIN = 0.20          # Default minimum chunk score (lowered — generic queries score lower)
+RAG_SCORE_MIN_EXCEL = 0.15   # Lower threshold for xlsx/csv sources
+RAG_SCORE_RELEVANT = 0.40     # Threshold to consider RAG "relevant" (skip web search)
 
 EXCEL_MIME_TYPES = {
     "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -236,15 +239,10 @@ async def send_message(
                     temp_file_mime = "image/jpeg" if _ext in ("jpg", "jpeg") else "image/png"
                     temp_file_content_text = "[Изображение прикреплено]"
                 elif _ext == "pdf":
-                    import pdfplumber as _plumber
-                    from io import BytesIO as _BIO
-                    _parts = []
-                    with _plumber.open(_BIO(_content)) as _pdf:
-                        for _pg in _pdf.pages:
-                            _t = _pg.extract_text() or ""
-                            if _t.strip():
-                                _parts.append(_t)
-                    temp_file_content_text = "\n\n".join(_parts)
+                    from services.file_processor import extract_text_from_pdf as _pdfread
+                    import asyncio as _asyncio
+                    loop = _asyncio.get_event_loop()
+                    temp_file_content_text = await loop.run_in_executor(None, _pdfread, _content)
                 elif _ext in ("xlsx", "xls"):
                     from services.file_processor import extract_text_from_xlsx as _xread
                     temp_file_content_text = _xread(_content)
@@ -331,10 +329,17 @@ async def send_message(
 
         rag_source_ids = mentioned_source_ids if mentioned_source_ids else active_source_ids
 
-        relevant_chunks = await get_relevant_chunks(
-            db, rag_source_ids, project_id, message_data.content, user_department_ids,
-            mentioned_source_ids=mentioned_source_ids
-        )
+        # Generic summary/analyze queries: embeddings are weak signal — fetch the
+        # first chunks of each active source instead (covers TOC, intro, abstract).
+        if is_summary_query(message_data.content):
+            relevant_chunks = await get_document_overview_chunks(
+                db, rag_source_ids, chunks_per_source=6
+            )
+        else:
+            relevant_chunks = await get_relevant_chunks(
+                db, rag_source_ids, project_id, message_data.content, user_department_ids,
+                mentioned_source_ids=mentioned_source_ids
+            )
 
         if relevant_chunks:
             def chunk_priority(chunk):
@@ -348,9 +353,8 @@ async def send_message(
             for chunk in relevant_chunks:
                 score = chunk.get("score", 0)
                 source_id = chunk["sourceId"]
-                # Use lower threshold for excel sources
-                min_score = RAG_SCORE_MIN_EXCEL if source_id in excel_source_ids else RAG_SCORE_MIN
-                if score <= min_score:
+                # rag.py already filters/falls-back; only drop truly empty matches here
+                if score <= 0.05:
                     continue
 
                 source_name = source_names.get(source_id, "Unknown")
