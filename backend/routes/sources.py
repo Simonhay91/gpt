@@ -70,10 +70,12 @@ SUPPORTED_MIME_TYPES = {
 
 # ==================== BACKGROUND OCR TASK ====================
 
-async def _process_remaining_ocr(source_id: str, project_id: str, file_content: bytes, start_page: int, total_pages: int):
+async def _process_remaining_ocr(source_id: str, project_id: str, storage_path: str, start_page: int, total_pages: int):
     """Background task: OCR pages start_page..total_pages and append chunks to DB."""
     try:
         db = get_db()
+        with open(storage_path, 'rb') as f:
+            file_content = f.read()
         loop = asyncio.get_event_loop()
         text = await loop.run_in_executor(None, ocr_pdf_page_range, file_content, start_page, total_pages)
         if text.strip():
@@ -252,7 +254,7 @@ async def upload_source(
     if ocr_truncated:
         background_tasks.add_task(
             _process_remaining_ocr,
-            source_id, project_id, content, SYNC_OCR_PAGES, total_pages
+            source_id, project_id, str(storage_path), SYNC_OCR_PAGES, total_pages
         )
 
     return SourceResponse(
