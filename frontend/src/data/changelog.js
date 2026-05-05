@@ -1,6 +1,16 @@
-export const APP_VERSION = "2.9.40";
+export const APP_VERSION = "2.9.41";
 
 export const CHANGELOG = [
+  {
+    version: "2.9.41",
+    date: "Май 2026",
+    badge: "new",
+    changes: [
+      "PDF загрузка: большие scanned PDF обрабатываются полностью — первые 10 страниц сразу, остальные в фоне",
+      "Sources: бейдж «10/43 pages» с анимацией во время фоновой обработки OCR",
+      "ChatPage: автоматический polling каждые 5 сек — бейдж исчезает когда OCR завершён",
+    ]
+  },
   {
     version: "2.9.40",
     date: "Май 2026",

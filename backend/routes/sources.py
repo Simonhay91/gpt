@@ -1,9 +1,10 @@
 """Source management routes"""
-from fastapi import APIRouter, HTTPException, Depends, UploadFile, File
+from fastapi import APIRouter, HTTPException, Depends, UploadFile, File, BackgroundTasks
 from fastapi.responses import FileResponse, StreamingResponse
 from typing import List
 from datetime import datetime, timezone
 from pathlib import Path
+import asyncio
 import uuid
 import logging
 import aiofiles
@@ -29,6 +30,8 @@ from routes.projects import (
 )
 from services.file_processor import (
     extract_text_from_pdf,
+    extract_text_from_pdf_with_meta,
+    ocr_pdf_page_range,
     extract_text_from_docx,
     extract_text_from_txt,
     extract_text_from_pptx,
@@ -37,7 +40,8 @@ from services.file_processor import (
     extract_text_from_image,
     extract_text_from_html,
     chunk_text,
-    chunk_tabular_text
+    chunk_tabular_text,
+    SYNC_OCR_PAGES,
 )
 from services.rag import get_embedding
 
@@ -62,6 +66,44 @@ SUPPORTED_MIME_TYPES = {
     "image/jpeg": "jpeg",
     "image/jpg": "jpg",
 }
+
+
+# ==================== BACKGROUND OCR TASK ====================
+
+async def _process_remaining_ocr(source_id: str, project_id: str, file_content: bytes, start_page: int, total_pages: int):
+    """Background task: OCR pages start_page..total_pages and append chunks to DB."""
+    try:
+        db = get_db()
+        loop = asyncio.get_event_loop()
+        text = await loop.run_in_executor(None, ocr_pdf_page_range, file_content, start_page, total_pages)
+        if text.strip():
+            chunks = chunk_text(text)
+            # Determine starting chunkIndex to avoid collisions
+            existing_count = await db.source_chunks.count_documents({"sourceId": source_id})
+            for i, chunk_content in enumerate(chunks):
+                embedding = await get_embedding(chunk_content)
+                chunk_doc = {
+                    "id": str(uuid.uuid4()),
+                    "sourceId": source_id,
+                    "projectId": project_id,
+                    "chunkIndex": existing_count + i,
+                    "content": chunk_content,
+                    "embedding": embedding,
+                    "createdAt": datetime.now(timezone.utc).isoformat()
+                }
+                await db.source_chunks.insert_one(chunk_doc)
+            logger.info(f"Background OCR done for source {source_id}: {len(chunks)} new chunks from pages {start_page}-{total_pages}")
+        await db.sources.update_one(
+            {"id": source_id},
+            {"$set": {"ocrStatus": "ready", "ocrProcessedPages": total_pages}}
+        )
+    except Exception as e:
+        logger.error(f"Background OCR failed for source {source_id}: {e}")
+        try:
+            db = get_db()
+            await db.sources.update_one({"id": source_id}, {"$set": {"ocrStatus": "ready"}})
+        except Exception:
+            pass
 
 
 # ==================== GET ALL USER SOURCES ====================
@@ -101,6 +143,7 @@ async def get_all_user_sources(current_user: dict = Depends(get_current_user)):
 async def upload_source(
     project_id: str,
     file: UploadFile = File(...),
+    background_tasks: BackgroundTasks = BackgroundTasks(),
     current_user: dict = Depends(get_current_user)
 ):
     """Upload a file source to a project"""
@@ -122,8 +165,16 @@ async def upload_source(
     
     file_type = SUPPORTED_MIME_TYPES[file.content_type]
     
+    ocr_truncated = False
+    total_pages = 0
+    processed_pages = 0
+
     if file_type == "pdf":
-        extracted_text = extract_text_from_pdf(content)
+        pdf_meta = extract_text_from_pdf_with_meta(content)
+        extracted_text = pdf_meta["text"]
+        ocr_truncated = pdf_meta["ocr_truncated"]
+        total_pages = pdf_meta["total_pages"]
+        processed_pages = pdf_meta["processed_pages"]
     elif file_type == "docx":
         extracted_text = extract_text_from_docx(content)
     elif file_type == "pptx":
@@ -165,7 +216,9 @@ async def upload_source(
             wb.close()
         except Exception as e:
             logger.warning(f"Could not extract sheet names: {e}")
-    
+
+    ocr_status = "processing" if ocr_truncated else None
+
     source_doc = {
         "id": source_id,
         "projectId": project_id,
@@ -176,7 +229,10 @@ async def upload_source(
         "sizeBytes": len(content),
         "storagePath": storage_filename,
         "sheetNames": sheet_names,
-        "createdAt": datetime.now(timezone.utc).isoformat()
+        "createdAt": datetime.now(timezone.utc).isoformat(),
+        "ocrStatus": ocr_status,
+        "ocrTotalPages": total_pages if ocr_truncated else None,
+        "ocrProcessedPages": processed_pages if ocr_truncated else None,
     }
     await db.sources.insert_one(source_doc)
     
@@ -192,7 +248,13 @@ async def upload_source(
             "createdAt": datetime.now(timezone.utc).isoformat()
         }
         await db.source_chunks.insert_one(chunk_doc)
-    
+
+    if ocr_truncated:
+        background_tasks.add_task(
+            _process_remaining_ocr,
+            source_id, project_id, content, SYNC_OCR_PAGES, total_pages
+        )
+
     return SourceResponse(
         id=source_id,
         projectId=project_id,
@@ -202,7 +264,10 @@ async def upload_source(
         mimeType=file.content_type,
         sizeBytes=len(content),
         createdAt=source_doc["createdAt"],
-        chunkCount=len(chunks)
+        chunkCount=len(chunks),
+        ocrStatus=ocr_status,
+        ocrTotalPages=total_pages if ocr_truncated else None,
+        ocrProcessedPages=processed_pages if ocr_truncated else None,
     )
 
 
@@ -453,7 +518,10 @@ async def list_sources(project_id: str, current_user: dict = Depends(get_current
             mimeType=s.get("mimeType"),
             sizeBytes=s.get("sizeBytes"),
             createdAt=s["createdAt"],
-            chunkCount=chunk_count
+            chunkCount=chunk_count,
+            ocrStatus=s.get("ocrStatus"),
+            ocrTotalPages=s.get("ocrTotalPages"),
+            ocrProcessedPages=s.get("ocrProcessedPages"),
         ))
     
     return result

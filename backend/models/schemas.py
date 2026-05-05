@@ -174,6 +174,9 @@ class SourceResponse(BaseModel):
     sizeBytes: Optional[int] = None
     createdAt: str
     chunkCount: int
+    ocrStatus: Optional[str] = None       # "processing" | "ready" | None
+    ocrTotalPages: Optional[int] = None
+    ocrProcessedPages: Optional[int] = None
 
 
 class ActiveSourcesUpdate(BaseModel):

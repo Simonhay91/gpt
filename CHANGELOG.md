@@ -6,6 +6,17 @@ UI версия: `frontend/src/data/changelog.js`
 
 ---
 
+## 2026-05-05 — v2.9.41
+
+### Background OCR for large scanned PDFs
+- `backend/services/file_processor.py` — added `extract_text_from_pdf_with_meta()` returning OCR metadata, `ocr_pdf_page_range()` for background processing, kept `extract_text_from_pdf()` backward-compatible
+- `backend/routes/sources.py` — added `_process_remaining_ocr` async background task using `run_in_executor`, upload endpoint now schedules background OCR when PDF is truncated, list endpoint returns `ocrStatus` field
+- `backend/models/schemas.py` — added `ocrStatus`, `ocrTotalPages`, `ocrProcessedPages` to `SourceResponse`
+- `frontend/src/components/chat/SourcePanel.js` — amber spinner badge showing "10/43 pages" while OCR processing
+- `frontend/src/pages/ChatPage.js` — `startOcrPolling()` polls every 5s until all sources are ready; upload toast shows background processing message; large PDF warning for files >4MB
+
+---
+
 ## 2026-05-03 — v2.9.40
 
 ### Fix: OCR fallback for scanned/image-based PDF uploads

@@ -96,6 +96,28 @@ const ChatPage = () => {
   const [isAddingUrl, setIsAddingUrl] = useState(false);
   const [urlInput, setUrlInput] = useState('');
 
+  // ── OCR background polling ──
+  const ocrPollRef = useRef(null);
+  const startOcrPolling = (projectId) => {
+    if (ocrPollRef.current) return;
+    ocrPollRef.current = setInterval(async () => {
+      try {
+        const res = await axios.get(`${API}/projects/${projectId}/sources`);
+        const sources = res.data;
+        const stillProcessing = sources.some(s => s.ocrStatus === 'processing');
+        setProjectSources(sources);
+        if (!stillProcessing) {
+          clearInterval(ocrPollRef.current);
+          ocrPollRef.current = null;
+        }
+      } catch (e) {
+        clearInterval(ocrPollRef.current);
+        ocrPollRef.current = null;
+      }
+    }, 5000);
+  };
+  useEffect(() => () => { if (ocrPollRef.current) clearInterval(ocrPollRef.current); }, []);
+
   // ── Temp file (one-shot AI attachment) ──
   const [tempFile, setTempFile] = useState(null);        // { id, filename, fileType }
   const [isTempUploading, setIsTempUploading] = useState(false);
@@ -382,6 +404,8 @@ const ChatPage = () => {
       const ext = '.' + file.name.split('.').pop().toLowerCase();
       if (!supportedExtensions.includes(ext) && !supportedMimeTypes.includes(file.type)) { toast.error(`${file.name}: Unsupported file type`); return false; }
       if (file.size > 10 * 1024 * 1024) { toast.error(`${file.name}: File size must be less than 10MB`); return false; }
+      const fileExt = file.name.split('.').pop().toLowerCase();
+      if (fileExt === 'pdf' && file.size > 4 * 1024 * 1024) { toast.warning(`${file.name}: Large PDFs are processed up to 10 pages only`); }
       return true;
     });
     if (!validFiles.length) return;
@@ -405,6 +429,7 @@ const ChatPage = () => {
         const errors = response.data.errors || [];
         if (uploaded.length > 0) {
           toast.success(`Uploaded ${uploaded.length} file(s)`);
+          if (sourcesRes.data.some(s => s.ocrStatus === 'processing')) startOcrPolling(chat.projectId);
           const newIds = [...new Set([...activeSourceIds, ...uploaded.map(s => s.id)])];
           await axios.post(`${API}/chats/${chatId}/active-sources`, { sourceIds: newIds });
           setActiveSourceIds(newIds);
@@ -420,7 +445,9 @@ const ChatPage = () => {
         const response = await axios.post(`${API}/projects/${chat.projectId}/sources/upload`, formData, { headers: { 'Content-Type': 'multipart/form-data' } });
         const uploadedSource = response.data;
         setProjectSources(prev => [...prev, uploadedSource]);
-        toast.success(`Uploaded ${file.name} (${response.data.chunkCount} chunks extracted)`);
+        const isOcrProcessing = uploadedSource.ocrStatus === 'processing';
+        toast.success(`Uploaded ${file.name} (${response.data.chunkCount} chunks extracted)${isOcrProcessing ? ` — processing pages ${uploadedSource.ocrProcessedPages + 1}–${uploadedSource.ocrTotalPages} in background` : ''}`);
+        if (isOcrProcessing) startOcrPolling(chat.projectId);
         const newIds = [...activeSourceIds, uploadedSource.id];
         await axios.post(`${API}/chats/${chatId}/active-sources`, { sourceIds: newIds });
         setActiveSourceIds(newIds);

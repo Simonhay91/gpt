@@ -6,7 +6,7 @@ import { ScrollArea } from '../ui/scroll-area';
 import {
   Upload, Link, FileText, File, Globe, ImageIcon, Loader2,
   Search, X, Info, Database, Target, Lightbulb, ChevronRight,
-  ChevronDown, Eye, Download, Trash2, Building2, FolderOpen
+  ChevronDown, Eye, Download, Trash2, Building2, FolderOpen, Clock
 } from 'lucide-react';
 
 const getFileIcon = (mimeType, kind) => {
@@ -242,12 +242,18 @@ export const SourcePanel = ({
                                 data-testid={`source-checkbox-${source.id}`}
                               />
                               {getFileIcon(source.mimeType, source.kind)}
-                              <div className="flex-1 min-w-0">
+                                <div className="flex-1 min-w-0">
                                 <p className="text-sm truncate">{source.originalName || source.url}</p>
                                 <div className="flex items-center gap-1.5 flex-wrap mt-0.5">
                                   <p className="text-xs text-muted-foreground">
                                     {source.sizeBytes ? `${formatFileSize(source.sizeBytes)} • ` : ''}{source.chunkCount} chunks
                                   </p>
+                                  {source.ocrStatus === 'processing' && (
+                                    <span className="inline-flex items-center gap-0.5 text-xs text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded-full border border-amber-500/20" title={`Processing pages ${source.ocrProcessedPages}–${source.ocrTotalPages} in background`}>
+                                      <Loader2 className="h-2.5 w-2.5 animate-spin flex-shrink-0" />
+                                      <span>{source.ocrProcessedPages}/{source.ocrTotalPages} pages</span>
+                                    </span>
+                                  )}
                                   {currentProjectName && (
                                     <span className="inline-flex items-center gap-0.5 text-xs text-indigo-400 bg-indigo-500/10 px-1.5 py-0.5 rounded-full border border-indigo-500/20" data-testid={`source-project-badge-${source.id}`}>
                                       <FolderOpen className="h-2.5 w-2.5 flex-shrink-0" />

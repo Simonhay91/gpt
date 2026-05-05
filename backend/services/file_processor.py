@@ -28,7 +28,57 @@ CHUNK_SIZE_TABULAR = 800
 CHUNK_OVERLAP = 200
 
 
+SYNC_OCR_PAGES = 10  # pages processed immediately during upload
+
+
+def _get_ocr_lang() -> str:
+    try:
+        available_langs = pytesseract.get_languages()
+        return "+".join(l for l in ["eng", "rus"] if l in available_langs) or "eng"
+    except Exception:
+        return "eng"
+
+
+def ocr_pdf_page_range(file_content: bytes, start_page: int, end_page: int) -> str:
+    """OCR pages [start_page, end_page) of a scanned PDF. Returns extracted text."""
+    try:
+        import fitz
+        pytesseract.pytesseract.tesseract_cmd = '/usr/bin/tesseract'
+        lang = _get_ocr_lang()
+        doc = fitz.open(stream=file_content, filetype="pdf")
+        parts = []
+        for i in range(start_page, min(end_page, len(doc))):
+            pix = doc[i].get_pixmap(dpi=150)
+            img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
+            try:
+                page_text = pytesseract.image_to_string(
+                    img, lang=lang,
+                    config='--psm 3 --oem 1 -c tessedit_do_invert=0'
+                )
+                if page_text.strip():
+                    parts.append(page_text.strip())
+            except Exception as ocr_err:
+                logger.warning(f"OCR failed for page {i}: {ocr_err}")
+        doc.close()
+        result = "\n\n".join(parts).strip()
+        logger.info(f"OCR page range {start_page}-{end_page}: extracted {len(result)} chars")
+        return result
+    except Exception as e:
+        logger.warning(f"OCR page range failed: {e}")
+        return ""
+
+
 def extract_text_from_pdf(file_content: bytes) -> str:
+    """Extract text from PDF. Returns plain string (backward-compatible)."""
+    result = extract_text_from_pdf_with_meta(file_content)
+    return result["text"]
+
+
+def extract_text_from_pdf_with_meta(file_content: bytes) -> dict:
+    """
+    Extract text from PDF and return metadata about OCR processing.
+    Returns: {"text": str, "ocr_truncated": bool, "total_pages": int, "processed_pages": int}
+    """
     try:
         import tempfile, os
         with tempfile.NamedTemporaryFile(suffix='.pdf', delete=False) as tmp:
@@ -40,7 +90,7 @@ def extract_text_from_pdf(file_content: bytes) -> str:
                 result = md.convert(tmp_path)
                 text = result.text_content.strip()
                 if text:
-                    return text
+                    return {"text": text, "ocr_truncated": False, "total_pages": 0, "processed_pages": 0}
         except Exception:
             pass
         finally:
@@ -55,45 +105,44 @@ def extract_text_from_pdf(file_content: bytes) -> str:
                     text_parts.append(page_text)
         text = "\n\n".join(text_parts).strip()
         if text:
-            return text
+            return {"text": text, "ocr_truncated": False, "total_pages": 0, "processed_pages": 0}
 
-        # OCR fallback for image-based/scanned PDFs — max 10 pages, 150 DPI for speed
+        # OCR fallback for image-based/scanned PDFs
         logger.info("No text found via standard extraction, attempting OCR fallback")
         try:
-            import fitz, signal
+            import fitz
             pytesseract.pytesseract.tesseract_cmd = '/usr/bin/tesseract'
-            try:
-                available_langs = pytesseract.get_languages()
-                lang = "+".join(l for l in ["eng", "rus"] if l in available_langs) or "eng"
-            except Exception:
-                lang = "eng"
+            lang = _get_ocr_lang()
             ocr_parts = []
             doc = fitz.open(stream=file_content, filetype="pdf")
-            page_count = len(doc)
-            MAX_OCR_PAGES = 10
-            if page_count > MAX_OCR_PAGES:
-                logger.warning(f"PDF has {page_count} pages, OCR limited to first {MAX_OCR_PAGES}")
-            for i, page in enumerate(doc):
-                if i >= MAX_OCR_PAGES:
-                    break
-                pix = page.get_pixmap(dpi=150)  # 150 dpi is faster, still readable
+            total_pages = len(doc)
+            pages_to_process = min(total_pages, SYNC_OCR_PAGES)
+            if total_pages > SYNC_OCR_PAGES:
+                logger.warning(f"PDF has {total_pages} pages, syncing first {SYNC_OCR_PAGES} — rest queued")
+            for i in range(pages_to_process):
+                pix = doc[i].get_pixmap(dpi=150)
                 img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
                 try:
                     page_text = pytesseract.image_to_string(
                         img, lang=lang,
-                        config='--psm 3 --oem 1 -c tessedit_do_invert=0'  # LSTM engine, faster
+                        config='--psm 3 --oem 1 -c tessedit_do_invert=0'
                     )
                     if page_text.strip():
                         ocr_parts.append(page_text.strip())
                 except Exception as ocr_err:
                     logger.warning(f"OCR failed for page {i}: {ocr_err}")
             doc.close()
-            result = "\n\n".join(ocr_parts).strip()
-            logger.info(f"OCR complete: extracted {len(result)} chars from {min(page_count, MAX_OCR_PAGES)} pages")
-            return result
+            text = "\n\n".join(ocr_parts).strip()
+            logger.info(f"OCR sync: {len(text)} chars from {pages_to_process}/{total_pages} pages")
+            return {
+                "text": text,
+                "ocr_truncated": total_pages > SYNC_OCR_PAGES,
+                "total_pages": total_pages,
+                "processed_pages": pages_to_process,
+            }
         except Exception as e:
             logger.warning(f"OCR fallback unavailable: {e}")
-            return ""
+            return {"text": "", "ocr_truncated": False, "total_pages": 0, "processed_pages": 0}
 
     except Exception as e:
         logger.error(f"PDF extraction error: {str(e)}")
