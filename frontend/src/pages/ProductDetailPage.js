@@ -5,7 +5,6 @@ import { useAuth } from '../contexts/AuthContext';
 import DashboardLayout from '../components/DashboardLayout';
 import { Button } from '../components/ui/button';
 import {
-  Package,
   ArrowLeft,
   ExternalLink,
   MessageSquare,
@@ -15,6 +14,9 @@ import {
   Trash2,
   ChevronRight,
   Image as ImageIcon,
+  FileText,
+  Youtube,
+  Box,
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -226,33 +228,38 @@ export default function ProductDetailPage() {
               {(product.brandName || product.vendor) && (
                 <Badge color="purple">{product.brandName || product.vendor}</Badge>
               )}
+              {(product.category?.name || product.category_name) && (
+                <Badge color="blue">{product.category?.name || product.category_name}</Badge>
+              )}
             </div>
 
             <h1 className="text-2xl font-bold leading-tight">
               {product.name || product.title_en || product.model || '—'}
             </h1>
 
-            {(product.shortDescription || product.description) && (
-              <p className="text-muted-foreground text-sm line-clamp-3">
-                {product.shortDescription || product.description}
-              </p>
-            )}
-
-            <div className="grid grid-cols-2 gap-x-6 gap-y-3 pt-2">
+            <div className="grid grid-cols-2 gap-x-6 gap-y-3 pt-1">
               <KV label="CRM Code" value={product.crmCode || product.crm_code} mono />
               <KV label="Модель" value={product.model || product.product_model} mono />
               <KV label="Артикул" value={product.articleCode || product.article_number} mono />
               <KV label="Бренд" value={product.brandName || product.vendor} />
-              {product.price != null && (
-                <KV label="Цена" value={`$${Number(product.price).toLocaleString()}`} />
+              {(product.inStock ?? 0) > 0 && (
+                <KV label="В наличии" value={String(product.inStock)} />
               )}
               {product.moq != null && <KV label="MOQ" value={String(product.moq)} />}
-              {product.productionDays != null && <KV label="Production days" value={String(product.productionDays)} />}
-              {(product.stockAmount ?? product.stock_amount) != null && (
-                <KV label="На складе" value={String(product.stockAmount ?? product.stock_amount)} />
-              )}
-              {product.id != null && <KV label="ID" value={String(product.id)} mono />}
             </div>
+
+            {/* Datasheet download */}
+            {product.publicDatasheets?.[0] && (
+              <a
+                href={`${IMG_BASE}/${product.publicDatasheets[0].path}`}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-border hover:bg-muted/50 text-sm transition-colors"
+              >
+                <FileText className="h-4 w-4 text-red-500 shrink-0" />
+                <span className="truncate max-w-[220px]">{product.publicDatasheets[0].filename || 'Datasheet (PDF)'}</span>
+              </a>
+            )}
           </div>
         </div>
 
@@ -260,13 +267,28 @@ export default function ProductDetailPage() {
           {/* Left column */}
           <div className="lg:col-span-2 space-y-6">
 
-            {/* Description */}
+            {/* Description — HTML from planet API */}
             {product.description && (
               <div className="border rounded-lg p-6 space-y-2">
                 <h2 className="text-lg font-semibold">Описание</h2>
-                <p className="text-sm leading-relaxed whitespace-pre-wrap text-muted-foreground">
-                  {product.description}
-                </p>
+                <div
+                  className="text-sm leading-relaxed text-muted-foreground prose prose-sm dark:prose-invert max-w-none"
+                  dangerouslySetInnerHTML={{ __html: product.description }}
+                />
+              </div>
+            )}
+
+            {/* Features — HTML from planet API */}
+            {product.features && (
+              <div className="border rounded-lg p-6 space-y-2">
+                <h2 className="text-lg font-semibold flex items-center gap-2">
+                  <Box className="h-5 w-5 text-primary" />
+                  Особенности
+                </h2>
+                <div
+                  className="text-sm leading-relaxed text-muted-foreground prose prose-sm dark:prose-invert max-w-none"
+                  dangerouslySetInnerHTML={{ __html: product.features }}
+                />
               </div>
             )}
 
@@ -275,16 +297,35 @@ export default function ProductDetailPage() {
               <div className="border rounded-lg p-6 space-y-3">
                 <h2 className="text-lg font-semibold">Технические характеристики</h2>
                 <div className="divide-y">
-                  {attributes.map((av, i) => {
-                    const val = av.textValue || (av.numericValue != null ? String(av.numericValue) : '—');
+                  {attributes.filter(av => av.textValue || av.numericValue != null).map((av, i) => {
+                    const val = av.textValue || String(av.numericValue);
                     const unit = av.attribute?.unit_id ? ` ${av.attribute.unit_id}` : '';
                     return (
                       <div key={i} className="flex justify-between py-2.5 text-sm gap-4">
-                        <span className="text-muted-foreground shrink-0">{av.attribute.name}</span>
+                        <span className="text-muted-foreground shrink-0">{av.attribute.name.trim()}</span>
                         <span className="font-medium text-right">{val}{unit}</span>
                       </div>
                     );
                   })}
+                </div>
+              </div>
+            )}
+
+            {/* YouTube video */}
+            {product.contentForm?.youtubeUrl && (
+              <div className="border rounded-lg p-6 space-y-3">
+                <h2 className="text-lg font-semibold flex items-center gap-2">
+                  <Youtube className="h-5 w-5 text-red-500" />
+                  Видео
+                </h2>
+                <div className="relative w-full" style={{ paddingBottom: '56.25%' }}>
+                  <iframe
+                    src={product.contentForm.youtubeUrl}
+                    className="absolute inset-0 w-full h-full rounded-lg"
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                    allowFullScreen
+                    title={product.name}
+                  />
                 </div>
               </div>
             )}
@@ -376,8 +417,14 @@ export default function ProductDetailPage() {
               {(product.crmCode || product.crm_code) && (
                 <MetaRow label="CRM Code" value={product.crmCode || product.crm_code} />
               )}
-              {(product.category_name || product.categoryName) && (
-                <MetaRow label="Категория" value={product.category_name || product.categoryName} />
+              {(product.articleCode || product.article_number) && (
+                <MetaRow label="Артикул" value={product.articleCode || product.article_number} />
+              )}
+              {(product.category?.name || product.category_name) && (
+                <MetaRow label="Категория" value={product.category?.name || product.category_name} />
+              )}
+              {(product.quantityUnit?.name) && (
+                <MetaRow label="Ед. изм." value={product.quantityUnit.name} />
               )}
               {product.createdAt && (
                 <MetaRow label="Создан" value={new Date(product.createdAt).toLocaleDateString('ru-RU')} />

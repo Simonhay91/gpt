@@ -67,10 +67,19 @@ async def products(
 async def product_detail(slug: str, current_user: dict = Depends(get_current_user)):
     try:
         raw = await _get(f"/web/product/{slug}")
-        # Merge normalized fields into raw so frontend gets both camelCase originals
-        # (name, crmCode, brandName, attributeValues…) AND pipeline fields (vendor, category_name…)
-        normalized = _normalize(raw)
-        return {**raw, **normalized}
+        # Planet API wraps: {product: {...}, metadata: {...}, pricingInfo: {...}, inStock: 0}
+        product_data = raw.get("product") or raw
+        normalized = _normalize(product_data)
+        # Enrich with detail-only fields not in _normalize
+        normalized["features"] = product_data.get("features") or ""
+        normalized["publicDatasheets"] = product_data.get("publicDatasheets") or []
+        normalized["contentForm"] = product_data.get("contentForm")
+        normalized["category"] = product_data.get("category")
+        normalized["partnerForms"] = product_data.get("partnerForms") or []
+        normalized["inStock"] = raw.get("inStock", 0)
+        normalized["onWay"] = raw.get("onWay", 0)
+        # Merge: product_data fields first (camelCase originals), normalized overrides pipeline fields
+        return {**product_data, **normalized}
     except Exception as exc:
         logger.error(f"planet product detail error: {exc}")
         raise HTTPException(status_code=502, detail="Upstream catalog error")
