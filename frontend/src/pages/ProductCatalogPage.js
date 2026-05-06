@@ -24,7 +24,11 @@ import {
   File,
   Settings,
   Link2,
-  Play
+  Play,
+  AlertCircle,
+  Upload,
+  Edit,
+  Trash2,
 } from 'lucide-react';
 import { toast } from 'sonner';
 
