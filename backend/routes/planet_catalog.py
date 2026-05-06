@@ -3,6 +3,7 @@ Planet Catalog proxy routes — exposes external API data to the frontend.
 All calls go through the backend (CORS bypass + key injection).
 """
 from fastapi import APIRouter, HTTPException, Depends, Query
+from fastapi.responses import Response as FastAPIResponse
 from typing import Optional
 from db.connection import get_db
 from middleware.auth import get_current_user
@@ -14,8 +15,11 @@ from services.planet_api import (
     _post,
     _get,
     _normalize,
+    _headers,
+    BASE_URL,
 )
 import logging
+import requests as _requests
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/planet", tags=["planet_catalog"])
@@ -131,6 +135,35 @@ async def relations_by_crm(crm_code: str, current_user: dict = Depends(get_curre
     order = {"high": 0, "medium": 1, "low": 2}
     result.sort(key=lambda x: order.get(x.get("confidence", "low"), 2))
     return result
+
+
+@router.get("/img")
+async def proxy_image(path: str = Query(...)):
+    """
+    Proxy planet image files through the backend.
+    Browser cannot reach api-prod.planetworkspace.com directly (ERR_NAME_NOT_RESOLVED),
+    so all images are fetched server-side and forwarded.
+    No auth required — product images are public catalog data.
+    """
+    try:
+        # Normalise path — strip leading slash
+        clean = path.lstrip("/")
+        base = BASE_URL.rstrip("/")
+        # Remove /api suffix to get root URL (images live at root, not under /api)
+        if base.endswith("/api"):
+            base = base[:-4]
+        url = f"{base}/{clean}"
+        r = _requests.get(url, headers=_headers(), timeout=15)
+        r.raise_for_status()
+        media_type = r.headers.get("content-type", "image/webp")
+        return FastAPIResponse(
+            content=r.content,
+            media_type=media_type,
+            headers={"Cache-Control": "public, max-age=86400"},
+        )
+    except Exception as exc:
+        logger.warning(f"planet img proxy failed for path={path!r}: {exc}")
+        raise HTTPException(status_code=404, detail="Image not found")
 
 
 @router.get("/sections")

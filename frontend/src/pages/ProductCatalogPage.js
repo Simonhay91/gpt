@@ -29,6 +29,7 @@ import {
 import { toast } from 'sonner';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
+const IMG_PROXY = `${process.env.REACT_APP_BACKEND_URL}/api/planet/img?path=`;
 
 // ── CategorySelector — cascading dropdowns + multi-tag selector ──────────────
 function CategorySelector({ label, tree, selected, selRoot, setSelRoot, selLvl1, setSelLvl1, onAdd, onRemove }) {
@@ -705,10 +706,8 @@ export default function ProductCatalogPage() {
                   const imgSrc = product.images?.[0]
                     ? (() => {
                         const img = product.images[0];
-                        if (img.url?.startsWith('http')) return img.url;
-                        if (img.optimizedPath?.startsWith('http')) return img.optimizedPath;
-                        if (img.optimizedPath?.startsWith('public/')) return `https://api-prod.planetworkspace.com/${img.optimizedPath}`;
-                        return `https://api-prod.planetworkspace.com/public/${img.path636px || img.optimizedPath}`;
+                        const rel = img.optimizedPath || (img.path636px ? `public/${img.path636px}` : null) || img.path || null;
+                        return rel ? `${IMG_PROXY}${encodeURIComponent(rel)}` : null;
                       })()
                     : null;
                   return (

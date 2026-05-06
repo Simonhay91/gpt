@@ -21,19 +21,14 @@ import {
 import { toast } from 'sonner';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
-const IMG_BASE = 'https://api-prod.planetworkspace.com';
+const IMG_PROXY = `${process.env.REACT_APP_BACKEND_URL}/api/planet/img?path=`;
 
 function getImgSrc(img) {
   if (!img) return null;
-  // Full URL already
-  if (img.url?.startsWith('http')) return img.url;
-  if (img.optimizedPath?.startsWith('http')) return img.optimizedPath;
-  // Relative paths — same logic as list page
-  if (img.optimizedPath?.startsWith('public/')) return `${IMG_BASE}/${img.optimizedPath}`;
-  if (img.optimizedPath) return `${IMG_BASE}/public/${img.optimizedPath}`;
-  if (img.path636px) return `${IMG_BASE}/public/${img.path636px}`;
-  if (img.url) return `${IMG_BASE}/public/${img.url}`;
-  return null;
+  // Prefer optimizedPath, fall back to path636px, then path
+  const rel = img.optimizedPath || (img.path636px ? `public/${img.path636px}` : null) || img.path || null;
+  if (!rel) return null;
+  return `${IMG_PROXY}${encodeURIComponent(rel)}`;
 }
 
 export default function ProductDetailPage() {
@@ -251,7 +246,7 @@ export default function ProductDetailPage() {
             {/* Datasheet download */}
             {product.publicDatasheets?.[0] && (
               <a
-                href={`${IMG_BASE}/${product.publicDatasheets[0].path}`}
+                href={`${IMG_PROXY}${encodeURIComponent(product.publicDatasheets[0].path)}`}
                 target="_blank"
                 rel="noreferrer"
                 className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-border hover:bg-muted/50 text-sm transition-colors"
