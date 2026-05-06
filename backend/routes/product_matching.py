@@ -26,7 +26,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/product-matching", tags=["product-matching"])
 
 CLAUDE_API_KEY = os.environ.get("CLAUDE_API_KEY", "")
-VOYAGE_API_KEY = os.environ.get("VOYAGE_API_KEY", "")
+OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "")
 MAX_FILE_SIZE = 20 * 1024 * 1024   # 20 MB
 MAX_CUSTOMER_ITEMS = 200
 MAX_CATALOG_PRODUCTS = 5000        # load more — Voyage pre-filters, Claude never sees all
@@ -190,11 +190,14 @@ def _cosine_similarity(a: list, b: list) -> float:
 
 
 def _voyage_embed_batch(texts: List[str]) -> List[Optional[List[float]]]:
-    """Embed a list of texts via Voyage AI. Returns list of embeddings (same order)."""
-    import voyageai
-    client = voyageai.Client(api_key=VOYAGE_API_KEY)
-    result = client.embed(texts, model="voyage-3")
-    return result.embeddings
+    """Embed a list of texts via OpenAI text-embedding-3-small."""
+    from openai import OpenAI
+    client = OpenAI(api_key=OPENAI_API_KEY)
+    response = client.embeddings.create(
+        input=[t[:8000] for t in texts],
+        model="text-embedding-3-small",
+    )
+    return [item.embedding for item in response.data]
 
 
 def _text_fallback_top_k(item: str, catalog: List[dict], k: int) -> List[dict]:
@@ -1017,27 +1020,27 @@ async def match_products(
     ai_map: dict = {}  # orig_idx → raw result dict
 
     if needs_ai:
-        voyage_ok = bool(VOYAGE_API_KEY)
+        embed_ok = bool(OPENAI_API_KEY)
         ai_items = [item for _, item in needs_ai]
         ai_indices = [idx for idx, _ in needs_ai]
 
-        if voyage_ok:
-            # ── Phase 1: Voyage AI embedding → TOP-K candidates ──────────────
+        if embed_ok:
+            # ── Phase 1: OpenAI embedding → TOP-K candidates ──────────────────
             try:
                 catalog_embeddings = [p.get("embedding") for p in catalog]
                 items_candidates = _voyage_top_k(
                     ai_items, catalog, catalog_embeddings, VOYAGE_TOP_K
                 )
                 logger.info(
-                    f"Phase 1 (Voyage) complete: {len(ai_items)} items → "
+                    f"Phase 1 (OpenAI embed) complete: {len(ai_items)} items → "
                     f"{VOYAGE_TOP_K} candidates each"
                 )
                 use_candidates = True
             except Exception as exc:
-                logger.warning(f"Voyage phase failed, falling back to full-catalog: {exc}")
+                logger.warning(f"Embedding phase failed, falling back to full-catalog: {exc}")
                 use_candidates = False
         else:
-            logger.warning("VOYAGE_API_KEY not set — falling back to full-catalog Claude")
+            logger.warning("OPENAI_API_KEY not set — falling back to full-catalog Claude")
             use_candidates = False
 
         if use_candidates:

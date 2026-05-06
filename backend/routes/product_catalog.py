@@ -11,7 +11,7 @@ import os
 import re
 import json
 
-VOYAGE_API_KEY = os.environ.get("VOYAGE_API_KEY", "")
+OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "")
 
 from models.schemas import (
     ProductCatalogCreate,
@@ -52,17 +52,17 @@ def _product_embedding_text(p: dict) -> str:
 
 
 async def _embed_and_save(db, product_id: str, product: dict) -> None:
-    """Generate Voyage embedding for a product and save it to DB. Silently skips if no API key."""
-    if not VOYAGE_API_KEY:
+    """Generate OpenAI embedding for a product and save it to DB. Silently skips if no API key."""
+    if not OPENAI_API_KEY:
         return
     text = _product_embedding_text(product)
     if not text.strip():
         return
     try:
-        import voyageai
-        client = voyageai.Client(api_key=VOYAGE_API_KEY)
-        result = client.embed([text[:8000]], model="voyage-3")
-        embedding = result.embeddings[0]
+        from openai import OpenAI
+        client = OpenAI(api_key=OPENAI_API_KEY)
+        result = client.embeddings.create(input=[text[:8000]], model="text-embedding-3-small")
+        embedding = result.data[0].embedding
         await db.product_catalog.update_one(
             {"id": product_id},
             {"$set": {"embedding": embedding}},

@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/product-relations", tags=["product-relations"])
 
 CLAUDE_API_KEY = os.environ.get("CLAUDE_API_KEY", "")
-VOYAGE_API_KEY = os.environ.get("VOYAGE_API_KEY", "")
+OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "")
 
 VOYAGE_TOP_K = 5          # candidates per product from opposite category
 CLAUDE_BATCH_SIZE = 20    # pairs per Claude call
@@ -36,10 +36,13 @@ def _cosine_similarity(a: list, b: list) -> float:
 
 
 def _voyage_embed_batch(texts: List[str]) -> List[Optional[List[float]]]:
-    import voyageai
-    client = voyageai.Client(api_key=VOYAGE_API_KEY)
-    result = client.embed(texts, model="voyage-3")
-    return result.embeddings
+    from openai import OpenAI
+    client = OpenAI(api_key=OPENAI_API_KEY)
+    response = client.embeddings.create(
+        input=[t[:8000] for t in texts],
+        model="text-embedding-3-small",
+    )
+    return [item.embedding for item in response.data]
 
 
 def _voyage_top_k(

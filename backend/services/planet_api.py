@@ -34,8 +34,8 @@ EMBED_TTL_HOURS = 24
 FETCH_PAGE_LIMIT = 500        # max allowed by the API
 MAX_CATALOG_PRODUCTS = 5000   # safety cap
 
-VOYAGE_API_KEY = os.environ.get("VOYAGE_API_KEY", "")
-VOYAGE_BATCH_SIZE = 128       # Voyage rate-limit-friendly batch size
+OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "")
+EMBED_BATCH_SIZE = 100        # OpenAI embeddings batch size
 
 # ── HTTP helpers ──────────────────────────────────────────────────────────────
 # Uses synchronous `requests` in a thread-pool executor to bypass async DNS
@@ -195,7 +195,8 @@ async def _fetch_all_products_raw(category_id: str = None) -> List[dict]:
         total_pages = r.get("totalPages") if isinstance(r, dict) else None
         if total_pages and page >= total_pages:
             break
-        if len(items) < FETCH_PAGE_LIMIT:
+        # If API returns fewer items than requested AND no totalPages hint, we're done
+        if not total_pages and len(items) < FETCH_PAGE_LIMIT:
             break
 
         page += 1
@@ -231,13 +232,17 @@ def _embedding_text(p: dict) -> str:
     return " | ".join(parts)
 
 
-def _voyage_embed_batch(texts: List[str]) -> List[Optional[List[float]]]:
-    if not VOYAGE_API_KEY:
+def _embed_batch(texts: List[str]) -> List[Optional[List[float]]]:
+    """Embed texts via OpenAI text-embedding-3-small."""
+    if not OPENAI_API_KEY:
         return [None] * len(texts)
-    import voyageai
-    client = voyageai.Client(api_key=VOYAGE_API_KEY)
-    result = client.embed(texts, model="voyage-3")
-    return result.embeddings
+    from openai import OpenAI
+    client = OpenAI(api_key=OPENAI_API_KEY)
+    response = client.embeddings.create(
+        input=[t[:8000] for t in texts],
+        model="text-embedding-3-small",
+    )
+    return [item.embedding for item in response.data]
 
 
 async def _fill_embeddings(db, products: List[dict]) -> List[dict]:
@@ -246,7 +251,7 @@ async def _fill_embeddings(db, products: List[dict]) -> List[dict]:
     Compute and store embeddings for products that don't have one yet.
     Returns the same list with .embedding field populated where possible.
     """
-    if not VOYAGE_API_KEY:
+    if not OPENAI_API_KEY:
         return products
 
     cutoff = (datetime.now(timezone.utc) - timedelta(hours=EMBED_TTL_HOURS)).isoformat()
@@ -265,14 +270,13 @@ async def _fill_embeddings(db, products: List[dict]) -> List[dict]:
     if needs_embed:
         texts = [_embedding_text(p) for p in needs_embed]
         now = datetime.now(timezone.utc).isoformat()
-        # Batch to respect Voyage limits
-        for i in range(0, len(texts), VOYAGE_BATCH_SIZE):
-            batch_products = needs_embed[i: i + VOYAGE_BATCH_SIZE]
-            batch_texts = texts[i: i + VOYAGE_BATCH_SIZE]
+        for i in range(0, len(texts), EMBED_BATCH_SIZE):
+            batch_products = needs_embed[i: i + EMBED_BATCH_SIZE]
+            batch_texts = texts[i: i + EMBED_BATCH_SIZE]
             try:
-                embeddings = _voyage_embed_batch(batch_texts)
+                embeddings = _embed_batch(batch_texts)
             except Exception as exc:
-                logger.warning(f"planet_api: Voyage batch embed failed: {exc}")
+                logger.warning(f"planet_api: OpenAI embed batch failed: {exc}")
                 embeddings = [None] * len(batch_texts)
 
             # Upsert to cache + fill embed_map

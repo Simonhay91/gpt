@@ -7,19 +7,7 @@ import os
 
 logger = logging.getLogger(__name__)
 
-# Voyage AI — lazy init to avoid crash when key is missing at startup
-import voyageai
-VOYAGE_API_KEY = os.environ.get('VOYAGE_API_KEY', '')
-_voyage_client = None
-
-def _get_voyage_client():
-    global _voyage_client
-    if _voyage_client is None and VOYAGE_API_KEY and VOYAGE_API_KEY != 'dummy':
-        try:
-            _voyage_client = voyageai.Client(api_key=VOYAGE_API_KEY)
-        except Exception:
-            pass
-    return _voyage_client
+OPENAI_API_KEY = os.environ.get('OPENAI_API_KEY', '')
 
 # RAG settings
 MAX_CONTEXT_CHARS = 20000
@@ -28,13 +16,17 @@ GLOBAL_PROJECT_ID = "__global__"
 
 
 async def get_embedding(text: str) -> Optional[List[float]]:
-    """Get embedding for text using Voyage AI"""
-    client = _get_voyage_client()
-    if not client:
+    """Get embedding for text using OpenAI text-embedding-3-small."""
+    if not OPENAI_API_KEY:
         return None
     try:
-        result = client.embed([text[:8000]], model="voyage-3")
-        return result.embeddings[0]
+        from openai import OpenAI
+        client = OpenAI(api_key=OPENAI_API_KEY)
+        result = client.embeddings.create(
+            input=[text[:8000]],
+            model="text-embedding-3-small",
+        )
+        return result.data[0].embedding
     except Exception as e:
         logger.error(f"Embedding error: {e}")
         return None
