@@ -1,14 +1,4 @@
 services:
-  mongodb:
-    image: mongo:7
-    restart: unless-stopped
-    volumes:
-      - mongo_data:/data/db
-    environment:
-      MONGO_INITDB_DATABASE: gpt
-    networks:
-      - app-network
-
   backend:
     build:
       context: ./backend
@@ -17,8 +7,8 @@ services:
     ports:
       - "8001:8001"
     environment:
-      MONGO_URL: mongodb://mongodb:27017
-      DB_NAME: gpt
+      MONGO_URL: ${MONGO_URL}
+      DB_NAME: ${DB_NAME:-gpt}
       OPENAI_API_KEY: ${OPENAI_API_KEY}
       CLAUDE_API_KEY: ${CLAUDE_API_KEY}
       EMERGENT_LLM_KEY: ${EMERGENT_LLM_KEY}
@@ -31,8 +21,6 @@ services:
     volumes:
       - backend_uploads:/app/uploads
       - backend_generated_images:/app/generated_images
-    depends_on:
-      - mongodb
     networks:
       - app-network
 
@@ -54,7 +42,6 @@ services:
       - app-network
 
 volumes:
-  mongo_data:
   backend_uploads:
   backend_generated_images:
 
