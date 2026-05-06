@@ -192,11 +192,12 @@ async def _fetch_all_products_raw(category_id: str = None) -> List[dict]:
 
         all_items.extend(items)
 
-        total_pages = r.get("totalPages") if isinstance(r, dict) else None
-        if total_pages and page >= total_pages:
+        # Use total count (always present) to know when we have everything
+        total = r.get("total") if isinstance(r, dict) else None
+        if total and len(all_items) >= total:
             break
-        # If API returns fewer items than requested AND no totalPages hint, we're done
-        if not total_pages and len(items) < FETCH_PAGE_LIMIT:
+        # No more items
+        if not items:
             break
 
         page += 1
