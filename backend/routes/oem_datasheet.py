@@ -434,7 +434,7 @@ Rules:
 - If a section has both text and a table, include both fields
 
 Datasheet text:
-{text[:5000]}"""
+{text[:12000]}"""
 
     try:
         response = await client.chat.completions.create(
@@ -446,7 +446,10 @@ Datasheet text:
         structure = json.loads(response.choices[0].message.content)
     except Exception as e:
         logger.error(f"GPT structure parsing failed: {e}")
-        structure = {"title": text[:80].split("\n")[0], "sections": []}
+        structure = {
+            "title": text.split("\n")[0].strip()[:120],
+            "sections": [{"heading": None, "text": text, "table": None}]
+        }
 
     # Brand colors
     primary_hex = (brand.get("primaryColor") or "#1E3A8A").lstrip("#")
