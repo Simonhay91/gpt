@@ -705,9 +705,10 @@ export default function ProductCatalogPage() {
                   const imgSrc = product.images?.[0]
                     ? (() => {
                         const img = product.images[0];
-                        return img.optimizedPath?.startsWith('public/')
-                          ? `https://api-prod.planetworkspace.com/${img.optimizedPath}`
-                          : `https://api-prod.planetworkspace.com/public/${img.path636px || img.optimizedPath}`;
+                        if (img.url?.startsWith('http')) return img.url;
+                        if (img.optimizedPath?.startsWith('http')) return img.optimizedPath;
+                        if (img.optimizedPath?.startsWith('public/')) return `https://api-prod.planetworkspace.com/${img.optimizedPath}`;
+                        return `https://api-prod.planetworkspace.com/public/${img.path636px || img.optimizedPath}`;
                       })()
                     : null;
                   return (

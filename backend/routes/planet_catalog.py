@@ -13,6 +13,7 @@ from services.planet_api import (
     get_brands,
     _post,
     _get,
+    _normalize,
 )
 import logging
 
@@ -48,11 +49,12 @@ async def products(
     """
     Proxy for POST /web/product/explore.
     Frontend passes the ProductCriteriaDto body directly.
+    Items are normalized so vendor/category_name are always populated.
     """
     try:
         result = await _post("/web/product/explore", body)
-        # Normalize response key
-        items = result.get("products") or result.get("items") or (result if isinstance(result, list) else [])
+        raw_items = result.get("products") or result.get("items") or (result if isinstance(result, list) else [])
+        items = [_normalize(p) for p in raw_items]
         if isinstance(result, dict):
             return {**result, "products": items}
         return {"products": items, "total": len(items), "page": 1, "limit": len(items), "totalPages": 1}
@@ -64,7 +66,11 @@ async def products(
 @router.get("/products/{slug:path}")
 async def product_detail(slug: str, current_user: dict = Depends(get_current_user)):
     try:
-        return await _get(f"/web/product/{slug}")
+        raw = await _get(f"/web/product/{slug}")
+        # Merge normalized fields into raw so frontend gets both camelCase originals
+        # (name, crmCode, brandName, attributeValues…) AND pipeline fields (vendor, category_name…)
+        normalized = _normalize(raw)
+        return {**raw, **normalized}
     except Exception as exc:
         logger.error(f"planet product detail error: {exc}")
         raise HTTPException(status_code=502, detail="Upstream catalog error")

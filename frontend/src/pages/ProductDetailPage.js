@@ -23,10 +23,14 @@ const IMG_BASE = 'https://api-prod.planetworkspace.com';
 
 function getImgSrc(img) {
   if (!img) return null;
+  // Full URL already
+  if (img.url?.startsWith('http')) return img.url;
+  if (img.optimizedPath?.startsWith('http')) return img.optimizedPath;
+  // Relative paths — same logic as list page
   if (img.optimizedPath?.startsWith('public/')) return `${IMG_BASE}/${img.optimizedPath}`;
   if (img.optimizedPath) return `${IMG_BASE}/public/${img.optimizedPath}`;
   if (img.path636px) return `${IMG_BASE}/public/${img.path636px}`;
-  if (img.url) return img.url;
+  if (img.url) return `${IMG_BASE}/public/${img.url}`;
   return null;
 }
 
@@ -114,7 +118,7 @@ export default function ProductDetailPage() {
   const currentImg = images[activeImg] || null;
 
   // All attributes with a name (show even if value is empty)
-  const attributes = (product.attributeValues || []).filter(av => av.attribute?.name);
+  const attributes = (product.attributeValues || product.attribute_values || []).filter(av => av.attribute?.name);
 
   // Category breadcrumb from slug
   const slugParts = (product.slug || slug || '').split('/');
@@ -219,24 +223,35 @@ export default function ProductDetailPage() {
               {product.isNew && <Badge color="green">New</Badge>}
               {product.isHot && <Badge color="orange">Hot</Badge>}
               {product.isDiscontinued && <Badge color="red">Discontinued</Badge>}
-              {product.brandName && <Badge color="purple">{product.brandName}</Badge>}
+              {(product.brandName || product.vendor) && (
+                <Badge color="purple">{product.brandName || product.vendor}</Badge>
+              )}
             </div>
 
-            <h1 className="text-2xl font-bold leading-tight">{product.name}</h1>
+            <h1 className="text-2xl font-bold leading-tight">
+              {product.name || product.title_en || product.model || '—'}
+            </h1>
 
-            {product.shortDescription && (
-              <p className="text-muted-foreground text-sm">{product.shortDescription}</p>
+            {(product.shortDescription || product.description) && (
+              <p className="text-muted-foreground text-sm line-clamp-3">
+                {product.shortDescription || product.description}
+              </p>
             )}
 
             <div className="grid grid-cols-2 gap-x-6 gap-y-3 pt-2">
-              <KV label="CRM Code" value={product.crmCode} mono />
-              <KV label="Модель" value={product.model} mono />
-              <KV label="Артикул" value={product.articleCode} mono />
-              <KV label="Бренд" value={product.brandName} />
+              <KV label="CRM Code" value={product.crmCode || product.crm_code} mono />
+              <KV label="Модель" value={product.model || product.product_model} mono />
+              <KV label="Артикул" value={product.articleCode || product.article_number} mono />
+              <KV label="Бренд" value={product.brandName || product.vendor} />
+              {product.price != null && (
+                <KV label="Цена" value={`$${Number(product.price).toLocaleString()}`} />
+              )}
               {product.moq != null && <KV label="MOQ" value={String(product.moq)} />}
               {product.productionDays != null && <KV label="Production days" value={String(product.productionDays)} />}
-              {product.stockAmount != null && <KV label="На складе" value={String(product.stockAmount)} />}
-              {product.id && <KV label="ID" value={String(product.id)} mono />}
+              {(product.stockAmount ?? product.stock_amount) != null && (
+                <KV label="На складе" value={String(product.stockAmount ?? product.stock_amount)} />
+              )}
+              {product.id != null && <KV label="ID" value={String(product.id)} mono />}
             </div>
           </div>
         </div>
@@ -357,10 +372,19 @@ export default function ProductDetailPage() {
             {/* Meta */}
             <div className="border rounded-lg p-5 space-y-2 text-sm">
               <h2 className="font-semibold mb-3">Метаданные</h2>
-              {product.id && <MetaRow label="ID" value={String(product.id)} />}
-              {product.crmCode && <MetaRow label="CRM Code" value={product.crmCode} />}
-              {product.createdAt && <MetaRow label="Создан" value={new Date(product.createdAt).toLocaleDateString('ru-RU')} />}
-              {product.updatedAt && <MetaRow label="Обновлён" value={new Date(product.updatedAt).toLocaleDateString('ru-RU')} />}
+              {product.id != null && <MetaRow label="ID" value={String(product.id)} />}
+              {(product.crmCode || product.crm_code) && (
+                <MetaRow label="CRM Code" value={product.crmCode || product.crm_code} />
+              )}
+              {(product.category_name || product.categoryName) && (
+                <MetaRow label="Категория" value={product.category_name || product.categoryName} />
+              )}
+              {product.createdAt && (
+                <MetaRow label="Создан" value={new Date(product.createdAt).toLocaleDateString('ru-RU')} />
+              )}
+              {product.updatedAt && (
+                <MetaRow label="Обновлён" value={new Date(product.updatedAt).toLocaleDateString('ru-RU')} />
+              )}
               {product.slug && (
                 <div className="pt-2 border-t">
                   <p className="text-muted-foreground text-xs break-all">{product.slug}</p>
