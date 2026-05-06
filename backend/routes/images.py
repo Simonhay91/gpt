@@ -47,14 +47,19 @@ def get_openai_client():
     return OpenAI(api_key=OPENAI_API_KEY)
 
 
-def get_image_generator():
-    """Return OpenAIImageGeneration client using EMERGENT_LLM_KEY."""
-    import os
-    from emergentintegrations.llm.openai.image_generation import OpenAIImageGeneration
-    api_key = os.environ.get('EMERGENT_LLM_KEY', '')
-    if not api_key:
-        raise HTTPException(status_code=500, detail="EMERGENT_LLM_KEY not configured")
-    return OpenAIImageGeneration(api_key=api_key)
+async def _generate_image_bytes(prompt: str, size: str = "1024x1024", quality: str = "standard") -> bytes:
+    """Generate image bytes using OpenAI images API."""
+    import base64
+    client = get_openai_client()
+    response = client.images.generate(
+        model="dall-e-3",
+        prompt=prompt,
+        n=1,
+        size=size,
+        response_format="b64_json",
+        quality=quality,
+    )
+    return base64.b64decode(response.data[0].b64_json)
 
 
 @router.post("/projects/{project_id}/generate-image", response_model=GeneratedImageResponse)
@@ -83,17 +88,8 @@ async def generate_image(
             detail=f"Rate limit exceeded. Maximum {IMAGE_RATE_LIMIT_PER_HOUR} images per hour."
         )
     
-    image_gen = get_image_generator()
-
     try:
-        images = await image_gen.generate_images(
-            prompt=request.prompt,
-            model="gpt-image-1",
-            number_of_images=1
-        )
-        if not images:
-            raise HTTPException(status_code=500, detail="No image data returned")
-        image_bytes = images[0]
+        image_bytes = await _generate_image_bytes(request.prompt, size=size)
         
         image_id = str(uuid.uuid4())
         image_filename = f"{image_id}.png"
@@ -244,17 +240,8 @@ async def edit_image(
         # Step 2: Enrich prompt with the visual description
         enhanced_prompt = f"{prompt.strip()}. Reference image shows: {image_description}"
 
-        # Step 3: Generate with gpt-image-1 via Emergent proxy
-        image_gen = get_image_generator()
-        images = await image_gen.generate_images(
-            prompt=enhanced_prompt,
-            model="gpt-image-1",
-            number_of_images=1,
-            quality="medium"
-        )
-        if not images:
-            raise HTTPException(status_code=500, detail="No image data returned")
-        image_bytes_out = images[0]
+        # Step 3: Generate with dall-e-3
+        image_bytes_out = await _generate_image_bytes(enhanced_prompt, size="1024x1024")
 
         image_id = str(uuid.uuid4())
         image_filename = f"{image_id}.png"
