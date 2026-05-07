@@ -1137,7 +1137,7 @@ async def match_products(
     # catalog_by_crm/article already built above; catalog products have 'slug'
     needs_pdf: List[tuple] = []  # (result_idx, slug)
     for i, r in enumerate(results):
-        if r.get("matched_title") and not r.get("datasheet_url"):
+        if r.get("matched_title") and "/api/public/" not in (r.get("datasheet_url") or ""):
             crm = r.get("crm_code") or ""
             article = r.get("article_number") or ""
             matched_p = catalog_by_crm.get(crm) or catalog_by_article.get(article)
