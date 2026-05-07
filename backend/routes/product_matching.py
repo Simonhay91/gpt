@@ -744,7 +744,8 @@ class DomainRuleUpdate(BaseModel):
 
 # ==================== ENDPOINTS ====================
 
-PLANET_SEARCH_TOP_K = 5   # max CRM codes returned to PlanetWorkspace
+PLANET_SEARCH_TOP_K = 10  # max CRM codes returned to PlanetWorkspace
+_CONFIDENCE_ORDER = {"high": 0, "medium": 1, "low": 2}
 
 
 # ── PlanetWorkspace fallback search ──────────────────────────────────────────
@@ -753,8 +754,8 @@ PLANET_SEARCH_TOP_K = 5   # max CRM codes returned to PlanetWorkspace
 async def planet_search(data: PlanetSearchRequest):
     """
     Called by PlanetWorkspace when a user search returns no results.
-    Runs alias lookup → Voyage AI pre-filter → Claude match against catalog.
-    Returns an ordered array of CRM codes (best match first, max 5).
+    Runs alias lookup → OpenAI embedding pre-filter → Claude match against catalog.
+    Returns an ordered array of CRM codes (best match first, max PLANET_SEARCH_TOP_K).
     """
 
     query = (data.query or "").strip()
@@ -794,20 +795,21 @@ async def planet_search(data: PlanetSearchRequest):
         logger.info(f"planet-search alias hit: '{query}' → {crm}")
         return [crm] if crm else []
 
-    # ── Step 2: Voyage AI pre-filter → Claude match ───────────────────────────
+    # ── Step 2: OpenAI embedding pre-filter → TOP candidates ─────────────────
     catalog_embeddings = [p.get("embedding") for p in catalog]
 
     try:
-        candidates_list = _voyage_top_k([query], catalog, catalog_embeddings, VOYAGE_TOP_K)
+        candidates_list = _voyage_top_k([query], catalog, catalog_embeddings, PLANET_SEARCH_TOP_K)
         candidates = candidates_list[0] if candidates_list else []
     except Exception as exc:
-        logger.warning(f"planet-search Voyage failed, using text fallback: {exc}")
-        candidates = _text_fallback_top_k(query, catalog, VOYAGE_TOP_K)
+        logger.warning(f"planet-search embedding failed, using text fallback: {exc}")
+        candidates = _text_fallback_top_k(query, catalog, PLANET_SEARCH_TOP_K)
 
     if not candidates:
         logger.info(f"planet-search: no candidates found for '{query}'")
         return []
 
+    # ── Step 3: Claude picks best match(es) from the small candidate set ──────
     try:
         claude_results = _claude_match_with_candidates([(query, candidates)])
         r = claude_results[0] if claude_results else {}
@@ -822,8 +824,24 @@ async def planet_search(data: PlanetSearchRequest):
         logger.info(f"planet-search: no match for '{query}' (confidence={confidence})")
         return []
 
-    logger.info(f"planet-search: '{query}' → {crm} (confidence={confidence})")
-    return [crm]
+    # Build ordered result list: best Claude match first, then remaining
+    # embedding-ranked candidates (deduplicated, with a valid crm_code).
+    seen: set = {crm}
+    ordered_crms: List[str] = [crm]
+
+    for candidate in candidates:
+        c_crm = candidate.get("crm_code") or ""
+        if c_crm and c_crm not in seen:
+            seen.add(c_crm)
+            ordered_crms.append(c_crm)
+        if len(ordered_crms) >= PLANET_SEARCH_TOP_K:
+            break
+
+    logger.info(
+        f"planet-search: '{query}' → {ordered_crms} "
+        f"(best confidence={confidence})"
+    )
+    return ordered_crms
 
 
 # ── Domain Rules CRUD ────────────────────────────────────────────────────────
