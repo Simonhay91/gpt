@@ -37,9 +37,17 @@ const IMG_PROXY = `${process.env.REACT_APP_BACKEND_URL}/api/planet/img?path=`;
 
 // ── CategorySelector — cascading dropdowns + multi-tag selector ──────────────
 function CategorySelector({ label, tree, selected, selRoot, setSelRoot, selLvl1, setSelLvl1, onAdd, onRemove }) {
+  const [selLvl2, setSelLvl2] = useState('');
+
+  // Reset lvl2 whenever lvl1 (or root) changes
+  useEffect(() => { setSelLvl2(''); }, [selLvl1]);
+
   const roots = Object.keys(tree).sort();
   const lvl1Options = selRoot ? Object.keys(tree[selRoot] || {}).sort() : [];
   const lvl2Options = selRoot && selLvl1 ? Object.keys(tree[selRoot]?.[selLvl1] || {}).sort() : [];
+  const lvl3Options = selRoot && selLvl1 && selLvl2
+    ? [...(tree[selRoot]?.[selLvl1]?.[selLvl2] || [])].sort()
+    : [];
 
   const addCategory = (cat) => {
     if (cat) onAdd(cat);
@@ -71,16 +79,26 @@ function CategorySelector({ label, tree, selected, selRoot, setSelRoot, selLvl1,
         {lvl2Options.length > 0 && (
           <select
             className="flex-1 min-w-0 border border-input rounded-md px-2 py-1.5 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-ring"
-            onChange={e => { if (e.target.value) addCategory(e.target.value); e.target.value = ''; }}
-            defaultValue=""
+            value={selLvl2}
+            onChange={e => setSelLvl2(e.target.value)}
           >
             <option value="">Lvl2…</option>
             {lvl2Options.map(c => <option key={c} value={c}>{c}</option>)}
           </select>
         )}
+        {lvl3Options.length > 0 && (
+          <select
+            className="flex-1 min-w-0 border border-input rounded-md px-2 py-1.5 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-ring"
+            onChange={e => { if (e.target.value) addCategory(e.target.value); e.target.value = ''; }}
+            defaultValue=""
+          >
+            <option value="">Lvl3…</option>
+            {lvl3Options.map(c => <option key={c} value={c}>{c}</option>)}
+          </select>
+        )}
         <button
           type="button"
-          onClick={() => addCategory(selLvl1 || selRoot)}
+          onClick={() => addCategory(selLvl2 || selLvl1 || selRoot)}
           disabled={!selRoot}
           className="px-2.5 py-1.5 text-xs rounded-md bg-primary text-primary-foreground disabled:opacity-40 hover:bg-primary/90 shrink-0"
         >

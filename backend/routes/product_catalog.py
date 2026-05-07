@@ -109,6 +109,8 @@ async def list_products(
     search: Optional[str] = Query(None, description="Search in title, article_number, vendor, aliases"),
     root_category: Optional[str] = Query(None),
     lvl1_subcategory: Optional[str] = Query(None),
+    lvl2_subcategory: Optional[str] = Query(None),
+    lvl3_subcategory: Optional[str] = Query(None),
     vendor: Optional[str] = Query(None),
     is_active: Optional[bool] = Query(None),
     limit: int = Query(100, le=1000),
@@ -137,6 +139,10 @@ async def list_products(
         query["root_category"] = root_category
     if lvl1_subcategory:
         query["lvl1_subcategory"] = lvl1_subcategory
+    if lvl2_subcategory:
+        query["lvl2_subcategory"] = lvl2_subcategory
+    if lvl3_subcategory:
+        query["lvl3_subcategory"] = lvl3_subcategory
     if vendor:
         query["vendor"] = vendor
     if is_active is not None:
@@ -160,6 +166,8 @@ async def get_categories(current_user: dict = Depends(get_current_user)):
             "_id": None,
             "root_categories": {"$addToSet": "$root_category"},
             "lvl1_subcategories": {"$addToSet": "$lvl1_subcategory"},
+            "lvl2_subcategories": {"$addToSet": "$lvl2_subcategory"},
+            "lvl3_subcategories": {"$addToSet": "$lvl3_subcategory"},
             "vendors": {"$addToSet": "$vendor"}
         }}
     ]
@@ -171,10 +179,12 @@ async def get_categories(current_user: dict = Depends(get_current_user)):
         return {
             "root_categories": sorted([c for c in data.get("root_categories", []) if c]),
             "lvl1_subcategories": sorted([c for c in data.get("lvl1_subcategories", []) if c]),
+            "lvl2_subcategories": sorted([c for c in data.get("lvl2_subcategories", []) if c]),
+            "lvl3_subcategories": sorted([c for c in data.get("lvl3_subcategories", []) if c]),
             "vendors": sorted([v for v in data.get("vendors", []) if v])
         }
     
-    return {"root_categories": [], "lvl1_subcategories": [], "vendors": []}
+    return {"root_categories": [], "lvl1_subcategories": [], "lvl2_subcategories": [], "lvl3_subcategories": [], "vendors": []}
 
 
 @router.get("/product-catalog/category-tree")
