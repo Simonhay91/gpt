@@ -31,7 +31,11 @@ PARTNER_KEY = os.environ.get("PLANET_PARTNER_KEY", "")
 
 CATEGORY_TTL_HOURS = 5
 EMBED_TTL_HOURS = 24
-CATALOG_TTL_MINUTES = 10   # how long to cache the full normalized product list
+CATALOG_TTL_MINUTES = 10   # how long to keep the in-memory catalog cache
+
+# In-memory catalog cache — avoids re-fetching all pages on every request.
+# Keyed by category_id (or "__all__"). Each entry: {products, expires_at}.
+_catalog_cache: Dict[str, Any] = {}
 FETCH_PAGE_LIMIT = 500        # max allowed by the API
 MAX_CATALOG_PRODUCTS = 5000   # safety cap
 
@@ -354,25 +358,21 @@ async def get_product_datasheet_url(slug: str) -> str:
 async def get_catalog(db, category_id: str = None) -> List[dict]:
     """
     Return the full normalized product catalog with embeddings.
-    Results are cached in planet_catalog_cache for CATALOG_TTL_MINUTES to avoid
-    fetching all pages from the external API on every request.
+    Results are cached in-memory for CATALOG_TTL_MINUTES to avoid re-fetching
+    all pages from the external API on every request.
     """
     if not PARTNER_KEY:
         logger.warning("planet_api: PLANET_PARTNER_KEY not set — returning empty catalog")
         return []
 
     cache_key = category_id or "__all__"
-    cutoff = (datetime.now(timezone.utc) - timedelta(minutes=CATALOG_TTL_MINUTES)).isoformat()
+    now = datetime.now(timezone.utc)
 
-    cached = await db.planet_catalog_cache.find_one(
-        {"cache_key": cache_key, "cached_at": {"$gte": cutoff}},
-        {"_id": 0, "products": 1},
-    )
-    if cached:
-        logger.debug(f"planet_api: catalog cache hit (key={cache_key})")
-        products = cached["products"]
-        # Embeddings may have been updated since the cache was written — refresh from embed cache
-        products = await _fill_embeddings(db, products)
+    entry = _catalog_cache.get(cache_key)
+    if entry and entry["expires_at"] > now:
+        logger.debug(f"planet_api: catalog memory-cache hit (key={cache_key})")
+        # Re-attach embeddings (may have been computed since last fetch)
+        products = await _fill_embeddings(db, entry["products"])
         return products
 
     logger.info(f"planet_api: fetching catalog from API (key={cache_key})")
@@ -383,15 +383,13 @@ async def get_catalog(db, category_id: str = None) -> List[dict]:
     normalized = [_normalize(p) for p in raw]
     normalized = await _fill_embeddings(db, normalized)
 
-    # Strip embeddings before storing (they live in planet_embedding_cache separately)
+    # Store without embeddings — they are large and live in planet_embedding_cache
     products_to_store = [{k: v for k, v in p.items() if k != "embedding"} for p in normalized]
-    now = datetime.now(timezone.utc).isoformat()
-    await db.planet_catalog_cache.replace_one(
-        {"cache_key": cache_key},
-        {"cache_key": cache_key, "products": products_to_store, "cached_at": now},
-        upsert=True,
-    )
-    logger.info(f"planet_api: catalog cached ({len(normalized)} products, key={cache_key})")
+    _catalog_cache[cache_key] = {
+        "products": products_to_store,
+        "expires_at": now + timedelta(minutes=CATALOG_TTL_MINUTES),
+    }
+    logger.info(f"planet_api: catalog cached in memory ({len(normalized)} products, key={cache_key})")
 
     return normalized
 
