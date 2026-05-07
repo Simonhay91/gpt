@@ -1,7 +1,7 @@
 """Product Matching — upload customer file, AI-match against catalog, preview + Excel."""
 from fastapi import APIRouter, HTTPException, Depends, UploadFile, File, Form, Query
 from bson import ObjectId
-from services.planet_api import get_catalog as _planet_get_catalog
+from services.planet_api import get_catalog as _planet_get_catalog, get_product_datasheet_url as _get_datasheet_url
 from fastapi.responses import FileResponse
 from starlette.background import BackgroundTask
 from typing import List, Optional
@@ -1132,6 +1132,28 @@ async def match_products(
             "match_type": r.get("match_type", "auto"),
             "confidence": r.get("confidence"),
         })
+
+    # ── Enrich datasheet_url with PDF links from product detail ─────────────
+    # catalog_by_crm/article already built above; catalog products have 'slug'
+    needs_pdf: List[tuple] = []  # (result_idx, slug)
+    for i, r in enumerate(results):
+        if r.get("matched_title") and not r.get("datasheet_url"):
+            crm = r.get("crm_code") or ""
+            article = r.get("article_number") or ""
+            matched_p = catalog_by_crm.get(crm) or catalog_by_article.get(article)
+            if matched_p and matched_p.get("slug"):
+                needs_pdf.append((i, matched_p["slug"]))
+
+    if needs_pdf:
+        import asyncio as _asyncio
+        pdf_urls = await _asyncio.gather(
+            *[_get_datasheet_url(slug) for _, slug in needs_pdf],
+            return_exceptions=True,
+        )
+        for (idx, _), url in zip(needs_pdf, pdf_urls):
+            if isinstance(url, str) and url:
+                results[idx]["datasheet_url"] = url
+        logger.info(f"Datasheet enrichment: fetched {len(needs_pdf)} URLs")
 
     logger.info(f"Product matching done: {len(results)} results returned")
     return {"results": results}

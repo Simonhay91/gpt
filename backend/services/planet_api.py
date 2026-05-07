@@ -323,6 +323,30 @@ async def _fill_embeddings(db, products: List[dict]) -> List[dict]:
     return products
 
 
+# ── Datasheet URL fetch ───────────────────────────────────────────────────────
+
+async def get_product_datasheet_url(slug: str) -> str:
+    """
+    Fetch a single product's detail and return its first datasheet URL.
+    Used post-matching to enrich Excel output with PDF links.
+    Returns empty string if unavailable.
+    """
+    if not slug:
+        return ""
+    try:
+        raw = await _get(f"/web/product/{slug}")
+        product_data = raw.get("product") or raw
+        datasheets = product_data.get("publicDatasheets") or []
+        if datasheets and isinstance(datasheets[0], dict):
+            path = datasheets[0].get("path", "")
+            if path:
+                base = BASE_URL.rstrip("/")
+                return f"{base}/{path.lstrip('/')}"
+    except Exception as exc:
+        logger.debug(f"planet_api: datasheet fetch failed for slug={slug!r}: {exc}")
+    return ""
+
+
 # ── Main public API ───────────────────────────────────────────────────────────
 
 async def get_catalog(db, category_id: str = None) -> List[dict]:
