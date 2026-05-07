@@ -11,7 +11,7 @@ import re
 import json
 import uuid
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from pydantic import BaseModel
 
 import numpy as np
@@ -746,6 +746,9 @@ class DomainRuleUpdate(BaseModel):
 
 PLANET_SEARCH_TOP_K = 10  # max CRM codes returned to PlanetWorkspace
 _CONFIDENCE_ORDER = {"high": 0, "medium": 1, "low": 2}
+PLANET_SEARCH_CACHE_TTL = 60  # seconds — cache identical search queries
+
+_planet_search_cache: dict = {}  # query_lower → {"crms": [...], "expires_at": datetime}
 
 
 # ── PlanetWorkspace fallback search ──────────────────────────────────────────
@@ -754,16 +757,24 @@ _CONFIDENCE_ORDER = {"high": 0, "medium": 1, "low": 2}
 async def planet_search(data: PlanetSearchRequest):
     """
     Called by PlanetWorkspace when a user search returns no results.
-    Runs alias lookup → OpenAI embedding pre-filter → Claude match against catalog.
+    Runs alias lookup → OpenAI embedding pre-filter → returns ranked CRM codes.
+    Claude is intentionally excluded: this endpoint must respond in <500 ms.
+    Results are cached for PLANET_SEARCH_CACHE_TTL seconds per unique query.
     Returns an ordered array of CRM codes (best match first, max PLANET_SEARCH_TOP_K).
     """
-
     query = (data.query or "").strip()
     if not query:
         raise HTTPException(status_code=400, detail="query is required")
 
-    db = get_db()
+    query_lower = query.lower().strip()
 
+    # ── Query cache ───────────────────────────────────────────────────────────
+    cached = _planet_search_cache.get(query_lower)
+    if cached and cached["expires_at"] > datetime.now(timezone.utc):
+        logger.debug(f"planet-search cache hit: '{query}'")
+        return cached["crms"]
+
+    db = get_db()
     catalog = await _planet_get_catalog(db)
 
     if not catalog:
@@ -788,14 +799,18 @@ async def planet_search(data: PlanetSearchRequest):
             if prod:
                 alias_lookup[key] = prod
 
-    query_lower = query.lower().strip()
     if query_lower in alias_lookup:
         p = alias_lookup[query_lower]
         crm = p.get("crm_code")
         logger.info(f"planet-search alias hit: '{query}' → {crm}")
-        return [crm] if crm else []
+        result = [crm] if crm else []
+        _planet_search_cache[query_lower] = {
+            "crms": result,
+            "expires_at": datetime.now(timezone.utc) + timedelta(seconds=PLANET_SEARCH_CACHE_TTL),
+        }
+        return result
 
-    # ── Step 2: OpenAI embedding pre-filter → TOP candidates ─────────────────
+    # ── Step 2: OpenAI embedding → TOP-K candidates (ranked by cosine sim) ───
     catalog_embeddings = [p.get("embedding") for p in catalog]
 
     try:
@@ -805,30 +820,8 @@ async def planet_search(data: PlanetSearchRequest):
         logger.warning(f"planet-search embedding failed, using text fallback: {exc}")
         candidates = _text_fallback_top_k(query, catalog, PLANET_SEARCH_TOP_K)
 
-    if not candidates:
-        logger.info(f"planet-search: no candidates found for '{query}'")
-        return []
-
-    # ── Step 3: Claude picks best match(es) from the small candidate set ──────
-    try:
-        claude_results = _claude_match_with_candidates([(query, candidates)])
-        r = claude_results[0] if claude_results else {}
-    except Exception as exc:
-        logger.error(f"planet-search Claude failed: {exc}")
-        return []
-
-    confidence = (r.get("confidence") or "").lower()
-    crm = r.get("crm_code") or ""
-
-    if confidence == "none" or not crm:
-        logger.info(f"planet-search: no match for '{query}' (confidence={confidence})")
-        return []
-
-    # Build ordered result list: best Claude match first, then remaining
-    # embedding-ranked candidates (deduplicated, with a valid crm_code).
-    seen: set = {crm}
-    ordered_crms: List[str] = [crm]
-
+    ordered_crms: List[str] = []
+    seen: set = set()
     for candidate in candidates:
         c_crm = candidate.get("crm_code") or ""
         if c_crm and c_crm not in seen:
@@ -837,10 +830,12 @@ async def planet_search(data: PlanetSearchRequest):
         if len(ordered_crms) >= PLANET_SEARCH_TOP_K:
             break
 
-    logger.info(
-        f"planet-search: '{query}' → {ordered_crms} "
-        f"(best confidence={confidence})"
-    )
+    logger.info(f"planet-search: '{query}' → {ordered_crms}")
+
+    _planet_search_cache[query_lower] = {
+        "crms": ordered_crms,
+        "expires_at": datetime.now(timezone.utc) + timedelta(seconds=PLANET_SEARCH_CACHE_TTL),
+    }
     return ordered_crms
 
 

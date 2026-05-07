@@ -36,6 +36,7 @@ CATALOG_TTL_MINUTES = 10   # how long to keep the in-memory catalog cache
 # In-memory catalog cache — avoids re-fetching all pages on every request.
 # Keyed by category_id (or "__all__"). Each entry: {products, expires_at}.
 _catalog_cache: Dict[str, Any] = {}
+_catalog_locks: Dict[str, asyncio.Lock] = {}  # one lock per cache key
 FETCH_PAGE_LIMIT = 500        # max allowed by the API
 MAX_CATALOG_PRODUCTS = 5000   # safety cap
 
@@ -194,10 +195,14 @@ async def get_category_attributes(db, slug: str) -> List[dict]:
 
 # ── Product fetch ─────────────────────────────────────────────────────────────
 
-async def _fetch_all_products_raw(category_id: str = None) -> List[dict]:
-    """Paginate through /web/product/explore and return all raw product dicts."""
+async def _fetch_all_products_raw(category_id: str = None) -> tuple:
+    """
+    Paginate through /web/product/explore and return (items, complete) where
+    complete=False means at least one page failed (partial result).
+    """
     all_items: List[dict] = []
     page = 1
+    complete = True
 
     body: Dict[str, Any] = {"page": page, "limit": FETCH_PAGE_LIMIT}
     if category_id:
@@ -209,6 +214,7 @@ async def _fetch_all_products_raw(category_id: str = None) -> List[dict]:
             r = await _post("/web/product/explore", body)
         except Exception as exc:
             logger.error(f"planet_api: product fetch page {page} failed: {exc}")
+            complete = False
             break
 
         # normalize response key (can be products or items)
@@ -222,13 +228,10 @@ async def _fetch_all_products_raw(category_id: str = None) -> List[dict]:
         total = r.get("total") if isinstance(r, dict) else None
         if total and len(all_items) >= total:
             break
-        # No more items
-        if not items:
-            break
 
         page += 1
 
-    return all_items[:MAX_CATALOG_PRODUCTS]
+    return all_items[:MAX_CATALOG_PRODUCTS], complete
 
 
 # ── Embedding helpers ─────────────────────────────────────────────────────────
@@ -360,6 +363,11 @@ async def get_catalog(db, category_id: str = None) -> List[dict]:
     Return the full normalized product catalog with embeddings.
     Results are cached in-memory for CATALOG_TTL_MINUTES to avoid re-fetching
     all pages from the external API on every request.
+
+    Uses a per-key asyncio.Lock to prevent cache stampede: only one coroutine
+    fetches at a time; the rest wait and then reuse the freshly-populated cache.
+    Partial results (caused by mid-pagination errors like 502) are never cached
+    so the next request retries a full fetch.
     """
     if not PARTNER_KEY:
         logger.warning("planet_api: PLANET_PARTNER_KEY not set — returning empty catalog")
@@ -368,30 +376,46 @@ async def get_catalog(db, category_id: str = None) -> List[dict]:
     cache_key = category_id or "__all__"
     now = datetime.now(timezone.utc)
 
+    # Fast path — check cache before acquiring the lock
     entry = _catalog_cache.get(cache_key)
     if entry and entry["expires_at"] > now:
         logger.debug(f"planet_api: catalog memory-cache hit (key={cache_key})")
-        # Re-attach embeddings (may have been computed since last fetch)
-        products = await _fill_embeddings(db, entry["products"])
-        return products
+        return await _fill_embeddings(db, entry["products"])
 
-    logger.info(f"planet_api: fetching catalog from API (key={cache_key})")
-    raw = await _fetch_all_products_raw(category_id=category_id)
-    if not raw:
-        return []
+    # Slow path — serialise fetches per cache key
+    if cache_key not in _catalog_locks:
+        _catalog_locks[cache_key] = asyncio.Lock()
+    async with _catalog_locks[cache_key]:
+        # Re-check inside the lock — another coroutine may have populated it
+        now = datetime.now(timezone.utc)
+        entry = _catalog_cache.get(cache_key)
+        if entry and entry["expires_at"] > now:
+            logger.debug(f"planet_api: catalog memory-cache hit (key={cache_key}, post-lock)")
+            return await _fill_embeddings(db, entry["products"])
 
-    normalized = [_normalize(p) for p in raw]
-    normalized = await _fill_embeddings(db, normalized)
+        logger.info(f"planet_api: fetching catalog from API (key={cache_key})")
+        raw, complete = await _fetch_all_products_raw(category_id=category_id)
+        if not raw:
+            return []
 
-    # Store without embeddings — they are large and live in planet_embedding_cache
-    products_to_store = [{k: v for k, v in p.items() if k != "embedding"} for p in normalized]
-    _catalog_cache[cache_key] = {
-        "products": products_to_store,
-        "expires_at": now + timedelta(minutes=CATALOG_TTL_MINUTES),
-    }
-    logger.info(f"planet_api: catalog cached in memory ({len(normalized)} products, key={cache_key})")
+        normalized = [_normalize(p) for p in raw]
+        normalized = await _fill_embeddings(db, normalized)
 
-    return normalized
+        if complete:
+            # Store without embeddings — they are large and live in planet_embedding_cache
+            products_to_store = [{k: v for k, v in p.items() if k != "embedding"} for p in normalized]
+            _catalog_cache[cache_key] = {
+                "products": products_to_store,
+                "expires_at": now + timedelta(minutes=CATALOG_TTL_MINUTES),
+            }
+            logger.info(f"planet_api: catalog cached in memory ({len(normalized)} products, key={cache_key})")
+        else:
+            logger.warning(
+                f"planet_api: partial fetch ({len(normalized)} products, key={cache_key}) — "
+                "skipping cache so next request retries"
+            )
+
+        return normalized
 
 
 async def get_brands(db) -> List[dict]:
