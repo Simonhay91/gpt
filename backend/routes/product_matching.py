@@ -1074,6 +1074,16 @@ async def match_products(
             orig_idx = ai_indices[claude_idx]
             ai_map[orig_idx] = r
 
+    # ── Enrich datasheet_url from catalog (Claude always returns it empty) ────
+    catalog_by_crm = {p["crm_code"]: p for p in catalog if p.get("crm_code")}
+    catalog_by_article = {p["article_number"]: p for p in catalog if p.get("article_number")}
+    for r in ai_map.values():
+        if not r.get("datasheet_url"):
+            matched_p = catalog_by_crm.get(r.get("crm_code") or "") or \
+                        catalog_by_article.get(r.get("article_number") or "")
+            if matched_p and matched_p.get("datasheet_url"):
+                r["datasheet_url"] = matched_p["datasheet_url"]
+
     # ── Merge & build final response ─────────────────────────────────────────
     results: List[dict] = []
     for idx, item in enumerate(customer_items):

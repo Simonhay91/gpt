@@ -69,6 +69,26 @@ async def _post(path: str, body: dict) -> Any:
 
 # ── Normalizer ────────────────────────────────────────────────────────────────
 
+def _datasheet_url(p: dict) -> str:
+    """
+    Build a datasheet/product URL for use in Excel exports.
+    Priority: publicDatasheets[0] direct link → Planet product page URL.
+    Datasheets live at {BASE_URL}/public/... (keep /api in path).
+    """
+    datasheets = p.get("publicDatasheets") or []
+    if datasheets:
+        path = datasheets[0].get("path", "") if isinstance(datasheets[0], dict) else ""
+        if path:
+            base = BASE_URL.rstrip("/")
+            return f"{base}/{path.lstrip('/')}"
+
+    # Fallback: link to the product page on PlanetWorkspace
+    slug = p.get("slug", "")
+    if slug:
+        return f"https://planetworkspace.com/web/product/{slug}"
+    return ""
+
+
 def _normalize(p: dict) -> dict:
     """
     Map external API field names to the conventions used by the matching pipeline.
@@ -89,7 +109,7 @@ def _normalize(p: dict) -> dict:
         "crm_code": p.get("crmCode") or "",
         "vendor": p.get("brandName") or "",
         "product_model": p.get("model") or "",
-        "datasheet_url": "",          # not provided by the API
+        "datasheet_url": _datasheet_url(p),
         "aliases": [],                # populated separately via product_aliases collection
         # extra fields (useful for UI / future matching)
         "category_id": str(p.get("categoryId") or ""),
