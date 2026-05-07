@@ -182,6 +182,20 @@ export default function ProductCatalogPage() {
   const [selRootB, setSelRootB] = useState('');
   const [selLvl1B, setSelLvl1B] = useState('');
 
+  // Internal catalog view
+  const [catalogView, setCatalogView] = useState('planet'); // 'planet' | 'internal'
+  const [internalProducts, setInternalProducts] = useState([]);
+  const [internalLoading, setInternalLoading] = useState(false);
+  const [internalTotal, setInternalTotal] = useState(0);
+  const [internalPage, setInternalPage] = useState(1);
+  const internalPageSize = 50;
+  const [filterRoot, setFilterRoot] = useState('');
+  const [filterLvl1, setFilterLvl1] = useState('');
+  const [filterLvl2, setFilterLvl2] = useState('');
+  const [filterLvl3, setFilterLvl3] = useState('');
+  const [filterVendor, setFilterVendor] = useState('');
+  const [vendorList, setVendorList] = useState([]);
+
   const loadProducts = useCallback(async () => {
     try {
       setLoading(true);
@@ -235,6 +249,42 @@ export default function ProductCatalogPage() {
     } catch (error) {
       console.error('Failed to load categories', error);
     }
+  }, []);
+
+  const loadInternalProducts = useCallback(async () => {
+    setInternalLoading(true);
+    try {
+      const params = {
+        limit: internalPageSize,
+        offset: (internalPage - 1) * internalPageSize,
+        is_active: true,
+      };
+      if (search) params.search = search;
+      if (filterRoot) params.root_category = filterRoot;
+      if (filterLvl1) params.lvl1_subcategory = filterLvl1;
+      if (filterLvl2) params.lvl2_subcategory = filterLvl2;
+      if (filterLvl3) params.lvl3_subcategory = filterLvl3;
+      if (filterVendor) params.vendor = filterVendor;
+      const res = await axios.get(`${API}/product-catalog`, { params });
+      const items = Array.isArray(res.data) ? res.data : [];
+      setInternalProducts(items);
+      setInternalTotal(items.length < internalPageSize ? (internalPage - 1) * internalPageSize + items.length : internalTotal);
+    } catch {
+      toast.error('Failed to load internal catalog');
+    } finally {
+      setInternalLoading(false);
+    }
+  }, [search, filterRoot, filterLvl1, filterLvl2, filterLvl3, filterVendor, internalPage, internalTotal]);
+
+  const loadInternalCatalogTree = useCallback(async () => {
+    try {
+      const [treeRes, catRes] = await Promise.all([
+        axios.get(`${API}/product-catalog/category-tree`),
+        axios.get(`${API}/product-catalog/categories`),
+      ]);
+      setCategoryTree(treeRes.data);
+      setVendorList(catRes.data?.vendors || []);
+    } catch { /* ignore */ }
   }, []);
 
   const loadDomainRules = async () => {
@@ -329,10 +379,7 @@ export default function ProductCatalogPage() {
     setRelRuleForm({ title: '', categories_a: [], categories_b: [], description: '', is_active: true });
     setSelRootA(''); setSelLvl1A(''); setSelRootB(''); setSelLvl1B('');
     loadRelationRules();
-    try {
-      const res = await axios.get(`${API}/product-catalog/category-tree`);
-      setCategoryTree(res.data);
-    } catch { /* ignore */ }
+    loadInternalCatalogTree();
   };
 
   const startEditRelRule = (rule) => {
@@ -427,7 +474,8 @@ export default function ProductCatalogPage() {
 
   useEffect(() => {
     loadCategories();
-  }, [loadCategories]);
+    loadInternalCatalogTree();
+  }, [loadCategories, loadInternalCatalogTree]);
 
   useEffect(() => {
     loadProducts();
@@ -437,6 +485,20 @@ export default function ProductCatalogPage() {
   useEffect(() => {
     setPage(1);
   }, [search, selectedCategoryId, selectedBrandId]);
+
+  // Internal catalog effects
+  useEffect(() => {
+    if (catalogView === 'internal') loadInternalProducts();
+  }, [catalogView, loadInternalProducts]);
+
+  useEffect(() => {
+    if (catalogView === 'internal') setInternalPage(1);
+  }, [search, filterRoot, filterLvl1, filterLvl2, filterLvl3, filterVendor, catalogView]);
+
+  // Reset sub-filters when parent changes
+  useEffect(() => { setFilterLvl1(''); setFilterLvl2(''); setFilterLvl3(''); }, [filterRoot]);
+  useEffect(() => { setFilterLvl2(''); setFilterLvl3(''); }, [filterLvl1]);
+  useEffect(() => { setFilterLvl3(''); }, [filterLvl2]);
 
   // Debounced search
   useEffect(() => {
@@ -617,7 +679,9 @@ export default function ProductCatalogPage() {
               Product Catalog
             </h1>
             <p className="text-sm text-muted-foreground mt-1">
-              {totalProducts > 0 ? `${totalProducts} products` : 'Loading…'}
+              {catalogView === 'planet'
+                ? (totalProducts > 0 ? `${totalProducts} products` : 'Loading…')
+                : `${internalProducts.length} products`}
             </p>
           </div>
 
@@ -647,6 +711,26 @@ export default function ProductCatalogPage() {
           </div>
         </div>
 
+        {/* Catalog view toggle */}
+        <div className="flex gap-1 p-1 bg-muted rounded-lg w-fit">
+          <button
+            type="button"
+            onClick={() => setCatalogView('planet')}
+            className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${catalogView === 'planet' ? 'bg-background shadow text-foreground' : 'text-muted-foreground hover:text-foreground'}`}
+          >
+            <Globe className="h-3.5 w-3.5 inline mr-1.5 -mt-0.5" />
+            Planet Catalog
+          </button>
+          <button
+            type="button"
+            onClick={() => setCatalogView('internal')}
+            className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${catalogView === 'internal' ? 'bg-background shadow text-foreground' : 'text-muted-foreground hover:text-foreground'}`}
+          >
+            <Tag className="h-3.5 w-3.5 inline mr-1.5 -mt-0.5" />
+            Internal Catalog
+          </button>
+        </div>
+
         {/* Search & Filters */}
         <div className="space-y-4">
           <div className="flex gap-2">
@@ -671,7 +755,7 @@ export default function ProductCatalogPage() {
             </Button>
           </div>
           
-          {showFilters && (
+          {showFilters && catalogView === 'planet' && (
             <div className="flex flex-wrap gap-4 p-4 bg-muted/50 rounded-lg">
               <select
                 value={selectedCategoryId}
@@ -696,137 +780,226 @@ export default function ProductCatalogPage() {
               </select>
             </div>
           )}
+
+          {showFilters && catalogView === 'internal' && (() => {
+            const lvl1Opts = filterRoot ? Object.keys(categoryTree[filterRoot] || {}).sort() : [];
+            const lvl2Opts = filterRoot && filterLvl1 ? Object.keys(categoryTree[filterRoot]?.[filterLvl1] || {}).sort() : [];
+            const lvl3Opts = filterRoot && filterLvl1 && filterLvl2
+              ? [...(categoryTree[filterRoot]?.[filterLvl1]?.[filterLvl2] || [])].sort()
+              : [];
+            return (
+              <div className="flex flex-wrap gap-3 p-4 bg-muted/50 rounded-lg items-end">
+                <select
+                  value={filterRoot}
+                  onChange={e => setFilterRoot(e.target.value)}
+                  className="px-3 py-2 rounded-md border bg-background text-sm min-w-[160px]"
+                >
+                  <option value="">All root categories</option>
+                  {Object.keys(categoryTree).sort().map(r => (
+                    <option key={r} value={r}>{r}</option>
+                  ))}
+                </select>
+                {lvl1Opts.length > 0 && (
+                  <select
+                    value={filterLvl1}
+                    onChange={e => setFilterLvl1(e.target.value)}
+                    className="px-3 py-2 rounded-md border bg-background text-sm min-w-[160px]"
+                  >
+                    <option value="">All lvl1</option>
+                    {lvl1Opts.map(c => <option key={c} value={c}>{c}</option>)}
+                  </select>
+                )}
+                {lvl2Opts.length > 0 && (
+                  <select
+                    value={filterLvl2}
+                    onChange={e => setFilterLvl2(e.target.value)}
+                    className="px-3 py-2 rounded-md border bg-background text-sm min-w-[160px]"
+                  >
+                    <option value="">All lvl2</option>
+                    {lvl2Opts.map(c => <option key={c} value={c}>{c}</option>)}
+                  </select>
+                )}
+                {lvl3Opts.length > 0 && (
+                  <select
+                    value={filterLvl3}
+                    onChange={e => setFilterLvl3(e.target.value)}
+                    className="px-3 py-2 rounded-md border bg-background text-sm min-w-[160px]"
+                  >
+                    <option value="">All lvl3</option>
+                    {lvl3Opts.map(c => <option key={c} value={c}>{c}</option>)}
+                  </select>
+                )}
+                {vendorList.length > 0 && (
+                  <select
+                    value={filterVendor}
+                    onChange={e => setFilterVendor(e.target.value)}
+                    className="px-3 py-2 rounded-md border bg-background text-sm min-w-[140px]"
+                  >
+                    <option value="">All vendors</option>
+                    {vendorList.map(v => <option key={v} value={v}>{v}</option>)}
+                  </select>
+                )}
+                {(filterRoot || filterLvl1 || filterLvl2 || filterLvl3 || filterVendor) && (
+                  <button
+                    type="button"
+                    onClick={() => { setFilterRoot(''); setFilterLvl1(''); setFilterLvl2(''); setFilterLvl3(''); setFilterVendor(''); }}
+                    className="px-3 py-2 rounded-md border border-destructive/50 text-destructive text-sm hover:bg-destructive/10"
+                  >
+                    <X className="h-3.5 w-3.5 inline mr-1" />
+                    Clear
+                  </button>
+                )}
+              </div>
+            );
+          })()}
         </div>
 
         {/* Products Table */}
-        <div className="border rounded-lg overflow-hidden">
-          <table className="w-full">
-            <thead className="bg-muted/50">
-              <tr>
-                <th className="text-left p-3 font-medium">Артикул</th>
-                <th className="text-left p-3 font-medium">Название</th>
-                <th className="text-left p-3 font-medium hidden md:table-cell">Вендор</th>
-                <th className="text-left p-3 font-medium hidden lg:table-cell">Категория</th>
-                <th className="text-right p-3 font-medium">Действия</th>
-              </tr>
-            </thead>
-            <tbody>
-              {loading ? (
-                <tr>
-                  <td colSpan={6} className="text-center p-8 text-muted-foreground">
-                    Загрузка...
-                  </td>
-                </tr>
-              ) : products.length === 0 ? (
-                <tr>
-                  <td colSpan={6} className="text-center p-8 text-muted-foreground">
-                    Продукты не найдены
-                  </td>
-                </tr>
-              ) : (
-                products.map((product, idx) => {
-                  const imgSrc = product.images?.[0]
-                    ? (() => {
-                        const img = product.images[0];
-                        const rel = img.optimizedPath || (img.path636px ? `public/${img.path636px}` : null) || img.path || null;
-                        return rel ? `${IMG_PROXY}${encodeURIComponent(rel)}` : null;
-                      })()
-                    : null;
-                  return (
-                    <tr
-                      key={product.external_id || product.id || idx}
-                      className="border-t hover:bg-muted/30 cursor-pointer"
-                      data-testid={`product-row-${product.article_number}`}
-                      onClick={() => product.slug && navigate(`/product-catalog/${product.slug}`)}
-                    >
-                      <td className="p-3 font-mono text-sm">{product.article_number || product.model || '-'}</td>
-                      <td className="p-3">
-                        <div className="flex items-center gap-2">
-                          {imgSrc && (
-                            <img src={imgSrc} alt="" className="w-8 h-8 object-contain rounded shrink-0" />
-                          )}
-                          <div>
-                            <div className="font-medium">{product.title_en || product.name}</div>
-                            {product.product_model && product.product_model !== product.article_number && (
-                              <div className="text-xs text-muted-foreground">{product.product_model}</div>
+        {catalogView === 'planet' ? (
+          <>
+            <div className="border rounded-lg overflow-hidden">
+              <table className="w-full">
+                <thead className="bg-muted/50">
+                  <tr>
+                    <th className="text-left p-3 font-medium">Артикул</th>
+                    <th className="text-left p-3 font-medium">Название</th>
+                    <th className="text-left p-3 font-medium hidden md:table-cell">Вендор</th>
+                    <th className="text-left p-3 font-medium hidden lg:table-cell">Категория</th>
+                    <th className="text-right p-3 font-medium">Действия</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {loading ? (
+                    <tr><td colSpan={5} className="text-center p-8 text-muted-foreground">Загрузка...</td></tr>
+                  ) : products.length === 0 ? (
+                    <tr><td colSpan={5} className="text-center p-8 text-muted-foreground">Продукты не найдены</td></tr>
+                  ) : (
+                    products.map((product, idx) => {
+                      const imgSrc = product.images?.[0]
+                        ? (() => {
+                            const img = product.images[0];
+                            const rel = img.optimizedPath || (img.path636px ? `public/${img.path636px}` : null) || img.path || null;
+                            return rel ? `${IMG_PROXY}${encodeURIComponent(rel)}` : null;
+                          })()
+                        : null;
+                      return (
+                        <tr
+                          key={product.external_id || product.id || idx}
+                          className="border-t hover:bg-muted/30 cursor-pointer"
+                          onClick={() => product.slug && navigate(`/product-catalog/${product.slug}`)}
+                        >
+                          <td className="p-3 font-mono text-sm">{product.article_number || product.model || '-'}</td>
+                          <td className="p-3">
+                            <div className="flex items-center gap-2">
+                              {imgSrc && <img src={imgSrc} alt="" className="w-8 h-8 object-contain rounded shrink-0" />}
+                              <div>
+                                <div className="font-medium">{product.title_en || product.name}</div>
+                                {product.product_model && product.product_model !== product.article_number && (
+                                  <div className="text-xs text-muted-foreground">{product.product_model}</div>
+                                )}
+                              </div>
+                            </div>
+                          </td>
+                          <td className="p-3 hidden md:table-cell">{product.vendor || product.brandName || '-'}</td>
+                          <td className="p-3 hidden lg:table-cell">{product.category_name || product.categoryName || '-'}</td>
+                          <td className="p-3 text-right">
+                            {product.slug && (
+                              <Button variant="ghost" size="sm"
+                                onClick={(e) => { e.stopPropagation(); window.open(`https://planetworkspace.com/web/product/${product.slug}`, '_blank'); }}
+                                title="Open on PlanetWorkspace"
+                              >
+                                <ExternalLink className="h-4 w-4" />
+                              </Button>
                             )}
-                          </div>
-                        </div>
-                      </td>
-                      <td className="p-3 hidden md:table-cell">{product.vendor || product.brandName || '-'}</td>
-                      <td className="p-3 hidden lg:table-cell">{product.category_name || product.categoryName || '-'}</td>
-                      <td className="p-3 text-right">
-                        <div className="flex justify-end gap-1">
-                          {product.slug && (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={(e) => { e.stopPropagation(); window.open(`https://planetworkspace.com/web/product/${product.slug}`, '_blank'); }}
-                              title="Open on PlanetWorkspace"
-                            >
-                              <ExternalLink className="h-4 w-4" />
-                            </Button>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
-        </div>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
 
-        {/* Pagination */}
-        {totalPages > 1 && (
-          <div className="flex items-center justify-between px-4 py-3 border rounded-lg bg-muted/30">
-            <div className="text-sm text-muted-foreground">
-              Page {page} of {totalPages} · {totalProducts} products
-            </div>
-            <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setPage(p => Math.max(1, p - 1))}
-                disabled={page === 1}
-              >
-                ← Prev
-              </Button>
-              <div className="flex items-center gap-1">
-                {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-                  let pageNum;
-                  if (totalPages <= 5) {
-                    pageNum = i + 1;
-                  } else if (page <= 3) {
-                    pageNum = i + 1;
-                  } else if (page >= totalPages - 2) {
-                    pageNum = totalPages - 4 + i;
-                  } else {
-                    pageNum = page - 2 + i;
-                  }
-                  return (
-                    <Button
-                      key={pageNum}
-                      variant={page === pageNum ? "default" : "outline"}
-                      size="sm"
-                      onClick={() => setPage(pageNum)}
-                      className="w-8"
-                    >
-                      {pageNum}
-                    </Button>
-                  );
-                })}
+            {totalPages > 1 && (
+              <div className="flex items-center justify-between px-4 py-3 border rounded-lg bg-muted/30">
+                <div className="text-sm text-muted-foreground">
+                  Page {page} of {totalPages} · {totalProducts} products
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button variant="outline" size="sm" onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}>← Prev</Button>
+                  <div className="flex items-center gap-1">
+                    {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                      let pageNum;
+                      if (totalPages <= 5) pageNum = i + 1;
+                      else if (page <= 3) pageNum = i + 1;
+                      else if (page >= totalPages - 2) pageNum = totalPages - 4 + i;
+                      else pageNum = page - 2 + i;
+                      return (
+                        <Button key={pageNum} variant={page === pageNum ? "default" : "outline"} size="sm" onClick={() => setPage(pageNum)} className="w-8">
+                          {pageNum}
+                        </Button>
+                      );
+                    })}
+                  </div>
+                  <Button variant="outline" size="sm" onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page >= totalPages}>Next →</Button>
+                </div>
               </div>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setPage(p => Math.min(totalPages, p + 1))}
-                disabled={page >= totalPages}
-              >
-                Next →
-              </Button>
+            )}
+          </>
+        ) : (
+          <>
+            <div className="border rounded-lg overflow-hidden">
+              <table className="w-full">
+                <thead className="bg-muted/50">
+                  <tr>
+                    <th className="text-left p-3 font-medium">Артикул</th>
+                    <th className="text-left p-3 font-medium">Название</th>
+                    <th className="text-left p-3 font-medium hidden md:table-cell">Вендор</th>
+                    <th className="text-left p-3 font-medium hidden lg:table-cell">Категория</th>
+                    <th className="text-left p-3 font-medium hidden xl:table-cell">Subcategory</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {internalLoading ? (
+                    <tr><td colSpan={5} className="text-center p-8 text-muted-foreground"><Loader2 className="h-5 w-5 animate-spin inline mr-2" />Загрузка...</td></tr>
+                  ) : internalProducts.length === 0 ? (
+                    <tr><td colSpan={5} className="text-center p-8 text-muted-foreground">Продукты не найдены</td></tr>
+                  ) : (
+                    internalProducts.map((product, idx) => (
+                      <tr key={product.id || product.article_number || idx} className="border-t hover:bg-muted/30">
+                        <td className="p-3 font-mono text-sm">{product.article_number || product.crm_code || '-'}</td>
+                        <td className="p-3">
+                          <div className="font-medium">{product.title_en || product.title || '-'}</div>
+                          {product.product_model && product.product_model !== product.article_number && (
+                            <div className="text-xs text-muted-foreground">{product.product_model}</div>
+                          )}
+                        </td>
+                        <td className="p-3 hidden md:table-cell">{product.vendor || '-'}</td>
+                        <td className="p-3 hidden lg:table-cell">
+                          <div className="flex flex-col gap-0.5">
+                            {product.root_category && <span className="text-xs font-medium">{product.root_category}</span>}
+                            {product.lvl1_subcategory && <span className="text-xs text-muted-foreground">↳ {product.lvl1_subcategory}</span>}
+                            {product.lvl2_subcategory && <span className="text-xs text-muted-foreground pl-3">↳ {product.lvl2_subcategory}</span>}
+                          </div>
+                        </td>
+                        <td className="p-3 hidden xl:table-cell text-xs text-muted-foreground">{product.lvl3_subcategory || '-'}</td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
             </div>
-          </div>
+
+            {internalProducts.length === internalPageSize && (
+              <div className="flex items-center justify-between px-4 py-3 border rounded-lg bg-muted/30">
+                <div className="text-sm text-muted-foreground">Page {internalPage} · showing {internalPageSize} per page</div>
+                <div className="flex gap-2">
+                  <Button variant="outline" size="sm" onClick={() => setInternalPage(p => Math.max(1, p - 1))} disabled={internalPage === 1}>← Prev</Button>
+                  <Button variant="outline" size="sm" onClick={() => setInternalPage(p => p + 1)}>Next →</Button>
+                </div>
+              </div>
+            )}
+          </>
         )}
 
         {/* Match Customer File Modal */}
