@@ -136,6 +136,12 @@ export default function ProductCatalogPage() {
   const [selectedBrandId, setSelectedBrandId] = useState('');
   const [showFilters, setShowFilters] = useState(false);
 
+  // Attribute filters (loaded per selected category)
+  const [categoryAttributes, setCategoryAttributes] = useState([]);
+  const [attrsLoading, setAttrsLoading] = useState(false);
+  // { [attributeId]: string[] }
+  const [selectedAttrValues, setSelectedAttrValues] = useState({});
+
   // Pagination
   const [page, setPage] = useState(1);
   const pageSize = 24;
@@ -204,6 +210,11 @@ export default function ProductCatalogPage() {
       if (selectedCategoryId) body.categoryId = selectedCategoryId;
       if (selectedBrandId) body.brandId = selectedBrandId;
 
+      const selAttrArray = Object.entries(selectedAttrValues)
+        .filter(([, vals]) => vals.length > 0)
+        .map(([id, values]) => ({ id: Number(id), values }));
+      if (selAttrArray.length) body.selectionAttributeValues = selAttrArray;
+
       const response = await axios.post(`${API}/planet/products`, body);
       const data = response.data;
       const items = data.products || data.items || (Array.isArray(data) ? data : []);
@@ -215,7 +226,7 @@ export default function ProductCatalogPage() {
     } finally {
       setLoading(false);
     }
-  }, [search, selectedCategoryId, selectedBrandId, page]);
+  }, [search, selectedCategoryId, selectedBrandId, selectedAttrValues, page]);
 
   const loadCategories = useCallback(async () => {
     try {
@@ -481,10 +492,30 @@ export default function ProductCatalogPage() {
     loadProducts();
   }, [loadProducts]);
 
+  // Fetch category attributes when selectedCategoryId changes
+  useEffect(() => {
+    if (!selectedCategoryId) {
+      setCategoryAttributes([]);
+      setSelectedAttrValues({});
+      return;
+    }
+    const cat = categoryList.find(c => c.id === selectedCategoryId);
+    if (!cat?.slug) return;
+    setAttrsLoading(true);
+    axios.get(`${API}/planet/categories/${cat.slug}/attributes`)
+      .then(res => {
+        const attrs = res.data?.attributes || [];
+        setCategoryAttributes(attrs);
+        setSelectedAttrValues({});
+      })
+      .catch(() => setCategoryAttributes([]))
+      .finally(() => setAttrsLoading(false));
+  }, [selectedCategoryId, categoryList]);
+
   // Reset page when filters change
   useEffect(() => {
     setPage(1);
-  }, [search, selectedCategoryId, selectedBrandId]);
+  }, [search, selectedCategoryId, selectedBrandId, selectedAttrValues]);
 
   // Internal catalog effects
   useEffect(() => {
@@ -756,28 +787,104 @@ export default function ProductCatalogPage() {
           </div>
           
           {showFilters && catalogView === 'planet' && (
-            <div className="flex flex-wrap gap-4 p-4 bg-muted/50 rounded-lg">
-              <select
-                value={selectedCategoryId}
-                onChange={(e) => setSelectedCategoryId(e.target.value)}
-                className="px-3 py-2 rounded-md border bg-background min-w-[180px]"
-              >
-                <option value="">All categories</option>
-                {categoryList.map(cat => (
-                  <option key={cat.id} value={cat.id}>{cat.name}</option>
-                ))}
-              </select>
+            <div className="p-4 bg-muted/50 rounded-lg space-y-4">
+              {/* Category + Brand selects */}
+              <div className="flex flex-wrap gap-4">
+                <select
+                  value={selectedCategoryId}
+                  onChange={(e) => setSelectedCategoryId(e.target.value)}
+                  className="px-3 py-2 rounded-md border bg-background min-w-[180px]"
+                >
+                  <option value="">All categories</option>
+                  {categoryList.map(cat => (
+                    <option key={cat.id} value={cat.id}>{cat.name}</option>
+                  ))}
+                </select>
 
-              <select
-                value={selectedBrandId}
-                onChange={(e) => setSelectedBrandId(e.target.value)}
-                className="px-3 py-2 rounded-md border bg-background min-w-[150px]"
-              >
-                <option value="">All brands</option>
-                {brandList.map(b => (
-                  <option key={b.id} value={String(b.id)}>{b.name}</option>
-                ))}
-              </select>
+                <select
+                  value={selectedBrandId}
+                  onChange={(e) => setSelectedBrandId(e.target.value)}
+                  className="px-3 py-2 rounded-md border bg-background min-w-[150px]"
+                >
+                  <option value="">All brands</option>
+                  {brandList.map(b => (
+                    <option key={b.id} value={String(b.id)}>{b.name}</option>
+                  ))}
+                </select>
+
+                {(selectedCategoryId || selectedBrandId || Object.values(selectedAttrValues).some(v => v.length > 0)) && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedCategoryId('');
+                      setSelectedBrandId('');
+                      setSelectedAttrValues({});
+                    }}
+                    className="px-3 py-2 rounded-md border border-destructive/50 text-destructive text-sm hover:bg-destructive/10"
+                  >
+                    <X className="h-3.5 w-3.5 inline mr-1" />
+                    Clear
+                  </button>
+                )}
+              </div>
+
+              {/* Attribute filters */}
+              {attrsLoading && (
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  Loading filters…
+                </div>
+              )}
+
+              {!attrsLoading && categoryAttributes.filter(a => a.type === 'SELECTION' && a.selectionValues?.length > 0).length > 0 && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 pt-2 border-t border-border/50">
+                  {categoryAttributes
+                    .filter(attr => attr.type === 'SELECTION' && attr.selectionValues?.length > 0)
+                    .map(attr => {
+                      const selected = selectedAttrValues[attr.id] || [];
+                      const toggleVal = (val) => {
+                        setSelectedAttrValues(prev => {
+                          const cur = prev[attr.id] || [];
+                          const next = cur.includes(val) ? cur.filter(v => v !== val) : [...cur, val];
+                          return { ...prev, [attr.id]: next };
+                        });
+                      };
+                      return (
+                        <div key={attr.id} className="space-y-1.5">
+                          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                            {attr.name}
+                            {selected.length > 0 && (
+                              <span className="ml-1.5 px-1.5 py-0.5 bg-primary/15 text-primary rounded-full text-[10px] font-bold">
+                                {selected.length}
+                              </span>
+                            )}
+                          </p>
+                          <div className="flex flex-wrap gap-1.5 max-h-32 overflow-y-auto pr-1">
+                            {[...attr.selectionValues]
+                              .sort((a, b) => (a.index ?? 0) - (b.index ?? 0))
+                              .map(sv => {
+                                const active = selected.includes(sv.value);
+                                return (
+                                  <button
+                                    key={sv.id}
+                                    type="button"
+                                    onClick={() => toggleVal(sv.value)}
+                                    className={`px-2 py-0.5 text-xs rounded-full border transition-colors ${
+                                      active
+                                        ? 'bg-primary text-primary-foreground border-primary'
+                                        : 'bg-background border-border hover:border-primary/50 hover:bg-primary/5'
+                                    }`}
+                                  >
+                                    {sv.value}
+                                  </button>
+                                );
+                              })}
+                          </div>
+                        </div>
+                      );
+                    })}
+                </div>
+              )}
             </div>
           )}
 
