@@ -8,8 +8,6 @@ import { Input } from '../components/ui/input';
 import { 
   Package, 
   Search, 
-  Filter,
-  ChevronDown,
   ExternalLink,
   X,
   Check,
@@ -139,8 +137,6 @@ export default function ProductCatalogPage() {
   const [search, setSearch] = useState('');
   const [selectedCategoryId, setSelectedCategoryId] = useState('');
   const [selectedBrandId, setSelectedBrandId] = useState('');
-  const [showFilters, setShowFilters] = useState(false);
-
   // Attribute filters (loaded per selected category)
   const [categoryAttributes, setCategoryAttributes] = useState([]);
   const [attrsLoading, setAttrsLoading] = useState(false);
@@ -648,9 +644,39 @@ export default function ProductCatalogPage() {
     if (matchFileInputRef.current) matchFileInputRef.current.value = '';
   };
 
+  // Cascading category derived values (used in filter toolbar)
+  const _catRoot = rawCategoryTree.find(n => String(n.id) === filterCatRootId);
+  const _catLvl1Nodes = _catRoot?.children || [];
+  const _catLvl1 = _catLvl1Nodes.find(n => String(n.id) === filterCatLvl1Id);
+  const _catLvl2Nodes = _catLvl1?.children || [];
+  const _catLvl2 = _catLvl2Nodes.find(n => String(n.id) === filterCatLvl2Id);
+  const _catLvl3Nodes = _catLvl2?.children || [];
+  const _hasFilters = filterCatRootId || selectedBrandId || Object.values(selectedAttrValues).some(v => v.length > 0);
+
+  const handleCatRootChange = (id) => {
+    setFilterCatRootId(id); setFilterCatLvl1Id(''); setFilterCatLvl2Id(''); setFilterCatLvl3Id('');
+    setSelectedCategoryId(id); setSelectedAttrValues({});
+  };
+  const handleCatLvl1Change = (id) => {
+    setFilterCatLvl1Id(id); setFilterCatLvl2Id(''); setFilterCatLvl3Id('');
+    setSelectedCategoryId(id || filterCatRootId); setSelectedAttrValues({});
+  };
+  const handleCatLvl2Change = (id) => {
+    setFilterCatLvl2Id(id); setFilterCatLvl3Id('');
+    setSelectedCategoryId(id || filterCatLvl1Id || filterCatRootId); setSelectedAttrValues({});
+  };
+  const handleCatLvl3Change = (id) => {
+    setFilterCatLvl3Id(id);
+    setSelectedCategoryId(id || filterCatLvl2Id || filterCatLvl1Id || filterCatRootId); setSelectedAttrValues({});
+  };
+  const clearAllFilters = () => {
+    setFilterCatRootId(''); setFilterCatLvl1Id(''); setFilterCatLvl2Id(''); setFilterCatLvl3Id('');
+    setSelectedCategoryId(''); setSelectedBrandId(''); setSelectedAttrValues({});
+  };
+
   return (
     <DashboardLayout>
-      <div className="space-y-6" data-testid="product-catalog-page">
+      <div className="space-y-4" data-testid="product-catalog-page">
         {/* Header */}
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
           <div>
@@ -689,209 +715,153 @@ export default function ProductCatalogPage() {
           </div>
         </div>
 
-        {/* Search & Filters */}
-        <div className="space-y-4">
-          <div className="flex gap-2">
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+        {/* Search & Filter toolbar */}
+        <div className="space-y-3">
+          <div className="flex flex-wrap gap-2 items-center">
+            {/* Search — compact */}
+            <div className="relative w-56">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
               <Input
-                placeholder="Поиск по названию, артикулу, вендору..."
+                placeholder="Search…"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                className="pl-10"
+                className="pl-8 h-9 text-sm"
                 data-testid="search-input"
               />
             </div>
-            <Button 
-              variant="outline" 
-              onClick={() => setShowFilters(!showFilters)}
-              data-testid="filter-btn"
+
+            {/* Category cascading — always visible */}
+            <select
+              value={filterCatRootId}
+              onChange={e => handleCatRootChange(e.target.value)}
+              className="px-3 py-1.5 h-9 rounded-md border bg-background text-sm min-w-[150px]"
             >
-              <Filter className="h-4 w-4 mr-2" />
-              Фильтры
-              <ChevronDown className={`h-4 w-4 ml-2 transition-transform ${showFilters ? 'rotate-180' : ''}`} />
-            </Button>
+              <option value="">All categories</option>
+              {rawCategoryTree.map(n => (
+                <option key={n.id} value={String(n.id)}>{n.name}</option>
+              ))}
+            </select>
+
+            {filterCatRootId && _catLvl1Nodes.length > 0 && (
+              <select
+                value={filterCatLvl1Id}
+                onChange={e => handleCatLvl1Change(e.target.value)}
+                className="px-3 py-1.5 h-9 rounded-md border bg-background text-sm min-w-[150px]"
+              >
+                <option value="">All {_catRoot?.name}</option>
+                {_catLvl1Nodes.map(n => (
+                  <option key={n.id} value={String(n.id)}>{n.name}</option>
+                ))}
+              </select>
+            )}
+
+            {filterCatLvl1Id && _catLvl2Nodes.length > 0 && (
+              <select
+                value={filterCatLvl2Id}
+                onChange={e => handleCatLvl2Change(e.target.value)}
+                className="px-3 py-1.5 h-9 rounded-md border bg-background text-sm min-w-[150px]"
+              >
+                <option value="">All {_catLvl1?.name}</option>
+                {_catLvl2Nodes.map(n => (
+                  <option key={n.id} value={String(n.id)}>{n.name}</option>
+                ))}
+              </select>
+            )}
+
+            {filterCatLvl2Id && _catLvl3Nodes.length > 0 && (
+              <select
+                value={filterCatLvl3Id}
+                onChange={e => handleCatLvl3Change(e.target.value)}
+                className="px-3 py-1.5 h-9 rounded-md border bg-background text-sm min-w-[150px]"
+              >
+                <option value="">All {_catLvl2?.name}</option>
+                {_catLvl3Nodes.map(n => (
+                  <option key={n.id} value={String(n.id)}>{n.name}</option>
+                ))}
+              </select>
+            )}
+
+            {/* Brand */}
+            <select
+              value={selectedBrandId}
+              onChange={e => setSelectedBrandId(e.target.value)}
+              className="px-3 py-1.5 h-9 rounded-md border bg-background text-sm min-w-[130px]"
+            >
+              <option value="">All brands</option>
+              {brandList.map(b => (
+                <option key={b.id} value={String(b.id)}>{b.name}</option>
+              ))}
+            </select>
+
+            {_hasFilters && (
+              <button
+                type="button"
+                onClick={clearAllFilters}
+                className="px-3 h-9 rounded-md border border-destructive/50 text-destructive text-sm hover:bg-destructive/10 flex items-center gap-1"
+              >
+                <X className="h-3.5 w-3.5" />
+                Clear
+              </button>
+            )}
           </div>
-          
-          {showFilters && (() => {
-            const selectedRoot = rawCategoryTree.find(n => String(n.id) === filterCatRootId);
-            const lvl1Nodes = selectedRoot?.children || [];
-            const selectedLvl1 = lvl1Nodes.find(n => String(n.id) === filterCatLvl1Id);
-            const lvl2Nodes = selectedLvl1?.children || [];
-            const selectedLvl2 = lvl2Nodes.find(n => String(n.id) === filterCatLvl2Id);
-            const lvl3Nodes = selectedLvl2?.children || [];
 
-            const handleRootChange = (id) => {
-              setFilterCatRootId(id);
-              setFilterCatLvl1Id(''); setFilterCatLvl2Id(''); setFilterCatLvl3Id('');
-              setSelectedCategoryId(id);
-              setSelectedAttrValues({});
-            };
-            const handleLvl1Change = (id) => {
-              setFilterCatLvl1Id(id);
-              setFilterCatLvl2Id(''); setFilterCatLvl3Id('');
-              setSelectedCategoryId(id || filterCatRootId);
-              setSelectedAttrValues({});
-            };
-            const handleLvl2Change = (id) => {
-              setFilterCatLvl2Id(id);
-              setFilterCatLvl3Id('');
-              setSelectedCategoryId(id || filterCatLvl1Id || filterCatRootId);
-              setSelectedAttrValues({});
-            };
-            const handleLvl3Change = (id) => {
-              setFilterCatLvl3Id(id);
-              setSelectedCategoryId(id || filterCatLvl2Id || filterCatLvl1Id || filterCatRootId);
-              setSelectedAttrValues({});
-            };
-            const clearAll = () => {
-              setFilterCatRootId(''); setFilterCatLvl1Id(''); setFilterCatLvl2Id(''); setFilterCatLvl3Id('');
-              setSelectedCategoryId(''); setSelectedBrandId(''); setSelectedAttrValues({});
-            };
-            const hasFilters = filterCatRootId || selectedBrandId || Object.values(selectedAttrValues).some(v => v.length > 0);
-
-            return (
-            <div className="p-4 bg-muted/50 rounded-lg space-y-4">
-              {/* Category cascading + Brand */}
-              <div className="flex flex-wrap gap-3 items-center">
-                {/* Root */}
-                <select
-                  value={filterCatRootId}
-                  onChange={e => handleRootChange(e.target.value)}
-                  className="px-3 py-2 rounded-md border bg-background text-sm min-w-[160px]"
-                >
-                  <option value="">All categories</option>
-                  {rawCategoryTree.map(n => (
-                    <option key={n.id} value={String(n.id)}>{n.name}</option>
-                  ))}
-                </select>
-
-                {/* Lvl1 */}
-                {filterCatRootId && lvl1Nodes.length > 0 && (
-                  <select
-                    value={filterCatLvl1Id}
-                    onChange={e => handleLvl1Change(e.target.value)}
-                    className="px-3 py-2 rounded-md border bg-background text-sm min-w-[160px]"
-                  >
-                    <option value="">All {selectedRoot?.name}</option>
-                    {lvl1Nodes.map(n => (
-                      <option key={n.id} value={String(n.id)}>{n.name}</option>
-                    ))}
-                  </select>
-                )}
-
-                {/* Lvl2 */}
-                {filterCatLvl1Id && lvl2Nodes.length > 0 && (
-                  <select
-                    value={filterCatLvl2Id}
-                    onChange={e => handleLvl2Change(e.target.value)}
-                    className="px-3 py-2 rounded-md border bg-background text-sm min-w-[160px]"
-                  >
-                    <option value="">All {selectedLvl1?.name}</option>
-                    {lvl2Nodes.map(n => (
-                      <option key={n.id} value={String(n.id)}>{n.name}</option>
-                    ))}
-                  </select>
-                )}
-
-                {/* Lvl3 */}
-                {filterCatLvl2Id && lvl3Nodes.length > 0 && (
-                  <select
-                    value={filterCatLvl3Id}
-                    onChange={e => handleLvl3Change(e.target.value)}
-                    className="px-3 py-2 rounded-md border bg-background text-sm min-w-[160px]"
-                  >
-                    <option value="">All {selectedLvl2?.name}</option>
-                    {lvl3Nodes.map(n => (
-                      <option key={n.id} value={String(n.id)}>{n.name}</option>
-                    ))}
-                  </select>
-                )}
-
-                {/* Brand */}
-                <select
-                  value={selectedBrandId}
-                  onChange={e => setSelectedBrandId(e.target.value)}
-                  className="px-3 py-2 rounded-md border bg-background text-sm min-w-[150px]"
-                >
-                  <option value="">All brands</option>
-                  {brandList.map(b => (
-                    <option key={b.id} value={String(b.id)}>{b.name}</option>
-                  ))}
-                </select>
-
-                {hasFilters && (
-                  <button
-                    type="button"
-                    onClick={clearAll}
-                    className="px-3 py-2 rounded-md border border-destructive/50 text-destructive text-sm hover:bg-destructive/10"
-                  >
-                    <X className="h-3.5 w-3.5 inline mr-1" />
-                    Clear
-                  </button>
-                )}
-              </div>
-
-              {/* Attribute filters */}
-              {attrsLoading && (
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                  Loading filters…
-                </div>
-              )}
-
-              {!attrsLoading && categoryAttributes.filter(a => a.type === 'SELECTION' && a.selectionValues?.length > 0).length > 0 && (
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 pt-2 border-t border-border/50">
-                  {categoryAttributes
-                    .filter(attr => attr.type === 'SELECTION' && attr.selectionValues?.length > 0)
-                    .map(attr => {
-                      const selected = selectedAttrValues[attr.id] || [];
-                      const toggleVal = (val) => {
-                        setSelectedAttrValues(prev => {
-                          const cur = prev[attr.id] || [];
-                          const next = cur.includes(val) ? cur.filter(v => v !== val) : [...cur, val];
-                          return { ...prev, [attr.id]: next };
-                        });
-                      };
-                      return (
-                        <div key={attr.id} className="space-y-1.5">
-                          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-                            {attr.name}
-                            {selected.length > 0 && (
-                              <span className="ml-1.5 px-1.5 py-0.5 bg-primary/15 text-primary rounded-full text-[10px] font-bold">
-                                {selected.length}
-                              </span>
-                            )}
-                          </p>
-                          <div className="flex flex-wrap gap-1.5 max-h-32 overflow-y-auto pr-1">
-                            {[...attr.selectionValues]
-                              .sort((a, b) => (a.index ?? 0) - (b.index ?? 0))
-                              .map(sv => {
-                                const active = selected.includes(sv.value);
-                                return (
-                                  <button
-                                    key={sv.id}
-                                    type="button"
-                                    onClick={() => toggleVal(sv.value)}
-                                    className={`px-2 py-0.5 text-xs rounded-full border transition-colors ${
-                                      active
-                                        ? 'bg-primary text-primary-foreground border-primary'
-                                        : 'bg-background border-border hover:border-primary/50 hover:bg-primary/5'
-                                    }`}
-                                  >
-                                    {sv.value}
-                                  </button>
-                                );
-                              })}
-                          </div>
-                        </div>
-                      );
-                    })}
-                </div>
-              )}
+          {/* Attribute pills — auto-shown when category selected */}
+          {attrsLoading && (
+            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              Loading filters…
             </div>
-          ); })()}
+          )}
 
+          {!attrsLoading && categoryAttributes.filter(a => a.type === 'SELECTION' && a.selectionValues?.length > 0).length > 0 && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 p-4 bg-muted/40 rounded-lg border border-border/50">
+              {categoryAttributes
+                .filter(attr => attr.type === 'SELECTION' && attr.selectionValues?.length > 0)
+                .map(attr => {
+                  const selected = selectedAttrValues[attr.id] || [];
+                  const toggleVal = (val) => {
+                    setSelectedAttrValues(prev => {
+                      const cur = prev[attr.id] || [];
+                      const next = cur.includes(val) ? cur.filter(v => v !== val) : [...cur, val];
+                      return { ...prev, [attr.id]: next };
+                    });
+                  };
+                  return (
+                    <div key={attr.id} className="space-y-1.5">
+                      <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                        {attr.name}
+                        {selected.length > 0 && (
+                          <span className="ml-1.5 px-1.5 py-0.5 bg-primary/15 text-primary rounded-full text-[10px] font-bold">
+                            {selected.length}
+                          </span>
+                        )}
+                      </p>
+                      <div className="flex flex-wrap gap-1.5 max-h-32 overflow-y-auto pr-1">
+                        {[...attr.selectionValues]
+                          .sort((a, b) => (a.index ?? 0) - (b.index ?? 0))
+                          .map(sv => {
+                            const active = selected.includes(sv.value);
+                            return (
+                              <button
+                                key={sv.id}
+                                type="button"
+                                onClick={() => toggleVal(sv.value)}
+                                className={`px-2 py-0.5 text-xs rounded-full border transition-colors ${
+                                  active
+                                    ? 'bg-primary text-primary-foreground border-primary'
+                                    : 'bg-background border-border hover:border-primary/50 hover:bg-primary/5'
+                                }`}
+                              >
+                                {sv.value}
+                              </button>
+                            );
+                          })}
+                      </div>
+                    </div>
+                  );
+                })}
+            </div>
+          )}
         </div>
 
         {/* Products Table */}
