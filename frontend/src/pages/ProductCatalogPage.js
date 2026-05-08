@@ -709,7 +709,7 @@ export default function ProductCatalogPage() {
             </Button>
           </div>
           
-          {showFilters && catalogView === 'planet' && (
+          {showFilters && (
             <div className="p-4 bg-muted/50 rounded-lg space-y-4">
               {/* Category + Brand selects */}
               <div className="flex flex-wrap gap-4">
