@@ -32,7 +32,7 @@ async def categories(current_user: dict = Depends(get_current_user)):
     return tree
 
 
-@router.get("/categories/{slug}/attributes")
+@router.get("/categories/{slug:path}/attributes")
 async def category_attributes(slug: str, current_user: dict = Depends(get_current_user)):
     db = get_db()
     attrs = await get_category_attributes(db, slug)
