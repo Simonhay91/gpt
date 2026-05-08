@@ -81,6 +81,7 @@ def _voyage_top_k(
 def _claude_check_compatibility(
     pairs: List[tuple],  # [(product_a, product_b), ...]
     rule_description: str,
+    attribute_links: Optional[List[dict]] = None,
 ) -> List[dict]:
     """Ask Claude whether each (A, B) pair is compatible. Returns list of result dicts."""
     client = anthropic.Anthropic(api_key=CLAUDE_API_KEY)
@@ -94,9 +95,18 @@ def _claude_check_compatibility(
         )
     pairs_text = "\n\n".join(pairs_text_parts)
 
+    attr_context = ""
+    if attribute_links:
+        lines = "\n".join(
+            f"  - Side A \"{al.get('attr_a', '')}\" must match Side B \"{al.get('attr_b', '')}\""
+            for al in attribute_links if al.get("attr_a") and al.get("attr_b")
+        )
+        if lines:
+            attr_context = f"\n\nKey attribute matching criteria:\n{lines}"
+
     prompt = f"""You are a product compatibility analyst for a fiber optics and network equipment catalog.
 
-{rule_description}
+{rule_description}{attr_context}
 
 For each pair below, decide if Product A and Product B can work together in the same installation (are compatible).
 
@@ -147,6 +157,7 @@ class RelationRuleCreate(BaseModel):
     categories_b: List[str]   # one or more categories on side B
     description: str
     is_active: bool = True
+    attribute_links: Optional[List[dict]] = None  # [{ attr_a: str, attr_b: str }]
 
 
 class RelationRuleUpdate(BaseModel):
@@ -155,6 +166,7 @@ class RelationRuleUpdate(BaseModel):
     categories_b: Optional[List[str]] = None
     description: Optional[str] = None
     is_active: Optional[bool] = None
+    attribute_links: Optional[List[dict]] = None
 
 
 # ==================== RELATION RULES CRUD ====================
@@ -252,6 +264,7 @@ async def _do_run_rule_analysis(rule_id: str, rule: dict, db):
     cats_a = rule.get("categories_a") or ([rule["category_a"]] if rule.get("category_a") else [])
     cats_b = rule.get("categories_b") or ([rule["category_b"]] if rule.get("category_b") else [])
     description = rule.get("description", "")
+    attribute_links = rule.get("attribute_links") or []
 
     logger.info(f"[relations] Running rule '{rule['title']}': {cats_a} ↔ {cats_b}")
 
@@ -321,7 +334,7 @@ async def _do_run_rule_analysis(rule_id: str, rule: dict, db):
     for batch_start in range(0, len(pairs), CLAUDE_BATCH_SIZE):
         batch = pairs[batch_start: batch_start + CLAUDE_BATCH_SIZE]
         try:
-            results = _claude_check_compatibility(batch, description)
+            results = _claude_check_compatibility(batch, description, attribute_links)
         except Exception as exc:
             logger.error(f"[relations] Claude batch failed: {exc}")
             continue

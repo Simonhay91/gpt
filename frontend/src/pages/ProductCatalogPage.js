@@ -182,7 +182,7 @@ export default function ProductCatalogPage() {
   const [relationRules, setRelationRules] = useState([]);
   const [relationRulesLoading, setRelationRulesLoading] = useState(false);
   const [editingRelRule, setEditingRelRule] = useState(null);
-  const [relRuleForm, setRelRuleForm] = useState({ title: '', categories_a: [], categories_b: [], description: '', is_active: true });
+  const [relRuleForm, setRelRuleForm] = useState({ title: '', categories_a: [], categories_b: [], description: '', is_active: true, attribute_links: [] });
   const [relRuleSaving, setRelRuleSaving] = useState(false);
   const [runningRuleId, setRunningRuleId] = useState(null);
   const [categoryTree, setCategoryTree] = useState({});
@@ -190,6 +190,15 @@ export default function ProductCatalogPage() {
   const [selLvl1A, setSelLvl1A] = useState('');
   const [selRootB, setSelRootB] = useState('');
   const [selLvl1B, setSelLvl1B] = useState('');
+
+  // Attribute mapping state for Relation Rules
+  const [attrLinkCatA, setAttrLinkCatA] = useState('');  // planet category id
+  const [attrLinkCatB, setAttrLinkCatB] = useState('');
+  const [attrLinkAttrsA, setAttrLinkAttrsA] = useState([]);
+  const [attrLinkAttrsB, setAttrLinkAttrsB] = useState([]);
+  const [attrLinkLoadingA, setAttrLinkLoadingA] = useState(false);
+  const [attrLinkLoadingB, setAttrLinkLoadingB] = useState(false);
+  const [pendingAttrA, setPendingAttrA] = useState(null);  // attr waiting to be linked
 
 
   const loadProducts = useCallback(async () => {
@@ -346,28 +355,36 @@ export default function ProductCatalogPage() {
     }
   };
 
+  const _resetAttrLinkState = () => {
+    setAttrLinkCatA(''); setAttrLinkCatB('');
+    setAttrLinkAttrsA([]); setAttrLinkAttrsB([]);
+    setPendingAttrA(null);
+  };
+
   const openRelationRulesModal = async () => {
     setShowRelationRulesModal(true);
     setEditingRelRule(null);
-    setRelRuleForm({ title: '', categories_a: [], categories_b: [], description: '', is_active: true });
+    setRelRuleForm({ title: '', categories_a: [], categories_b: [], description: '', is_active: true, attribute_links: [] });
     setSelRootA(''); setSelLvl1A(''); setSelRootB(''); setSelLvl1B('');
+    _resetAttrLinkState();
     loadRelationRules();
     loadInternalCatalogTree();
   };
 
   const startEditRelRule = (rule) => {
     setEditingRelRule(rule);
-    // Support both old (category_a str) and new (categories_a []) schema
     const catsA = rule.categories_a || (rule.category_a ? [rule.category_a] : []);
     const catsB = rule.categories_b || (rule.category_b ? [rule.category_b] : []);
-    setRelRuleForm({ title: rule.title, categories_a: catsA, categories_b: catsB, description: rule.description, is_active: rule.is_active });
+    setRelRuleForm({ title: rule.title, categories_a: catsA, categories_b: catsB, description: rule.description, is_active: rule.is_active, attribute_links: rule.attribute_links || [] });
     setSelRootA(''); setSelLvl1A(''); setSelRootB(''); setSelLvl1B('');
+    _resetAttrLinkState();
   };
 
   const cancelEditRelRule = () => {
     setEditingRelRule(null);
-    setRelRuleForm({ title: '', categories_a: [], categories_b: [], description: '', is_active: true });
+    setRelRuleForm({ title: '', categories_a: [], categories_b: [], description: '', is_active: true, attribute_links: [] });
     setSelRootA(''); setSelLvl1A(''); setSelRootB(''); setSelLvl1B('');
+    _resetAttrLinkState();
   };
 
   const saveRelationRule = async () => {
@@ -485,6 +502,31 @@ export default function ProductCatalogPage() {
     }, 300);
     return () => clearTimeout(timer);
   }, [search, loadProducts]);
+
+  // Fetch planet category attributes for attribute-link side A
+  useEffect(() => {
+    if (!attrLinkCatA) { setAttrLinkAttrsA([]); return; }
+    const cat = categoryList.find(c => c.id === Number(attrLinkCatA));
+    if (!cat?.slug) { setAttrLinkAttrsA([]); return; }
+    setAttrLinkLoadingA(true);
+    axios.get(`${API}/planet/categories/${cat.slug}/attributes`)
+      .then(res => setAttrLinkAttrsA((res.data?.attributes || []).filter(a => a.type === 'SELECTION')))
+      .catch(() => setAttrLinkAttrsA([]))
+      .finally(() => setAttrLinkLoadingA(false));
+    setPendingAttrA(null);
+  }, [attrLinkCatA, categoryList]);
+
+  // Fetch planet category attributes for attribute-link side B
+  useEffect(() => {
+    if (!attrLinkCatB) { setAttrLinkAttrsB([]); return; }
+    const cat = categoryList.find(c => c.id === Number(attrLinkCatB));
+    if (!cat?.slug) { setAttrLinkAttrsB([]); return; }
+    setAttrLinkLoadingB(true);
+    axios.get(`${API}/planet/categories/${cat.slug}/attributes`)
+      .then(res => setAttrLinkAttrsB((res.data?.attributes || []).filter(a => a.type === 'SELECTION')))
+      .catch(() => setAttrLinkAttrsB([]))
+      .finally(() => setAttrLinkLoadingB(false));
+  }, [attrLinkCatB, categoryList]);
 
 
   const handleDownloadTemplate = async () => {
@@ -1633,6 +1675,150 @@ export default function ProductCatalogPage() {
                     onAdd={cat => setRelRuleForm(f => ({ ...f, categories_b: f.categories_b.includes(cat) ? f.categories_b : [...f.categories_b, cat] }))}
                     onRemove={cat => setRelRuleForm(f => ({ ...f, categories_b: f.categories_b.filter(c => c !== cat) }))}
                   />
+                  {/* ── Attribute mapping ── */}
+                  <div className="space-y-2 border border-border/60 rounded-lg p-3 bg-muted/20">
+                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-1.5">
+                      Attribute Links
+                      <span className="text-[10px] font-normal normal-case px-1.5 py-0.5 bg-muted rounded-full">
+                        optional — helps AI match by specific attributes
+                      </span>
+                    </p>
+
+                    {/* Pick a planet category for each side to load its attributes */}
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="space-y-1">
+                        <p className="text-[11px] text-muted-foreground font-medium">Side A category</p>
+                        <select
+                          className="w-full border border-input rounded-md px-2 py-1.5 text-xs bg-background focus:outline-none focus:ring-2 focus:ring-ring"
+                          value={attrLinkCatA}
+                          onChange={e => setAttrLinkCatA(e.target.value)}
+                        >
+                          <option value="">— pick to load attrs —</option>
+                          {categoryList.map(c => (
+                            <option key={c.id} value={c.id}>{c.name}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className="space-y-1">
+                        <p className="text-[11px] text-muted-foreground font-medium">Side B category</p>
+                        <select
+                          className="w-full border border-input rounded-md px-2 py-1.5 text-xs bg-background focus:outline-none focus:ring-2 focus:ring-ring"
+                          value={attrLinkCatB}
+                          onChange={e => setAttrLinkCatB(e.target.value)}
+                        >
+                          <option value="">— pick to load attrs —</option>
+                          {categoryList.map(c => (
+                            <option key={c.id} value={c.id}>{c.name}</option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+
+                    {/* Loading spinners */}
+                    {(attrLinkLoadingA || attrLinkLoadingB) && (
+                      <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                        <Loader2 className="h-3 w-3 animate-spin" /> Loading attributes…
+                      </div>
+                    )}
+
+                    {/* Two-column attribute picker */}
+                    {(attrLinkAttrsA.length > 0 || attrLinkAttrsB.length > 0) && (
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <p className="text-[11px] font-medium text-muted-foreground mb-1.5">
+                            {pendingAttrA ? (
+                              <span className="text-primary">
+                                Selected: <strong>{pendingAttrA.name}</strong> — now click Side B attr
+                              </span>
+                            ) : 'Side A attrs — click to start linking'}
+                          </p>
+                          {attrLinkAttrsA.length === 0
+                            ? <p className="text-[11px] text-muted-foreground italic">No selection attrs</p>
+                            : (
+                              <div className="flex flex-wrap gap-1">
+                                {attrLinkAttrsA.map(attr => (
+                                  <button
+                                    key={attr.id}
+                                    type="button"
+                                    onClick={() => setPendingAttrA(prev => prev?.id === attr.id ? null : attr)}
+                                    className={`px-2 py-0.5 rounded-full text-[11px] border transition-colors ${
+                                      pendingAttrA?.id === attr.id
+                                        ? 'bg-primary text-primary-foreground border-primary'
+                                        : 'bg-background border-border hover:border-primary/60 hover:bg-muted'
+                                    }`}
+                                  >
+                                    {attr.name}
+                                  </button>
+                                ))}
+                              </div>
+                            )
+                          }
+                        </div>
+                        <div>
+                          <p className="text-[11px] font-medium text-muted-foreground mb-1.5">
+                            Side B attrs {pendingAttrA ? '— click to link' : ''}
+                          </p>
+                          {attrLinkAttrsB.length === 0
+                            ? <p className="text-[11px] text-muted-foreground italic">No selection attrs</p>
+                            : (
+                              <div className="flex flex-wrap gap-1">
+                                {attrLinkAttrsB.map(attr => (
+                                  <button
+                                    key={attr.id}
+                                    type="button"
+                                    disabled={!pendingAttrA}
+                                    onClick={() => {
+                                      if (!pendingAttrA) return;
+                                      setRelRuleForm(f => ({
+                                        ...f,
+                                        attribute_links: [
+                                          ...f.attribute_links,
+                                          { attr_a: pendingAttrA.name, attr_b: attr.name }
+                                        ]
+                                      }));
+                                      setPendingAttrA(null);
+                                    }}
+                                    className={`px-2 py-0.5 rounded-full text-[11px] border transition-colors ${
+                                      pendingAttrA
+                                        ? 'bg-background border-emerald-400 text-emerald-700 hover:bg-emerald-50 cursor-pointer dark:border-emerald-600 dark:text-emerald-400 dark:hover:bg-emerald-900/20'
+                                        : 'bg-background border-border text-muted-foreground opacity-50 cursor-not-allowed'
+                                    }`}
+                                  >
+                                    {attr.name}
+                                  </button>
+                                ))}
+                              </div>
+                            )
+                          }
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Existing links */}
+                    {relRuleForm.attribute_links.length > 0 && (
+                      <div className="space-y-1">
+                        <p className="text-[11px] font-medium text-muted-foreground">Linked attributes:</p>
+                        <div className="flex flex-wrap gap-1.5">
+                          {relRuleForm.attribute_links.map((link, i) => (
+                            <span
+                              key={i}
+                              className="flex items-center gap-1 px-2 py-0.5 bg-primary/10 border border-primary/25 rounded-full text-[11px] text-primary"
+                            >
+                              {link.attr_a} ↔ {link.attr_b}
+                              <button
+                                type="button"
+                                onClick={() => setRelRuleForm(f => ({ ...f, attribute_links: f.attribute_links.filter((_, j) => j !== i) }))}
+                                className="ml-0.5 hover:text-destructive transition-colors leading-none"
+                              >
+                                ×
+                              </button>
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
                   <textarea
                     className="w-full border border-input rounded-md px-3 py-2 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-ring resize-none"
                     rows={4}
@@ -1693,6 +1879,15 @@ export default function ProductCatalogPage() {
                               )}
                             </div>
                             <p className="text-xs text-muted-foreground line-clamp-2">{rule.description}</p>
+                            {rule.attribute_links?.length > 0 && (
+                              <div className="flex flex-wrap gap-1 pt-0.5">
+                                {rule.attribute_links.map((link, i) => (
+                                  <span key={i} className="text-[10px] px-1.5 py-0.5 bg-primary/10 border border-primary/20 text-primary rounded-full">
+                                    {link.attr_a} ↔ {link.attr_b}
+                                  </span>
+                                ))}
+                              </div>
+                            )}
                             <div className="flex items-center gap-2 flex-wrap">
                               {rule.run_status === 'running' && (
                                 <span className="flex items-center gap-1 text-xs px-1.5 py-0.5 rounded-full bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400">
