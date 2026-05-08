@@ -133,6 +133,7 @@ export default function ProductCatalogPage() {
   const [filterCatRootId, setFilterCatRootId] = useState('');
   const [filterCatLvl1Id, setFilterCatLvl1Id] = useState('');
   const [filterCatLvl2Id, setFilterCatLvl2Id] = useState('');
+  const [filterCatLvl3Id, setFilterCatLvl3Id] = useState('');
 
   // Filters
   const [search, setSearch] = useState('');
@@ -717,27 +718,34 @@ export default function ProductCatalogPage() {
             const lvl1Nodes = selectedRoot?.children || [];
             const selectedLvl1 = lvl1Nodes.find(n => String(n.id) === filterCatLvl1Id);
             const lvl2Nodes = selectedLvl1?.children || [];
+            const selectedLvl2 = lvl2Nodes.find(n => String(n.id) === filterCatLvl2Id);
+            const lvl3Nodes = selectedLvl2?.children || [];
 
             const handleRootChange = (id) => {
               setFilterCatRootId(id);
-              setFilterCatLvl1Id('');
-              setFilterCatLvl2Id('');
+              setFilterCatLvl1Id(''); setFilterCatLvl2Id(''); setFilterCatLvl3Id('');
               setSelectedCategoryId(id);
               setSelectedAttrValues({});
             };
             const handleLvl1Change = (id) => {
               setFilterCatLvl1Id(id);
-              setFilterCatLvl2Id('');
+              setFilterCatLvl2Id(''); setFilterCatLvl3Id('');
               setSelectedCategoryId(id || filterCatRootId);
               setSelectedAttrValues({});
             };
             const handleLvl2Change = (id) => {
               setFilterCatLvl2Id(id);
+              setFilterCatLvl3Id('');
               setSelectedCategoryId(id || filterCatLvl1Id || filterCatRootId);
               setSelectedAttrValues({});
             };
+            const handleLvl3Change = (id) => {
+              setFilterCatLvl3Id(id);
+              setSelectedCategoryId(id || filterCatLvl2Id || filterCatLvl1Id || filterCatRootId);
+              setSelectedAttrValues({});
+            };
             const clearAll = () => {
-              setFilterCatRootId(''); setFilterCatLvl1Id(''); setFilterCatLvl2Id('');
+              setFilterCatRootId(''); setFilterCatLvl1Id(''); setFilterCatLvl2Id(''); setFilterCatLvl3Id('');
               setSelectedCategoryId(''); setSelectedBrandId(''); setSelectedAttrValues({});
             };
             const hasFilters = filterCatRootId || selectedBrandId || Object.values(selectedAttrValues).some(v => v.length > 0);
@@ -781,6 +789,20 @@ export default function ProductCatalogPage() {
                   >
                     <option value="">All {selectedLvl1?.name}</option>
                     {lvl2Nodes.map(n => (
+                      <option key={n.id} value={String(n.id)}>{n.name}</option>
+                    ))}
+                  </select>
+                )}
+
+                {/* Lvl3 */}
+                {filterCatLvl2Id && lvl3Nodes.length > 0 && (
+                  <select
+                    value={filterCatLvl3Id}
+                    onChange={e => handleLvl3Change(e.target.value)}
+                    className="px-3 py-2 rounded-md border bg-background text-sm min-w-[160px]"
+                  >
+                    <option value="">All {selectedLvl2?.name}</option>
+                    {lvl3Nodes.map(n => (
                       <option key={n.id} value={String(n.id)}>{n.name}</option>
                     ))}
                   </select>
