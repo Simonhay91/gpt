@@ -185,8 +185,6 @@ async def create_relation_rule(
     body: RelationRuleCreate,
     current_user: dict = Depends(get_current_user),
 ):
-    if not (current_user.get("isAdmin") or current_user.get("role") in ("admin", "manager")):
-        raise HTTPException(status_code=403, detail="Admin or Manager required")
     db = get_db()
     doc = {
         **body.model_dump(),
@@ -205,8 +203,6 @@ async def update_relation_rule(
     body: RelationRuleUpdate,
     current_user: dict = Depends(get_current_user),
 ):
-    if not (current_user.get("isAdmin") or current_user.get("role") in ("admin", "manager")):
-        raise HTTPException(status_code=403, detail="Admin or Manager required")
     db = get_db()
     updates = {k: v for k, v in body.model_dump().items() if v is not None}
     if not updates:
@@ -225,8 +221,6 @@ async def delete_relation_rule(
     rule_id: str,
     current_user: dict = Depends(get_current_user),
 ):
-    if not (current_user.get("isAdmin") or current_user.get("role") in ("admin", "manager")):
-        raise HTTPException(status_code=403, detail="Admin or Manager required")
     db = get_db()
     await db.relation_rules.delete_one({"_id": ObjectId(rule_id)})
     return
@@ -382,8 +376,6 @@ async def run_relation_rule(
     background_tasks: BackgroundTasks,
     current_user: dict = Depends(get_current_user),
 ):
-    if not (current_user.get("isAdmin") or current_user.get("role") in ("admin", "manager")):
-        raise HTTPException(status_code=403, detail="Admin or Manager required")
     db = get_db()
     rule = await db.relation_rules.find_one({"_id": ObjectId(rule_id)})
     if not rule:
