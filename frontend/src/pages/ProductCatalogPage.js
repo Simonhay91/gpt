@@ -125,8 +125,14 @@ export default function ProductCatalogPage() {
   const [loading, setLoading] = useState(true);
   const [totalProducts, setTotalProducts] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
-  const [categoryList, setCategoryList] = useState([]);  // flat list for filter dropdown
+  const [categoryList, setCategoryList] = useState([]);  // flat list for slug lookup
+  const [rawCategoryTree, setRawCategoryTree] = useState([]);  // full nested tree
   const [brandList, setBrandList] = useState([]);
+
+  // Cascading category filter state
+  const [filterCatRootId, setFilterCatRootId] = useState('');
+  const [filterCatLvl1Id, setFilterCatLvl1Id] = useState('');
+  const [filterCatLvl2Id, setFilterCatLvl2Id] = useState('');
 
   // Filters
   const [search, setSearch] = useState('');
@@ -192,8 +198,8 @@ export default function ProductCatalogPage() {
       setLoading(true);
       const body = { page, limit: pageSize };
       if (search) body.productName = search;
-      if (selectedCategoryId) body.categoryId = selectedCategoryId;
-      if (selectedBrandId) body.brandId = selectedBrandId;
+      if (selectedCategoryId) body.categoryId = Number(selectedCategoryId);
+      if (selectedBrandId) body.brandId = Number(selectedBrandId);
 
       const selAttrArray = Object.entries(selectedAttrValues)
         .filter(([, vals]) => vals.length > 0)
@@ -229,6 +235,7 @@ export default function ProductCatalogPage() {
       };
       flatten(catRes.data);
       setCategoryList(flat);
+      setRawCategoryTree(catRes.data || []);
       // Build categoryTree for relation rules modal: { rootName: { lvl1Name: {} } }
       const tree = {};
       for (const root of (catRes.data || [])) {
@@ -249,12 +256,8 @@ export default function ProductCatalogPage() {
 
   const loadInternalCatalogTree = useCallback(async () => {
     try {
-      const [treeRes, catRes] = await Promise.all([
-        axios.get(`${API}/product-catalog/category-tree`),
-        axios.get(`${API}/product-catalog/categories`),
-      ]);
-      setCategoryTree(treeRes.data);
-      setVendorList(catRes.data?.vendors || []);
+      const res = await axios.get(`${API}/product-catalog/category-tree`);
+      setCategoryTree(res.data);
     } catch { /* ignore */ }
   }, []);
 
@@ -709,25 +712,85 @@ export default function ProductCatalogPage() {
             </Button>
           </div>
           
-          {showFilters && (
+          {showFilters && (() => {
+            const selectedRoot = rawCategoryTree.find(n => String(n.id) === filterCatRootId);
+            const lvl1Nodes = selectedRoot?.children || [];
+            const selectedLvl1 = lvl1Nodes.find(n => String(n.id) === filterCatLvl1Id);
+            const lvl2Nodes = selectedLvl1?.children || [];
+
+            const handleRootChange = (id) => {
+              setFilterCatRootId(id);
+              setFilterCatLvl1Id('');
+              setFilterCatLvl2Id('');
+              setSelectedCategoryId(id);
+              setSelectedAttrValues({});
+            };
+            const handleLvl1Change = (id) => {
+              setFilterCatLvl1Id(id);
+              setFilterCatLvl2Id('');
+              setSelectedCategoryId(id || filterCatRootId);
+              setSelectedAttrValues({});
+            };
+            const handleLvl2Change = (id) => {
+              setFilterCatLvl2Id(id);
+              setSelectedCategoryId(id || filterCatLvl1Id || filterCatRootId);
+              setSelectedAttrValues({});
+            };
+            const clearAll = () => {
+              setFilterCatRootId(''); setFilterCatLvl1Id(''); setFilterCatLvl2Id('');
+              setSelectedCategoryId(''); setSelectedBrandId(''); setSelectedAttrValues({});
+            };
+            const hasFilters = filterCatRootId || selectedBrandId || Object.values(selectedAttrValues).some(v => v.length > 0);
+
+            return (
             <div className="p-4 bg-muted/50 rounded-lg space-y-4">
-              {/* Category + Brand selects */}
-              <div className="flex flex-wrap gap-4">
+              {/* Category cascading + Brand */}
+              <div className="flex flex-wrap gap-3 items-center">
+                {/* Root */}
                 <select
-                  value={selectedCategoryId}
-                  onChange={(e) => setSelectedCategoryId(e.target.value)}
-                  className="px-3 py-2 rounded-md border bg-background min-w-[180px]"
+                  value={filterCatRootId}
+                  onChange={e => handleRootChange(e.target.value)}
+                  className="px-3 py-2 rounded-md border bg-background text-sm min-w-[160px]"
                 >
                   <option value="">All categories</option>
-                  {categoryList.map(cat => (
-                    <option key={cat.id} value={cat.id}>{cat.name}</option>
+                  {rawCategoryTree.map(n => (
+                    <option key={n.id} value={String(n.id)}>{n.name}</option>
                   ))}
                 </select>
 
+                {/* Lvl1 */}
+                {filterCatRootId && lvl1Nodes.length > 0 && (
+                  <select
+                    value={filterCatLvl1Id}
+                    onChange={e => handleLvl1Change(e.target.value)}
+                    className="px-3 py-2 rounded-md border bg-background text-sm min-w-[160px]"
+                  >
+                    <option value="">All {selectedRoot?.name}</option>
+                    {lvl1Nodes.map(n => (
+                      <option key={n.id} value={String(n.id)}>{n.name}</option>
+                    ))}
+                  </select>
+                )}
+
+                {/* Lvl2 */}
+                {filterCatLvl1Id && lvl2Nodes.length > 0 && (
+                  <select
+                    value={filterCatLvl2Id}
+                    onChange={e => handleLvl2Change(e.target.value)}
+                    className="px-3 py-2 rounded-md border bg-background text-sm min-w-[160px]"
+                  >
+                    <option value="">All {selectedLvl1?.name}</option>
+                    {lvl2Nodes.map(n => (
+                      <option key={n.id} value={String(n.id)}>{n.name}</option>
+                    ))}
+                  </select>
+                )}
+
+                {/* Brand */}
                 <select
                   value={selectedBrandId}
-                  onChange={(e) => setSelectedBrandId(e.target.value)}
-                  className="px-3 py-2 rounded-md border bg-background min-w-[150px]"
+                  onChange={e => setSelectedBrandId(e.target.value)}
+                  className="px-3 py-2 rounded-md border bg-background text-sm min-w-[150px]"
                 >
                   <option value="">All brands</option>
                   {brandList.map(b => (
@@ -735,14 +798,10 @@ export default function ProductCatalogPage() {
                   ))}
                 </select>
 
-                {(selectedCategoryId || selectedBrandId || Object.values(selectedAttrValues).some(v => v.length > 0)) && (
+                {hasFilters && (
                   <button
                     type="button"
-                    onClick={() => {
-                      setSelectedCategoryId('');
-                      setSelectedBrandId('');
-                      setSelectedAttrValues({});
-                    }}
+                    onClick={clearAll}
                     className="px-3 py-2 rounded-md border border-destructive/50 text-destructive text-sm hover:bg-destructive/10"
                   >
                     <X className="h-3.5 w-3.5 inline mr-1" />
@@ -809,7 +868,7 @@ export default function ProductCatalogPage() {
                 </div>
               )}
             </div>
-          )}
+          ); })()}
 
         </div>
 
