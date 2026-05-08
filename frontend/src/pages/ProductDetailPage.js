@@ -129,7 +129,7 @@ export default function ProductDetailPage() {
 
   return (
     <DashboardLayout>
-      <div className="space-y-6 max-w-6xl mx-auto" data-testid="product-detail-page">
+      <div className="space-y-6 max-w-6xl mx-auto px-4 sm:px-6 py-4" data-testid="product-detail-page">
 
         {/* Top bar */}
         <div className="flex items-center justify-between gap-4">
