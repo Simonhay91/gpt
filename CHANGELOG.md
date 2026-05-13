@@ -6,6 +6,18 @@ UI версия: `frontend/src/data/changelog.js`
 
 ---
 
+## 2026-05-13 — v2.9.44
+
+### Fix: planet-search timeout hardening for ShadowDB client
+
+- `backend/server.py` — added `RequestTimeoutMiddleware` (30 s hard ceiling on all HTTP requests, returns 504 JSON on breach); added `asyncio` import and `starlette.types` imports
+- `backend/routes/product_matching.py` — added `import asyncio`; added `PLANET_SEARCH_TIMEOUT = 5.0`, `_ALIAS_DB_TIMEOUT_MS = 2000`, `_EMBED_TIMEOUT = 3.0` constants; handler now wraps pipeline in `asyncio.timeout(5.0)`, raises HTTP 504 on `TimeoutError` and HTTP 503 on unexpected errors
+- `backend/routes/product_matching.py` — extracted `_planet_search_pipeline()` async helper; MongoDB alias query gets `.max_time_ms(2000)`; embedding step uses new `_voyage_embed_batch_async()` (runs sync call in executor via `asyncio.wait_for`); timeout on embedding falls back to text search, not a hard error
+- `backend/routes/product_matching.py` — `_voyage_embed_batch()` now sets `timeout=3.0` on the OpenAI client; `_voyage_embed_batch_async()` added as async thread-executor wrapper with configurable timeout
+- `backend/routes/product_matching.py` — added `GET /api/product-matching/planet-search/ready` readiness probe; checks MongoDB reachability and `planet_embedding_cache` document count; returns 503 if not ready
+
+---
+
 ## 2026-05-13 — v2.9.43
 
 ### Fix: Chat Access checkbox double-toggle

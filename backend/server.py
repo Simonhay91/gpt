@@ -5,8 +5,10 @@ Main application entry point that imports and configures all route modules.
 from fastapi import FastAPI
 from fastapi.responses import JSONResponse
 from starlette.middleware.cors import CORSMiddleware
+from starlette.types import ASGIApp, Receive, Scope, Send
 from datetime import datetime, timezone
 from uuid import uuid4
+import asyncio
 import os
 import logging
 import bcrypt
@@ -14,6 +16,32 @@ from pathlib import Path
 from dotenv import load_dotenv
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
+
+
+# ==================== TIMEOUT MIDDLEWARE ====================
+
+class RequestTimeoutMiddleware:
+    """Return 504 if any request takes longer than `timeout_seconds`."""
+
+    def __init__(self, app: ASGIApp, timeout_seconds: float = 30.0) -> None:
+        self.app = app
+        self.timeout = timeout_seconds
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] not in ("http",):
+            await self.app(scope, receive, send)
+            return
+        try:
+            await asyncio.wait_for(
+                self.app(scope, receive, send),
+                timeout=self.timeout,
+            )
+        except asyncio.TimeoutError:
+            response = JSONResponse(
+                {"detail": "Gateway timeout — request exceeded time limit"},
+                status_code=504,
+            )
+            await response(scope, receive, send)
 
 # Load environment variables
 ROOT_DIR = Path(__file__).parent
@@ -188,6 +216,10 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Outermost safety-net: 30 s hard ceiling on every HTTP request.
+# The /planet-search handler enforces its own tighter 5 s budget internally.
+app.add_middleware(RequestTimeoutMiddleware, timeout_seconds=30.0)
 
 # ==================== HEALTH ENDPOINTS ====================
 

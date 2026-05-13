@@ -1,6 +1,19 @@
-export const APP_VERSION = "2.9.43";
+export const APP_VERSION = "2.9.44";
 
 export const CHANGELOG = [
+  {
+    version: "2.9.44",
+    date: "Май 2026",
+    badge: "fix",
+    changes: [
+      "planet-search: добавлен таймаут 5 сек — клиент больше не зависает при медленном ответе",
+      "planet-search: HTTP 504 при превышении таймаута вместо бесконечного ожидания",
+      "planet-search: новый эндпоинт GET /api/product-matching/planet-search/ready для проверки готовности",
+      "OpenAI embedding: таймаут 3 сек + выполнение в отдельном потоке (не блокирует event loop)",
+      "MongoDB product_aliases: ограничение запроса 2 сек (max_time_ms)",
+      "server.py: глобальный RequestTimeoutMiddleware 30 сек — защита от зависших запросов",
+    ]
+  },
   {
     version: "2.9.43",
     date: "Май 2026",
