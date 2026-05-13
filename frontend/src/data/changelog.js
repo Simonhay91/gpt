@@ -1,6 +1,14 @@
-export const APP_VERSION = "2.9.45";
+export const APP_VERSION = "2.9.46";
 
 export const CHANGELOG = [
+  {
+    version: "2.9.46",
+    date: "Май 2026",
+    badge: "fix",
+    changes: [
+      "RAG: исправлен crash «ValueError: shapes not aligned» — старые Voyage-эмбеддинги (1024d) больше не вызывают 500 ошибку, вместо этого используется text fallback",
+    ]
+  },
   {
     version: "2.9.45",
     date: "Май 2026",

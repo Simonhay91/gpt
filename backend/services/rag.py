@@ -102,8 +102,12 @@ async def get_relevant_chunks(
 
         if query_embedding:
             chunk_embedding = chunk.get("embedding")
-            if chunk_embedding:
+            if chunk_embedding and len(chunk_embedding) == len(query_embedding):
                 score = cosine_similarity(query_embedding, chunk_embedding)
+            elif chunk_embedding:
+                # Dimension mismatch (e.g. old Voyage 1024-dim vs current OpenAI 1536-dim)
+                # fall back to text relevance so the chunk isn't lost entirely
+                score = score_chunk_relevance(content, query) * 0.5
             else:
                 score = score_chunk_relevance(content, query) * 0.5
         else:

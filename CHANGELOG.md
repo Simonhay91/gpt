@@ -6,6 +6,14 @@ UI версия: `frontend/src/data/changelog.js`
 
 ---
 
+## 2026-05-13 — v2.9.46
+
+### Fix: RAG crash on embedding dimension mismatch (Voyage 1024d vs OpenAI 1536d)
+
+- `backend/services/rag.py` — `get_relevant_chunks` now checks `len(chunk_embedding) == len(query_embedding)` before calling `cosine_similarity`; mismatched chunks (old Voyage AI 1024-dim vs current OpenAI 1536-dim) fall back to text-relevance scoring instead of crashing with `ValueError: shapes not aligned`
+
+---
+
 ## 2026-05-13 — v2.9.45
 
 ### Fix: 500 error on POST /api/chats/{id}/messages — async Anthropic client
