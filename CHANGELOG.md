@@ -6,6 +6,15 @@ UI версия: `frontend/src/data/changelog.js`
 
 ---
 
+## 2026-05-13 — v2.9.42
+
+### Fix: Relation Rules — Attribute Links category filtering & auto-select
+
+- `frontend/src/pages/ProductCatalogPage.js` — Side A/B category dropdowns in Attribute Links now filter to show only the categories selected in Side A/B respectively
+- `frontend/src/pages/ProductCatalogPage.js` — added `useEffect` hooks that auto-select the category (and trigger attribute load) when exactly one category is chosen on Side A or Side B
+
+---
+
 ## 2026-05-05 — v2.9.41
 
 ### Background OCR for large scanned PDFs

@@ -528,6 +528,27 @@ export default function ProductCatalogPage() {
       .finally(() => setAttrLinkLoadingB(false));
   }, [attrLinkCatB, categoryList]);
 
+  // Auto-select category for attribute linking when Side A/B has exactly one category
+  useEffect(() => {
+    if (relRuleForm.categories_a.length === 1) {
+      const cat = categoryList.find(c => c.name.trim() === relRuleForm.categories_a[0]);
+      if (cat) setAttrLinkCatA(cat.id);
+      else setAttrLinkCatA('');
+    } else {
+      setAttrLinkCatA('');
+    }
+  }, [relRuleForm.categories_a, categoryList]);
+
+  useEffect(() => {
+    if (relRuleForm.categories_b.length === 1) {
+      const cat = categoryList.find(c => c.name.trim() === relRuleForm.categories_b[0]);
+      if (cat) setAttrLinkCatB(cat.id);
+      else setAttrLinkCatB('');
+    } else {
+      setAttrLinkCatB('');
+    }
+  }, [relRuleForm.categories_b, categoryList]);
+
 
   const handleDownloadTemplate = async () => {
     try {
@@ -1694,7 +1715,7 @@ export default function ProductCatalogPage() {
                           onChange={e => setAttrLinkCatA(e.target.value)}
                         >
                           <option value="">— pick to load attrs —</option>
-                          {categoryList.map(c => (
+                          {categoryList.filter(c => relRuleForm.categories_a.includes(c.name.trim())).map(c => (
                             <option key={c.id} value={c.id}>{c.name}</option>
                           ))}
                         </select>
@@ -1707,7 +1728,7 @@ export default function ProductCatalogPage() {
                           onChange={e => setAttrLinkCatB(e.target.value)}
                         >
                           <option value="">— pick to load attrs —</option>
-                          {categoryList.map(c => (
+                          {categoryList.filter(c => relRuleForm.categories_b.includes(c.name.trim())).map(c => (
                             <option key={c.id} value={c.id}>{c.name}</option>
                           ))}
                         </select>

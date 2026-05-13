@@ -1,6 +1,15 @@
-export const APP_VERSION = "2.9.41";
+export const APP_VERSION = "2.9.42";
 
 export const CHANGELOG = [
+  {
+    version: "2.9.42",
+    date: "Май 2026",
+    badge: "fix",
+    changes: [
+      "Relation Rules — Attribute Links: Side A/B category дропдауны показывают только выбранные категории из Side A/B",
+      "Relation Rules — Attribute Links: при выборе одной категории атрибуты загружаются автоматически",
+    ]
+  },
   {
     version: "2.9.41",
     date: "Май 2026",
