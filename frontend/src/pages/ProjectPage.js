@@ -470,7 +470,7 @@ const ProjectPage = () => {
                   </DialogHeader>
                   <div className="space-y-3 py-4 max-h-[300px] overflow-y-auto">
                     {chats.map((chat) => (
-                      <div key={chat.id} className="flex items-center gap-3 p-3 rounded-lg border border-border hover:bg-secondary/50 cursor-pointer transition-colors" onClick={() => toggleChatVisibility(chat.id)}>
+                      <div key={chat.id} className="flex items-center gap-3 p-3 rounded-lg border border-border hover:bg-secondary/50 cursor-pointer transition-colors">
                         <Checkbox checked={chatVisibility[chat.id] || false} onCheckedChange={() => toggleChatVisibility(chat.id)} data-testid={`chat-visibility-${chat.id}`} />
                         <MessageSquare className="h-4 w-4 text-muted-foreground" />
                         <span className="text-sm flex-1">{chat.name}</span>

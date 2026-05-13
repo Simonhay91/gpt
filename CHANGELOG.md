@@ -6,6 +6,14 @@ UI версия: `frontend/src/data/changelog.js`
 
 ---
 
+## 2026-05-13 — v2.9.43
+
+### Fix: Chat Access checkbox double-toggle
+
+- `frontend/src/pages/ProjectPage.js` — removed `onClick` from the wrapper `div` in Chat Visibility dialog; only `Checkbox.onCheckedChange` now fires, preventing the double-toggle that made checkboxes appear non-functional
+
+---
+
 ## 2026-05-13 — v2.9.42
 
 ### Fix: Relation Rules — Attribute Links category filtering & auto-select

@@ -1,6 +1,14 @@
-export const APP_VERSION = "2.9.42";
+export const APP_VERSION = "2.9.43";
 
 export const CHANGELOG = [
+  {
+    version: "2.9.43",
+    date: "Май 2026",
+    badge: "fix",
+    changes: [
+      "Chat Access: исправлен двойной тригер при клике на чекбокс — видимость чатов теперь переключается корректно",
+    ]
+  },
   {
     version: "2.9.42",
     date: "Май 2026",
