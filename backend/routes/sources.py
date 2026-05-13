@@ -626,55 +626,61 @@ async def download_source(project_id: str, source_id: str, current_user: dict = 
 @router.get("/projects/{project_id}/sources/{source_id}/preview")
 async def preview_source(project_id: str, source_id: str, current_user: dict = Depends(get_current_user)):
     """Get source preview - extracted text content with quality info"""
-    db = get_db()
-    await verify_project_access(project_id, current_user["id"])
-    
-    source = await db.sources.find_one({"id": source_id, "projectId": project_id}, {"_id": 0})
-    if not source:
-        raise HTTPException(status_code=404, detail="Source not found")
-    
-    chunks = await db.source_chunks.find(
-        {"sourceId": source_id}, 
-        {"_id": 0, "content": 1, "chunkIndex": 1}
-    ).sort("chunkIndex", 1).to_list(1000)
-    
-    full_text = "\n\n".join([c["content"] for c in chunks])
-    
-    char_count = len(full_text)
-    word_count = len(full_text.split())
-    
-    is_image = source.get("mimeType", "").startswith("image/")
-    quality = "good"
-    quality_message = "Текст извлечён успешно"
-    
-    if char_count == 0:
-        quality = "empty"
-        quality_message = "Текст не извлечён"
-    elif is_image:
-        if "[Image: No text detected]" in full_text or "[Image: OCR failed" in full_text:
-            quality = "poor"
-            quality_message = "OCR не смог распознать текст"
-        elif word_count < 10:
+    try:
+        db = get_db()
+        await verify_project_access(project_id, current_user["id"])
+        
+        source = await db.sources.find_one({"id": source_id, "projectId": project_id}, {"_id": 0})
+        if not source:
+            raise HTTPException(status_code=404, detail="Source not found")
+        
+        chunks = await db.source_chunks.find(
+            {"sourceId": source_id}, 
+            {"_id": 0, "content": 1, "chunkIndex": 1}
+        ).sort("chunkIndex", 1).to_list(5000)
+        
+        full_text = "\n\n".join([c.get("content", "") for c in chunks])
+        
+        char_count = len(full_text)
+        word_count = len(full_text.split())
+        
+        is_image = source.get("mimeType", "").startswith("image/")
+        quality = "good"
+        quality_message = "Текст извлечён успешно"
+        
+        if char_count == 0:
+            quality = "empty"
+            quality_message = "Текст не извлечён"
+        elif is_image:
+            if "[Image: No text detected]" in full_text or "[Image: OCR failed" in full_text:
+                quality = "poor"
+                quality_message = "OCR не смог распознать текст"
+            elif word_count < 10:
+                quality = "low"
+                quality_message = "Мало текста распознано"
+            else:
+                quality_message = f"OCR распознал {word_count} слов"
+        elif word_count < 20:
             quality = "low"
-            quality_message = "Мало текста распознано"
-        else:
-            quality_message = f"OCR распознал {word_count} слов"
-    elif word_count < 20:
-        quality = "low"
-        quality_message = "Мало текста извлечено"
-    
-    return {
-        "id": source_id,
-        "name": source.get("originalName") or source.get("url"),
-        "kind": source["kind"],
-        "mimeType": source.get("mimeType"),
-        "text": full_text,
-        "chunkCount": len(chunks),
-        "charCount": char_count,
-        "wordCount": word_count,
-        "quality": quality,
-        "qualityMessage": quality_message
-    }
+            quality_message = "Мало текста извлечено"
+        
+        return {
+            "id": source_id,
+            "name": source.get("originalName") or source.get("url"),
+            "kind": source.get("kind"),
+            "mimeType": source.get("mimeType"),
+            "text": full_text,
+            "chunkCount": len(chunks),
+            "charCount": char_count,
+            "wordCount": word_count,
+            "quality": quality,
+            "qualityMessage": quality_message
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Error in preview_source: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to load source preview: {str(e)}")
 
 
 @router.get("/projects/{project_id}/sources/download-all")
