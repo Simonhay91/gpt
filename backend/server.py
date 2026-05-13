@@ -217,9 +217,11 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Outermost safety-net: 30 s hard ceiling on every HTTP request.
+# Outermost safety-net: 120 s hard ceiling on every HTTP request.
 # The /planet-search handler enforces its own tighter 5 s budget internally.
-app.add_middleware(RequestTimeoutMiddleware, timeout_seconds=30.0)
+# 120 s gives Claude-based routes (messages, insights, etc.) ample time while
+# still protecting against truly stuck requests.
+app.add_middleware(RequestTimeoutMiddleware, timeout_seconds=120.0)
 
 # ==================== HEALTH ENDPOINTS ====================
 

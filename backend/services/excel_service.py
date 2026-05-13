@@ -205,7 +205,7 @@ async def targeted_excel_edit(source_file_path: str, instruction: str, claude_cl
     print(f"[EXCEL EDIT DEBUG] File structure: {json.dumps(file_structure, ensure_ascii=False)[:800]}")
 
     # ── Ask Claude for rich operation list ──
-    analysis_response = claude_client.messages.create(
+    analysis_response = await claude_client.messages.create(
         model="claude-sonnet-4-20250514",
         max_tokens=2048,
         system=(
@@ -514,7 +514,7 @@ async def maybe_generate_excel(
             f"Data (max 200 rows):\n{df.head(200).to_string(index=False)}"
         )
 
-        excel_response = claude_client.messages.create(
+        excel_response = await claude_client.messages.create(
             model="claude-sonnet-4-20250514",
             max_tokens=4096,
             system=(

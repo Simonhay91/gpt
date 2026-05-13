@@ -1,6 +1,15 @@
-export const APP_VERSION = "2.9.44";
+export const APP_VERSION = "2.9.45";
 
 export const CHANGELOG = [
+  {
+    version: "2.9.45",
+    date: "Май 2026",
+    badge: "fix",
+    changes: [
+      "Messages: исправлен 500 Internal Server Error — Anthropic клиент переведён на AsyncAnthropic (не блокирует event loop)",
+      "server.py: таймаут RequestTimeoutMiddleware поднят с 30 с до 120 с (Claude-маршруты требуют больше времени)",
+    ]
+  },
   {
     version: "2.9.44",
     date: "Май 2026",

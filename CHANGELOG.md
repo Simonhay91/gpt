@@ -6,6 +6,16 @@ UI версия: `frontend/src/data/changelog.js`
 
 ---
 
+## 2026-05-13 — v2.9.45
+
+### Fix: 500 error on POST /api/chats/{id}/messages — async Anthropic client
+
+- `backend/routes/messages.py` — all 4 `anthropic.Anthropic(...)` instantiations changed to `anthropic.AsyncAnthropic(...)`; all `.messages.create(...)` calls now `await`ed — prevents event-loop blocking that caused the 30 s middleware timeout to fire mid-request
+- `backend/services/excel_service.py` — both `claude_client.messages.create(...)` calls now `await`ed (functions are already `async def`)
+- `backend/server.py` — `RequestTimeoutMiddleware` timeout raised from 30 s → 120 s (safety net only; planet-search keeps its own 5 s internal budget)
+
+---
+
 ## 2026-05-13 — v2.9.44
 
 ### Fix: planet-search timeout hardening for ShadowDB client
