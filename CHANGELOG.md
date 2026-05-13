@@ -6,6 +6,14 @@ UI версия: `frontend/src/data/changelog.js`
 
 ---
 
+## 2026-05-13 — v2.9.47
+
+### Feature: dynamic model routing — Sonnet for RAG/Excel, Haiku for general chat
+
+- `backend/routes/messages.py` — Claude model now selected based on `selected_agent_type`: `rag | excel | research` → `claude-sonnet-4-20250514`; `general` → `claude-haiku-4-20250514`
+
+---
+
 ## 2026-05-13 — v2.9.46
 
 ### Fix: RAG crash on embedding dimension mismatch (Voyage 1024d vs OpenAI 1536d)

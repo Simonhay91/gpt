@@ -716,8 +716,14 @@ async def send_message(
                 user_content = "Analyze this file and summarize the key points."
             messages.append({"role": "user", "content": user_content})
 
+            # Use Sonnet for document-heavy tasks; Haiku for general chat
+            _chat_model = (
+                "claude-sonnet-4-20250514"
+                if selected_agent_type in ("rag", "excel", "research")
+                else "claude-haiku-4-20250514"
+            )
             claude_response = await claude_client.messages.create(
-                model="claude-sonnet-4-20250514",
+                model=_chat_model,
                 max_tokens=4096,
                 system=system_prompt,
                 messages=messages

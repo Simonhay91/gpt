@@ -56,6 +56,7 @@ A full-stack React/FastAPI AI chat application. The massive technical debt has b
   Upcoming Tasks:
   - (P1) Apply query optimizations suggested by the  that were not addressed (related to database projections and limits).
   - (P1) Persist generated Excel files in object storage instead of  (Critical now that Excel features are heavily used;  files are lost on restart, breaking download buttons).
+  - (P2) Re-embed old Voyage AI 1024-dim chunks with OpenAI text-embedding-3-small (1536-dim) for full RAG quality on legacy sources.
   - (P2) Product Catalog - AI Integration (Phase 3).
   
   Future Tasks:
@@ -71,6 +72,11 @@ A full-stack React/FastAPI AI chat application. The massive technical debt has b
 - Implemented formula and hex color () injection in Excel exports (DONE)
 - Fixed  fallback bug in Excel source detection (DONE)
 - Migrated  to use  with  (DONE)
+
+**Completed work — May 13 2026 session (v2.9.44–2.9.46)**
+- POST /api/product-matching/planet-search: added 5s asyncio.timeout, per-step budgets (OpenAI 3s, MongoDB 2s), HTTP 504 on timeout, HTTP 503 on error. Added GET /planet-search/ready readiness probe. Added RequestTimeoutMiddleware (120s) to server.py as global safety net. (v2.9.44)
+- messages.py + excel_service.py: converted all anthropic.Anthropic() → AsyncAnthropic(), all .messages.create() → await. Fixes 500 Internal Server Error caused by sync Anthropic calls blocking event loop and getting cancelled by the timeout middleware. (v2.9.45)
+- rag.py: fixed ValueError crash ("shapes (1536,) and (1024,) not aligned") — cosine_similarity now guarded with dimension check; old Voyage AI 1024-dim chunks fall back to text relevance scoring instead of crashing. (v2.9.46)
 
 **Earlier issues found/mentioned but not fixed**
    - Issue 1: Admin user role assignment on initialization
@@ -141,7 +147,8 @@ A full-stack React/FastAPI AI chat application. The massive technical debt has b
   - OpenAI GPT-4o — uses Emergent LLM Key (via emergentintegrations)
   - gpt-image-1 (Image Generation & Edit) — uses Emergent LLM Key (via emergentintegrations)
   - Brave Search API — requires User API Key
-  - Voyage AI — requires User API Key
+  - Voyage AI — requires User API Key (NOTE: old Voyage-embedded chunks in DB have 1024-dim vectors; current RAG uses OpenAI 1536-dim. Mismatch is handled gracefully via text fallback, but re-embedding old chunks is a pending P2 task)
+  - ShadowDB (external client) — calls POST /api/product-matching/planet-search (no auth, 5s timeout, returns string[])
 
 **Testing status**
   - Testing agent used after significant changes: YES (iteration 14, 100% pass on refactoring)

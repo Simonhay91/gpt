@@ -1,6 +1,14 @@
-export const APP_VERSION = "2.9.46";
+export const APP_VERSION = "2.9.47";
 
 export const CHANGELOG = [
+  {
+    version: "2.9.47",
+    date: "Май 2026",
+    badge: "new",
+    changes: [
+      "Chat: умный выбор модели — RAG / Excel / Research используют Claude Sonnet 4 (точность), обычный чат — Claude Haiku 4 (скорость)",
+    ]
+  },
   {
     version: "2.9.46",
     date: "Май 2026",
