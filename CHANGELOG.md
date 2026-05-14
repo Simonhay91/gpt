@@ -6,6 +6,16 @@ UI версия: `frontend/src/data/changelog.js`
 
 ---
 
+## 2026-05-14 — v2.9.48
+
+### Fix: planet-search 504 on cold start + matching blocks event loop
+
+- `backend/routes/product_matching.py` — `planet_search`: catalog fetch moved outside `asyncio.timeout(5s)`; 5s budget now applies only to embedding+scoring step
+- `backend/routes/product_matching.py` — `_claude_match_with_candidates`, `_claude_match_batch`, `_web_research_item`, `_phase3_web_rematch`: all converted to `async def` + `AsyncAnthropic` + `await`; callers in `match_products` and `research_item` updated with `await`
+- `backend/server.py` — `RequestTimeoutMiddleware`: `/api/product-matching/match`, `/research-item`, `/generate-excel` excluded from timeout; these routes have unbounded processing time by design
+
+---
+
 ## 2026-05-13 — v2.9.47
 
 ### Feature: dynamic model routing — Sonnet for RAG/Excel, Haiku for general chat

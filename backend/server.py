@@ -27,8 +27,20 @@ class RequestTimeoutMiddleware:
         self.app = app
         self.timeout = timeout_seconds
 
+    # Routes whose processing time is unbounded by design (large file uploads,
+    # multi-step AI pipelines). Excluding them prevents false-positive 504s.
+    _NO_TIMEOUT_PREFIXES = (
+        "/api/product-matching/match",
+        "/api/product-matching/research-item",
+        "/api/product-matching/generate-excel",
+    )
+
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         if scope["type"] not in ("http",):
+            await self.app(scope, receive, send)
+            return
+        path = scope.get("path", "")
+        if any(path.startswith(p) for p in self._NO_TIMEOUT_PREFIXES):
             await self.app(scope, receive, send)
             return
         try:

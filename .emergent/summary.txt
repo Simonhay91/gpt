@@ -119,6 +119,13 @@ A full-stack React/FastAPI AI chat application. The massive technical debt has b
   - : Uses .
   - : Uses .
 
+**Communication Style (Owner Preference)**
+- Always discuss with facts from the actual codebase — no guessing
+- Keep explanations short and to the point — idea first, then flow, no code dumps
+- If something is unclear or a decision is needed, ASK — don't assume
+- Before making a change that could affect other logic, check with the owner first
+- Preferred language: Armenian + Russian mix (informal)
+
 **Critical Info for New Agent**
 - **CRITICAL CRASH:** The app is currently crashing on the frontend with . This happened right after the user changed  and the backend reloaded. Assume an API call dropped or a context object ( or ) became null. Fix this first.
 - **Excel Flow:** Do not attempt to use  for CSVs. The service now correctly routes CSVs to pandas and XLSXs to .

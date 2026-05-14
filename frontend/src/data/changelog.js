@@ -1,6 +1,16 @@
-export const APP_VERSION = "2.9.47";
+export const APP_VERSION = "2.9.48";
 
 export const CHANGELOG = [
+  {
+    version: "2.9.48",
+    date: "Май 2026",
+    badge: "fix",
+    changes: [
+      "planet-search: загрузка каталога вынесена за пределы 5-секундного таймаута — 504 больше не возникает при холодном старте",
+      "Matching: все вызовы Anthropic переведены на AsyncAnthropic — event loop не блокируется, другие пользователи не зависают",
+      "server.py: /match, /research-item, /generate-excel исключены из timeout middleware — матчинг больше не получает 504",
+    ]
+  },
   {
     version: "2.9.47",
     date: "Май 2026",

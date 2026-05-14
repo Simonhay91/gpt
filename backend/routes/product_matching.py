@@ -227,13 +227,13 @@ def _text_fallback_top_k(item: str, catalog: List[dict], k: int) -> List[dict]:
     return hits[:k]
 
 
-def _web_research_item(item: str, client: anthropic.Anthropic) -> tuple:
+async def _web_research_item(item: str, client) -> tuple:
     """
     Use Claude with the built-in web_search tool to research an unknown product.
     Returns (enriched_description: str, source_urls: List[str]).
     """
     try:
-        response = client.messages.create(
+        response = await client.messages.create(
             model="claude-sonnet-4-20250514",
             max_tokens=1024,
             tools=[{"type": "web_search_20250305", "name": "web_search"}],
@@ -276,7 +276,7 @@ def _web_research_item(item: str, client: anthropic.Anthropic) -> tuple:
         return item, []
 
 
-def _phase3_web_rematch(
+async def _phase3_web_rematch(
     unmatched_items: List[tuple],   # [(orig_idx, customer_item), ...]
     catalog: List[dict],
     catalog_embeddings: List[Optional[List[float]]],
@@ -288,14 +288,14 @@ def _phase3_web_rematch(
     if not unmatched_items:
         return {}
 
-    client = anthropic.Anthropic(api_key=CLAUDE_API_KEY)
+    client = anthropic.AsyncAnthropic(api_key=CLAUDE_API_KEY)
     results: dict = {}
 
     # Research each item individually (web search is sequential by nature)
     enriched_data: List[tuple] = []   # (orig_idx, item, enriched_text, source_urls)
     for orig_idx, item in unmatched_items:
         logger.info(f"Phase 3: web research for '{item}'")
-        enriched_text, source_urls = _web_research_item(item, client)
+        enriched_text, source_urls = await _web_research_item(item, client)
         enriched_data.append((orig_idx, item, enriched_text, source_urls))
 
     # Re-embed enriched descriptions and find new candidates
@@ -318,7 +318,7 @@ def _phase3_web_rematch(
     ]
 
     try:
-        claude_results = _claude_match_with_candidates(items_with_candidates)
+        claude_results = await _claude_match_with_candidates(items_with_candidates)
     except Exception as exc:
         logger.error(f"Phase 3 Claude re-match failed: {exc}")
         claude_results = _empty_batch([item for item, _ in items_with_candidates], "Web research failed")
@@ -395,7 +395,7 @@ def _format_candidates(candidates: List[dict]) -> str:
     return "\n".join(lines) if lines else "  (no candidates found)"
 
 
-def _claude_match_with_candidates(
+async def _claude_match_with_candidates(
     items_with_candidates: List[tuple],  # [(customer_item, [candidate_dicts]), ...]
     domain: str = "",
 ) -> List[dict]:
@@ -403,7 +403,7 @@ def _claude_match_with_candidates(
     Send ALL items + their TOP-k candidates to Claude in ONE request.
     Returns list of match dicts in same order.
     """
-    client = anthropic.Anthropic(api_key=CLAUDE_API_KEY)
+    client = anthropic.AsyncAnthropic(api_key=CLAUDE_API_KEY)
 
     items_text_parts = []
     for i, (item, candidates) in enumerate(items_with_candidates):
@@ -451,7 +451,7 @@ Rules:
   • none   → e.g. "No match: GYTA 6-module/8-core variant not found in catalog"
 - Return ONLY the JSON array, no extra text."""
 
-    response = client.messages.create(
+    response = await client.messages.create(
         model="claude-sonnet-4-20250514",
         max_tokens=8192,
         messages=[{"role": "user", "content": prompt}],
@@ -576,7 +576,7 @@ Customer says → Best model match:
 """
 
 
-def _claude_match_batch(
+async def _claude_match_batch(
     batch: List[str],
     catalog_text: str,
     catalog_len: int,
@@ -586,7 +586,7 @@ def _claude_match_batch(
     Send one batch of customer items + full catalog to Claude.
     Returns list of match dicts in the same order as batch.
     """
-    client = anthropic.Anthropic(api_key=CLAUDE_API_KEY)
+    client = anthropic.AsyncAnthropic(api_key=CLAUDE_API_KEY)
     items_text = "\n".join(f"[{i + 1}] {name}" for i, name in enumerate(batch))
 
     effective_domain = domain if domain else OPTICAL_CABLE_DOMAIN
@@ -623,7 +623,7 @@ Rules:
   • no match      → e.g. "No match: requested fiber count not available in catalog"
 - Return ONLY the JSON array, no extra text."""
 
-    response = client.messages.create(
+    response = await client.messages.create(
         model="claude-sonnet-4-20250514",
         max_tokens=8192,
         messages=[{"role": "user", "content": prompt}],
@@ -794,9 +794,23 @@ async def planet_search(data: PlanetSearchRequest):
         logger.debug(f"planet-search cache hit: '{query}'")
         return cached["crms"]
 
+    db = get_db()
+
+    # Catalog fetch is outside the tight timeout — it has its own 10-min in-memory
+    # cache. On cold start it can take 10-20 s from the PlanetWorkspace API; that
+    # must not be charged against the 5 s embedding budget.
+    try:
+        catalog = await _planet_get_catalog(db)
+    except Exception as exc:
+        logger.error(f"planet-search: catalog fetch failed for '{query}': {exc}")
+        raise HTTPException(status_code=503, detail="Catalog unavailable — please retry")
+
+    if not catalog:
+        raise HTTPException(status_code=404, detail="Product catalog is empty")
+
     try:
         async with asyncio.timeout(PLANET_SEARCH_TIMEOUT):
-            ordered_crms = await _planet_search_pipeline(query, query_lower)
+            ordered_crms = await _planet_search_pipeline(query, query_lower, catalog)
     except TimeoutError:
         logger.warning(f"planet-search: 5 s budget exceeded for query '{query}'")
         raise HTTPException(status_code=504, detail="Search timed out — please retry")
@@ -809,10 +823,9 @@ async def planet_search(data: PlanetSearchRequest):
     return ordered_crms
 
 
-async def _planet_search_pipeline(query: str, query_lower: str) -> List[str]:
-    """Core search logic extracted so the caller can wrap it in asyncio.timeout()."""
+async def _planet_search_pipeline(query: str, query_lower: str, catalog: list) -> List[str]:
+    """Embedding + cosine similarity step — wrapped in asyncio.timeout() by the caller."""
     db = get_db()
-    catalog = await _planet_get_catalog(db)
 
     if not catalog:
         raise HTTPException(status_code=404, detail="Product catalog is empty")
@@ -1155,7 +1168,7 @@ async def match_products(
             for i in range(0, len(items_with_candidates), CLAUDE_BATCH_SIZE):
                 batch = items_with_candidates[i: i + CLAUDE_BATCH_SIZE]
                 try:
-                    batch_results = _claude_match_with_candidates(batch, domain=full_domain)
+                    batch_results = await _claude_match_with_candidates(batch, domain=full_domain)
                 except Exception as exc:
                     logger.error(f"Claude (candidates) batch error: {exc}")
                     batch_results = _empty_batch([item for item, _ in batch], "Matching error")
@@ -1168,7 +1181,7 @@ async def match_products(
             for i in range(0, len(ai_items), CLAUDE_BATCH_SIZE):
                 batch = ai_items[i: i + CLAUDE_BATCH_SIZE]
                 try:
-                    batch_results = _claude_match_batch(batch, catalog_text, len(catalog), domain=full_domain)
+                    batch_results = await _claude_match_batch(batch, catalog_text, len(catalog), domain=full_domain)
                 except Exception as exc:
                     logger.error(f"Claude (full-catalog) batch error: {exc}")
                     batch_results = _empty_batch(batch, "Matching error")
@@ -1301,9 +1314,9 @@ async def research_item(
         raise HTTPException(status_code=404, detail="Product catalog is empty")
 
     # Web research
-    client = anthropic.Anthropic(api_key=CLAUDE_API_KEY)
+    client = anthropic.AsyncAnthropic(api_key=CLAUDE_API_KEY)
     logger.info(f"research-item: web research for '{item}'")
-    enriched_text, source_urls = _web_research_item(item, client)
+    enriched_text, source_urls = await _web_research_item(item, client)
     logger.info(f"research-item: enriched='{enriched_text[:80]}' sources={source_urls}")
 
     # Re-embed enriched description → TOP candidates
