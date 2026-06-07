@@ -215,7 +215,7 @@ async def edit_image(
 
         claude_client = anthropic.Anthropic(api_key=claude_key)
         analysis = claude_client.messages.create(
-            model="claude-sonnet-4-20250514",
+            model="claude-sonnet-4-5",
             max_tokens=250,
             messages=[{
                 "role": "user",

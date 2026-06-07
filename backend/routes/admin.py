@@ -202,7 +202,7 @@ async def get_gpt_config(current_user: dict = Depends(get_current_user)):
     if not config:
         config = {
             "id": "1",
-            "model": "claude-sonnet-4-20250514",
+            "model": "claude-sonnet-4-5",
             "developerPrompt": "You are a helpful assistant.",
             "updatedAt": datetime.now(timezone.utc).isoformat()
         }
