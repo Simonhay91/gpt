@@ -84,7 +84,7 @@ Respond in JSON format:
 Important: Respond ONLY with valid JSON, no additional text. Questions and summary must be in the SAME LANGUAGE as the document."""
 
             response = claude_client.messages.create(
-                model="claude-sonnet-4-5",
+                model="claude-sonnet-4-20250514",
                 max_tokens=1024,
                 messages=[{"role": "user", "content": analysis_prompt}]
             )
@@ -255,7 +255,7 @@ Respond with ONLY a JSON array of 5 questions:
 ["Question 1?", "Question 2?", "Question 3?", "Question 4?", "Question 5?"]"""
 
             response = claude_client.messages.create(
-                model="claude-sonnet-4-5",
+                model="claude-sonnet-4-20250514",
                 max_tokens=512,
                 messages=[{"role": "user", "content": prompt}]
             )

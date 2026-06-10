@@ -6,6 +6,17 @@ UI версия: `frontend/src/data/changelog.js`
 
 ---
 
+## 2026-06-10 — v2.9.49
+
+### New: Chat-level personal source sharing
+
+- `backend/routes/sources.py` — 3 new endpoints: `GET /personal-sources/shared-in-chat/{chat_id}`, `PUT /sources/{id}/share-to-chat`, `DELETE /sources/{id}/share-to-chat/{chat_id}`
+- `backend/routes/messages.py` — personal source query extended with `$or` to include sources where `sharedInChatIds` contains current `chat_id`
+- `frontend/src/pages/ChatPage.js` — `fetchChatData` now loads `sharedPersonalSources` + owner's `myPersonalSources`; added `sharePersonalSourceToChat` / `unsharePersonalSourceFromChat` handlers
+- `frontend/src/components/chat/SourcePanel.js` — new "My Personal Sources" section (owner: Share toggle per source); new "Shared by Owner" section (participants: read-only, lock badge)
+
+---
+
 ## 2026-05-14 — v2.9.48
 
 ### Fix: planet-search 504 on cold start + matching blocks event loop

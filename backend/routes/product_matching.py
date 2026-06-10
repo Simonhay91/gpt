@@ -5,6 +5,7 @@ from services.planet_api import get_catalog as _planet_get_catalog, get_product_
 from fastapi.responses import FileResponse
 from starlette.background import BackgroundTask
 from typing import List, Optional
+import asyncio
 import io
 import os
 import re
@@ -190,14 +191,23 @@ def _cosine_similarity(a: list, b: list) -> float:
 
 
 def _voyage_embed_batch(texts: List[str]) -> List[Optional[List[float]]]:
-    """Embed a list of texts via OpenAI text-embedding-3-small."""
+    """Embed a list of texts via OpenAI text-embedding-3-small (synchronous, 3 s network timeout)."""
     from openai import OpenAI
-    client = OpenAI(api_key=OPENAI_API_KEY)
+    client = OpenAI(api_key=OPENAI_API_KEY, timeout=3.0)
     response = client.embeddings.create(
         input=[t[:8000] for t in texts],
         model="text-embedding-3-small",
     )
     return [item.embedding for item in response.data]
+
+
+async def _voyage_embed_batch_async(texts: List[str], timeout: float = 3.0) -> List[Optional[List[float]]]:
+    """Async wrapper: runs _voyage_embed_batch in a thread executor with an asyncio timeout."""
+    loop = asyncio.get_event_loop()
+    return await asyncio.wait_for(
+        loop.run_in_executor(None, _voyage_embed_batch, texts),
+        timeout=timeout,
+    )
 
 
 def _text_fallback_top_k(item: str, catalog: List[dict], k: int) -> List[dict]:
@@ -217,14 +227,14 @@ def _text_fallback_top_k(item: str, catalog: List[dict], k: int) -> List[dict]:
     return hits[:k]
 
 
-def _web_research_item(item: str, client: anthropic.Anthropic) -> tuple:
+async def _web_research_item(item: str, client) -> tuple:
     """
     Use Claude with the built-in web_search tool to research an unknown product.
     Returns (enriched_description: str, source_urls: List[str]).
     """
     try:
-        response = client.messages.create(
-            model="claude-sonnet-4-5",
+        response = await client.messages.create(
+            model="claude-sonnet-4-20250514",
             max_tokens=1024,
             tools=[{"type": "web_search_20250305", "name": "web_search"}],
             messages=[{
@@ -266,7 +276,7 @@ def _web_research_item(item: str, client: anthropic.Anthropic) -> tuple:
         return item, []
 
 
-def _phase3_web_rematch(
+async def _phase3_web_rematch(
     unmatched_items: List[tuple],   # [(orig_idx, customer_item), ...]
     catalog: List[dict],
     catalog_embeddings: List[Optional[List[float]]],
@@ -278,14 +288,14 @@ def _phase3_web_rematch(
     if not unmatched_items:
         return {}
 
-    client = anthropic.Anthropic(api_key=CLAUDE_API_KEY)
+    client = anthropic.AsyncAnthropic(api_key=CLAUDE_API_KEY)
     results: dict = {}
 
     # Research each item individually (web search is sequential by nature)
     enriched_data: List[tuple] = []   # (orig_idx, item, enriched_text, source_urls)
     for orig_idx, item in unmatched_items:
         logger.info(f"Phase 3: web research for '{item}'")
-        enriched_text, source_urls = _web_research_item(item, client)
+        enriched_text, source_urls = await _web_research_item(item, client)
         enriched_data.append((orig_idx, item, enriched_text, source_urls))
 
     # Re-embed enriched descriptions and find new candidates
@@ -308,7 +318,7 @@ def _phase3_web_rematch(
     ]
 
     try:
-        claude_results = _claude_match_with_candidates(items_with_candidates)
+        claude_results = await _claude_match_with_candidates(items_with_candidates)
     except Exception as exc:
         logger.error(f"Phase 3 Claude re-match failed: {exc}")
         claude_results = _empty_batch([item for item, _ in items_with_candidates], "Web research failed")
@@ -385,7 +395,7 @@ def _format_candidates(candidates: List[dict]) -> str:
     return "\n".join(lines) if lines else "  (no candidates found)"
 
 
-def _claude_match_with_candidates(
+async def _claude_match_with_candidates(
     items_with_candidates: List[tuple],  # [(customer_item, [candidate_dicts]), ...]
     domain: str = "",
 ) -> List[dict]:
@@ -393,7 +403,7 @@ def _claude_match_with_candidates(
     Send ALL items + their TOP-k candidates to Claude in ONE request.
     Returns list of match dicts in same order.
     """
-    client = anthropic.Anthropic(api_key=CLAUDE_API_KEY)
+    client = anthropic.AsyncAnthropic(api_key=CLAUDE_API_KEY)
 
     items_text_parts = []
     for i, (item, candidates) in enumerate(items_with_candidates):
@@ -441,8 +451,8 @@ Rules:
   • none   → e.g. "No match: GYTA 6-module/8-core variant not found in catalog"
 - Return ONLY the JSON array, no extra text."""
 
-    response = client.messages.create(
-        model="claude-sonnet-4-5",
+    response = await client.messages.create(
+        model="claude-sonnet-4-20250514",
         max_tokens=8192,
         messages=[{"role": "user", "content": prompt}],
     )
@@ -566,7 +576,7 @@ Customer says → Best model match:
 """
 
 
-def _claude_match_batch(
+async def _claude_match_batch(
     batch: List[str],
     catalog_text: str,
     catalog_len: int,
@@ -576,7 +586,7 @@ def _claude_match_batch(
     Send one batch of customer items + full catalog to Claude.
     Returns list of match dicts in the same order as batch.
     """
-    client = anthropic.Anthropic(api_key=CLAUDE_API_KEY)
+    client = anthropic.AsyncAnthropic(api_key=CLAUDE_API_KEY)
     items_text = "\n".join(f"[{i + 1}] {name}" for i, name in enumerate(batch))
 
     effective_domain = domain if domain else OPTICAL_CABLE_DOMAIN
@@ -613,8 +623,8 @@ Rules:
   • no match      → e.g. "No match: requested fiber count not available in catalog"
 - Return ONLY the JSON array, no extra text."""
 
-    response = client.messages.create(
-        model="claude-sonnet-4-5",
+    response = await client.messages.create(
+        model="claude-sonnet-4-20250514",
         max_tokens=8192,
         messages=[{"role": "user", "content": prompt}],
     )
@@ -753,14 +763,24 @@ _planet_search_cache: dict = {}  # query_lower → {"crms": [...], "expires_at":
 
 # ── PlanetWorkspace fallback search ──────────────────────────────────────────
 
+# Total time budget for a single planet-search request (seconds).
+PLANET_SEARCH_TIMEOUT = 5.0
+# Per-step budgets (must sum to less than PLANET_SEARCH_TIMEOUT).
+_ALIAS_DB_TIMEOUT_MS = 2000   # MongoDB product_aliases query
+_EMBED_TIMEOUT = 3.0          # OpenAI embedding call
+
+
 @router.post("/planet-search")
 async def planet_search(data: PlanetSearchRequest):
     """
-    Called by PlanetWorkspace when a user search returns no results.
-    Runs alias lookup → OpenAI embedding pre-filter → returns ranked CRM codes.
-    Claude is intentionally excluded: this endpoint must respond in <500 ms.
-    Results are cached for PLANET_SEARCH_CACHE_TTL seconds per unique query.
-    Returns an ordered array of CRM codes (best match first, max PLANET_SEARCH_TOP_K).
+    Called by ShadowDB / PlanetWorkspace when a user search returns no results.
+    Runs alias lookup → OpenAI embedding → cosine similarity → returns ranked CRM codes.
+
+    Contract:
+      - Request:  POST { "query": "string" }
+      - Response: string[]  (ordered CRM codes, max PLANET_SEARCH_TOP_K)
+      - Timeout:  hard 5 s total; returns HTTP 504 on breach
+      - On error: returns [] or HTTP 503/504 — never hangs
     """
     query = (data.query or "").strip()
     if not query:
@@ -768,19 +788,49 @@ async def planet_search(data: PlanetSearchRequest):
 
     query_lower = query.lower().strip()
 
-    # ── Query cache ───────────────────────────────────────────────────────────
+    # ── Query cache (in-memory, no I/O) ──────────────────────────────────────
     cached = _planet_search_cache.get(query_lower)
     if cached and cached["expires_at"] > datetime.now(timezone.utc):
         logger.debug(f"planet-search cache hit: '{query}'")
         return cached["crms"]
 
     db = get_db()
-    catalog = await _planet_get_catalog(db)
+
+    # Catalog fetch is outside the tight timeout — it has its own 10-min in-memory
+    # cache. On cold start it can take 10-20 s from the PlanetWorkspace API; that
+    # must not be charged against the 5 s embedding budget.
+    try:
+        catalog = await _planet_get_catalog(db)
+    except Exception as exc:
+        logger.error(f"planet-search: catalog fetch failed for '{query}': {exc}")
+        raise HTTPException(status_code=503, detail="Catalog unavailable — please retry")
 
     if not catalog:
         raise HTTPException(status_code=404, detail="Product catalog is empty")
 
-    # ── Step 1: Alias lookup (instant, no AI) ────────────────────────────────
+    try:
+        async with asyncio.timeout(PLANET_SEARCH_TIMEOUT):
+            ordered_crms = await _planet_search_pipeline(query, query_lower, catalog)
+    except TimeoutError:
+        logger.warning(f"planet-search: 5 s budget exceeded for query '{query}'")
+        raise HTTPException(status_code=504, detail="Search timed out — please retry")
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.error(f"planet-search: unexpected error for query '{query}': {exc}")
+        raise HTTPException(status_code=503, detail="Search unavailable — please retry")
+
+    return ordered_crms
+
+
+async def _planet_search_pipeline(query: str, query_lower: str, catalog: list) -> List[str]:
+    """Embedding + cosine similarity step — wrapped in asyncio.timeout() by the caller."""
+    db = get_db()
+
+    if not catalog:
+        raise HTTPException(status_code=404, detail="Product catalog is empty")
+
+    # ── Step 1: Alias lookup (no AI) ─────────────────────────────────────────
     alias_lookup: dict = {}
     for p in catalog:
         for alias in (p.get("aliases") or []):
@@ -788,7 +838,13 @@ async def planet_search(data: PlanetSearchRequest):
 
     crm_to_product = {p.get("crm_code", ""): p for p in catalog if p.get("crm_code")}
     article_to_product = {p.get("article_number", ""): p for p in catalog if p.get("article_number")}
-    saved_aliases = await db.product_aliases.find({}, {"_id": 0}).to_list(10000)
+
+    # Bounded DB query: fail fast if MongoDB is slow
+    saved_aliases = (
+        await db.product_aliases.find({}, {"_id": 0})
+        .max_time_ms(_ALIAS_DB_TIMEOUT_MS)
+        .to_list(10000)
+    )
     for sa in saved_aliases:
         key = (sa.get("alias") or "").lower().strip()
         if key and key not in alias_lookup:
@@ -810,14 +866,36 @@ async def planet_search(data: PlanetSearchRequest):
         }
         return result
 
-    # ── Step 2: OpenAI embedding → TOP-K candidates (ranked by cosine sim) ───
+    # ── Step 2: OpenAI embedding (async, bounded) → cosine similarity ─────────
     catalog_embeddings = [p.get("embedding") for p in catalog]
 
     try:
-        candidates_list = _voyage_top_k([query], catalog, catalog_embeddings, PLANET_SEARCH_TOP_K)
-        candidates = candidates_list[0] if candidates_list else []
+        # Run embedding in a thread so we don't block the event loop; _EMBED_TIMEOUT
+        # is enforced both by the OpenAI client (3 s network timeout) and by
+        # asyncio.wait_for inside _voyage_embed_batch_async.
+        item_embeddings = await _voyage_embed_batch_async([query], timeout=_EMBED_TIMEOUT)
+        item_emb = item_embeddings[0] if item_embeddings else None
+    except (asyncio.TimeoutError, TimeoutError):
+        logger.warning(f"planet-search: embedding timed out for '{query}', using text fallback")
+        item_emb = None
     except Exception as exc:
-        logger.warning(f"planet-search embedding failed, using text fallback: {exc}")
+        logger.warning(f"planet-search: embedding error for '{query}': {exc}, using text fallback")
+        item_emb = None
+
+    if item_emb:
+        scores = []
+        for i, (p, p_emb) in enumerate(zip(catalog, catalog_embeddings)):
+            if p_emb:
+                score = _cosine_similarity(item_emb, p_emb)
+            else:
+                haystack = " ".join(filter(None, [
+                    p.get("title_en", ""), p.get("article_number", ""),
+                ])).lower()
+                score = 0.3 if query.lower() in haystack else 0.0
+            scores.append((score, i))
+        top_indices = [i for _, i in sorted(scores, reverse=True)[:PLANET_SEARCH_TOP_K]]
+        candidates = [catalog[i] for i in top_indices]
+    else:
         candidates = _text_fallback_top_k(query, catalog, PLANET_SEARCH_TOP_K)
 
     ordered_crms: List[str] = []
@@ -837,6 +915,33 @@ async def planet_search(data: PlanetSearchRequest):
         "expires_at": datetime.now(timezone.utc) + timedelta(seconds=PLANET_SEARCH_CACHE_TTL),
     }
     return ordered_crms
+
+
+# ── Readiness probe ───────────────────────────────────────────────────────────
+
+@router.get("/planet-search/ready")
+async def planet_search_ready():
+    """
+    Readiness check for the planet-search endpoint.
+    Returns 200 when the embedding cache is populated and MongoDB is reachable.
+    ShadowDB can poll this before issuing the actual search call.
+    """
+    db = get_db()
+    try:
+        async with asyncio.timeout(2.0):
+            cached_count = await db.planet_embedding_cache.estimated_document_count()
+    except (TimeoutError, asyncio.TimeoutError):
+        raise HTTPException(status_code=503, detail="MongoDB unreachable")
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail=f"Readiness check failed: {exc}")
+
+    if cached_count == 0:
+        raise HTTPException(
+            status_code=503,
+            detail="Embedding cache is empty — catalog not yet indexed",
+        )
+
+    return {"ready": True, "cached_products": cached_count}
 
 
 # ── Domain Rules CRUD ────────────────────────────────────────────────────────
@@ -1063,7 +1168,7 @@ async def match_products(
             for i in range(0, len(items_with_candidates), CLAUDE_BATCH_SIZE):
                 batch = items_with_candidates[i: i + CLAUDE_BATCH_SIZE]
                 try:
-                    batch_results = _claude_match_with_candidates(batch, domain=full_domain)
+                    batch_results = await _claude_match_with_candidates(batch, domain=full_domain)
                 except Exception as exc:
                     logger.error(f"Claude (candidates) batch error: {exc}")
                     batch_results = _empty_batch([item for item, _ in batch], "Matching error")
@@ -1076,7 +1181,7 @@ async def match_products(
             for i in range(0, len(ai_items), CLAUDE_BATCH_SIZE):
                 batch = ai_items[i: i + CLAUDE_BATCH_SIZE]
                 try:
-                    batch_results = _claude_match_batch(batch, catalog_text, len(catalog), domain=full_domain)
+                    batch_results = await _claude_match_batch(batch, catalog_text, len(catalog), domain=full_domain)
                 except Exception as exc:
                     logger.error(f"Claude (full-catalog) batch error: {exc}")
                     batch_results = _empty_batch(batch, "Matching error")
@@ -1209,9 +1314,9 @@ async def research_item(
         raise HTTPException(status_code=404, detail="Product catalog is empty")
 
     # Web research
-    client = anthropic.Anthropic(api_key=CLAUDE_API_KEY)
+    client = anthropic.AsyncAnthropic(api_key=CLAUDE_API_KEY)
     logger.info(f"research-item: web research for '{item}'")
-    enriched_text, source_urls = _web_research_item(item, client)
+    enriched_text, source_urls = await _web_research_item(item, client)
     logger.info(f"research-item: enriched='{enriched_text[:80]}' sources={source_urls}")
 
     # Re-embed enriched description → TOP candidates

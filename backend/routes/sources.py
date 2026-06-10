@@ -815,3 +815,78 @@ async def get_source_chunks(source_id: str, current_user: dict = Depends(get_cur
         return []
     
     return chunks
+
+
+# ==================== CHAT-LEVEL PERSONAL SOURCE SHARING ====================
+
+@router.get("/personal-sources/shared-in-chat/{chat_id}")
+async def get_personal_sources_shared_in_chat(chat_id: str, current_user: dict = Depends(get_current_user)):
+    """Return personal sources that have been shared into this specific chat."""
+    db = get_db()
+    chat = await db.chats.find_one({"id": chat_id}, {"_id": 0})
+    if not chat:
+        raise HTTPException(status_code=404, detail="Chat not found")
+    if not chat.get("projectId"):
+        raise HTTPException(status_code=400, detail="Quick chats do not support shared sources")
+    # Caller must have access to the chat (project member or owner)
+    await check_project_access(current_user, chat["projectId"], required_role="viewer")
+
+    sources = await db.sources.find(
+        {"level": "personal", "sharedInChatIds": chat_id},
+        {"_id": 0}
+    ).to_list(1000)
+    return {"items": sources}
+
+
+@router.put("/sources/{source_id}/share-to-chat")
+async def share_source_to_chat(
+    source_id: str,
+    data: dict,
+    current_user: dict = Depends(get_current_user)
+):
+    """Share a personal source into a specific chat (owner only)."""
+    db = get_db()
+    source = await db.sources.find_one({"id": source_id}, {"_id": 0})
+    if not source:
+        raise HTTPException(status_code=404, detail="Source not found")
+    if source.get("level") != "personal":
+        raise HTTPException(status_code=400, detail="Only personal sources can be shared to a chat")
+    if source.get("ownerId") != current_user["id"]:
+        raise HTTPException(status_code=403, detail="Only the source owner can share it")
+
+    chat_id = data.get("chatId", "").strip()
+    if not chat_id:
+        raise HTTPException(status_code=400, detail="chatId is required")
+
+    chat = await db.chats.find_one({"id": chat_id}, {"_id": 0})
+    if not chat:
+        raise HTTPException(status_code=404, detail="Chat not found")
+    if not chat.get("projectId"):
+        raise HTTPException(status_code=400, detail="Cannot share to a quick chat")
+
+    await db.sources.update_one(
+        {"id": source_id},
+        {"$addToSet": {"sharedInChatIds": chat_id}}
+    )
+    return {"success": True, "sourceId": source_id, "chatId": chat_id}
+
+
+@router.delete("/sources/{source_id}/share-to-chat/{chat_id}")
+async def unshare_source_from_chat(
+    source_id: str,
+    chat_id: str,
+    current_user: dict = Depends(get_current_user)
+):
+    """Remove a personal source from a specific chat's shared list (owner only)."""
+    db = get_db()
+    source = await db.sources.find_one({"id": source_id}, {"_id": 0})
+    if not source:
+        raise HTTPException(status_code=404, detail="Source not found")
+    if source.get("ownerId") != current_user["id"]:
+        raise HTTPException(status_code=403, detail="Only the source owner can unshare it")
+
+    await db.sources.update_one(
+        {"id": source_id},
+        {"$pull": {"sharedInChatIds": chat_id}}
+    )
+    return {"success": True, "sourceId": source_id, "chatId": chat_id}

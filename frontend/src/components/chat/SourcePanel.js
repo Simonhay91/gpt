@@ -6,7 +6,8 @@ import { ScrollArea } from '../ui/scroll-area';
 import {
   Upload, Link, FileText, File, Globe, ImageIcon, Loader2,
   Search, X, Info, Database, Target, Lightbulb, ChevronRight,
-  ChevronDown, Eye, Download, Trash2, Building2, FolderOpen, Clock
+  ChevronDown, Eye, Download, Trash2, Building2, FolderOpen, Clock,
+  Share2, Lock, UserCircle
 } from 'lucide-react';
 
 const getFileIcon = (mimeType, kind) => {
@@ -62,7 +63,13 @@ export const SourcePanel = ({
   onFileInputChange,
   showInfoBlock,
   onCloseInfoBlock,
+  myPersonalSources = [],
+  sharedPersonalSources = [],
+  onShareToChat,
+  onUnshareFromChat,
+  chatId,
 }) => {
+  const sharedIds = new Set((myPersonalSources || []).flatMap(s => s.sharedInChatIds || []));
   const highlightMatch = (text, query) => {
     const regex = new RegExp(`(${query})`, 'gi');
     return text.replace(regex, '<mark class="bg-yellow-300 dark:bg-yellow-600 px-0.5 rounded">$1</mark>');
@@ -299,6 +306,78 @@ export const SourcePanel = ({
               ? 'Все источники активны по умолчанию. Личные источники ("Мои источники") также включены.'
               : 'Checked sources are used as AI context'}
           </p>
+        )}
+
+        {/* ── My Personal Sources (owner only) — share/unshare into this chat ── */}
+        {myPersonalSources.length > 0 && (
+          <div className="mt-4">
+            <div className="flex items-center gap-2 mb-2">
+              <UserCircle className="h-4 w-4 text-violet-400" />
+              <span className="text-xs font-semibold text-violet-400 uppercase tracking-wide">My Personal Sources</span>
+            </div>
+            <div className="space-y-1 rounded-lg border border-violet-500/20 overflow-hidden">
+              {myPersonalSources.map(source => {
+                const isSharedHere = sharedIds.has(chatId) || (source.sharedInChatIds || []).includes(chatId);
+                return (
+                  <div
+                    key={source.id}
+                    className={`flex items-center gap-2 p-2 px-3 transition-colors ${isSharedHere ? 'bg-violet-500/10' : 'hover:bg-secondary/20'}`}
+                  >
+                    {getFileIcon(source.mimeType, source.kind)}
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm truncate">{source.originalName || source.url}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {source.sizeBytes ? `${formatFileSize(source.sizeBytes)} • ` : ''}{source.chunkCount || 0} chunks
+                      </p>
+                    </div>
+                    <Button
+                      variant={isSharedHere ? 'default' : 'outline'}
+                      size="sm"
+                      className={`h-7 gap-1 text-xs px-2 ${isSharedHere ? 'bg-violet-600 hover:bg-violet-700 text-white border-0' : 'border-violet-500/40 text-violet-400 hover:bg-violet-500/10'}`}
+                      onClick={() => isSharedHere ? onUnshareFromChat(source.id) : onShareToChat(source.id)}
+                      title={isSharedHere ? 'Remove from this chat' : 'Share to this chat'}
+                    >
+                      <Share2 className="h-3 w-3" />
+                      {isSharedHere ? 'Shared' : 'Share'}
+                    </Button>
+                  </div>
+                );
+              })}
+            </div>
+            <p className="text-xs text-muted-foreground mt-1.5">
+              Shared sources are available to all participants in this chat for AI context.
+            </p>
+          </div>
+        )}
+
+        {/* ── Shared by Owner (non-owner view) ── */}
+        {myPersonalSources.length === 0 && sharedPersonalSources.length > 0 && (
+          <div className="mt-4">
+            <div className="flex items-center gap-2 mb-2">
+              <Lock className="h-4 w-4 text-violet-400" />
+              <span className="text-xs font-semibold text-violet-400 uppercase tracking-wide">Shared by Owner</span>
+            </div>
+            <div className="space-y-1 rounded-lg border border-violet-500/20 overflow-hidden">
+              {sharedPersonalSources.map(source => (
+                <div
+                  key={source.id}
+                  className="flex items-center gap-2 p-2 px-3 bg-violet-500/10"
+                >
+                  {getFileIcon(source.mimeType, source.kind)}
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm truncate">{source.originalName || source.url}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {source.sizeBytes ? `${formatFileSize(source.sizeBytes)} • ` : ''}{source.chunkCount || 0} chunks
+                    </p>
+                  </div>
+                  <span className="text-xs text-violet-400 bg-violet-500/10 px-2 py-0.5 rounded-full border border-violet-500/20 flex items-center gap-1">
+                    <Lock className="h-2.5 w-2.5" />
+                    shared
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
         )}
       </div>
     </div>

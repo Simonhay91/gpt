@@ -83,6 +83,8 @@ const ChatPage = () => {
   const [isSending, setIsSending] = useState(false);
   const [chat, setChat] = useState(null);
   const [projectSources, setProjectSources] = useState([]);
+  const [myPersonalSources, setMyPersonalSources] = useState([]);     // owner's own personal sources (with sharedInChatIds)
+  const [sharedPersonalSources, setSharedPersonalSources] = useState([]); // personal sources shared INTO this chat by owner
   const [activeSourceIds, setActiveSourceIds] = useState([]);
   const [sourcesExplicitlySet, setSourcesExplicitlySet] = useState(false);
   const sourcesJustLoaded = useRef(false); // prevents saving back to DB what we just loaded
@@ -246,18 +248,35 @@ const ChatPage = () => {
 
       let allProjectSourceIds = [];
       if (chatRes.data.projectId) {
-        const [sourcesRes, projRes] = await Promise.all([
+        const fetchList = [
           axios.get(`${API}/projects/${chatRes.data.projectId}/sources`),
-          axios.get(`${API}/projects/${chatRes.data.projectId}`)
-        ]);
+          axios.get(`${API}/projects/${chatRes.data.projectId}`),
+          axios.get(`${API}/personal-sources/shared-in-chat/${chatRes.data.id || chatId}`),
+        ];
+        const [sourcesRes, projRes, sharedRes] = await Promise.all(fetchList);
         const projectSourceList = sourcesRes.data.items || sourcesRes.data;
         setProjectSources(projectSourceList);
         allProjectSourceIds = projectSourceList.map(s => s.id);
         setCurrentProjectName(projRes.data.name || '');
+        const sharedList = sharedRes.data.items || [];
+        setSharedPersonalSources(sharedList);
+
+        // Owner: also load their own personal sources (to show share button)
+        if (projRes.data.ownerId === (chatRes.data.ownerId || user?.id)) {
+          try {
+            const myPersonalRes = await axios.get(`${API}/personal-sources`);
+            setMyPersonalSources(myPersonalRes.data || []);
+          } catch { setMyPersonalSources([]); }
+        } else {
+          setMyPersonalSources([]);
+        }
+
         const imagesRes = await axios.get(`${API}/projects/${chatRes.data.projectId}/images`);
         setGeneratedImages(imagesRes.data.items || imagesRes.data);
       } else {
         setProjectSources([]);
+        setSharedPersonalSources([]);
+        setMyPersonalSources([]);
         setGeneratedImages([]);
       }
 
@@ -349,6 +368,33 @@ const ChatPage = () => {
       setActiveSourceIds(prev => prev.filter(id => id !== sourceId));
       toast.success('Source deleted');
     } catch { toast.error('Failed to delete source'); }
+  };
+
+  const sharePersonalSourceToChat = async (sourceId) => {
+    try {
+      await axios.put(`${API}/sources/${sourceId}/share-to-chat`, { chatId });
+      // Refresh both lists
+      const [myRes, sharedRes] = await Promise.all([
+        axios.get(`${API}/personal-sources`),
+        axios.get(`${API}/personal-sources/shared-in-chat/${chatId}`),
+      ]);
+      setMyPersonalSources(myRes.data || []);
+      setSharedPersonalSources(sharedRes.data.items || []);
+      toast.success('Source shared to this chat');
+    } catch { toast.error('Failed to share source'); }
+  };
+
+  const unsharePersonalSourceFromChat = async (sourceId) => {
+    try {
+      await axios.delete(`${API}/sources/${sourceId}/share-to-chat/${chatId}`);
+      const [myRes, sharedRes] = await Promise.all([
+        axios.get(`${API}/personal-sources`),
+        axios.get(`${API}/personal-sources/shared-in-chat/${chatId}`),
+      ]);
+      setMyPersonalSources(myRes.data || []);
+      setSharedPersonalSources(sharedRes.data.items || []);
+      toast.success('Source removed from this chat');
+    } catch { toast.error('Failed to unshare source'); }
   };
 
   const openPreview = async (source, e) => {
@@ -939,6 +985,11 @@ const finalContent = content || "Analyze this file and summarize the key points.
                 onFileInputChange={handleFileUpload}
                 showInfoBlock={showInfoBlock}
                 onCloseInfoBlock={() => setShowInfoBlock(false)}
+                myPersonalSources={myPersonalSources}
+                sharedPersonalSources={sharedPersonalSources}
+                onShareToChat={sharePersonalSourceToChat}
+                onUnshareFromChat={unsharePersonalSourceFromChat}
+                chatId={chatId}
               />
             </div>
           </>

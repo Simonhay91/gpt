@@ -57,7 +57,7 @@ async def ensure_gpt_config(db):
 
     default_config = {
         "id": "1",
-        "model": "claude-sonnet-4-5",
+        "model": "claude-sonnet-4-20250514",
         "developerPrompt": """You are Claude, a helpful AI assistant by Anthropic. Use ONLY the active sources provided in context.
 
 IMPORTANT RULES:
@@ -168,7 +168,13 @@ async def send_message(
     user_department_ids = []  # dept/global excluded — kept for rag.py signature compatibility
 
     personal_sources = await db.sources.find(
-        {"level": "personal", "ownerId": current_user["id"], "status": {"$in": ["active", None]}},
+        {
+            "$or": [
+                {"level": "personal", "ownerId": current_user["id"]},
+                {"level": "personal", "sharedInChatIds": chat_id},
+            ],
+            "status": {"$in": ["active", None]},
+        },
         {"_id": 0, "id": 1}
     ).to_list(1000)
     personal_source_ids = [s["id"] for s in personal_sources]
@@ -534,7 +540,7 @@ async def send_message(
 
     try:
         CLAUDE_API_KEY = os.environ.get('CLAUDE_API_KEY', '')
-        claude_client = anthropic.Anthropic(api_key=CLAUDE_API_KEY)
+        claude_client = anthropic.AsyncAnthropic(api_key=CLAUDE_API_KEY)
 
         if cache_hit:
             response_text = cache_hit["answer"]
@@ -716,8 +722,14 @@ async def send_message(
                 user_content = "Analyze this file and summarize the key points."
             messages.append({"role": "user", "content": user_content})
 
-            claude_response = claude_client.messages.create(
-                model="claude-sonnet-4-5",
+            # Use Sonnet for document-heavy tasks; Haiku for general chat
+            _chat_model = (
+                "claude-sonnet-4-20250514"
+                if selected_agent_type in ("rag", "excel", "research")
+                else "claude-haiku-4-20250514"
+            )
+            claude_response = await claude_client.messages.create(
+                model=_chat_model,
                 max_tokens=4096,
                 system=system_prompt,
                 messages=messages
@@ -761,7 +773,7 @@ async def send_message(
     if not response_text.startswith("Error:"):
         try:
             CLAUDE_API_KEY = os.environ.get('CLAUDE_API_KEY', '')
-            excel_claude_client = anthropic.Anthropic(api_key=CLAUDE_API_KEY)
+            excel_claude_client = anthropic.AsyncAnthropic(api_key=CLAUDE_API_KEY)
             excel_file_id, excel_preview, response_text, is_excel_clarification = await maybe_generate_excel(
                 db=db,
                 chat_id=chat_id,
@@ -1053,9 +1065,9 @@ async def save_chat_context(chat_id: str, data: dict, current_user: dict = Depen
         if not CLAUDE_API_KEY:
             raise HTTPException(status_code=500, detail="AI service not configured")
 
-        claude_client = anthropic.Anthropic(api_key=CLAUDE_API_KEY)
-        response = claude_client.messages.create(
-            model="claude-sonnet-4-5",
+        claude_client = anthropic.AsyncAnthropic(api_key=CLAUDE_API_KEY)
+        response = await claude_client.messages.create(
+            model="claude-sonnet-4-20250514",
             max_tokens=300,
             system="Прочитай этот диалог и напиши краткое резюме: какие темы обсуждались, к каким выводам пришли, что важно помнить для продолжения в следующем чате. Максимум 150 слов. Только резюме, без предисловий.",
             messages=[{"role": "user", "content": dialog_text}]
@@ -1108,9 +1120,9 @@ async def extract_memory_points(chat_id: str, data: dict, current_user: dict = D
 
     try:
         CLAUDE_API_KEY = os.environ.get('CLAUDE_API_KEY', '')
-        claude_client = anthropic.Anthropic(api_key=CLAUDE_API_KEY)
-        response = claude_client.messages.create(
-            model="claude-sonnet-4-5",
+        claude_client = anthropic.AsyncAnthropic(api_key=CLAUDE_API_KEY)
+        response = await claude_client.messages.create(
+            model="claude-sonnet-4-20250514",
             max_tokens=1000,
             system=(
                 "You are extracting PROJECT KNOWLEDGE from a conversation. "

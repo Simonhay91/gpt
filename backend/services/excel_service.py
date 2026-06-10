@@ -205,8 +205,8 @@ async def targeted_excel_edit(source_file_path: str, instruction: str, claude_cl
     print(f"[EXCEL EDIT DEBUG] File structure: {json.dumps(file_structure, ensure_ascii=False)[:800]}")
 
     # ── Ask Claude for rich operation list ──
-    analysis_response = claude_client.messages.create(
-        model="claude-sonnet-4-5",
+    analysis_response = await claude_client.messages.create(
+        model="claude-sonnet-4-20250514",
         max_tokens=2048,
         system=(
             "You are a full-featured Excel editor. The user's instruction may be in Armenian, Russian, or English.\n"
@@ -514,8 +514,8 @@ async def maybe_generate_excel(
             f"Data (max 200 rows):\n{df.head(200).to_string(index=False)}"
         )
 
-        excel_response = claude_client.messages.create(
-            model="claude-sonnet-4-5",
+        excel_response = await claude_client.messages.create(
+            model="claude-sonnet-4-20250514",
             max_tokens=4096,
             system=(
                 "You are a data transformation assistant. "

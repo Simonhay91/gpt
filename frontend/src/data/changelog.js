@@ -1,6 +1,15 @@
-export const APP_VERSION = "2.9.48";
+export const APP_VERSION = "2.9.49";
 
 export const CHANGELOG = [
+  {
+    version: "2.9.49",
+    date: "Июнь 2026",
+    badge: "new",
+    changes: [
+      "Sources: личные источники теперь можно расшарить в конкретный чат — участники видят их в RAG, но не в других чатах проекта",
+      "SourcePanel: раздел «My Personal Sources» с кнопкой Share/Shared для владельца; раздел «Shared by Owner» для участников (read-only)",
+    ]
+  },
   {
     version: "2.9.48",
     date: "Май 2026",
