@@ -1,6 +1,14 @@
-export const APP_VERSION = "2.9.49";
+export const APP_VERSION = "2.9.50";
 
 export const CHANGELOG = [
+  {
+    version: "2.9.50",
+    date: "Июнь 2026",
+    badge: "fix",
+    changes: [
+      "SourcePanel: исправлена ошибка — при шаринге одного источника все личные источники отображались как расшаренные",
+    ]
+  },
   {
     version: "2.9.49",
     date: "Июнь 2026",

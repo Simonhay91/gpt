@@ -69,7 +69,6 @@ export const SourcePanel = ({
   onUnshareFromChat,
   chatId,
 }) => {
-  const sharedIds = new Set((myPersonalSources || []).flatMap(s => s.sharedInChatIds || []));
   const highlightMatch = (text, query) => {
     const regex = new RegExp(`(${query})`, 'gi');
     return text.replace(regex, '<mark class="bg-yellow-300 dark:bg-yellow-600 px-0.5 rounded">$1</mark>');
@@ -317,7 +316,7 @@ export const SourcePanel = ({
             </div>
             <div className="space-y-1 rounded-lg border border-violet-500/20 overflow-hidden">
               {myPersonalSources.map(source => {
-                const isSharedHere = sharedIds.has(chatId) || (source.sharedInChatIds || []).includes(chatId);
+                const isSharedHere = (source.sharedInChatIds || []).includes(chatId);
                 return (
                   <div
                     key={source.id}

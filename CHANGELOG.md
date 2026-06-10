@@ -6,6 +6,14 @@ UI версия: `frontend/src/data/changelog.js`
 
 ---
 
+## 2026-06-10 — v2.9.50
+
+### Fix: SourcePanel — all personal sources marked as shared incorrectly
+
+- `frontend/src/components/chat/SourcePanel.js` — removed incorrect `sharedIds` Set that caused all sources to appear shared when any one source was shared; `isSharedHere` now checks `source.sharedInChatIds` directly per source
+
+---
+
 ## 2026-06-10 — v2.9.49
 
 ### New: Chat-level personal source sharing
