@@ -138,7 +138,7 @@ async def excel_process(
     try:
         client = anthropic.Anthropic(api_key=CLAUDE_API_KEY)
         response = client.messages.create(
-            model="claude-sonnet-4-20250514",
+            model="claude-sonnet-4-6",
             max_tokens=4096,
             system=SYSTEM_PROMPT,
             messages=[{"role": "user", "content": structure_info}]
@@ -262,7 +262,7 @@ async def excel_generate(
     try:
         client = anthropic.Anthropic(api_key=CLAUDE_API_KEY)
         response = client.messages.create(
-            model="claude-sonnet-4-20250514",
+            model="claude-sonnet-4-6",
             max_tokens=4096,
             system=GENERATE_SYSTEM_PROMPT,
             messages=[{"role": "user", "content": f"Instruction: {instruction}\n\n{structure}"}]

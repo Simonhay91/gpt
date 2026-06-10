@@ -1,6 +1,14 @@
-export const APP_VERSION = "2.9.51";
+export const APP_VERSION = "2.9.52";
 
 export const CHANGELOG = [
+  {
+    version: "2.9.52",
+    date: "Июнь 2026",
+    badge: "fix",
+    changes: [
+      "Все модели обновлены до актуальных: claude-sonnet-4-6 (вместо устаревших claude-sonnet-4-20250514 / claude-sonnet-4-5-20251001) во всех маршрутах backend",
+    ]
+  },
   {
     version: "2.9.51",
     date: "Июнь 2026",

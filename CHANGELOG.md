@@ -6,6 +6,14 @@ UI версия: `frontend/src/data/changelog.js`
 
 ---
 
+## 2026-06-10 — v2.9.52
+
+### Fix: update all Claude model IDs to claude-sonnet-4-6
+
+- `backend/routes/messages.py`, `admin.py`, `excel.py`, `images.py`, `insights.py`, `product_catalog.py`, `product_matching.py`, `product_relations.py`, `services/excel_service.py` — all replaced `claude-sonnet-4-20250514` and `claude-sonnet-4-5-20251001` with `claude-sonnet-4-6`
+
+---
+
 ## 2026-06-10 — v2.9.51
 
 ### Fix: restore correct Claude model names in messages.py

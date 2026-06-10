@@ -206,7 +206,7 @@ async def targeted_excel_edit(source_file_path: str, instruction: str, claude_cl
 
     # ── Ask Claude for rich operation list ──
     analysis_response = await claude_client.messages.create(
-        model="claude-sonnet-4-20250514",
+        model="claude-sonnet-4-6",
         max_tokens=2048,
         system=(
             "You are a full-featured Excel editor. The user's instruction may be in Armenian, Russian, or English.\n"
@@ -515,7 +515,7 @@ async def maybe_generate_excel(
         )
 
         excel_response = await claude_client.messages.create(
-            model="claude-sonnet-4-20250514",
+            model="claude-sonnet-4-6",
             max_tokens=4096,
             system=(
                 "You are a data transformation assistant. "

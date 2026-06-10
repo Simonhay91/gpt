@@ -234,7 +234,7 @@ async def _web_research_item(item: str, client) -> tuple:
     """
     try:
         response = await client.messages.create(
-            model="claude-sonnet-4-20250514",
+            model="claude-sonnet-4-6",
             max_tokens=1024,
             tools=[{"type": "web_search_20250305", "name": "web_search"}],
             messages=[{
@@ -452,7 +452,7 @@ Rules:
 - Return ONLY the JSON array, no extra text."""
 
     response = await client.messages.create(
-        model="claude-sonnet-4-20250514",
+        model="claude-sonnet-4-6",
         max_tokens=8192,
         messages=[{"role": "user", "content": prompt}],
     )
@@ -624,7 +624,7 @@ Rules:
 - Return ONLY the JSON array, no extra text."""
 
     response = await client.messages.create(
-        model="claude-sonnet-4-20250514",
+        model="claude-sonnet-4-6",
         max_tokens=8192,
         messages=[{"role": "user", "content": prompt}],
     )

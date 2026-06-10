@@ -901,7 +901,7 @@ Products to match:
 Return ONLY the JSON array, no extra text."""
 
     response = client.messages.create(
-        model="claude-sonnet-4-20250514",
+        model="claude-sonnet-4-6",
         max_tokens=2000,
         messages=[{"role": "user", "content": prompt}]
     )
