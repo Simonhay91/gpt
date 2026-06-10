@@ -6,6 +6,14 @@ UI версия: `frontend/src/data/changelog.js`
 
 ---
 
+## 2026-06-10 — v2.9.51
+
+### Fix: restore correct Claude model names in messages.py
+
+- `backend/routes/messages.py` — all model references restored to `claude-sonnet-4-5-20251001` / `claude-haiku-4-5-20251001`; accidentally reverted to old names in v2.9.49
+
+---
+
 ## 2026-06-10 — v2.9.50
 
 ### Fix: SourcePanel — all personal sources marked as shared incorrectly

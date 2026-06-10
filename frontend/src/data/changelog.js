@@ -1,6 +1,14 @@
-export const APP_VERSION = "2.9.50";
+export const APP_VERSION = "2.9.51";
 
 export const CHANGELOG = [
+  {
+    version: "2.9.51",
+    date: "Июнь 2026",
+    badge: "fix",
+    changes: [
+      "messages.py: восстановлены правильные имена моделей Claude (claude-sonnet-4-5-20251001 / claude-haiku-4-5-20251001) — откат был случайно введён в v2.9.49",
+    ]
+  },
   {
     version: "2.9.50",
     date: "Июнь 2026",

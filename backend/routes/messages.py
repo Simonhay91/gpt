@@ -57,7 +57,7 @@ async def ensure_gpt_config(db):
 
     default_config = {
         "id": "1",
-        "model": "claude-sonnet-4-20250514",
+        "model": "claude-sonnet-4-5-20251001",
         "developerPrompt": """You are Claude, a helpful AI assistant by Anthropic. Use ONLY the active sources provided in context.
 
 IMPORTANT RULES:
@@ -724,9 +724,9 @@ async def send_message(
 
             # Use Sonnet for document-heavy tasks; Haiku for general chat
             _chat_model = (
-                "claude-sonnet-4-20250514"
+                "claude-sonnet-4-5-20251001"
                 if selected_agent_type in ("rag", "excel", "research")
-                else "claude-haiku-4-20250514"
+                else "claude-haiku-4-5-20251001"
             )
             claude_response = await claude_client.messages.create(
                 model=_chat_model,
@@ -1067,7 +1067,7 @@ async def save_chat_context(chat_id: str, data: dict, current_user: dict = Depen
 
         claude_client = anthropic.AsyncAnthropic(api_key=CLAUDE_API_KEY)
         response = await claude_client.messages.create(
-            model="claude-sonnet-4-20250514",
+            model="claude-sonnet-4-5-20251001",
             max_tokens=300,
             system="Прочитай этот диалог и напиши краткое резюме: какие темы обсуждались, к каким выводам пришли, что важно помнить для продолжения в следующем чате. Максимум 150 слов. Только резюме, без предисловий.",
             messages=[{"role": "user", "content": dialog_text}]
@@ -1122,7 +1122,7 @@ async def extract_memory_points(chat_id: str, data: dict, current_user: dict = D
         CLAUDE_API_KEY = os.environ.get('CLAUDE_API_KEY', '')
         claude_client = anthropic.AsyncAnthropic(api_key=CLAUDE_API_KEY)
         response = await claude_client.messages.create(
-            model="claude-sonnet-4-20250514",
+            model="claude-sonnet-4-5-20251001",
             max_tokens=1000,
             system=(
                 "You are extracting PROJECT KNOWLEDGE from a conversation. "
