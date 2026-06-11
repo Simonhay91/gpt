@@ -1,6 +1,14 @@
-export const APP_VERSION = "2.9.57";
+export const APP_VERSION = "2.9.58";
 
 export const CHANGELOG = [
+  {
+    version: "2.9.58",
+    date: "Июнь 2026",
+    badge: "fix",
+    changes: [
+      "Fix: кнопки действий у сообщений ассистента теперь видны только при наведении",
+    ]
+  },
   {
     version: "2.9.57",
     date: "Июнь 2026",

@@ -286,7 +286,7 @@ export const MessageBubble = ({
 
                 {/* Assistant action buttons */}
                 {message.role === 'assistant' && (
-                  <div className="absolute -bottom-1 -right-1 flex gap-1" style={{ transition: 'none' }}>
+                  <div className="absolute -bottom-1 -right-1 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity" style={{ transition: 'opacity 150ms' }}>
                     {/* Save dropdown */}
                     <div className="relative" ref={dropdownRef} style={{ transition: 'none' }}>
                       <Button
