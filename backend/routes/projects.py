@@ -358,8 +358,8 @@ async def update_project_memory(
     
     memory_text = data.get("project_memory", "").strip()
     
-    # ~1500 token limit ≈ 6000 characters
-    if len(memory_text) > 6000:
+    # ~3000 token limit ≈ 12000 characters
+    if len(memory_text) > 12000:
         raise HTTPException(status_code=400, detail="Memory too long (max ~1500 tokens)")
     
     await db.projects.update_one(

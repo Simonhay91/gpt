@@ -7,8 +7,8 @@ import { Loader2, Brain, Sparkles, CheckCircle2 } from 'lucide-react';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
-const MAX_CHARS = 6000;
-const WARN_CHARS = 4800;
+const MAX_CHARS = 12000;
+const WARN_CHARS = 9600;
 
 const ProjectMemoryModal = ({ open, onClose, chatId, projectId, messages }) => {
   const [step, setStep] = useState('extracting');
@@ -170,7 +170,7 @@ const extractPoints = async () => {
               }`}>
                 <span>{charCount} символов</span>
                 <span className={`font-medium ${isOverLimit ? 'text-red-400' : ''}`}>
-                  ~{tokenApprox} / 1500 токенов
+                  ~{tokenApprox} / 3000 токенов
                 </span>
               </div>
             )}

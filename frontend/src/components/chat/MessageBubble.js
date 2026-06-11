@@ -260,7 +260,7 @@ export const MessageBubble = ({
                       Math.max(...editedContent.split('\n').map(l => l.length)) * 8.5 + 40, 200
                     ), 560)}px`
                   }}
-                  className="px-4 py-3 rounded-2xl bg-primary/10 text-foreground border border-primary/20 focus:border-primary focus:outline-none resize-none overflow-hidden block"
+                  className="px-4 py-3 rounded-2xl bg-indigo-600/10 text-foreground border border-indigo-600/20 focus:border-indigo-600 focus:outline-none resize-none overflow-hidden block"
                   autoFocus
                 />
                 <div className="flex gap-2 justify-end">
@@ -309,7 +309,7 @@ export const MessageBubble = ({
                   );
                 })()}
 
-                <div className={`px-4 py-3 rounded-2xl ${message.role === 'user' ? 'bg-primary text-primary-foreground rounded-br-sm' : 'bg-secondary text-secondary-foreground rounded-bl-sm'}`}>
+                <div className={`px-4 py-3 rounded-2xl ${message.role === 'user' ? 'bg-indigo-600 text-white rounded-br-sm' : 'bg-secondary text-secondary-foreground rounded-bl-sm'}`}>
                   {message.role === 'user' ? (
                     <p className="whitespace-pre-wrap text-sm leading-relaxed">
                       {renderTextWithLinks(message.content)}

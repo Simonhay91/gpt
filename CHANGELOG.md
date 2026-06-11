@@ -6,6 +6,17 @@ UI версия: `frontend/src/data/changelog.js`
 
 ---
 
+## 2026-06-11 — v2.9.62
+
+**Fix: user bubble text visibility + project memory limit increase**
+
+- `frontend/src/components/chat/MessageBubble.js` — user bubble: `bg-primary text-primary-foreground` → `bg-indigo-600 text-white` (fix invisible text in light theme)
+- `frontend/src/components/chat/Message.js` — same fix applied to legacy Message component
+- `backend/routes/projects.py` — project memory char limit: 6 000 → 12 000
+- `frontend/src/components/ProjectMemoryModal.js` — MAX_CHARS: 6 000 → 12 000, token display: 1 500 → 3 000
+
+---
+
 ## 2026-06-11 — v2.9.60
 
 **Multi-file upload in chat**
