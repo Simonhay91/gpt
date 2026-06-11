@@ -1,6 +1,15 @@
-export const APP_VERSION = "2.9.60";
+export const APP_VERSION = "2.9.61";
 
 export const CHANGELOG = [
+  {
+    version: "2.9.61",
+    date: "Июнь 2026",
+    badge: "new",
+    changes: [
+      "Markdown рендеринг в ответах AI — заголовки, списки, жирный текст, таблицы, code blocks",
+      "Установлен react-markdown + remark-gfm для полной поддержки GFM (GitHub Flavored Markdown)",
+    ]
+  },
   {
     version: "2.9.60",
     date: "Июнь 2026",

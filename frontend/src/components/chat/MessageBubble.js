@@ -8,8 +8,44 @@ import {
   Save, Globe2, Link, TrendingUp, ChevronDown, ChevronUp, Flag
 } from 'lucide-react';
 import AuthImage from '../AuthImage';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
+
+const mdComponents = {
+  h1: ({ children }) => <h1 className="text-lg font-bold mt-3 mb-1">{children}</h1>,
+  h2: ({ children }) => <h2 className="text-base font-bold mt-3 mb-1">{children}</h2>,
+  h3: ({ children }) => <h3 className="text-sm font-semibold mt-2 mb-1">{children}</h3>,
+  p: ({ children }) => <p className="mb-2 last:mb-0 leading-relaxed">{children}</p>,
+  ul: ({ children }) => <ul className="list-disc list-outside ml-4 mb-2 space-y-0.5">{children}</ul>,
+  ol: ({ children }) => <ol className="list-decimal list-outside ml-4 mb-2 space-y-0.5">{children}</ol>,
+  li: ({ children }) => <li className="leading-relaxed">{children}</li>,
+  strong: ({ children }) => <strong className="font-semibold">{children}</strong>,
+  em: ({ children }) => <em className="italic">{children}</em>,
+  hr: () => <hr className="my-3 border-border" />,
+  blockquote: ({ children }) => (
+    <blockquote className="border-l-2 border-border pl-3 my-2 text-muted-foreground italic">{children}</blockquote>
+  ),
+  code: ({ inline, children }) =>
+    inline
+      ? <code className="px-1 py-0.5 rounded bg-muted/60 text-xs font-mono">{children}</code>
+      : <pre className="bg-muted/60 rounded-lg p-3 my-2 overflow-x-auto text-xs font-mono whitespace-pre-wrap"><code>{children}</code></pre>,
+  pre: ({ children }) => <>{children}</>,
+  a: ({ href, children }) => (
+    <a href={href} target="_blank" rel="noopener noreferrer"
+      className="text-indigo-400 hover:text-indigo-300 underline underline-offset-2 break-all"
+      onClick={(e) => e.stopPropagation()}>{children}</a>
+  ),
+  table: ({ children }) => (
+    <div className="overflow-x-auto my-2">
+      <table className="min-w-full text-xs border-collapse">{children}</table>
+    </div>
+  ),
+  thead: ({ children }) => <thead className="bg-muted/50">{children}</thead>,
+  th: ({ children }) => <th className="border border-border px-2 py-1 font-semibold text-left">{children}</th>,
+  td: ({ children }) => <td className="border border-border px-2 py-1">{children}</td>,
+};
 
 const renderTextWithLinks = (text) => {
   if (!text) return null;
@@ -274,12 +310,20 @@ export const MessageBubble = ({
                 })()}
 
                 <div className={`px-4 py-3 rounded-2xl ${message.role === 'user' ? 'bg-primary text-primary-foreground rounded-br-sm' : 'bg-secondary text-secondary-foreground rounded-bl-sm'}`}>
-                  <p className="whitespace-pre-wrap text-sm leading-relaxed">
-                    {renderTextWithLinks(message.content)}
-                    {message.isStreaming && (
-                      <span className="inline-block w-0.5 h-4 bg-current ml-0.5 align-middle animate-pulse" />
-                    )}
-                  </p>
+                  {message.role === 'user' ? (
+                    <p className="whitespace-pre-wrap text-sm leading-relaxed">
+                      {renderTextWithLinks(message.content)}
+                    </p>
+                  ) : (
+                    <div className="text-sm prose-sm max-w-none">
+                      <ReactMarkdown remarkPlugins={[remarkGfm]} components={mdComponents}>
+                        {message.content || ''}
+                      </ReactMarkdown>
+                      {message.isStreaming && (
+                        <span className="inline-block w-0.5 h-4 bg-current ml-0.5 align-middle animate-pulse" />
+                      )}
+                    </div>
+                  )}
                 </div>
 
                 {/* User edit button */}
