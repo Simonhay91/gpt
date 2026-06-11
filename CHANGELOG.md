@@ -6,6 +6,18 @@ UI версия: `frontend/src/data/changelog.js`
 
 ---
 
+## 2026-06-11 — v2.9.60
+
+**Multi-file upload in chat**
+
+- `frontend/src/components/chat/ChatInput.js` — `multiple` attr on file input, `tempFiles[]` array badges, per-badge remove button
+- `frontend/src/pages/ChatPage.js` — `tempFiles` array state, parallel upload loop, `temp_file_ids` payload
+- `frontend/src/components/chat/MessageBubble.js` — render `uploadedFiles[]` array badges (backward compat with `uploadedFile`)
+- `backend/models/schemas.py` — `MessageCreate.temp_file_ids: List[str]` + `effective_temp_file_ids` property
+- `backend/routes/messages.py` — both endpoints: multi-file processing loop, per-file prompt injection (`===== ФАЙЛ 1 =====`), multi-image vision blocks
+
+---
+
 ## 2026-06-11 — v2.9.57
 
 ### Fix: modern typing indicator + empty bubble fix

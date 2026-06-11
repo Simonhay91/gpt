@@ -39,42 +39,43 @@ export const ChatInput = ({
   plusMenuRef,
   showPlusMenu,
   onTogglePlusMenu,
-  tempFile,
+  tempFiles,
   isTempUploading,
   onPaperclipChange,
   onRemoveTempFile,
 }) => {
-  const canSend = (input.trim() || tempFile) && !isSending;
+  const canSend = (input.trim() || tempFiles?.length > 0) && !isSending;
 
   return (
     <div className="px-4 py-3 bg-card/50 backdrop-blur">
       <div className="max-w-3xl mx-auto space-y-2">
 
-        {/* Temp file preview badge */}
-        {(tempFile || isTempUploading) && (
-          <div className="flex items-center gap-2 px-1">
-            {isTempUploading ? (
+        {/* Temp file preview badges */}
+        {(tempFiles?.length > 0 || isTempUploading) && (
+          <div className="flex items-center gap-2 px-1 flex-wrap">
+            {isTempUploading && (
               <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs font-medium">
                 <Loader2 className="h-3.5 w-3.5 animate-spin" />
                 Загрузка файла...
               </span>
-            ) : tempFile && (
+            )}
+            {(tempFiles || []).map((f, idx) => (
               <span
+                key={f.id}
                 className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-200 text-xs font-medium max-w-xs"
-                data-testid="temp-file-badge"
+                data-testid={`temp-file-badge-${idx}`}
               >
-                {FILE_TYPE_ICON[tempFile.fileType] ?? <File className="h-3.5 w-3.5 text-amber-400" />}
-                <span className="truncate max-w-[180px]">{tempFile.filename}</span>
+                {FILE_TYPE_ICON[f.fileType] ?? <File className="h-3.5 w-3.5 text-amber-400" />}
+                <span className="truncate max-w-[180px]">{f.filename}</span>
                 <button
-                  onClick={onRemoveTempFile}
+                  onClick={() => onRemoveTempFile(idx)}
                   className="ml-1 hover:text-red-400 transition-colors flex-shrink-0"
-                  data-testid="remove-temp-file-btn"
                   title="Удалить прикреплённый файл"
                 >
                   <X className="h-3 w-3" />
                 </button>
               </span>
-            )}
+            ))}
           </div>
         )}
 
@@ -85,6 +86,7 @@ export const ChatInput = ({
               <input
                 type="file"
                 accept=".jpg,.jpeg,.png,.pdf,.xlsx,.xls,.csv,.docx"
+                multiple
                 onChange={(e) => { onPaperclipChange(e); onTogglePlusMenu(false); }}
                 className="hidden"
                 id="chat-plus-file-input"
@@ -110,8 +112,8 @@ export const ChatInput = ({
                       <Upload className="h-4 w-4 text-indigo-400" />
                     </div>
                     <div>
-                      <p className="font-medium">Upload File</p>
-                      <p className="text-xs text-muted-foreground">PDF, DOCX, XLSX, IMG</p>
+                      <p className="font-medium">Upload Files</p>
+                      <p className="text-xs text-muted-foreground">PDF, DOCX, XLSX, IMG — multiple OK</p>
                     </div>
                   </button>
 
@@ -226,11 +228,13 @@ export const ChatInput = ({
             <Textarea
               ref={textareaRef}
               placeholder={
-                tempFile
-                  ? `Ask about "${tempFile.filename}"...`
-                  : webSearchEnabled
-                    ? "Search the web..."
-                    : "Message..."
+                tempFiles?.length === 1
+                  ? `Ask about "${tempFiles[0].filename}"...`
+                  : tempFiles?.length > 1
+                    ? `Ask about ${tempFiles.length} files...`
+                    : webSearchEnabled
+                      ? "Search the web..."
+                      : "Message..."
               }
               value={input}
               onChange={(e) => onInputChange(e.target.value)}

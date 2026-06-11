@@ -238,33 +238,40 @@ export const MessageBubble = ({
               </div>
             ) : (
               <>
-                {/* File upload badge */}
-                {message.role === 'user' && message.uploadedFile && (
-                  <div className="flex justify-end mb-1">
-                    {message.uploadedFile.fileType === 'image' && message.uploadedFile.previewUrl ? (
-                      <div className="rounded-xl overflow-hidden border border-border max-w-[260px]">
-                        <img
-                          src={message.uploadedFile.previewUrl}
-                          alt={message.uploadedFile.name}
-                          className="max-h-48 w-auto object-contain cursor-pointer hover:opacity-90 transition-opacity"
-                          onClick={() => window.open(message.uploadedFile.previewUrl, '_blank')}
-                        />
-                        <div className="px-2 py-1 bg-background/80 text-xs text-muted-foreground truncate">
-                          {message.uploadedFile.name}
-                        </div>
-                      </div>
-                    ) : (
-                      <span
-                        className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-muted border border-border text-xs text-muted-foreground max-w-[260px] cursor-pointer hover:bg-secondary transition-colors"
-                        data-testid={`file-badge-${index}`}
-                        onClick={() => message.uploadedFile.previewUrl && window.open(message.uploadedFile.previewUrl, '_blank')}
-                      >
-                        <span>{message.uploadedFile.fileType === 'pdf' ? '📄' : message.uploadedFile.fileType === 'excel' || message.uploadedFile.fileType === 'xlsx' || message.uploadedFile.fileType === 'csv' ? '📊' : message.uploadedFile.fileType === 'doc' || message.uploadedFile.fileType === 'docx' ? '📝' : '📎'}</span>
-                        <span className="truncate">{message.uploadedFile.name}</span>
-                      </span>
-                    )}
-                  </div>
-                )}
+                {/* File upload badges — supports single uploadedFile and multi uploadedFiles */}
+                {message.role === 'user' && (message.uploadedFiles || message.uploadedFile) && (() => {
+                  const files = message.uploadedFiles || [message.uploadedFile];
+                  const fileIcon = (ft) => ft === 'pdf' ? '📄' : ft === 'excel' || ft === 'xlsx' || ft === 'csv' ? '📊' : ft === 'doc' || ft === 'docx' ? '📝' : '📎';
+                  return (
+                    <div className="flex justify-end mb-1 flex-wrap gap-1">
+                      {files.map((f, fi) => f && (
+                        f.fileType === 'image' && f.previewUrl ? (
+                          <div key={fi} className="rounded-xl overflow-hidden border border-border max-w-[260px]">
+                            <img
+                              src={f.previewUrl}
+                              alt={f.name}
+                              className="max-h-48 w-auto object-contain cursor-pointer hover:opacity-90 transition-opacity"
+                              onClick={() => window.open(f.previewUrl, '_blank')}
+                            />
+                            <div className="px-2 py-1 bg-background/80 text-xs text-muted-foreground truncate">
+                              {f.name}
+                            </div>
+                          </div>
+                        ) : (
+                          <span
+                            key={fi}
+                            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-muted border border-border text-xs text-muted-foreground max-w-[260px] cursor-pointer hover:bg-secondary transition-colors"
+                            data-testid={`file-badge-${index}-${fi}`}
+                            onClick={() => f.previewUrl && window.open(f.previewUrl, '_blank')}
+                          >
+                            <span>{fileIcon(f.fileType)}</span>
+                            <span className="truncate">{f.name}</span>
+                          </span>
+                        )
+                      ))}
+                    </div>
+                  );
+                })()}
 
                 <div className={`px-4 py-3 rounded-2xl ${message.role === 'user' ? 'bg-primary text-primary-foreground rounded-br-sm' : 'bg-secondary text-secondary-foreground rounded-bl-sm'}`}>
                   <p className="whitespace-pre-wrap text-sm leading-relaxed">

@@ -117,9 +117,18 @@ class SourceModeUpdate(BaseModel):
 
 class MessageCreate(BaseModel):
     content: str
-    temp_file_id: Optional[str] = None  # ID of a temp file uploaded via /api/chat/upload-temp
+    temp_file_id: Optional[str] = None   # legacy single-file (kept for backward compat)
+    temp_file_ids: Optional[List[str]] = None  # multi-file upload (new)
     activeSourceIds: Optional[List[str]] = None  # Current checkbox state from frontend (avoids debounce race condition)
     forceWebSearch: Optional[bool] = None  # If True, always run Brave web search regardless of auto-logic
+
+    @property
+    def effective_temp_file_ids(self) -> List[str]:
+        """Merge legacy single-id and new multi-id list into one list."""
+        ids = list(self.temp_file_ids or [])
+        if self.temp_file_id and self.temp_file_id not in ids:
+            ids.insert(0, self.temp_file_id)
+        return ids
 
 
 class MessageEditRequest(BaseModel):

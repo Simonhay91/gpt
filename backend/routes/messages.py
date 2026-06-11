@@ -271,49 +271,57 @@ async def send_message(
     sender_name = sender_email.split("@")[0] if sender_email else "User"
     user_msg_id = str(uuid.uuid4())
 
-    # Load temp file content if provided
-    temp_file_content_text = ""
-    temp_file_image_b64 = None
-    temp_file_mime = None
-    temp_file_info = None
-    temp_excel_path = None  # path to temp Excel/CSV — passed to maybe_generate_excel
-    if message_data.temp_file_id:
+    # Load temp file content if provided (supports multiple files)
+    temp_files_data = []  # list of {text, image_b64, mime, info, excel_path}
+    _image_exts = {"jpg", "jpeg", "png"}
+    _effective_ids = message_data.effective_temp_file_ids
+    if _effective_ids:
         from pathlib import Path as _Path
         _TEMP_DIR = _Path("/tmp/planet_temp_files")
-        _matches = list(_TEMP_DIR.glob(f"{message_data.temp_file_id}_*"))
-        if _matches:
+        for _fid in _effective_ids:
+            _matches = list(_TEMP_DIR.glob(f"{_fid}_*"))
+            if not _matches:
+                continue
             _temp_path = _matches[0]
-            _filename = _temp_path.name.split("_", 1)[-1]  # strip UUID prefix
+            _filename = _temp_path.name.split("_", 1)[-1]
             _ext = _filename.rsplit(".", 1)[-1].lower() if "." in _filename else ""
             _content = _temp_path.read_bytes()
-            _image_exts = {"jpg", "jpeg", "png"}
-            # Capture Excel/CSV path for generation/editing
+            _fd = {"text": "", "image_b64": None, "mime": None, "info": None, "excel_path": None}
             if _ext in ("xlsx", "xls", "csv"):
-                temp_excel_path = str(_temp_path)
+                _fd["excel_path"] = str(_temp_path)
             try:
                 if _ext in _image_exts:
                     import base64 as _b64
-                    temp_file_image_b64 = _b64.b64encode(_content).decode()
-                    temp_file_mime = "image/jpeg" if _ext in ("jpg", "jpeg") else "image/png"
-                    temp_file_content_text = "[Изображение прикреплено]"
+                    _fd["image_b64"] = _b64.b64encode(_content).decode()
+                    _fd["mime"] = "image/jpeg" if _ext in ("jpg", "jpeg") else "image/png"
+                    _fd["text"] = "[Изображение прикреплено]"
                 elif _ext == "pdf":
                     from services.file_processor import extract_text_from_pdf as _pdfread
                     import asyncio as _asyncio
                     loop = _asyncio.get_event_loop()
-                    temp_file_content_text = await loop.run_in_executor(None, _pdfread, _content)
+                    _fd["text"] = await loop.run_in_executor(None, _pdfread, _content)
                 elif _ext in ("xlsx", "xls"):
                     from services.file_processor import extract_text_from_xlsx as _xread
-                    temp_file_content_text = _xread(_content)
+                    _fd["text"] = _xread(_content)
                 elif _ext == "csv":
                     from services.file_processor import extract_text_from_csv as _cread
-                    temp_file_content_text = _cread(_content)
+                    _fd["text"] = _cread(_content)
                 elif _ext == "docx":
                     from services.file_processor import extract_text_from_docx as _dread
-                    temp_file_content_text = _dread(_content)
+                    _fd["text"] = _dread(_content)
             except Exception as _te:
                 logger.error(f"Temp file read error: {_te}")
-            temp_file_info = {"name": _filename, "fileType": _ext if _ext not in _image_exts else "image"}
+            _fd["info"] = {"name": _filename, "fileType": _ext if _ext not in _image_exts else "image"}
+            temp_files_data.append(_fd)
 
+    # Convenience aliases for code that still expects single-file variables
+    temp_file_content_text = next((f["text"] for f in temp_files_data if f["text"] and not f["image_b64"]), "")
+    temp_file_image_b64 = next((f["image_b64"] for f in temp_files_data if f["image_b64"]), None)
+    temp_file_mime = next((f["mime"] for f in temp_files_data if f["mime"]), None)
+    temp_file_info = temp_files_data[0]["info"] if temp_files_data else None
+    temp_excel_path = next((f["excel_path"] for f in temp_files_data if f["excel_path"]), None)
+
+    _uploaded_infos = [f["info"] for f in temp_files_data if f["info"]]
     user_message = {
         "id": user_msg_id,
         "chatId": chat_id,
@@ -323,7 +331,8 @@ async def send_message(
         "autoIngestedUrls": [s["id"] for s in auto_ingested_sources] if auto_ingested_sources else None,
         "senderEmail": sender_email,
         "senderName": sender_name,
-        "uploadedFile": temp_file_info,
+        "uploadedFile": _uploaded_infos[0] if len(_uploaded_infos) == 1 else None,
+        "uploadedFiles": _uploaded_infos if len(_uploaded_infos) > 1 else None,
         "createdAt": datetime.now(timezone.utc).isoformat()
     }
     if not regen:
@@ -719,21 +728,25 @@ async def send_message(
                 "Only when user explicitly asks: \"создай Excel\", \"сделай таблицу\", \"generate excel\", \"create spreadsheet\"."
             )
 
-            # ── Inject current message's temp file ──
-            if temp_file_content_text and not temp_file_image_b64:
-                _fname = temp_file_info.get("name", "файл") if temp_file_info else "файл"
+            # ── Inject current message's temp files ──
+            _text_files = [f for f in temp_files_data if f["text"] and not f["image_b64"]]
+            _multi = len(_text_files) > 1
+            for _i, _fd in enumerate(_text_files):
+                _fname = _fd["info"].get("name", "файл") if _fd["info"] else "файл"
+                _label = f"ФАЙЛ {_i + 1}: {_fname}" if _multi else f"ПРИКРЕПЛЁННЫЙ ФАЙЛ: {_fname}"
                 system_prompt += (
-                    f"\n\n===== ПРИКРЕПЛЁННЫЙ ФАЙЛ: {_fname} =====\n"
-                    f"{temp_file_content_text[:8000]}\n"
+                    f"\n\n===== {_label} =====\n"
+                    f"{_fd['text'][:8000]}\n"
                     "===== КОНЕЦ ФАЙЛА =====\n"
-                    "Используй содержимое этого файла для ответа на вопрос пользователя."
                 )
+            if _text_files:
+                system_prompt += "Используй содержимое этих файлов для ответа на вопрос пользователя."
 
             # ── Inject persistent chat temp files (uploaded in earlier messages) ──
             # Limit: max 3 files, max 15000 total chars to avoid prompt explosion
             chat_temp_files = chat.get("tempFiles") or []
-            _current_id = message_data.temp_file_id or ""
-            persistent_files = [f for f in chat_temp_files if f.get("id") != _current_id]
+            _current_ids = set(message_data.effective_temp_file_ids)
+            persistent_files = [f for f in chat_temp_files if f.get("id") not in _current_ids]
             if persistent_files:
                 _ptf_chars = 0
                 _PTF_MAX_TOTAL = 15000
@@ -756,22 +769,16 @@ async def send_message(
                     messages.append({"role": msg["role"], "content": content})
 
             # Build last user message — vision block for images, plain text otherwise
+            _image_files = [f for f in temp_files_data if f["image_b64"]]
             _user_text = message_data.content.strip() or (
-                "Что на этом изображении?" if temp_file_image_b64
+                "Что на этом изображении?" if _image_files
                 else "Проанализируй прикреплённый файл"
             )
-            if temp_file_image_b64 and temp_file_mime:
+            if _image_files:
                 user_content = [
-                    {
-                        "type": "image",
-                        "source": {
-                            "type": "base64",
-                            "media_type": temp_file_mime,
-                            "data": temp_file_image_b64,
-                        },
-                    },
-                    {"type": "text", "text": _user_text},
-                ]
+                    {"type": "image", "source": {"type": "base64", "media_type": f["mime"], "data": f["image_b64"]}}
+                    for f in _image_files
+                ] + [{"type": "text", "text": _user_text}]
             else:
                 user_content = _user_text
 
@@ -1048,46 +1055,53 @@ async def send_message_stream(
     sender_name = sender_email.split("@")[0] if sender_email else "User"
     user_msg_id = str(uuid.uuid4())
 
-    temp_file_content_text = ""
-    temp_file_image_b64 = None
-    temp_file_mime = None
-    temp_file_info = None
-    temp_excel_path = None
-    if message_data.temp_file_id:
+    temp_files_data = []
+    _image_exts_s = {"jpg", "jpeg", "png"}
+    _effective_ids_s = message_data.effective_temp_file_ids
+    if _effective_ids_s:
         from pathlib import Path as _Path
         _TEMP_DIR = _Path("/tmp/planet_temp_files")
-        _matches = list(_TEMP_DIR.glob(f"{message_data.temp_file_id}_*"))
-        if _matches:
+        for _fid in _effective_ids_s:
+            _matches = list(_TEMP_DIR.glob(f"{_fid}_*"))
+            if not _matches:
+                continue
             _temp_path = _matches[0]
             _filename = _temp_path.name.split("_", 1)[-1]
             _ext = _filename.rsplit(".", 1)[-1].lower() if "." in _filename else ""
             _content = _temp_path.read_bytes()
-            _image_exts = {"jpg", "jpeg", "png"}
+            _fd = {"text": "", "image_b64": None, "mime": None, "info": None, "excel_path": None}
             if _ext in ("xlsx", "xls", "csv"):
-                temp_excel_path = str(_temp_path)
+                _fd["excel_path"] = str(_temp_path)
             try:
-                if _ext in _image_exts:
+                if _ext in _image_exts_s:
                     import base64 as _b64
-                    temp_file_image_b64 = _b64.b64encode(_content).decode()
-                    temp_file_mime = "image/jpeg" if _ext in ("jpg", "jpeg") else "image/png"
-                    temp_file_content_text = "[Изображение прикреплено]"
+                    _fd["image_b64"] = _b64.b64encode(_content).decode()
+                    _fd["mime"] = "image/jpeg" if _ext in ("jpg", "jpeg") else "image/png"
+                    _fd["text"] = "[Изображение прикреплено]"
                 elif _ext == "pdf":
                     from services.file_processor import extract_text_from_pdf as _pdfread
-                    loop = asyncio.get_event_loop()
-                    temp_file_content_text = await loop.run_in_executor(None, _pdfread, _content)
+                    _fd["text"] = await asyncio.get_event_loop().run_in_executor(None, _pdfread, _content)
                 elif _ext in ("xlsx", "xls"):
                     from services.file_processor import extract_text_from_xlsx as _xread
-                    temp_file_content_text = _xread(_content)
+                    _fd["text"] = _xread(_content)
                 elif _ext == "csv":
                     from services.file_processor import extract_text_from_csv as _cread
-                    temp_file_content_text = _cread(_content)
+                    _fd["text"] = _cread(_content)
                 elif _ext == "docx":
                     from services.file_processor import extract_text_from_docx as _dread
-                    temp_file_content_text = _dread(_content)
+                    _fd["text"] = _dread(_content)
             except Exception as _te:
                 logger.error(f"Temp file read error: {_te}")
-            temp_file_info = {"name": _filename, "fileType": _ext if _ext not in {"jpg", "jpeg", "png"} else "image"}
+            _fd["info"] = {"name": _filename, "fileType": _ext if _ext not in _image_exts_s else "image"}
+            temp_files_data.append(_fd)
 
+    temp_file_content_text = next((f["text"] for f in temp_files_data if f["text"] and not f["image_b64"]), "")
+    temp_file_image_b64 = next((f["image_b64"] for f in temp_files_data if f["image_b64"]), None)
+    temp_file_mime = next((f["mime"] for f in temp_files_data if f["mime"]), None)
+    temp_file_info = temp_files_data[0]["info"] if temp_files_data else None
+    temp_excel_path = next((f["excel_path"] for f in temp_files_data if f["excel_path"]), None)
+
+    _uploaded_infos_s = [f["info"] for f in temp_files_data if f["info"]]
     user_message = {
         "id": user_msg_id,
         "chatId": chat_id,
@@ -1097,7 +1111,8 @@ async def send_message_stream(
         "autoIngestedUrls": [s["id"] for s in auto_ingested_sources] if auto_ingested_sources else None,
         "senderEmail": sender_email,
         "senderName": sender_name,
-        "uploadedFile": temp_file_info,
+        "uploadedFile": _uploaded_infos_s[0] if len(_uploaded_infos_s) == 1 else None,
+        "uploadedFiles": _uploaded_infos_s if len(_uploaded_infos_s) > 1 else None,
         "createdAt": datetime.now(timezone.utc).isoformat()
     }
     if not regen:
@@ -1449,18 +1464,22 @@ async def send_message_stream(
             "Only when user explicitly asks: \"создай Excel\", \"сделай таблицу\", \"generate excel\", \"create spreadsheet\"."
         )
 
-        if temp_file_content_text and not temp_file_image_b64:
-            _fname = temp_file_info.get("name", "файл") if temp_file_info else "файл"
+        _text_files_s = [f for f in temp_files_data if f["text"] and not f["image_b64"]]
+        _multi_s = len(_text_files_s) > 1
+        for _i, _fd in enumerate(_text_files_s):
+            _fname = _fd["info"].get("name", "файл") if _fd["info"] else "файл"
+            _label = f"ФАЙЛ {_i + 1}: {_fname}" if _multi_s else f"ПРИКРЕПЛЁННЫЙ ФАЙЛ: {_fname}"
             system_prompt += (
-                f"\n\n===== ПРИКРЕПЛЁННЫЙ ФАЙЛ: {_fname} =====\n"
-                f"{temp_file_content_text[:8000]}\n"
+                f"\n\n===== {_label} =====\n"
+                f"{_fd['text'][:8000]}\n"
                 "===== КОНЕЦ ФАЙЛА =====\n"
-                "Используй содержимое этого файла для ответа на вопрос пользователя."
             )
+        if _text_files_s:
+            system_prompt += "Используй содержимое этих файлов для ответа на вопрос пользователя."
 
         chat_temp_files = chat.get("tempFiles") or []
-        _current_id = message_data.temp_file_id or ""
-        persistent_files = [f for f in chat_temp_files if f.get("id") != _current_id]
+        _current_ids_s = set(message_data.effective_temp_file_ids)
+        persistent_files = [f for f in chat_temp_files if f.get("id") not in _current_ids_s]
         if persistent_files:
             _ptf_chars = 0
             _PTF_MAX_TOTAL = 15000
@@ -1481,15 +1500,16 @@ async def send_message_stream(
             if content:
                 claude_messages.append({"role": msg["role"], "content": content})
 
+        _image_files_s = [f for f in temp_files_data if f["image_b64"]]
         _user_text = message_data.content.strip() or (
-            "Что на этом изображении?" if temp_file_image_b64
+            "Что на этом изображении?" if _image_files_s
             else "Проанализируй прикреплённый файл"
         )
-        if temp_file_image_b64 and temp_file_mime:
+        if _image_files_s:
             user_content = [
-                {"type": "image", "source": {"type": "base64", "media_type": temp_file_mime, "data": temp_file_image_b64}},
-                {"type": "text", "text": _user_text},
-            ]
+                {"type": "image", "source": {"type": "base64", "media_type": f["mime"], "data": f["image_b64"]}}
+                for f in _image_files_s
+            ] + [{"type": "text", "text": _user_text}]
         else:
             user_content = _user_text
 

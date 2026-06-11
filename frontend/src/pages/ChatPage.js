@@ -90,9 +90,10 @@ const ChatPage = () => {
   };
   useEffect(() => () => { if (ocrPollRef.current) clearInterval(ocrPollRef.current); }, []);
 
-  // ── Temp file (one-shot AI attachment) ──
-  const [tempFile, setTempFile] = useState(null);        // { id, filename, fileType }
-  const [isTempUploading, setIsTempUploading] = useState(false);
+  // ── Temp files (one-shot AI attachments) ──
+  const [tempFiles, setTempFiles] = useState([]);        // [{ id, filename, fileType, previewUrl }]
+  const [uploadingCount, setUploadingCount] = useState(0);
+  const isTempUploading = uploadingCount > 0;
   const [pendingTempFile, setPendingTempFile] = useState(null); // shown after AI response for "save?" prompt
   const [isSavingTempFile, setIsSavingTempFile] = useState(false);
 
@@ -512,17 +513,24 @@ const ChatPage = () => {
   // ── Send message ──
   const sendMessage = async (contentOverride = null, fileBadge = null) => {
     const content = (contentOverride ?? input).trim();
-    if ((!content && !tempFile) || isSending) return;
-    const finalContent = content || "Analyze this file and summarize the key points.";
+    if ((!content && !tempFiles.length) || isSending) return;
+    const finalContent = content || (tempFiles.length > 1 ? "Analyze these files and summarize the key points." : "Analyze this file and summarize the key points.");
 
-    const activeTempFile = tempFile;
+    const activeTempFiles = [...tempFiles];
     const tempUserMsgId = `temp-user-${Date.now()}`;
     const tempAssistantMsgId = `temp-assistant-${Date.now()}`;
 
+    const _fileProps = fileBadge
+      ? { uploadedFile: fileBadge }
+      : activeTempFiles.length === 1
+        ? { uploadedFile: { name: activeTempFiles[0].filename, fileType: activeTempFiles[0].fileType, previewUrl: activeTempFiles[0].previewUrl } }
+        : activeTempFiles.length > 1
+          ? { uploadedFiles: activeTempFiles.map(f => ({ name: f.filename, fileType: f.fileType, previewUrl: f.previewUrl })) }
+          : {};
     const tempUserMsg = {
       id: tempUserMsgId, chatId, role: 'user', content: finalContent,
       createdAt: new Date().toISOString(),
-      ...(fileBadge ? { uploadedFile: fileBadge } : activeTempFile ? { uploadedFile: { name: activeTempFile.filename, fileType: activeTempFile.fileType, previewUrl: activeTempFile.previewUrl } } : {})
+      ..._fileProps,
     };
     const tempAssistantMsg = {
       id: tempAssistantMsgId, chatId, role: 'assistant', content: '',
@@ -531,7 +539,7 @@ const ChatPage = () => {
 
     setMessages(prev => [...prev, tempUserMsg, tempAssistantMsg]);
     setInput('');
-    setTempFile(null);
+    setTempFiles([]);
     setIsSending(true);
 
     // Send activeSourceIds only if user has explicitly interacted with checkboxes.
@@ -542,7 +550,7 @@ const ChatPage = () => {
       activeSourceIds: sourcesExplicitlySet ? activeSourceIds : null,
       forceWebSearch: webSearchEnabled ? true : false,
     };
-    if (activeTempFile) payload.temp_file_id = activeTempFile.id;
+    if (activeTempFiles.length > 0) payload.temp_file_ids = activeTempFiles.map(f => f.id);
 
     try {
       const token = localStorage.getItem('token');
@@ -623,9 +631,9 @@ const ChatPage = () => {
         throw new Error('No response received');
       }
 
-      // Show "save to sources?" prompt after AI responds (only for project chats)
-      if (activeTempFile && chat?.projectId) {
-        setPendingTempFile({ ...activeTempFile, projectId: chat.projectId });
+      // Show "save to sources?" prompt for a single non-image file after AI responds
+      if (activeTempFiles.length === 1 && chat?.projectId && activeTempFiles[0].fileType !== 'image') {
+        setPendingTempFile({ ...activeTempFiles[0], projectId: chat.projectId });
       }
 
       // Auto-rename on first message
@@ -646,37 +654,36 @@ const ChatPage = () => {
     }
   };
 
-  // ── Temp file: paperclip upload handler ──
+  // ── Temp files: paperclip upload handler (supports multiple) ──
   const handlePaperclipChange = async (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+    const files = Array.from(e.target.files || []);
+    if (!files.length) return;
     e.target.value = '';
 
-    let localPreviewUrl = null;
-    const isImage = file.type.startsWith('image/');
-    if (isImage) {
-      localPreviewUrl = URL.createObjectURL(file);
-    }
+    for (const file of files) {
+      const isImage = file.type.startsWith('image/');
+      const localPreviewUrl = isImage ? URL.createObjectURL(file) : null;
 
-    setIsTempUploading(true);
-    try {
-      const formData = new FormData();
-      formData.append('file', file);
-      formData.append('chat_id', chatId);
-      const res = await axios.post(`${API}/chat/upload-temp`, formData, {
-        headers: { 'Content-Type': 'multipart/form-data' }
-      });
-      setTempFile({
-        id: res.data.temp_file_id,
-        filename: res.data.filename,
-        fileType: res.data.file_type,
-        previewUrl: localPreviewUrl,
-      });
-    } catch (err) {
-      if (localPreviewUrl) URL.revokeObjectURL(localPreviewUrl);
-      toast.error(err.response?.data?.detail || 'Не удалось загрузить файл');
-    } finally {
-      setIsTempUploading(false);
+      setUploadingCount(c => c + 1);
+      try {
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('chat_id', chatId);
+        const res = await axios.post(`${API}/chat/upload-temp`, formData, {
+          headers: { 'Content-Type': 'multipart/form-data' }
+        });
+        setTempFiles(prev => [...prev, {
+          id: res.data.temp_file_id,
+          filename: res.data.filename,
+          fileType: res.data.file_type,
+          previewUrl: localPreviewUrl,
+        }]);
+      } catch (err) {
+        if (localPreviewUrl) URL.revokeObjectURL(localPreviewUrl);
+        toast.error(err.response?.data?.detail || `Не удалось загрузить ${file.name}`);
+      } finally {
+        setUploadingCount(c => c - 1);
+      }
     }
   };
 
@@ -1195,10 +1202,10 @@ const ChatPage = () => {
           plusMenuRef={plusMenuRef}
           showPlusMenu={showPlusMenu}
           onTogglePlusMenu={(val) => setShowPlusMenu(typeof val === 'function' ? val(showPlusMenu) : val)}
-          tempFile={tempFile}
+          tempFiles={tempFiles}
           isTempUploading={isTempUploading}
           onPaperclipChange={handlePaperclipChange}
-          onRemoveTempFile={() => setTempFile(null)}
+          onRemoveTempFile={(idx) => setTempFiles(prev => prev.filter((_, i) => i !== idx))}
         />
 
         {/* ── Save temp file to sources prompt ── */}
