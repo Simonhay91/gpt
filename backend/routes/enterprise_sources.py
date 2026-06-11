@@ -138,37 +138,87 @@ def setup_enterprise_source_routes(
             {"_id": 0}
         ).to_list(100)
         
-        # Add chunk counts and publishedTo info
-        for source in sources:
-            count = await db.source_chunks.count_documents({"sourceId": source["id"]})
-            source["chunkCount"] = count
-            
-            # Find all project/department copies of this source
-            published_copies = await db.sources.find(
-                {"publishedFrom": source["id"]},
-                {"_id": 0, "projectId": 1, "departmentId": 1, "level": 1}
-            ).to_list(50)
-            
-            published_to = []
-            for copy in published_copies:
+        # ── Batch-load everything the enrichment loop needs (avoids N+1) ──
+        source_ids = [s["id"] for s in sources]
+
+        # Chunk counts: one aggregate instead of one count per source
+        chunk_counts = {}
+        if source_ids:
+            count_rows = await db.source_chunks.aggregate([
+                {"$match": {"sourceId": {"$in": source_ids}}},
+                {"$group": {"_id": "$sourceId", "count": {"$sum": 1}}},
+            ]).to_list(None)
+            chunk_counts = {row["_id"]: row["count"] for row in count_rows}
+
+        # Published copies: one query, grouped by the source they came from
+        copies_by_source = {}
+        project_ids = set()
+        dept_ids = set()
+        if source_ids:
+            all_copies = await db.sources.find(
+                {"publishedFrom": {"$in": source_ids}},
+                {"_id": 0, "projectId": 1, "departmentId": 1, "level": 1, "publishedFrom": 1}
+            ).to_list(None)
+            for copy in all_copies:
+                copies_by_source.setdefault(copy["publishedFrom"], []).append(copy)
                 if copy.get("projectId"):
-                    project = await db.projects.find_one(
-                        {"id": copy["projectId"]}, {"_id": 0, "name": 1, "id": 1}
-                    )
+                    project_ids.add(copy["projectId"])
+                if copy.get("departmentId"):
+                    dept_ids.add(copy["departmentId"])
+
+        # Direct projectId links
+        for source in sources:
+            if source.get("projectId"):
+                project_ids.add(source["projectId"])
+
+        # Chats referenced via sharedInChatIds: one query
+        chat_ids = set()
+        for source in sources:
+            for cid in source.get("sharedInChatIds", []):
+                chat_ids.add(cid)
+        chats_by_id = {}
+        if chat_ids:
+            chat_docs = await db.chats.find(
+                {"id": {"$in": list(chat_ids)}},
+                {"_id": 0, "id": 1, "name": 1, "projectId": 1}
+            ).to_list(None)
+            for chat_doc in chat_docs:
+                chats_by_id[chat_doc["id"]] = chat_doc
+                if chat_doc.get("projectId"):
+                    project_ids.add(chat_doc["projectId"])
+
+        # Resolve all projects and departments in one query each
+        projects_by_id = {}
+        if project_ids:
+            proj_docs = await db.projects.find(
+                {"id": {"$in": list(project_ids)}}, {"_id": 0, "id": 1, "name": 1}
+            ).to_list(None)
+            projects_by_id = {p["id"]: p for p in proj_docs}
+        depts_by_id = {}
+        if dept_ids:
+            dept_docs = await db.departments.find(
+                {"id": {"$in": list(dept_ids)}}, {"_id": 0, "id": 1, "name": 1}
+            ).to_list(None)
+            depts_by_id = {d["id"]: d for d in dept_docs}
+
+        # ── Enrich each source from the in-memory maps ──
+        for source in sources:
+            source["chunkCount"] = chunk_counts.get(source["id"], 0)
+
+            published_to = []
+            for copy in copies_by_source.get(source["id"], []):
+                if copy.get("projectId"):
+                    project = projects_by_id.get(copy["projectId"])
                     if project:
                         published_to.append({"type": "project", "id": project["id"], "name": project["name"]})
                 elif copy.get("departmentId"):
-                    dept = await db.departments.find_one(
-                        {"id": copy["departmentId"]}, {"_id": 0, "name": 1, "id": 1}
-                    )
+                    dept = depts_by_id.get(copy["departmentId"])
                     if dept:
                         published_to.append({"type": "department", "id": dept["id"], "name": dept["name"]})
-            
+
             # Also show direct projectId link (set by save_to_knowledge from project chat)
             if source.get("projectId") and not any(p["id"] == source["projectId"] for p in published_to):
-                project = await db.projects.find_one(
-                    {"id": source["projectId"]}, {"_id": 0, "name": 1, "id": 1}
-                )
+                project = projects_by_id.get(source["projectId"])
                 if project:
                     published_to.append({"type": "project", "id": project["id"], "name": project["name"]})
 
@@ -177,16 +227,12 @@ def setup_enterprise_source_routes(
             # Enrich sharedInChatIds with chat and project names
             shared_in_chats = []
             for cid in source.get("sharedInChatIds", []):
-                chat_doc = await db.chats.find_one(
-                    {"id": cid}, {"_id": 0, "name": 1, "projectId": 1}
-                )
+                chat_doc = chats_by_id.get(cid)
                 if not chat_doc:
                     continue  # skip dangling refs from deleted chats
                 proj_doc = None
                 if chat_doc.get("projectId"):
-                    proj_doc = await db.projects.find_one(
-                        {"id": chat_doc["projectId"]}, {"_id": 0, "name": 1}
-                    )
+                    proj_doc = projects_by_id.get(chat_doc["projectId"])
                 shared_in_chats.append({
                     "chatId": cid,
                     "chatName": chat_doc.get("name") or "Untitled Chat",

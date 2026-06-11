@@ -384,7 +384,14 @@ async def startup_event():
         logger.info("✓ Tesseract already available")
     # Create admin user if database is empty
     await init_admin_user()
-    
+
+    # Ensure MongoDB indexes exist (best-effort, never blocks startup)
+    try:
+        from db.indexes import create_indexes
+        await create_indexes(db)
+    except Exception as e:
+        logger.warning(f"Index creation step failed: {e}")
+
     # Schedule auto-refresh task to run daily at 2 AM
     scheduler.add_job(
         auto_refresh_competitor_products,

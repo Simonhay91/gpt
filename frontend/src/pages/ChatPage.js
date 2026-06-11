@@ -209,12 +209,14 @@ const ChatPage = () => {
   // ── Data fetching ──
   const fetchChatData = async () => {
     try {
-      const chatRes = await axios.get(`${API}/chats/${chatId}`);
+      // chat metadata and messages are independent — fetch them in parallel
+      const [chatRes, messagesRes] = await Promise.all([
+        axios.get(`${API}/chats/${chatId}`),
+        axios.get(`${API}/chats/${chatId}/messages`),
+      ]);
       setChat(chatRes.data);
       const dbActiveIds = chatRes.data.activeSourceIds;
       setSourceMode(chatRes.data.sourceMode || 'all');
-
-      const messagesRes = await axios.get(`${API}/chats/${chatId}/messages`);
       setMessages(messagesRes.data.items || messagesRes.data);
 
       let allProjectSourceIds = [];
@@ -223,14 +225,16 @@ const ChatPage = () => {
           axios.get(`${API}/projects/${chatRes.data.projectId}/sources`),
           axios.get(`${API}/projects/${chatRes.data.projectId}`),
           axios.get(`${API}/personal-sources/shared-in-chat/${chatRes.data.id || chatId}`),
+          axios.get(`${API}/projects/${chatRes.data.projectId}/images`),
         ];
-        const [sourcesRes, projRes, sharedRes] = await Promise.all(fetchList);
+        const [sourcesRes, projRes, sharedRes, imagesRes] = await Promise.all(fetchList);
         const projectSourceList = sourcesRes.data.items || sourcesRes.data;
         setProjectSources(projectSourceList);
         allProjectSourceIds = projectSourceList.map(s => s.id);
         setCurrentProjectName(projRes.data.name || '');
         const sharedList = sharedRes.data.items || [];
         setSharedPersonalSources(sharedList);
+        setGeneratedImages(imagesRes.data.items || imagesRes.data);
 
         // Owner: also load their own personal sources (to show share button)
         if (projRes.data.ownerId === (chatRes.data.ownerId || user?.id)) {
@@ -241,9 +245,6 @@ const ChatPage = () => {
         } else {
           setMyPersonalSources([]);
         }
-
-        const imagesRes = await axios.get(`${API}/projects/${chatRes.data.projectId}/images`);
-        setGeneratedImages(imagesRes.data.items || imagesRes.data);
       } else {
         setProjectSources([]);
         setSharedPersonalSources([]);
