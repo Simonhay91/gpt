@@ -6,6 +6,34 @@ UI версия: `frontend/src/data/changelog.js`
 
 ---
 
+## 2026-06-11 — v2.9.56
+
+### New: Streaming responses + parallel RAG optimizations
+
+**Файлы:** `backend/routes/messages.py`, `frontend/src/pages/ChatPage.js`, `frontend/src/components/chat/MessageBubble.js`
+
+- New endpoint `POST /api/chats/{chat_id}/messages/stream` — Anthropic `messages.stream()` + FastAPI `StreamingResponse`, SSE token-by-token, final `[META]` event with saved message data
+- Frontend `sendMessage` rewritten: `axios.post` → `fetch` + `ReadableStream`, placeholder assistant message updated token-by-token
+- Regen flow also uses streaming
+- `MessageBubble`: blinking cursor while `message.isStreaming` is true
+- `ThinkingSteps` hidden once first streaming token arrives
+- `asyncio.gather(RAG, catalog_search)` — parallel execution, saves ~200–400ms
+- Duplicate `db.projects.find_one` call eliminated (project_doc cached in `_project_doc_cache`)
+
+---
+
+## 2026-06-11 — v2.9.55
+
+### New: Project Memory limit doubled — 6000 → 12000 characters
+
+**Файлы:** `backend/routes/projects.py`, `frontend/src/components/ProjectMemoryModal.js`, `frontend/src/pages/ChatPage.js`
+
+- Backend: `update_project_memory` — лимит поднят с 6000 до 12000 символов (~3000 токенов)
+- `ProjectMemoryModal`: `MAX_CHARS` 6000→12000, `WARN_CHARS` 4800→9600, label «/ 3000 токенов»
+- `ChatPage.saveToProjectMemory`: guard поднят с 6000 до 12000
+
+---
+
 ## 2026-06-11 — v2.9.54
 
 ### Fix: shared-to-chat personal sources always active regardless of checkbox state

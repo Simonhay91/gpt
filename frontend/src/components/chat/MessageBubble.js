@@ -264,7 +264,12 @@ export const MessageBubble = ({
                 )}
 
                 <div className={`px-4 py-3 rounded-2xl ${message.role === 'user' ? 'bg-primary text-primary-foreground rounded-br-sm' : 'bg-secondary text-secondary-foreground rounded-bl-sm'}`}>
-                  <p className="whitespace-pre-wrap text-sm leading-relaxed">{renderTextWithLinks(message.content)}</p>
+                  <p className="whitespace-pre-wrap text-sm leading-relaxed">
+                    {renderTextWithLinks(message.content)}
+                    {message.isStreaming && (
+                      <span className="inline-block w-0.5 h-4 bg-current ml-0.5 align-middle animate-pulse" />
+                    )}
+                  </p>
                 </div>
 
                 {/* User edit button */}

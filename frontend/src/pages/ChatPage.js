@@ -541,52 +541,117 @@ const ChatPage = () => {
 
   // ── Send message ──
   const sendMessage = async (contentOverride = null, fileBadge = null) => {
-
     const content = (contentOverride ?? input).trim();
-if ((!content && !tempFile) || isSending) return;
-const finalContent = content || "Analyze this file and summarize the key points.";
+    if ((!content && !tempFile) || isSending) return;
+    const finalContent = content || "Analyze this file and summarize the key points.";
 
     const activeTempFile = tempFile;
+    const tempUserMsgId = `temp-user-${Date.now()}`;
+    const tempAssistantMsgId = `temp-assistant-${Date.now()}`;
+
     const tempUserMsg = {
-      id: `temp-${Date.now()}`, chatId, role: 'user', content: finalContent,
+      id: tempUserMsgId, chatId, role: 'user', content: finalContent,
       createdAt: new Date().toISOString(),
       ...(fileBadge ? { uploadedFile: fileBadge } : activeTempFile ? { uploadedFile: { name: activeTempFile.filename, fileType: activeTempFile.fileType, previewUrl: activeTempFile.previewUrl } } : {})
     };
-    setMessages(prev => [...prev, tempUserMsg]);
+    const tempAssistantMsg = {
+      id: tempAssistantMsgId, chatId, role: 'assistant', content: '',
+      isStreaming: true, createdAt: new Date().toISOString()
+    };
+
+    setMessages(prev => [...prev, tempUserMsg, tempAssistantMsg]);
     setInput('');
     setTempFile(null);
     setIsSending(true);
 
-    try {
-      // Send activeSourceIds only if user has explicitly interacted with checkboxes.
-      // null means "use all accessible sources" (new chat / never touched).
-      // []   means "user explicitly unchecked everything — no sources".
-      const payload = {
-        content: finalContent,
-        activeSourceIds: sourcesExplicitlySet ? activeSourceIds : null,
-        forceWebSearch: webSearchEnabled ? true : false,
-      };
-      if (activeTempFile) payload.temp_file_id = activeTempFile.id;
-      const response = await axios.post(`${API}/chats/${chatId}/messages`, payload);
-      const { user_message: userMsg, assistant_message: assistantMsg } = response.data;
+    // Send activeSourceIds only if user has explicitly interacted with checkboxes.
+    // null means "use all accessible sources" (new chat / never touched).
+    // []   means "user explicitly unchecked everything — no sources".
+    const payload = {
+      content: finalContent,
+      activeSourceIds: sourcesExplicitlySet ? activeSourceIds : null,
+      forceWebSearch: webSearchEnabled ? true : false,
+    };
+    if (activeTempFile) payload.temp_file_id = activeTempFile.id;
 
-      if (assistantMsg.autoIngestedUrls?.length > 0) {
-        const sourcesRes = await axios.get(`${API}/projects/${chat.projectId}/sources`);
-        setProjectSources(sourcesRes.data);
-        const chatRes = await axios.get(`${API}/chats/${chatId}`);
-        const refreshedIds = chatRes.data.activeSourceIds;
-        if (refreshedIds !== null && refreshedIds !== undefined) {
-          setActiveSourceIds(refreshedIds);
-          setSourcesExplicitlySet(true);
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`${API}/chats/${chatId}/messages/stream`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+      let finalAssistantMsg = null;
+      let finalUserMsg = null;
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop(); // keep last incomplete line
+
+        for (const line of lines) {
+          if (!line.startsWith('data: ')) continue;
+          const data = line.slice(6);
+
+          if (data.startsWith('[META]')) {
+            try {
+              const meta = JSON.parse(data.slice(6));
+              finalUserMsg = meta.user_message;
+              finalAssistantMsg = { ...meta.assistant_message, isStreaming: false };
+            } catch (e) { /* ignore parse errors */ }
+          } else if (data.startsWith('{')) {
+            try {
+              const parsed = JSON.parse(data);
+              if (parsed.token !== undefined) {
+                setMessages(prev => prev.map(m =>
+                  m.id === tempAssistantMsgId
+                    ? { ...m, content: m.content + parsed.token }
+                    : m
+                ));
+              }
+            } catch (e) { /* ignore parse errors */ }
+          }
         }
-        toast.success(`Auto-ingested ${assistantMsg.autoIngestedUrls.length} URL(s) from your message`);
       }
 
-      setMessages(prev => {
-        const withoutTemp = prev.filter(m => m.id !== tempUserMsg.id);
-        const realUserMsg = { ...tempUserMsg, id: userMsg.id, autoIngestedUrls: userMsg.autoIngestedUrls || null };
-        return [...withoutTemp, realUserMsg, assistantMsg];
-      });
+      // Replace temp messages with final saved messages
+      if (finalAssistantMsg) {
+        setMessages(prev => {
+          const withoutTemps = prev.filter(m => m.id !== tempUserMsgId && m.id !== tempAssistantMsgId);
+          const realUserMsg = finalUserMsg
+            ? { ...tempUserMsg, id: finalUserMsg.id, autoIngestedUrls: finalUserMsg.autoIngestedUrls || null }
+            : tempUserMsg;
+          return [...withoutTemps, realUserMsg, finalAssistantMsg];
+        });
+
+        if (finalAssistantMsg.autoIngestedUrls?.length > 0) {
+          const sourcesRes = await axios.get(`${API}/projects/${chat.projectId}/sources`);
+          setProjectSources(sourcesRes.data);
+          const chatRes = await axios.get(`${API}/chats/${chatId}`);
+          const refreshedIds = chatRes.data.activeSourceIds;
+          if (refreshedIds !== null && refreshedIds !== undefined) {
+            setActiveSourceIds(refreshedIds);
+            setSourcesExplicitlySet(true);
+          }
+          toast.success(`Auto-ingested ${finalAssistantMsg.autoIngestedUrls.length} URL(s) from your message`);
+        }
+      } else {
+        // META never arrived — remove temp messages
+        setMessages(prev => prev.filter(m => m.id !== tempUserMsgId && m.id !== tempAssistantMsgId));
+        throw new Error('No response received');
+      }
 
       // Show "save to sources?" prompt after AI responds (only for project chats)
       if (activeTempFile && chat?.projectId) {
@@ -603,10 +668,12 @@ const finalContent = content || "Analyze this file and summarize the key points.
           .catch(() => {});
       }
     } catch {
-      setMessages(prev => prev.filter(m => m.id !== tempUserMsg.id));
+      setMessages(prev => prev.filter(m => m.id !== tempUserMsgId && m.id !== tempAssistantMsgId));
       setInput(content);
       toast.error('Failed to send message');
-    } finally { setIsSending(false); }
+    } finally {
+      setIsSending(false);
+    }
   };
 
   // ── Temp file: paperclip upload handler ──
@@ -686,14 +753,57 @@ const finalContent = content || "Analyze this file and summarize the key points.
       toast.success('Сообщение обновлено');
 
       setIsSending(true);
+      const regenTempId = `temp-regen-${Date.now()}`;
+      setMessages(prev => [...prev, {
+        id: regenTempId, chatId, role: 'assistant', content: '',
+        isStreaming: true, createdAt: new Date().toISOString()
+      }]);
       try {
-        const aiResponse = await axios.post(`${API}/chats/${chatId}/messages?regen=true`, {
-          content: editedContent,
-          activeSourceIds: sourcesExplicitlySet ? activeSourceIds : null,
+        const token = localStorage.getItem('token');
+        const regenRes = await fetch(`${API}/chats/${chatId}/messages/stream?regen=true`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+          body: JSON.stringify({ content: editedContent, activeSourceIds: sourcesExplicitlySet ? activeSourceIds : null }),
         });
-        setMessages(prev => [...prev, aiResponse.data.assistant_message]);
+        if (!regenRes.ok) throw new Error(`HTTP ${regenRes.status}`);
+
+        const reader = regenRes.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+        let regenFinalMsg = null;
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split('\n');
+          buffer = lines.pop();
+          for (const line of lines) {
+            if (!line.startsWith('data: ')) continue;
+            const data = line.slice(6);
+            if (data.startsWith('[META]')) {
+              try { regenFinalMsg = { ...JSON.parse(data.slice(6)).assistant_message, isStreaming: false }; } catch (e) { /* ignore */ }
+            } else if (data.startsWith('{')) {
+              try {
+                const parsed = JSON.parse(data);
+                if (parsed.token !== undefined) {
+                  setMessages(prev => prev.map(m => m.id === regenTempId ? { ...m, content: m.content + parsed.token } : m));
+                }
+              } catch (e) { /* ignore */ }
+            }
+          }
+        }
+
+        if (regenFinalMsg) {
+          setMessages(prev => [...prev.filter(m => m.id !== regenTempId), regenFinalMsg]);
+        } else {
+          setMessages(prev => prev.filter(m => m.id !== regenTempId));
+        }
         setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
-      } catch { toast.error('Не удалось получить ответ AI'); }
+      } catch { 
+        setMessages(prev => prev.filter(m => m.id !== regenTempId));
+        toast.error('Не удалось получить ответ AI'); 
+      }
       finally { setIsSending(false); }
     } catch (error) { toast.error(error.response?.data?.detail || 'Не удалось обновить сообщение'); }
   };
@@ -719,7 +829,7 @@ const finalContent = content || "Analyze this file and summarize the key points.
       const existing = memRes.data.project_memory || '';
       const separator = existing ? '\n\n---\n' : '';
       const updated = existing + separator + messageContent.trim();
-      if (updated.length > 6000) { toast.error('Project Memory переполнена (макс. 6000 символов)'); return; }
+      if (updated.length > 12000) { toast.error('Project Memory переполнена (макс. 12000 символов)'); return; }
       await axios.put(`${API}/projects/${chat.projectId}/memory`, { project_memory: updated });
       toast.success('Сохранено в Project Memory ✅');
     } catch (e) { toast.error(e.response?.data?.detail || 'Не удалось сохранить'); }
@@ -1068,13 +1178,17 @@ const finalContent = content || "Analyze this file and summarize the key points.
                   chatHistory={messages.slice(0, index + 1)}
                 />
               ))}
-              {isSending && (
-                <ThinkingSteps
-                  activeSourceIds={activeSourceIds}
-                  sourcesExplicitlySet={sourcesExplicitlySet}
-                  hasWebSearch={webSearchEnabled}
-                />
-              )}
+              {isSending && (() => {
+                const lastMsg = messages[messages.length - 1];
+                const isStreamingWithContent = lastMsg?.isStreaming && lastMsg?.content?.length > 0;
+                return !isStreamingWithContent ? (
+                  <ThinkingSteps
+                    activeSourceIds={activeSourceIds}
+                    sourcesExplicitlySet={sourcesExplicitlySet}
+                    hasWebSearch={webSearchEnabled}
+                  />
+                ) : null;
+              })()}
               <div ref={messagesEndRef} />
             </div>
           )}

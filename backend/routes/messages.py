@@ -3,6 +3,7 @@ import os
 import re
 import uuid
 import json
+import asyncio
 import hashlib
 import logging
 from typing import List, Optional
@@ -10,6 +11,7 @@ from datetime import datetime, timezone
 
 import anthropic
 from fastapi import APIRouter, HTTPException, Depends
+from fastapi.responses import StreamingResponse
 
 from models.schemas import MessageCreate, MessageResponse, SaveToKnowledgeRequest, MessageEditRequest
 from middleware.auth import get_current_user
@@ -306,6 +308,7 @@ async def send_message(
     has_excel_source = False
     mentioned_source_ids = []
     source_names = {}
+    catalog_results = None  # fetched in parallel with RAG when sources are active
 
     if active_source_ids:
         sources = await db.sources.find({"id": {"$in": active_source_ids}}, {"_id": 0}).to_list(1000)
@@ -350,14 +353,19 @@ async def send_message(
         # Generic summary/analyze queries: embeddings are weak signal — fetch the
         # first chunks of each active source instead (covers TOC, intro, abstract).
         if is_summary_query(message_data.content):
-            relevant_chunks = await get_document_overview_chunks(
+            _rag_coro = get_document_overview_chunks(
                 db, rag_source_ids, chunks_per_source=6
             )
         else:
-            relevant_chunks = await get_relevant_chunks(
+            _rag_coro = get_relevant_chunks(
                 db, rag_source_ids, project_id, message_data.content, user_department_ids,
                 mentioned_source_ids=mentioned_source_ids
             )
+        # Run RAG and product catalog search in parallel (independent operations)
+        relevant_chunks, catalog_results = await asyncio.gather(
+            _rag_coro,
+            search_product_catalog(message_data.content, db, limit=5)
+        )
 
         if relevant_chunks:
             def chunk_priority(chunk):
@@ -413,8 +421,9 @@ async def send_message(
     has_relevant_rag = any(c.get("score", 0) > RAG_SCORE_RELEVANT for c in citations)
     has_rag_context = bool(citations)
 
-    # ── 7. Product catalog search ──
-    catalog_results = await search_product_catalog(message_data.content, db, limit=5)
+    # ── 7. Product catalog search ── (already fetched in parallel with RAG when sources active)
+    if catalog_results is None:
+        catalog_results = await search_product_catalog(message_data.content, db, limit=5)
     catalog_context = ""
     if catalog_results:
         catalog_parts = []
@@ -437,9 +446,10 @@ async def send_message(
     web_sources = None
 
     _project_memory_text = ""
+    _project_doc_cache = None
     if project_id:
-        _proj = await db.projects.find_one({"id": project_id}, {"_id": 0, "project_memory": 1})
-        _project_memory_text = (_proj or {}).get("project_memory", "") or ""
+        _project_doc_cache = await db.projects.find_one({"id": project_id}, {"_id": 0})
+        _project_memory_text = (_project_doc_cache or {}).get("project_memory", "") or ""
     has_project_memory = bool(_project_memory_text and len(_project_memory_text.strip()) > 50)
 
     brave_key_exists = bool(os.environ.get('BRAVE_API_KEY', ''))
@@ -579,7 +589,7 @@ async def send_message(
 
             # Project memory
             if project_id:
-                project_doc = await db.projects.find_one({"id": project_id}, {"_id": 0})
+                project_doc = _project_doc_cache
                 if project_doc and project_doc.get("project_memory"):
                     system_parts.append(
                         f"BACKGROUND CONTEXT:\n{project_doc['project_memory']}\n\n"
@@ -898,6 +908,755 @@ async def send_message(
         "user_message": {k: v for k, v in user_message.items() if k != "_id"},
         "assistant_message": {k: v for k, v in assistant_message.items() if k != "_id"}
     }
+
+
+# ==================== STREAMING MESSAGE ====================
+
+@router.post("/chats/{chat_id}/messages/stream")
+async def send_message_stream(
+    chat_id: str,
+    message_data: MessageCreate,
+    regen: bool = False,
+    current_user: dict = Depends(get_current_user)
+):
+    """Streaming version — yields SSE tokens then a final [META] event with the saved message data."""
+    db = get_db()
+    chat = await db.chats.find_one({"id": chat_id}, {"_id": 0})
+    if not chat:
+        raise HTTPException(status_code=404, detail="Chat not found")
+
+    project_id = chat.get("projectId")
+    user_role = None
+
+    if project_id:
+        try:
+            access = await check_project_access(current_user, project_id, required_role="viewer")
+            user_role = access["role"]
+        except HTTPException:
+            raise HTTPException(status_code=403, detail="Not authorized to access this project")
+    elif chat.get("ownerId") != current_user["id"]:
+        raise HTTPException(status_code=403, detail="Not authorized to access this chat")
+
+    # ── 1. Auto-ingest URLs ──
+    detected_urls = extract_urls_from_text(message_data.content)
+    auto_ingested_sources = []
+    if detected_urls and project_id and can_edit_chats(user_role):
+        for url in detected_urls:
+            source = await auto_ingest_url(db, url, project_id)
+            if source:
+                auto_ingested_sources.append(source)
+
+    # ── 2. Collect source IDs ──
+    source_mode = chat.get("sourceMode", "all")
+    user_department_ids = []
+
+    personal_sources = await db.sources.find(
+        {
+            "$or": [
+                {"level": "personal", "ownerId": current_user["id"]},
+                {"level": "personal", "sharedInChatIds": chat_id},
+            ],
+            "status": {"$in": ["active", None]},
+        },
+        {"_id": 0, "id": 1, "sharedInChatIds": 1}
+    ).to_list(1000)
+    personal_source_ids = [s["id"] for s in personal_sources]
+    shared_to_chat_ids = set(
+        s["id"] for s in personal_sources
+        if chat_id in (s.get("sharedInChatIds") or [])
+    )
+
+    project_source_ids = []
+    if project_id:
+        project_sources = await db.sources.find(
+            {"projectId": project_id, "level": {"$in": ["project", None]}, "status": {"$in": ["active", None]}},
+            {"_id": 0, "id": 1}
+        ).to_list(1000)
+        project_source_ids = [s["id"] for s in project_sources]
+
+    active_source_ids = personal_source_ids + project_source_ids
+    user_accessible_source_ids = active_source_ids.copy()
+
+    if source_mode == 'ai_only':
+        active_source_ids = []
+        personal_source_ids = []
+        project_source_ids = []
+
+    if source_mode != 'ai_only':
+        chat_selected = (
+            message_data.activeSourceIds
+            if message_data.activeSourceIds is not None
+            else chat.get("activeSourceIds")
+        )
+        if chat_selected is not None:
+            if len(chat_selected) == 0:
+                active_source_ids = []
+            else:
+                sel_set = set(chat_selected)
+                active_source_ids = [sid for sid in active_source_ids if sid in sel_set]
+        for sid in shared_to_chat_ids:
+            if sid not in active_source_ids:
+                active_source_ids.append(sid)
+
+    # ── 3. Save user message ──
+    sender_email = current_user["email"]
+    sender_name = sender_email.split("@")[0] if sender_email else "User"
+    user_msg_id = str(uuid.uuid4())
+
+    temp_file_content_text = ""
+    temp_file_image_b64 = None
+    temp_file_mime = None
+    temp_file_info = None
+    temp_excel_path = None
+    if message_data.temp_file_id:
+        from pathlib import Path as _Path
+        _TEMP_DIR = _Path("/tmp/planet_temp_files")
+        _matches = list(_TEMP_DIR.glob(f"{message_data.temp_file_id}_*"))
+        if _matches:
+            _temp_path = _matches[0]
+            _filename = _temp_path.name.split("_", 1)[-1]
+            _ext = _filename.rsplit(".", 1)[-1].lower() if "." in _filename else ""
+            _content = _temp_path.read_bytes()
+            _image_exts = {"jpg", "jpeg", "png"}
+            if _ext in ("xlsx", "xls", "csv"):
+                temp_excel_path = str(_temp_path)
+            try:
+                if _ext in _image_exts:
+                    import base64 as _b64
+                    temp_file_image_b64 = _b64.b64encode(_content).decode()
+                    temp_file_mime = "image/jpeg" if _ext in ("jpg", "jpeg") else "image/png"
+                    temp_file_content_text = "[Изображение прикреплено]"
+                elif _ext == "pdf":
+                    from services.file_processor import extract_text_from_pdf as _pdfread
+                    loop = asyncio.get_event_loop()
+                    temp_file_content_text = await loop.run_in_executor(None, _pdfread, _content)
+                elif _ext in ("xlsx", "xls"):
+                    from services.file_processor import extract_text_from_xlsx as _xread
+                    temp_file_content_text = _xread(_content)
+                elif _ext == "csv":
+                    from services.file_processor import extract_text_from_csv as _cread
+                    temp_file_content_text = _cread(_content)
+                elif _ext == "docx":
+                    from services.file_processor import extract_text_from_docx as _dread
+                    temp_file_content_text = _dread(_content)
+            except Exception as _te:
+                logger.error(f"Temp file read error: {_te}")
+            temp_file_info = {"name": _filename, "fileType": _ext if _ext not in {"jpg", "jpeg", "png"} else "image"}
+
+    user_message = {
+        "id": user_msg_id,
+        "chatId": chat_id,
+        "role": "user",
+        "content": message_data.content,
+        "citations": None,
+        "autoIngestedUrls": [s["id"] for s in auto_ingested_sources] if auto_ingested_sources else None,
+        "senderEmail": sender_email,
+        "senderName": sender_name,
+        "uploadedFile": temp_file_info,
+        "createdAt": datetime.now(timezone.utc).isoformat()
+    }
+    if not regen:
+        await db.messages.insert_one(user_message)
+
+    # ── 4. Config & history ──
+    config = await ensure_gpt_config(db)
+    history = await db.messages.find(
+        {"chatId": chat_id},
+        {"_id": 0, "role": 1, "content": 1, "createdAt": 1}
+    ).sort("createdAt", -1).to_list(20)
+    history = list(reversed(history))
+
+    # ── 5. Build RAG context ──
+    citations = []
+    document_context = ""
+    active_source_names = []
+    source_types = {}
+    xlsx_sheet_info = []
+    has_excel_source = False
+    mentioned_source_ids = []
+    source_names = {}
+    catalog_results = None
+
+    if active_source_ids:
+        sources = await db.sources.find({"id": {"$in": active_source_ids}}, {"_id": 0}).to_list(1000)
+        source_names = {}
+        excel_source_ids = set()
+
+        for s in sources:
+            name = s.get("originalName") or s.get("url") or "Unknown"
+            source_names[s["id"]] = name
+            active_source_names.append(name)
+            level = s.get("level")
+            if level == "department":
+                source_types[s["id"]] = "department"
+            elif s.get("projectId") == GLOBAL_PROJECT_ID or level == "global":
+                source_types[s["id"]] = "global"
+            else:
+                source_types[s["id"]] = "project"
+            if s.get("mimeType") in EXCEL_MIME_TYPES:
+                excel_source_ids.add(s["id"])
+                has_excel_source = True
+            sheet_names = s.get("sheetNames", [])
+            if sheet_names and s.get("mimeType") in (
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                "application/vnd.ms-excel",
+            ):
+                xlsx_sheet_info.append(f"- {name}: {', '.join(sheet_names)}")
+
+        user_msg_lower = message_data.content.lower()
+        mentioned_source_ids = []
+        for s in sources:
+            name = (s.get("originalName") or s.get("url") or "").lower().strip()
+            if name and len(name) > 3 and name in user_msg_lower:
+                mentioned_source_ids.append(s["id"])
+
+        rag_source_ids = mentioned_source_ids if mentioned_source_ids else active_source_ids
+
+        if is_summary_query(message_data.content):
+            _rag_coro = get_document_overview_chunks(db, rag_source_ids, chunks_per_source=6)
+        else:
+            _rag_coro = get_relevant_chunks(
+                db, rag_source_ids, project_id, message_data.content, user_department_ids,
+                mentioned_source_ids=mentioned_source_ids
+            )
+        # Run RAG and catalog search in parallel
+        relevant_chunks, catalog_results = await asyncio.gather(
+            _rag_coro,
+            search_product_catalog(message_data.content, db, limit=5)
+        )
+
+        if relevant_chunks:
+            def chunk_priority(chunk):
+                source_type = source_types.get(chunk["sourceId"], "global")
+                type_priority = {"project": 0, "department": 1, "global": 2}.get(source_type, 2)
+                return (type_priority, -chunk.get("score", 0))
+
+            relevant_chunks.sort(key=chunk_priority)
+            context_parts = []
+            for chunk in relevant_chunks:
+                score = chunk.get("score", 0)
+                source_id = chunk["sourceId"]
+                if score <= 0.05:
+                    continue
+                source_name = source_names.get(source_id, "Unknown")
+                source_type = source_types.get(source_id, "global")
+                chunk_marker = f"[Source: {source_name} ({source_type.upper()}), Chunk {chunk['chunkIndex']+1}]"
+                context_parts.append(f"{chunk_marker}\n{chunk['content']}")
+                citations.append({
+                    "sourceName": source_name,
+                    "sourceId": source_id,
+                    "sourceType": source_type,
+                    "chunkId": chunk.get("id", ""),
+                    "chunkIndex": chunk["chunkIndex"],
+                    "textFragment": chunk["content"][:200] + "..." if len(chunk["content"]) > 200 else chunk["content"],
+                    "score": score
+                })
+            document_context = "\n\n---\n\n".join(context_parts)
+
+    # ── 6. Fetch URL content ──
+    fetched_url_count = 0
+    fetched_urls_list = []
+    if detected_urls:
+        url_context_parts = []
+        for url in detected_urls:
+            fetched_content = await fetch_url_content(url)
+            if fetched_content:
+                url_context_parts.append(f"[URL Content: {url}]\n{fetched_content}")
+                fetched_url_count += 1
+                fetched_urls_list.append(url)
+        if url_context_parts:
+            url_fetched_context = "\n\n---\n\n".join(url_context_parts)
+            if document_context:
+                document_context = f"===== FETCHED URL CONTENT =====\n\n{url_fetched_context}\n\n===== DOCUMENT CONTEXT =====\n\n{document_context}"
+            else:
+                document_context = f"===== FETCHED URL CONTENT =====\n\n{url_fetched_context}"
+
+    has_relevant_rag = any(c.get("score", 0) > RAG_SCORE_RELEVANT for c in citations)
+    has_rag_context = bool(citations)
+
+    # ── 7. Product catalog (already fetched in parallel with RAG if sources were active) ──
+    if catalog_results is None:
+        catalog_results = await search_product_catalog(message_data.content, db, limit=5)
+    catalog_context = ""
+    if catalog_results:
+        catalog_parts = []
+        for p in catalog_results:
+            relations_count = len(p.get("relations", []))
+            catalog_parts.append(
+                f"[Product: {p.get('title_en')}]\n"
+                f"Article: {p.get('article_number')} | Vendor: {p.get('vendor')} | Model: {p.get('product_model', '')}\n"
+                f"Category: {p.get('root_category', '')} > {p.get('lvl1_subcategory', '')}\n"
+                f"Price: {p.get('price', 'N/A')} | Related products: {relations_count}\n"
+                f"Description: {str(p.get('description', ''))[:300]}"
+            )
+        catalog_context = "===== PRODUCT CATALOG =====\n\n" + "\n\n---\n\n".join(catalog_parts)
+    if catalog_context:
+        document_context = f"{catalog_context}\n\n{document_context}" if document_context else catalog_context
+
+    # ── 8. Web search fallback ──
+    web_search_results = None
+    web_sources = None
+
+    _project_memory_text = ""
+    _project_doc_cache = None
+    if project_id:
+        _project_doc_cache = await db.projects.find_one({"id": project_id}, {"_id": 0})
+        _project_memory_text = (_project_doc_cache or {}).get("project_memory", "") or ""
+    has_project_memory = bool(_project_memory_text and len(_project_memory_text.strip()) > 50)
+
+    brave_key_exists = bool(os.environ.get('BRAVE_API_KEY', ''))
+    user_disabled_web_search = (message_data.forceWebSearch is False)
+
+    if user_disabled_web_search:
+        use_web_search = False
+    elif message_data.forceWebSearch and brave_key_exists and source_mode != 'ai_only':
+        use_web_search = True
+    else:
+        use_web_search = should_use_web_search(message_data.content, has_relevant_rag)
+        if source_mode == 'ai_only':
+            use_web_search = False
+
+    _words = message_data.content.strip().split()
+    _msg_lower = message_data.content.lower()
+    _TRIVIAL_STOP = ["barev", "բарев", "привет", "hello", "hi", "salam",
+                     "vonc es", "inch ka", "mersi", "shnorhakalutyun",
+                     "poxi", "popoxir", "kpoxes", "popoxeq", "gri", "grep", "greq",
+                     "avel", "aveli", "hanel", "jnjel", "poxel", "khmbagrel",
+                     "փոխիր", "գրիր", "ջնջիր", "ավելացրու"]
+    _is_trivial = len(_words) <= 4 or any(w in _msg_lower for w in _TRIVIAL_STOP)
+
+    if has_excel_source and has_rag_context:
+        use_web_search = False
+    _ARMENIAN_EDIT_WORDS = ["poxi", "popoxir", "kpoxes", "gri", "avel", "jnjel", "poxel", "փոխիր", "գրիր", "ջնջիր"]
+    if any(w in _msg_lower for w in _ARMENIAN_EDIT_WORDS):
+        use_web_search = False
+
+    if not use_web_search and not user_disabled_web_search \
+            and not has_relevant_rag and not fetched_url_count \
+            and brave_key_exists and not _is_trivial and not has_project_memory \
+            and not active_source_ids and source_mode != 'ai_only':
+        use_web_search = True
+
+    if use_web_search:
+        web_search_results = await brave_web_search(message_data.content)
+        if web_search_results:
+            web_sources = [{"title": r["title"], "url": r["url"]} for r in web_search_results]
+            enriched_results = await fetch_page_texts(web_search_results, top_n=2, per_page=500, total_limit=1000)
+            web_context_parts = []
+            for idx, result in enumerate(enriched_results[:5], 1):
+                page_text = result.get("page_text", "").strip()
+                snippet = page_text if page_text else result.get("description", "")
+                web_context_parts.append(
+                    f"[Web Result {idx}: {result['title']}]\nURL: {result['url']}\n{snippet}"
+                )
+            web_context = "\n\n---\n\n".join(web_context_parts)
+            document_context = (
+                f"{document_context}\n\n===== WEB SEARCH RESULTS =====\n\n{web_context}"
+                if document_context else f"===== WEB SEARCH RESULTS =====\n\n{web_context}"
+            )
+
+    # ── 9. Context type ──
+    if has_relevant_rag:
+        context_type = "rag"
+    elif web_search_results:
+        context_type = "web"
+    elif has_rag_context:
+        context_type = "rag"
+    elif fetched_url_count > 0:
+        context_type = "url"
+    else:
+        context_type = "none"
+
+    # ── 10. Cache & user config ──
+    user_prompt_doc = await db.user_prompts.find_one({"userId": current_user["id"]}, {"_id": 0})
+    user_custom_prompt = user_prompt_doc.get("customPrompt") if user_prompt_doc else None
+
+    user_model = current_user.get("gptModel")
+    model_to_use = user_model if user_model else config["model"]
+
+    cache_context_hash = build_cache_key_context(
+        project_id=project_id,
+        model=model_to_use,
+        developer_prompt=config["developerPrompt"],
+        user_prompt=user_custom_prompt,
+        source_ids=active_source_ids
+    )
+
+    cache_hit = None
+    question_embedding = None
+    openai_client = get_openai_client()
+
+    if active_source_ids and openai_client:
+        question_embedding = await get_embedding(message_data.content)
+        if question_embedding:
+            cache_hit = await find_cached_answer(
+                db, message_data.content, project_id, question_embedding,
+                cache_context_hash, user_accessible_source_ids
+            )
+
+    # ── Build system_prompt & agent (needed before streaming starts) ──
+    selected_agent_type = "general"
+    selected_agent = get_agent("general")
+    system_prompt = ""
+    claude_messages = []
+    _chat_model = "claude-haiku-4-5-20251001"
+    CLAUDE_API_KEY = os.environ.get('CLAUDE_API_KEY', '')
+
+    if not cache_hit:
+        selected_agent_type = await route_to_agent(
+            message=message_data.content,
+            has_excel_source=has_excel_source,
+            has_rag_context=has_rag_context,
+            use_web_search=use_web_search,
+        )
+        selected_agent = get_agent(selected_agent_type)
+        logger.info(f"[stream] Agent selected: {selected_agent['name']}")
+
+        system_parts = [config["developerPrompt"], selected_agent["system_prompt"]]
+
+        if project_id:
+            project_doc = _project_doc_cache
+            if project_doc and project_doc.get("project_memory"):
+                system_parts.append(
+                    f"BACKGROUND CONTEXT:\n{project_doc['project_memory']}\n\n"
+                    "Use this context naturally when relevant. Do not mention or reference this context explicitly."
+                )
+
+        if user_custom_prompt:
+            system_parts.append(f"USER INSTRUCTIONS:\n{user_custom_prompt}")
+
+        if xlsx_sheet_info:
+            system_parts.append(
+                "EXCEL FILE SHEETS (real data from uploaded files — use ONLY these, never invent sheet names):\n"
+                + "\n".join(xlsx_sheet_info)
+            )
+
+        if document_context:
+            active_sources_list = ", ".join(active_source_names) if active_source_names else "None"
+            chunks_count = len(citations)
+            max_context_chars = 18000 if fetched_url_count > 0 else 10000
+            targeted_note = ""
+            if mentioned_source_ids:
+                targeted_names = [source_names.get(sid, sid) for sid in mentioned_source_ids]
+                targeted_note = f" targeted={', '.join(targeted_names)} | IMPORTANT: The user explicitly asked about these file(s). Focus ONLY on content from these sources."
+            context_message = (
+                f"[SYS_META sources={active_sources_list} chunks={chunks_count}{targeted_note}]\n\n"
+                f"{document_context[:max_context_chars]}"
+            )
+            system_parts.append(context_message)
+        elif active_source_names:
+            active_sources_list = ", ".join(active_source_names)
+            system_parts.append(
+                f"[SYS_META sources={active_sources_list} chunks=0]\n\n"
+                f"The following sources are active: {active_sources_list}. "
+                "No relevant content was retrieved for this specific query, but the sources exist and are active."
+            )
+
+        if fetched_url_count > 0:
+            system_parts.append(
+                "IMPORTANT: Content fetched from URL(s) provided by the user is included above under "
+                "'FETCHED URL CONTENT'. Use this content to answer questions about those URLs. "
+                "When referencing URL content, mention the source URL."
+            )
+
+        if web_search_results:
+            system_parts.append(
+                "WEB SEARCH ACCESS: You have been provided with real-time web search results above "
+                "(under '===== WEB SEARCH RESULTS ====='). This means you DO have access to current "
+                "internet information for this query.\n\n"
+                "RULES FOR USING WEB RESULTS:\n"
+                "1. NEVER say 'I cannot access the internet' — you HAVE been given the search results.\n"
+                "2. Use the provided web content as your primary source for this query.\n"
+                "3. If page content is available in a result, use it.\n"
+                "4. Synthesize information from multiple results when relevant.\n"
+                "5. ALWAYS cite your web sources at the end:\n\nИсточники:\n- [Title](URL)\n- [Title](URL)"
+            )
+
+        if catalog_results:
+            system_parts.append(
+                "PRODUCT CATALOG: You have been provided with matching products from the company's "
+                "product catalog above (under '===== PRODUCT CATALOG =====').\n"
+                "- Use this data to answer product-related questions accurately\n"
+                "- Mention article numbers and vendors when relevant\n"
+                "- Do not invent prices or specs not present in the catalog data"
+            )
+
+        if context_type == "rag":
+            system_parts.append(
+                "FINAL INSTRUCTION: Answer based on the provided document sources above. "
+                "Cite relevant sources using [Source: name] format."
+            )
+        elif context_type == "none":
+            system_parts.append(
+                "FINAL INSTRUCTION: No document sources or web results are available for this query. "
+                "Answer from your own knowledge directly and helpfully. "
+                "Do NOT say 'there are no sources' or 'no information available in the uploaded files'. "
+                "Simply answer the question as a knowledgeable assistant would."
+            )
+
+        system_prompt = "\n\n".join(system_parts)
+        system_prompt += (
+            "\n\nIMPORTANT: Do NOT generate XML tags, <excel_file>, <file>, or any fake file structures. "
+            "If the user asks to create/modify/download an Excel/CSV file — the system handles generation automatically."
+        )
+        system_prompt += (
+            "\n\nSTRICT RULE: Never generate Excel/CSV files on your own initiative. "
+            "Only when user explicitly asks: \"создай Excel\", \"сделай таблицу\", \"generate excel\", \"create spreadsheet\"."
+        )
+
+        if temp_file_content_text and not temp_file_image_b64:
+            _fname = temp_file_info.get("name", "файл") if temp_file_info else "файл"
+            system_prompt += (
+                f"\n\n===== ПРИКРЕПЛЁННЫЙ ФАЙЛ: {_fname} =====\n"
+                f"{temp_file_content_text[:8000]}\n"
+                "===== КОНЕЦ ФАЙЛА =====\n"
+                "Используй содержимое этого файла для ответа на вопрос пользователя."
+            )
+
+        chat_temp_files = chat.get("tempFiles") or []
+        _current_id = message_data.temp_file_id or ""
+        persistent_files = [f for f in chat_temp_files if f.get("id") != _current_id]
+        if persistent_files:
+            _ptf_chars = 0
+            _PTF_MAX_TOTAL = 15000
+            for _ptf in persistent_files[:3]:
+                _pname = _ptf.get("filename", "файл")
+                _pcontent = _ptf.get("content", "")
+                if _pcontent and _ptf_chars < _PTF_MAX_TOTAL:
+                    _slice = _pcontent[:_PTF_MAX_TOTAL - _ptf_chars]
+                    system_prompt += (
+                        f"\n\n===== ФАЙЛ ИЗ ЧАТА: {_pname} =====\n"
+                        f"{_slice}\n"
+                        "===== КОНЕЦ ФАЙЛА =====\n"
+                    )
+                    _ptf_chars += len(_slice)
+
+        for msg in history[:-1]:
+            content = msg.get("content", "").strip()
+            if content:
+                claude_messages.append({"role": msg["role"], "content": content})
+
+        _user_text = message_data.content.strip() or (
+            "Что на этом изображении?" if temp_file_image_b64
+            else "Проанализируй прикреплённый файл"
+        )
+        if temp_file_image_b64 and temp_file_mime:
+            user_content = [
+                {"type": "image", "source": {"type": "base64", "media_type": temp_file_mime, "data": temp_file_image_b64}},
+                {"type": "text", "text": _user_text},
+            ]
+        else:
+            user_content = _user_text
+
+        if isinstance(user_content, list):
+            for block in user_content:
+                if block.get("type") == "text" and not block.get("text", "").strip():
+                    block["text"] = "Analyze this file and summarize the key points."
+        elif not str(user_content).strip():
+            user_content = "Analyze this file and summarize the key points."
+        claude_messages.append({"role": "user", "content": user_content})
+
+        _chat_model = (
+            "claude-sonnet-4-6"
+            if selected_agent_type in ("rag", "excel", "research")
+            else "claude-haiku-4-5-20251001"
+        )
+
+    # ── 11. Stream Claude response ──
+    async def event_stream():
+        _response_text = ""
+        _from_cache = False
+        _cache_info = None
+        _clarifying_question = None
+        _clarifying_options = None
+        _tokens_used = 0
+
+        try:
+            if cache_hit:
+                _full = (
+                    cache_hit["answer"]
+                    + f"\n\n---\n_📦 Ответ из кэша (схожесть: {cache_hit['similarity']:.0%})_"
+                )
+                _response_text = _full
+                _from_cache = True
+                _cache_info = {
+                    "similarity": cache_hit["similarity"],
+                    "hitCount": cache_hit["hitCount"],
+                    "cacheId": cache_hit["cacheId"],
+                }
+                chunk_size = 30
+                for i in range(0, len(_full), chunk_size):
+                    yield f"data: {json.dumps({'token': _full[i:i+chunk_size]})}\n\n"
+                    await asyncio.sleep(0)
+            else:
+                claude_client = anthropic.AsyncAnthropic(api_key=CLAUDE_API_KEY)
+                async with claude_client.messages.stream(
+                    model=_chat_model,
+                    max_tokens=4096,
+                    system=system_prompt,
+                    messages=claude_messages
+                ) as stream:
+                    async for text in stream.text_stream:
+                        _response_text += text
+                        yield f"data: {json.dumps({'token': text})}\n\n"
+                    _final_msg = await stream.get_final_message()
+                    _tokens_used = _final_msg.usage.input_tokens + _final_msg.usage.output_tokens
+
+        except Exception as e:
+            logger.error(f"[stream] Claude error: {e}")
+            yield f"data: {json.dumps({'error': str(e)[:100]})}\n\n"
+            return
+
+        # Parse clarifying question
+        if "<clarifying>" in _response_text and "</clarifying>" in _response_text:
+            try:
+                _match = re.search(r'<clarifying>(.*?)</clarifying>', _response_text, re.DOTALL)
+                if _match:
+                    _cdata = json.loads(_match.group(1).strip())
+                    _clarifying_question = _cdata.get("question")
+                    _clarifying_options = _cdata.get("options", [])
+                    _response_text = _response_text[:_match.start()].strip()
+            except Exception as e:
+                logger.error(f"[stream] Clarifying parse error: {e}")
+
+        # Token usage
+        if _tokens_used > 0:
+            await db.token_usage.update_one(
+                {"userId": current_user["id"]},
+                {
+                    "$inc": {"totalTokens": _tokens_used, "messageCount": 1},
+                    "$set": {"lastUsedAt": datetime.now(timezone.utc).isoformat()}
+                },
+                upsert=True
+            )
+
+        # Excel generation
+        _excel_file_id, _excel_preview, _is_excel_clarification = None, None, False
+        if not _response_text.startswith("Error:"):
+            try:
+                _excel_client = anthropic.AsyncAnthropic(api_key=CLAUDE_API_KEY)
+                _excel_file_id, _excel_preview, _response_text, _is_excel_clarification = await maybe_generate_excel(
+                    db=db,
+                    chat_id=chat_id,
+                    project_id=project_id,
+                    active_source_ids=active_source_ids,
+                    message_content=message_data.content,
+                    claude_client=_excel_client,
+                    current_response_text=_response_text,
+                    temp_file_path=temp_excel_path,
+                )
+            except Exception as e:
+                logger.error(f"[stream] Excel service error: {e}")
+
+        # Deduplicate citations
+        _unique_citations = {}
+        _used_sources = []
+        for c in citations:
+            key = c["sourceId"]
+            if key not in _unique_citations:
+                _unique_citations[key] = {
+                    "sourceName": c["sourceName"],
+                    "sourceId": c["sourceId"],
+                    "sourceType": c.get("sourceType", "unknown"),
+                    "chunks": []
+                }
+                _used_sources.append({
+                    "sourceId": c["sourceId"],
+                    "sourceName": c["sourceName"],
+                    "sourceType": c.get("sourceType", "unknown")
+                })
+            _unique_citations[key]["chunks"].append({
+                "index": c["chunkIndex"] + 1,
+                "chunkId": c.get("chunkId", ""),
+                "textFragment": c.get("textFragment", "")
+            })
+        _final_citations = list(_unique_citations.values()) if _unique_citations else None
+        _final_used_sources = _used_sources if _used_sources else None
+
+        # Save to semantic cache
+        if question_embedding and not _from_cache and not _response_text.startswith("Error:"):
+            await save_to_cache(
+                db,
+                question=message_data.content,
+                answer=_response_text,
+                project_id=project_id,
+                embedding=question_embedding,
+                user_id=current_user["id"],
+                cache_context_hash=cache_context_hash,
+                source_ids=active_source_ids,
+                sources_used=_final_used_sources
+            )
+
+        # Save assistant message
+        _assistant_msg_id = str(uuid.uuid4())
+        _assistant_message = {
+            "id": _assistant_msg_id,
+            "chatId": chat_id,
+            "role": "assistant",
+            "content": _response_text,
+            "citations": _final_citations,
+            "usedSources": _final_used_sources,
+            "autoIngestedUrls": [s["id"] for s in auto_ingested_sources] if auto_ingested_sources else None,
+            "senderEmail": None,
+            "senderName": "GPT",
+            "fromCache": _from_cache,
+            "cacheInfo": _cache_info,
+            "web_sources": web_sources,
+            "clarifying_question": _clarifying_question,
+            "clarifying_options": _clarifying_options,
+            "fetchedUrls": fetched_urls_list if fetched_urls_list else None,
+            "excel_file_id": _excel_file_id,
+            "excel_preview": _excel_preview,
+            "is_excel_clarification": _is_excel_clarification,
+            "agent_type": selected_agent_type,
+            "agent_name": selected_agent["name"],
+            "createdAt": datetime.now(timezone.utc).isoformat()
+        }
+        await db.messages.insert_one(_assistant_message)
+
+        # Track source usage
+        if _final_used_sources:
+            for _src in _final_used_sources:
+                await db.source_usage.update_one(
+                    {"sourceId": _src["sourceId"]},
+                    {
+                        "$inc": {"usageCount": 1},
+                        "$set": {
+                            "lastUsedAt": datetime.now(timezone.utc).isoformat(),
+                            "sourceName": _src["sourceName"]
+                        },
+                        "$push": {
+                            "usageHistory": {
+                                "$each": [{
+                                    "userId": current_user["id"],
+                                    "userEmail": current_user["email"],
+                                    "chatId": chat_id,
+                                    "messageId": _assistant_msg_id,
+                                    "timestamp": datetime.now(timezone.utc).isoformat()
+                                }],
+                                "$slice": -100
+                            }
+                        }
+                    },
+                    upsert=True
+                )
+
+        # Final metadata event
+        _meta = {
+            "user_message": {k: v for k, v in user_message.items() if k != "_id"},
+            "assistant_message": {k: v for k, v in _assistant_message.items() if k != "_id"}
+        }
+        yield f"data: [META]{json.dumps(_meta, default=str)}\n\n"
+
+    return StreamingResponse(
+        event_stream(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+            "Connection": "keep-alive",
+        }
+    )
 
 
 # ==================== EDIT MESSAGE ====================
