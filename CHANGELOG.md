@@ -6,6 +6,18 @@ UI версия: `frontend/src/data/changelog.js`
 
 ---
 
+## 2026-06-11 — v2.9.54
+
+### Fix: shared-to-chat personal sources always active regardless of checkbox state
+
+**Файл:** `backend/routes/messages.py`
+
+- Баг: если пользователь снимал все галочки в Sources panel (activeSourceIds = []), источники расшаренные через «Share to Chat» тоже исключались из RAG — хотя они были явно добавлены владельцем чата через отдельный механизм
+- Fix: `shared_to_chat_ids` — новый set из источников где `chat_id ∈ sharedInChatIds`; после применения checkbox-фильтра эти ID всегда добавляются обратно в `active_source_ids`
+- MongoDB projection обновлён: `sharedInChatIds: 1` добавлен в personal sources query чтобы данные были доступны без отдельного запроса
+
+---
+
 ## 2026-06-11 — v2.9.53
 
 ### New: Share personal source to a specific project chat

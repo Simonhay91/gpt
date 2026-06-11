@@ -1,6 +1,14 @@
-export const APP_VERSION = "2.9.53";
+export const APP_VERSION = "2.9.54";
 
 export const CHANGELOG = [
+  {
+    version: "2.9.54",
+    date: "Июнь 2026",
+    badge: "fix",
+    changes: [
+      "Fix: личные источники, расшаренные в чат через «Share to Chat», теперь всегда активны — даже если все проектные источники сняты с галочки в панели Sources",
+    ]
+  },
   {
     version: "2.9.53",
     date: "Июнь 2026",

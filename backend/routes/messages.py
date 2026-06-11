@@ -175,9 +175,15 @@ async def send_message(
             ],
             "status": {"$in": ["active", None]},
         },
-        {"_id": 0, "id": 1}
+        {"_id": 0, "id": 1, "sharedInChatIds": 1}
     ).to_list(1000)
     personal_source_ids = [s["id"] for s in personal_sources]
+
+    # Sources explicitly shared into this chat — always active regardless of checkbox state
+    shared_to_chat_ids = set(
+        s["id"] for s in personal_sources
+        if chat_id in (s.get("sharedInChatIds") or [])
+    )
 
     project_source_ids = []
     if project_id:
@@ -201,6 +207,8 @@ async def send_message(
     # None  = chat never touched (new chat) → use all accessible sources
     # []    = user explicitly unchecked everything → no sources
     # [ids] = user selected specific sources → intersect with accessible
+    # NOTE: sources explicitly shared into this chat (shared_to_chat_ids) are always kept,
+    #       because they were added via Share to Chat — not via the checkbox panel.
     if source_mode != 'ai_only':
         chat_selected = (
             message_data.activeSourceIds
@@ -213,6 +221,10 @@ async def send_message(
             else:
                 sel_set = set(chat_selected)
                 active_source_ids = [sid for sid in active_source_ids if sid in sel_set]
+        # Re-add shared-to-chat sources — they must always be active
+        for sid in shared_to_chat_ids:
+            if sid not in active_source_ids:
+                active_source_ids.append(sid)
 
     # ── 3. Save user message ──
     sender_email = current_user["email"]
