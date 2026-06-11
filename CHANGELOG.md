@@ -6,6 +6,19 @@ UI версия: `frontend/src/data/changelog.js`
 
 ---
 
+## 2026-06-11 — v2.9.53
+
+### New: Share personal source to a specific project chat
+
+**Файлы:** `backend/routes/enterprise_sources.py`, `frontend/src/pages/PersonalSourcesPage.js`
+
+- `PersonalSourcesPage`: новая кнопка «Share to Chat» рядом с «Опубликовать» — открывает диалог выбора проекта и чата; шаринг не создаёт копию, только добавляет `chatId` в `sharedInChatIds` источника
+- Бейджи на карточке источника: отображают имена чатов, куда расшарен источник (фиолетовые); клик по бейджу — отменяет шаринг (`DELETE /sources/{id}/share-to-chat/{chatId}`)
+- `list_personal_sources`: поле `sharedInChats` теперь содержит `{chatId, chatName, projectId, projectName}` — dangling refs (удалённые чаты) автоматически пропускаются
+- Защита от дублирования: кнопка Share задизейблена и показывает предупреждение если источник уже расшарен в выбранный чат
+
+---
+
 ## 2026-06-10 — v2.9.52
 
 ### Fix: update all Claude model IDs to claude-sonnet-4-6

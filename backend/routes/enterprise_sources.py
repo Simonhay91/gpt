@@ -173,7 +173,28 @@ def setup_enterprise_source_routes(
                     published_to.append({"type": "project", "id": project["id"], "name": project["name"]})
 
             source["publishedTo"] = published_to
-        
+
+            # Enrich sharedInChatIds with chat and project names
+            shared_in_chats = []
+            for cid in source.get("sharedInChatIds", []):
+                chat_doc = await db.chats.find_one(
+                    {"id": cid}, {"_id": 0, "name": 1, "projectId": 1}
+                )
+                if not chat_doc:
+                    continue  # skip dangling refs from deleted chats
+                proj_doc = None
+                if chat_doc.get("projectId"):
+                    proj_doc = await db.projects.find_one(
+                        {"id": chat_doc["projectId"]}, {"_id": 0, "name": 1}
+                    )
+                shared_in_chats.append({
+                    "chatId": cid,
+                    "chatName": chat_doc.get("name") or "Untitled Chat",
+                    "projectId": chat_doc.get("projectId"),
+                    "projectName": proj_doc.get("name") if proj_doc else None,
+                })
+            source["sharedInChats"] = shared_in_chats
+
         return sources
     
     @router.delete("/api/personal-sources/{source_id}")

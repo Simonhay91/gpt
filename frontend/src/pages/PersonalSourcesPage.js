@@ -8,7 +8,8 @@ import { Input } from '../components/ui/input';
 import { toast } from 'sonner';
 import { 
   FileText, Upload, Trash2, Share, Clock, Database,
-  Lock, History, ChevronRight, Building2, FolderOpen, Eye, Search
+  Lock, History, ChevronRight, Building2, FolderOpen, Eye, Search,
+  MessageSquare, Share2, Loader2, X
 } from 'lucide-react';
 import DashboardLayout from '../components/DashboardLayout';
 import { useAuth } from '../contexts/AuthContext';
@@ -41,6 +42,15 @@ const PersonalSourcesPage = () => {
   
   // Insights modal
   const [insightsSource, setInsightsSource] = useState(null);
+
+  // Share-to-Chat dialog
+  const [shareChatDialogOpen, setShareChatDialogOpen] = useState(false);
+  const [shareChatSource, setShareChatSource] = useState(null);
+  const [shareChatProjectId, setShareChatProjectId] = useState('');
+  const [shareChatId, setShareChatId] = useState('');
+  const [projectChats, setProjectChats] = useState([]);
+  const [isFetchingChats, setIsFetchingChats] = useState(false);
+  const [isSharing, setIsSharing] = useState(false);
 
   useEffect(() => {
     fetchSources();
@@ -162,6 +172,60 @@ const PersonalSourcesPage = () => {
       toast.error(error.response?.data?.detail || 'Publish failed');
     } finally {
       setIsPublishing(false);
+    }
+  };
+
+  const fetchProjectChats = async (projectId) => {
+    if (!projectId) { setProjectChats([]); setShareChatId(''); return; }
+    setIsFetchingChats(true);
+    try {
+      const res = await axios.get(`${API}/projects/${projectId}/chats`);
+      const chats = res.data || [];
+      setProjectChats(chats);
+      setShareChatId(chats[0]?.id || '');
+    } catch {
+      toast.error('Failed to load chats');
+      setProjectChats([]);
+      setShareChatId('');
+    } finally {
+      setIsFetchingChats(false);
+    }
+  };
+
+  const openShareChatDialog = (source) => {
+    setShareChatSource(source);
+    const firstProject = projects[0];
+    setShareChatProjectId(firstProject?.id || '');
+    setProjectChats([]);
+    setShareChatId('');
+    setShareChatDialogOpen(true);
+    if (firstProject?.id) fetchProjectChats(firstProject.id);
+  };
+
+  const shareToChatHandler = async () => {
+    if (!shareChatId) { toast.error('Select a chat'); return; }
+    const alreadyShared = shareChatSource?.sharedInChats?.some(s => s.chatId === shareChatId);
+    if (alreadyShared) { toast.info('Already shared to this chat'); return; }
+    setIsSharing(true);
+    try {
+      await axios.put(`${API}/sources/${shareChatSource.id}/share-to-chat`, { chatId: shareChatId });
+      toast.success('Source shared to chat ✅');
+      setShareChatDialogOpen(false);
+      await fetchSources();
+    } catch (e) {
+      toast.error(e.response?.data?.detail || 'Failed to share');
+    } finally {
+      setIsSharing(false);
+    }
+  };
+
+  const unshareFromChat = async (sourceId, chatId) => {
+    try {
+      await axios.delete(`${API}/sources/${sourceId}/share-to-chat/${chatId}`);
+      toast.success('Removed from chat');
+      await fetchSources();
+    } catch {
+      toast.error('Failed to unshare');
     }
   };
 
@@ -300,6 +364,24 @@ const PersonalSourcesPage = () => {
                             ))}
                           </div>
                         )}
+                        {/* Shared-to-chat badges — clickable to unshare */}
+                        {source.sharedInChats?.length > 0 && (
+                          <div className="flex flex-wrap gap-1.5 mt-1.5">
+                            {source.sharedInChats.map((s) => (
+                              <button
+                                key={s.chatId}
+                                onClick={() => unshareFromChat(source.id, s.chatId)}
+                                title={`Shared to "${s.chatName}"${s.projectName ? ` in ${s.projectName}` : ''} — click to unshare`}
+                                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs border bg-violet-500/10 text-violet-400 border-violet-500/20 hover:bg-red-500/10 hover:text-red-400 hover:border-red-500/20 transition-colors"
+                                data-testid={`shared-chat-badge-${source.id}-${s.chatId}`}
+                              >
+                                <MessageSquare className="h-3 w-3 flex-shrink-0" />
+                                <span className="truncate max-w-[130px]">{s.chatName}</span>
+                                <X className="h-2.5 w-2.5 flex-shrink-0 opacity-60" />
+                              </button>
+                            ))}
+                          </div>
+                        )}
                       </div>
                     </div>
                     
@@ -338,10 +420,21 @@ const PersonalSourcesPage = () => {
                         size="sm"
                         onClick={() => openPublishDialog(source)}
                         data-testid={`publish-btn-${source.id}`}
-                        className=""
                       >
                         <Share className="h-4 w-4 mr-1" />
                         Опубликовать
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => openShareChatDialog(source)}
+                        data-testid={`share-chat-btn-${source.id}`}
+                        className="border-violet-500/40 text-violet-400 hover:bg-violet-500/10"
+                        disabled={projects.length === 0}
+                        title={projects.length === 0 ? 'No projects available' : 'Share to a specific chat'}
+                      >
+                        <MessageSquare className="h-4 w-4 mr-1" />
+                        Share to Chat
                       </Button>
                       <Button
                         variant="ghost"
@@ -490,6 +583,87 @@ const PersonalSourcesPage = () => {
               <Button onClick={publishSource} disabled={isPublishing || !publishTarget.id}>
                 {isPublishing ? <div className="spinner mr-2" /> : null}
                 Опубликовать
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Share to Chat Dialog */}
+        <Dialog open={shareChatDialogOpen} onOpenChange={setShareChatDialogOpen}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <MessageSquare className="h-5 w-5 text-violet-400" />
+                Share to Chat
+              </DialogTitle>
+              <DialogDescription>
+                Source will be visible to all participants in the selected chat. No copy is made — you can unshare at any time.
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <Label>Project</Label>
+                <select
+                  className="w-full px-3 py-2 rounded-md border border-input bg-background text-sm"
+                  value={shareChatProjectId}
+                  onChange={(e) => {
+                    setShareChatProjectId(e.target.value);
+                    fetchProjectChats(e.target.value);
+                  }}
+                >
+                  {projects.map(p => (
+                    <option key={p.id} value={p.id}>{p.name}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Chat</Label>
+                {isFetchingChats ? (
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground py-2">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Loading chats...
+                  </div>
+                ) : projectChats.length === 0 ? (
+                  <p className="text-sm text-muted-foreground py-2">No chats in this project</p>
+                ) : (
+                  <select
+                    className="w-full px-3 py-2 rounded-md border border-input bg-background text-sm"
+                    value={shareChatId}
+                    onChange={(e) => setShareChatId(e.target.value)}
+                  >
+                    {projectChats.map(c => (
+                      <option key={c.id} value={c.id}>{c.name || 'Untitled Chat'}</option>
+                    ))}
+                  </select>
+                )}
+              </div>
+
+              {shareChatSource?.sharedInChats?.some(s => s.chatId === shareChatId) && (
+                <div className="p-3 rounded-lg bg-violet-500/10 border border-violet-500/30">
+                  <p className="text-sm text-violet-400 flex items-center gap-2">
+                    <Share2 className="h-4 w-4" />
+                    Already shared to this chat
+                  </p>
+                </div>
+              )}
+            </div>
+
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setShareChatDialogOpen(false)} disabled={isSharing}>
+                Cancel
+              </Button>
+              <Button
+                onClick={shareToChatHandler}
+                disabled={isSharing || !shareChatId || isFetchingChats || shareChatSource?.sharedInChats?.some(s => s.chatId === shareChatId)}
+                className="bg-violet-600 hover:bg-violet-700 gap-2"
+              >
+                {isSharing
+                  ? <Loader2 className="h-4 w-4 animate-spin" />
+                  : <Share2 className="h-4 w-4" />
+                }
+                Share
               </Button>
             </DialogFooter>
           </DialogContent>
