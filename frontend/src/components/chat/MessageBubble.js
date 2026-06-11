@@ -171,6 +171,9 @@ export const MessageBubble = ({
 
   const isNearBottom = index >= messagesCount * 0.6;
 
+  // Don't render empty streaming placeholder — TypingIndicator shows instead
+  if (message.isStreaming && !message.content) return null;
+
   return (
     <div
       className={`flex gap-4 animate-slideIn ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}

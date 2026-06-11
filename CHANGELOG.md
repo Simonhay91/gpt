@@ -6,6 +6,17 @@ UI версия: `frontend/src/data/changelog.js`
 
 ---
 
+## 2026-06-11 — v2.9.57
+
+### Fix: modern typing indicator + empty bubble fix
+
+**Файлы:** `frontend/src/pages/ChatPage.js`, `frontend/src/components/chat/MessageBubble.js`
+
+- Replaced `ThinkingSteps` multi-step animation with a clean 3-dot `TypingIndicator` (like Claude/ChatGPT)
+- `MessageBubble`: returns null when `message.isStreaming && !message.content` — prevents empty bubble with action buttons showing before first token
+
+---
+
 ## 2026-06-11 — v2.9.56
 
 ### New: Streaming responses + parallel RAG optimizations

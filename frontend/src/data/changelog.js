@@ -1,6 +1,15 @@
-export const APP_VERSION = "2.9.56";
+export const APP_VERSION = "2.9.57";
 
 export const CHANGELOG = [
+  {
+    version: "2.9.57",
+    date: "Июнь 2026",
+    badge: "fix",
+    changes: [
+      "Индикатор загрузки заменён на современную анимацию трёх точек (как у Claude/ChatGPT)",
+      "Fix: пустой пузырь ассистента больше не появляется до начала стриминга",
+    ]
+  },
   {
     version: "2.9.56",
     date: "Июнь 2026",
