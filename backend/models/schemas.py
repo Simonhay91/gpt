@@ -160,6 +160,7 @@ class MessageResponse(BaseModel):
     uploadedFile: Optional[dict] = None      # { name, fileType } for temp file badge in UI
     agent_type: Optional[str] = None         # Selected agent: excel | research | rag | general
     agent_name: Optional[str] = None         # Human-readable agent name
+    model_used: Optional[str] = None         # Actual model: claude-sonnet-4-6 | gpt-4o-mini (fallback)
 
 
 # ==================== SOURCE MODELS ====================

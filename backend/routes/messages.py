@@ -10,6 +10,7 @@ from typing import List, Optional
 from datetime import datetime, timezone
 
 import anthropic
+import openai as openai_lib
 from fastapi import APIRouter, HTTPException, Depends
 from fastapi.responses import StreamingResponse
 
@@ -49,6 +50,43 @@ EXCEL_MIME_TYPES = {
     "text/csv",
     "application/csv",
 }
+
+
+def _to_openai_messages(system_prompt: str, anthropic_messages: list) -> list:
+    """Convert Anthropic-format messages to OpenAI chat format."""
+    result = [{"role": "system", "content": system_prompt}]
+    for msg in anthropic_messages:
+        role = msg["role"]
+        content = msg["content"]
+        if isinstance(content, list):
+            oai_content = []
+            for block in content:
+                if block.get("type") == "text":
+                    oai_content.append({"type": "text", "text": block.get("text", "")})
+                elif block.get("type") == "image":
+                    src = block.get("source", {})
+                    oai_content.append({
+                        "type": "image_url",
+                        "image_url": {"url": f"data:{src.get('media_type','image/jpeg')};base64,{src.get('data','')}"}
+                    })
+            result.append({"role": role, "content": oai_content})
+        else:
+            result.append({"role": role, "content": str(content)})
+    return result
+
+
+async def _openai_fallback(system_prompt: str, anthropic_messages: list) -> tuple[str, int]:
+    """Call GPT-4o-mini as fallback. Returns (response_text, tokens_used)."""
+    oai_client = openai_lib.AsyncOpenAI(api_key=os.environ.get('OPENAI_API_KEY', ''))
+    oai_msgs = _to_openai_messages(system_prompt, anthropic_messages)
+    oai_resp = await oai_client.chat.completions.create(
+        model="gpt-4o-mini",
+        max_tokens=4096,
+        messages=oai_msgs
+    )
+    text = oai_resp.choices[0].message.content or ""
+    tokens = oai_resp.usage.total_tokens if oai_resp.usage else 0
+    return text, tokens
 
 
 async def ensure_gpt_config(db):
@@ -559,6 +597,7 @@ async def send_message(
     clarifying_options = None
     selected_agent_type = "general"
     selected_agent = get_agent("general")
+    model_used = None
 
     try:
         CLAUDE_API_KEY = os.environ.get('CLAUDE_API_KEY', '')
@@ -750,15 +789,20 @@ async def send_message(
                 if selected_agent_type in ("rag", "excel", "research")
                 else "claude-haiku-4-5-20251001"
             )
-            claude_response = await claude_client.messages.create(
-                model=_chat_model,
-                max_tokens=4096,
-                system=system_prompt,
-                messages=messages
-            )
-
-            response_text = claude_response.content[0].text
-            tokens_used = claude_response.usage.input_tokens + claude_response.usage.output_tokens
+            model_used = _chat_model
+            try:
+                claude_response = await claude_client.messages.create(
+                    model=_chat_model,
+                    max_tokens=4096,
+                    system=system_prompt,
+                    messages=messages
+                )
+                response_text = claude_response.content[0].text
+                tokens_used = claude_response.usage.input_tokens + claude_response.usage.output_tokens
+            except Exception as _claude_err:
+                logger.warning(f"Claude failed ({_claude_err}), falling back to GPT-4o-mini")
+                model_used = "gpt-4o-mini"
+                response_text, tokens_used = await _openai_fallback(system_prompt, messages)
 
             if "<clarifying>" in response_text and "</clarifying>" in response_text:
                 try:
@@ -873,6 +917,7 @@ async def send_message(
         "is_excel_clarification": is_excel_clarification,
         "agent_type": selected_agent_type,
         "agent_name": selected_agent["name"],
+        "model_used": model_used,
         "createdAt": datetime.now(timezone.utc).isoformat()
     }
     await db.messages.insert_one(assistant_message)
@@ -1471,6 +1516,8 @@ async def send_message_stream(
         _clarifying_options = None
         _tokens_used = 0
 
+        _model_used = _chat_model if not cache_hit else None
+
         try:
             if cache_hit:
                 _full = (
@@ -1490,20 +1537,41 @@ async def send_message_stream(
                     await asyncio.sleep(0)
             else:
                 claude_client = anthropic.AsyncAnthropic(api_key=CLAUDE_API_KEY)
-                async with claude_client.messages.stream(
-                    model=_chat_model,
-                    max_tokens=4096,
-                    system=system_prompt,
-                    messages=claude_messages
-                ) as stream:
-                    async for text in stream.text_stream:
-                        _response_text += text
-                        yield f"data: {json.dumps({'token': text})}\n\n"
-                    _final_msg = await stream.get_final_message()
-                    _tokens_used = _final_msg.usage.input_tokens + _final_msg.usage.output_tokens
+                _claude_ok = False
+                try:
+                    async with claude_client.messages.stream(
+                        model=_chat_model,
+                        max_tokens=4096,
+                        system=system_prompt,
+                        messages=claude_messages
+                    ) as stream:
+                        async for text in stream.text_stream:
+                            _response_text += text
+                            yield f"data: {json.dumps({'token': text})}\n\n"
+                        _final_msg = await stream.get_final_message()
+                        _tokens_used = _final_msg.usage.input_tokens + _final_msg.usage.output_tokens
+                    _claude_ok = True
+                except Exception as _claude_err:
+                    logger.warning(f"[stream] Claude failed ({_claude_err}), falling back to GPT-4o-mini")
+                    _model_used = "gpt-4o-mini"
+                    _response_text = ""
+                    # Stream from GPT-4o-mini
+                    _oai_client = openai_lib.AsyncOpenAI(api_key=os.environ.get('OPENAI_API_KEY', ''))
+                    _oai_msgs = _to_openai_messages(system_prompt, claude_messages)
+                    _oai_stream = await _oai_client.chat.completions.create(
+                        model="gpt-4o-mini",
+                        max_tokens=4096,
+                        messages=_oai_msgs,
+                        stream=True
+                    )
+                    async for _chunk in _oai_stream:
+                        _delta = _chunk.choices[0].delta.content if _chunk.choices else None
+                        if _delta:
+                            _response_text += _delta
+                            yield f"data: {json.dumps({'token': _delta})}\n\n"
 
         except Exception as e:
-            logger.error(f"[stream] Claude error: {e}")
+            logger.error(f"[stream] Error: {e}")
             yield f"data: {json.dumps({'error': str(e)[:100]})}\n\n"
             return
 
@@ -1610,6 +1678,7 @@ async def send_message_stream(
             "is_excel_clarification": _is_excel_clarification,
             "agent_type": selected_agent_type,
             "agent_name": selected_agent["name"],
+            "model_used": _model_used,
             "createdAt": datetime.now(timezone.utc).isoformat()
         }
         await db.messages.insert_one(_assistant_message)

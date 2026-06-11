@@ -575,6 +575,15 @@ export const MessageBubble = ({
           </div>
         )}
 
+        {/* Fallback model indicator */}
+        {message.model_used === 'gpt-4o-mini' && (
+          <div className="mt-1 px-2">
+            <span className="inline-flex items-center gap-1 text-xs text-orange-400 opacity-70" title="Claude was unavailable, answered by GPT-4o-mini">
+              ⚡ lite mode
+            </span>
+          </div>
+        )}
+
         <span className="text-xs text-muted-foreground px-1">{formatTime(message.createdAt)}</span>
       </div>
 

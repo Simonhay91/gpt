@@ -1,6 +1,16 @@
-export const APP_VERSION = "2.9.58";
+export const APP_VERSION = "2.9.59";
 
 export const CHANGELOG = [
+  {
+    version: "2.9.59",
+    date: "Июнь 2026",
+    badge: "new",
+    changes: [
+      "Автоматический fallback на GPT-4o-mini при недоступности Claude (нехватка кредитов / overload)",
+      "Сообщения, отвеченные через fallback, помечаются как «⚡ lite mode»",
+      "Fallback работает и в streaming-режиме — ответ продолжает стримиться без ошибки",
+    ]
+  },
   {
     version: "2.9.58",
     date: "Июнь 2026",
