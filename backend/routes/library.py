@@ -237,14 +237,23 @@ async def _generate_embeddings_background(source_id: str, chunks: list):
             f"Library embeddings done {source_id}: "
             f"{total - failed}/{total} embedded, {failed} failed"
         )
-    except Exception as exc:
+    except BaseException as exc:
+        # BaseException catches asyncio.CancelledError (e.g. server restart mid-task)
+        # as well as regular Exception — always mark active so item isn't stuck forever.
         logger.error(f"Library embedding background error {source_id}: {exc}")
-        await db.sources.update_one(
-            {"id": source_id},
-            {"$set": {"status": "active", "updatedAt": _now_iso()}},
-        )
+        try:
+            await db.sources.update_one(
+                {"id": source_id},
+                {"$set": {"status": "active", "updatedAt": _now_iso()}},
+            )
+        except Exception:
+            pass
+        raise
     finally:
-        await client.close()
+        try:
+            await client.close()
+        except Exception:
+            pass
 
 
 # ==================== UPLOAD ====================
@@ -528,6 +537,47 @@ async def unshare_library_item(
     updated = await db.sources.find_one({"id": item_id}, {"_id": 0})
     await _enrich_with_department_names(db, [updated])
     return updated
+
+
+# ==================== REEMBED ====================
+
+@router.post("/{item_id}/reembed")
+async def reembed_library_item(
+    item_id: str,
+    background_tasks: BackgroundTasks,
+    current_user: dict = Depends(get_current_user),
+):
+    """Re-trigger embedding generation for a library item stuck in 'processing' status.
+
+    Useful when a server restart interrupted the background embedding task.
+    Only admin or the item's owner can trigger this.
+    """
+    db = get_db()
+    item = await db.sources.find_one({"id": item_id, "level": "library"}, {"_id": 0})
+    if not item:
+        raise HTTPException(status_code=404, detail="Library item not found")
+
+    is_owner = item.get("ownerId") == current_user["id"]
+    if not is_admin(current_user["email"]) and not is_owner:
+        raise HTTPException(status_code=403, detail="Only admin or uploader can re-embed")
+
+    chunks_cursor = db.source_chunks.find(
+        {"sourceId": item_id},
+        {"_id": 0, "chunkIndex": 1, "content": 1},
+    ).sort("chunkIndex", 1)
+    chunk_docs = await chunks_cursor.to_list(None)
+    if not chunk_docs:
+        raise HTTPException(status_code=400, detail="No chunks found for this item")
+
+    chunk_texts = [c["content"] for c in chunk_docs]
+
+    await db.sources.update_one(
+        {"id": item_id},
+        {"$set": {"status": "processing", "updatedAt": _now_iso()}},
+    )
+
+    background_tasks.add_task(_generate_embeddings_background, item_id, chunk_texts)
+    return {"message": f"Re-embedding started for {len(chunk_texts)} chunks", "chunkCount": len(chunk_texts)}
 
 
 # ==================== DOWNLOAD ====================
