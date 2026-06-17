@@ -24,9 +24,9 @@ async def get_embedding(text: str) -> Optional[List[float]]:
     if not OPENAI_API_KEY:
         return None
     try:
-        from openai import OpenAI, RateLimitError
-        client = OpenAI(api_key=OPENAI_API_KEY)
-        result = client.embeddings.create(
+        from openai import AsyncOpenAI
+        client = AsyncOpenAI(api_key=OPENAI_API_KEY)
+        result = await client.embeddings.create(
             input=[text[:8000]],
             model="text-embedding-3-small",
         )
