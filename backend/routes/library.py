@@ -16,6 +16,7 @@ import uuid
 import hashlib
 import json
 import logging
+import asyncio
 import aiofiles
 
 from middleware.auth import get_current_user, is_admin
@@ -155,26 +156,60 @@ async def _enrich_with_department_names(db, items: List[dict]) -> List[dict]:
 
 # ==================== BACKGROUND EMBEDDING ====================
 
+async def _embed_with_retry(text: str, max_retries: int = 5) -> Optional[List[float]]:
+    """Call get_embedding with exponential backoff on rate-limit errors (429)."""
+    for attempt in range(max_retries):
+        try:
+            result = await get_embedding(text)
+            return result
+        except Exception as exc:
+            msg = str(exc)
+            is_rate_limit = "429" in msg or "rate_limit" in msg.lower() or "rate limit" in msg.lower()
+            if is_rate_limit and attempt < max_retries - 1:
+                wait = 2 ** attempt  # 1s, 2s, 4s, 8s, 16s
+                logger.warning(f"Rate limit hit, retrying in {wait}s (attempt {attempt + 1}/{max_retries})")
+                await asyncio.sleep(wait)
+            else:
+                logger.error(f"Embedding failed after {attempt + 1} attempts: {exc}")
+                return None
+    return None
+
+
 async def _generate_embeddings_background(source_id: str, chunks: list):
     """Generate embeddings for all chunks in the background.
 
     Called after the upload endpoint returns so the HTTP response is not
     blocked by N sequential OpenAI API calls.  Updates each chunk in-place
     and flips the source status to ``active`` when done.
+
+    Rate-limit protection:
+    - Small pause every 20 chunks to avoid hitting TPM limits.
+    - Per-chunk retry with exponential backoff on 429 errors.
     """
     db = get_db()
+    failed = 0
     try:
         for i, chunk_content in enumerate(chunks):
-            embedding = await get_embedding(chunk_content)
+            embedding = await _embed_with_retry(chunk_content)
+            if embedding is None:
+                failed += 1
             await db.source_chunks.update_one(
                 {"sourceId": source_id, "chunkIndex": i},
                 {"$set": {"embedding": embedding}},
             )
+            # Pause every 20 chunks to stay under OpenAI TPM/RPM limits
+            if (i + 1) % 20 == 0:
+                logger.info(f"Library embedding progress {source_id}: {i + 1}/{len(chunks)} chunks")
+                await asyncio.sleep(1.0)
+
         await db.sources.update_one(
             {"id": source_id},
             {"$set": {"status": "active", "updatedAt": _now_iso()}},
         )
-        logger.info(f"Library embeddings done for {source_id} ({len(chunks)} chunks)")
+        logger.info(
+            f"Library embeddings done for {source_id}: "
+            f"{len(chunks) - failed}/{len(chunks)} chunks embedded, {failed} failed"
+        )
     except Exception as exc:
         logger.error(f"Library embedding background error for {source_id}: {exc}")
         await db.sources.update_one(

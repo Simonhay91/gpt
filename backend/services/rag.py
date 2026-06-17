@@ -16,11 +16,15 @@ GLOBAL_PROJECT_ID = "__global__"
 
 
 async def get_embedding(text: str) -> Optional[List[float]]:
-    """Get embedding for text using OpenAI text-embedding-3-small."""
+    """Get embedding for text using OpenAI text-embedding-3-small.
+
+    Re-raises rate-limit errors (HTTP 429) so callers can apply backoff.
+    All other errors are caught and return None.
+    """
     if not OPENAI_API_KEY:
         return None
     try:
-        from openai import OpenAI
+        from openai import OpenAI, RateLimitError
         client = OpenAI(api_key=OPENAI_API_KEY)
         result = client.embeddings.create(
             input=[text[:8000]],
@@ -28,6 +32,10 @@ async def get_embedding(text: str) -> Optional[List[float]]:
         )
         return result.data[0].embedding
     except Exception as e:
+        # Re-raise rate-limit errors so retry logic in callers can handle them
+        msg = str(e)
+        if "429" in msg or "rate_limit" in msg.lower() or "rate limit" in msg.lower():
+            raise
         logger.error(f"Embedding error: {e}")
         return None
 
