@@ -7,7 +7,7 @@ item can be shared with multiple departments at once via the
 ``sharedDepartments`` array, so one uploaded file is reused everywhere instead of
 being duplicated per department.
 """
-from fastapi import APIRouter, HTTPException, Depends, UploadFile, File, Form
+from fastapi import APIRouter, BackgroundTasks, HTTPException, Depends, UploadFile, File, Form
 from fastapi.responses import FileResponse
 from typing import List, Optional
 from datetime import datetime, timezone
@@ -153,10 +153,41 @@ async def _enrich_with_department_names(db, items: List[dict]) -> List[dict]:
     return items
 
 
+# ==================== BACKGROUND EMBEDDING ====================
+
+async def _generate_embeddings_background(source_id: str, chunks: list):
+    """Generate embeddings for all chunks in the background.
+
+    Called after the upload endpoint returns so the HTTP response is not
+    blocked by N sequential OpenAI API calls.  Updates each chunk in-place
+    and flips the source status to ``active`` when done.
+    """
+    db = get_db()
+    try:
+        for i, chunk_content in enumerate(chunks):
+            embedding = await get_embedding(chunk_content)
+            await db.source_chunks.update_one(
+                {"sourceId": source_id, "chunkIndex": i},
+                {"$set": {"embedding": embedding}},
+            )
+        await db.sources.update_one(
+            {"id": source_id},
+            {"$set": {"status": "active", "updatedAt": _now_iso()}},
+        )
+        logger.info(f"Library embeddings done for {source_id} ({len(chunks)} chunks)")
+    except Exception as exc:
+        logger.error(f"Library embedding background error for {source_id}: {exc}")
+        await db.sources.update_one(
+            {"id": source_id},
+            {"$set": {"status": "active", "updatedAt": _now_iso()}},
+        )
+
+
 # ==================== UPLOAD ====================
 
 @router.post("/upload")
 async def upload_library_item(
+    background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
     title: Optional[str] = Form(None),
     description: Optional[str] = Form(None),
@@ -231,7 +262,10 @@ async def upload_library_item(
         "storagePath": storage_filename,
         "version": 1,
         "contentHash": content_hash,
-        "status": "active",
+        # "processing" until background embeddings finish; RAG still works
+        # because get_relevant_chunks falls back to keyword scoring when
+        # embedding is None.
+        "status": "processing",
         "createdAt": _now_iso(),
         "createdBy": current_user["id"],
         "createdByEmail": current_user["email"],
@@ -239,17 +273,21 @@ async def upload_library_item(
     }
     await db.sources.insert_one(item)
 
+    # Save all chunks immediately (no embeddings yet) so the item is
+    # usable right away via keyword fallback in RAG.
     for i, chunk_content in enumerate(chunks):
-        embedding = await get_embedding(chunk_content)
         await db.source_chunks.insert_one({
             "id": str(uuid.uuid4()),
             "sourceId": source_id,
             "projectId": LIBRARY_PROJECT_ID,
             "chunkIndex": i,
             "content": chunk_content,
-            "embedding": embedding,
+            "embedding": None,
             "createdAt": _now_iso(),
         })
+
+    # Generate embeddings in the background — response returns immediately.
+    background_tasks.add_task(_generate_embeddings_background, source_id, chunks)
 
     item.pop("_id", None)
     item["chunkCount"] = len(chunks)
