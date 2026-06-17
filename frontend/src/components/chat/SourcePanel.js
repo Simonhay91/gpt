@@ -1,13 +1,12 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Checkbox } from '../ui/checkbox';
-import { ScrollArea } from '../ui/scroll-area';
 import {
   Upload, Link, FileText, File, Globe, ImageIcon, Loader2,
   Search, X, Info, Database, Target, Lightbulb, ChevronRight,
-  ChevronDown, Eye, Download, Trash2, Building2, FolderOpen, Clock,
-  Share2, Lock, UserCircle
+  ChevronDown, Eye, Download, Trash2, Building2, FolderOpen,
+  Share2, Lock, UserCircle, Globe2
 } from 'lucide-react';
 
 const getFileIcon = (mimeType, kind) => {
@@ -68,11 +67,48 @@ export const SourcePanel = ({
   onShareToChat,
   onUnshareFromChat,
   chatId,
+  // ── Library ──
+  libraryItems = [],
+  onPreviewLibrary,
+  onDownloadLibrary,
 }) => {
+  const [activeTab, setActiveTab] = useState('project');
+
   const highlightMatch = (text, query) => {
     const regex = new RegExp(`(${query})`, 'gi');
     return text.replace(regex, '<mark class="bg-yellow-300 dark:bg-yellow-600 px-0.5 rounded">$1</mark>');
   };
+
+  // ── Active-source counts per tab ──
+  const projectActiveCount = !sourcesExplicitlySet
+    ? projectSources.length
+    : projectSources.filter(s => activeSourceIds.includes(s.id)).length;
+
+  const personalSharedCount =
+    myPersonalSources.filter(s => (s.sharedInChatIds || []).includes(chatId)).length
+    + (myPersonalSources.length === 0 ? sharedPersonalSources.length : 0);
+
+  const libraryActiveCount = libraryItems.filter(s => activeSourceIds.includes(s.id)).length;
+
+  const TabButton = ({ id, label, icon: Icon, active, total }) => (
+    <button
+      onClick={() => setActiveTab(id)}
+      className={`flex items-center gap-1.5 px-3 py-2 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
+        activeTab === id
+          ? 'border-indigo-500 text-foreground'
+          : 'border-transparent text-muted-foreground hover:text-foreground'
+      }`}
+      data-testid={`source-tab-${id}`}
+    >
+      <Icon className="h-4 w-4" />
+      <span>{label}</span>
+      {total > 0 && (
+        <span className={`text-xs px-1.5 py-0.5 rounded-full ${active > 0 ? 'bg-indigo-500/20 text-indigo-400' : 'bg-secondary text-muted-foreground'}`}>
+          {active}/{total}
+        </span>
+      )}
+    </button>
+  );
 
   return (
     <div className="flex flex-col h-full overflow-hidden" data-testid="source-panel">
@@ -83,8 +119,19 @@ export const SourcePanel = ({
           <X className="h-4 w-4 text-muted-foreground" />
         </Button>
       </div>
+
+      {/* Tab bar */}
+      <div className="flex items-center gap-1 px-2 border-b border-border flex-shrink-0 overflow-x-auto">
+        <TabButton id="project" label="Project" icon={FolderOpen} active={projectActiveCount} total={projectSources.length} />
+        <TabButton id="personal" label="My Sources" icon={UserCircle} active={personalSharedCount} total={Math.max(myPersonalSources.length, sharedPersonalSources.length)} />
+        <TabButton id="library" label="Department" icon={Building2} active={libraryActiveCount} total={libraryItems.length} />
+      </div>
+
       <div className="flex-1 overflow-y-auto px-4 py-4">
 
+        {/* ════════════ PROJECT TAB ════════════ */}
+        {activeTab === 'project' && (
+        <>
         {/* Upload row */}
         <div className="flex flex-wrap items-center gap-3 mb-4">
           <input
@@ -302,14 +349,19 @@ export const SourcePanel = ({
           <p className="text-xs text-muted-foreground mt-3 flex items-center gap-1">
             <span className="inline-block w-2 h-2 rounded-full bg-indigo-500"></span>
             {!sourcesExplicitlySet
-              ? 'Все источники активны по умолчанию. Личные источники ("Мои источники") также включены.'
+              ? 'Все источники активны по умолчанию.'
               : 'Checked sources are used as AI context'}
           </p>
         )}
+        </>
+        )}
 
-        {/* ── My Personal Sources (owner only) — share/unshare into this chat ── */}
-        {myPersonalSources.length > 0 && (
-          <div className="mt-4">
+        {/* ════════════ MY SOURCES TAB ════════════ */}
+        {activeTab === 'personal' && (
+        <>
+        {/* My Personal Sources (owner only) — share/unshare into this chat */}
+        {myPersonalSources.length > 0 ? (
+          <div>
             <div className="flex items-center gap-2 mb-2">
               <UserCircle className="h-4 w-4 text-violet-400" />
               <span className="text-xs font-semibold text-violet-400 uppercase tracking-wide">My Personal Sources</span>
@@ -347,11 +399,8 @@ export const SourcePanel = ({
               Shared sources are available to all participants in this chat for AI context.
             </p>
           </div>
-        )}
-
-        {/* ── Shared by Owner (non-owner view) ── */}
-        {myPersonalSources.length === 0 && sharedPersonalSources.length > 0 && (
-          <div className="mt-4">
+        ) : sharedPersonalSources.length > 0 ? (
+          <div>
             <div className="flex items-center gap-2 mb-2">
               <Lock className="h-4 w-4 text-violet-400" />
               <span className="text-xs font-semibold text-violet-400 uppercase tracking-wide">Shared by Owner</span>
@@ -377,6 +426,84 @@ export const SourcePanel = ({
               ))}
             </div>
           </div>
+        ) : (
+          <div className="text-center py-6 text-muted-foreground">
+            <UserCircle className="h-8 w-8 mx-auto mb-2 opacity-50" />
+            <p className="text-sm">Нет личных источников</p>
+            <p className="text-xs mt-1">Загрузите их в разделе «Мои источники»</p>
+          </div>
+        )}
+        </>
+        )}
+
+        {/* ════════════ LIBRARY TAB ════════════ */}
+        {activeTab === 'library' && (
+        <>
+        {libraryItems.length === 0 ? (
+          <div className="text-center py-6 text-muted-foreground">
+            <Building2 className="h-8 w-8 mx-auto mb-2 opacity-50" />
+            <p className="text-sm">Нет документов отдела</p>
+            <p className="text-xs mt-1">Документы, открытые вашему отделу, появятся здесь</p>
+          </div>
+        ) : (
+          <div className="space-y-1">
+            <div className="flex items-center justify-between mb-2 pb-2 border-b border-border">
+              <span className="text-xs text-muted-foreground">{libraryActiveCount} / {libraryItems.length} активны</span>
+            </div>
+            <div className="max-h-[400px] overflow-y-auto space-y-1">
+              {libraryItems.map(item => {
+                const isSelected = activeSourceIds.includes(item.id);
+                return (
+                  <div
+                    key={item.id}
+                    className={`flex items-center gap-2 p-2 rounded-lg border transition-colors ${isSelected ? 'bg-indigo-500/10 border-indigo-500/30' : 'border-border hover:bg-secondary/20'}`}
+                    data-testid={`library-source-${item.id}`}
+                  >
+                    <Checkbox
+                      checked={isSelected}
+                      onCheckedChange={() => onToggleSource(item.id)}
+                      className="data-[state=checked]:bg-indigo-500"
+                      data-testid={`library-checkbox-${item.id}`}
+                    />
+                    {getFileIcon(item.mimeType, item.kind)}
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm truncate">{item.title || item.originalName}</p>
+                      <div className="flex items-center gap-1.5 flex-wrap mt-0.5">
+                        <p className="text-xs text-muted-foreground">
+                          {item.sizeBytes ? `${formatFileSize(item.sizeBytes)} • ` : ''}{item.chunkCount || 0} chunks
+                        </p>
+                        {item.isGlobalLibrary && (
+                          <span className="inline-flex items-center gap-0.5 text-xs text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded-full border border-emerald-500/20">
+                            <Globe2 className="h-2.5 w-2.5" /> Все
+                          </span>
+                        )}
+                        {(item.sharedDepartmentNames || []).slice(0, 2).map(d => (
+                          <span key={d.id} className="inline-flex items-center gap-0.5 text-xs text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded-full border border-amber-500/20">
+                            <Building2 className="h-2.5 w-2.5" />
+                            <span className="truncate max-w-[80px]">{d.name}</span>
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <Button variant="ghost" size="icon" className="h-7 w-7" onClick={(e) => { e.stopPropagation(); onPreviewLibrary?.(item); }} title="Preview">
+                        <Eye className="h-3.5 w-3.5 text-blue-400" />
+                      </Button>
+                      <Button variant="ghost" size="icon" className="h-7 w-7" onClick={(e) => { e.stopPropagation(); onDownloadLibrary?.(item); }} title="Download">
+                        <Download className="h-3.5 w-3.5 text-green-400" />
+                      </Button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            <p className="text-xs text-muted-foreground mt-3 flex items-center gap-1">
+              <span className="inline-block w-2 h-2 rounded-full bg-indigo-500"></span>
+              Отметьте документы, которые AI должен использовать в этом чате
+            </p>
+          </div>
+        )}
+        </>
         )}
       </div>
     </div>

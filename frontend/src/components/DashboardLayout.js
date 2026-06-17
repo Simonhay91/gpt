@@ -28,7 +28,8 @@ import {
   TrendingUp,
   Package,
   FileOutput,
-  Flag
+  Flag,
+  Library
 } from 'lucide-react';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
@@ -143,6 +144,11 @@ const DashboardLayout = ({ children }) => {
       name: t('nav.mySources'),
       path: '/personal-sources',
       icon: Lock
+    },
+    {
+      name: language === 'ru' ? 'Библиотека' : 'Library',
+      path: '/library',
+      icon: Library
     },
     {
       name: t('nav.myGptPrompt'),

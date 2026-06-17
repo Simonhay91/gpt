@@ -1084,6 +1084,171 @@ PUT    /api/user/prompt
 
 ---
 
-**Document Version:** 1.6
-**Last Updated:** 2026-05-03
+---
+
+## 18. Session Updates (2026-06-17)
+
+### Performance: MongoDB Indexes + Parallel Fetching
+
+**Goal:** Reduce DB load and page load times — no functional changes.
+
+#### 1. MongoDB Indexes (`backend/db/indexes.py` — new file)
+Added automatic index creation on startup for all major collections:
+
+| Collection | Indexed Fields |
+|---|---|
+| `projects` | `id`, `ownerId`, `sharedWith`, `sharedMembers.userId` |
+| `chats` | `id`, `projectId`, `ownerId` |
+| `messages` | `(chatId, createdAt)` compound |
+| `sources` | `id`, `projectId`, `ownerId`, `level`, `publishedFrom` |
+| `source_chunks` | `sourceId`, `projectId` |
+| `semantic_cache` | `(projectId, cacheContextHash, createdAt)` compound |
+| `users` | `id`, `email` |
+
+- Idempotent — safe to run on every startup
+- Best-effort per-index `try/except` — never blocks startup
+- Called from `server.py` `startup_event()`
+
+#### 2. Personal Sources N+1 → Batch (`backend/routes/enterprise_sources.py`)
+`GET /api/personal-sources` previously issued ~90 sequential DB calls for a user with 30 sources.
+
+**Before:** per-source `count_documents` + `find_one` per project/dept/chat  
+**After:** 5 batch queries total (`$in` lookups + 1 aggregate `$group` for chunk counts)
+
+Output format unchanged — fully backward compatible.
+
+#### 3. ChatPage Parallel Fetch (`frontend/src/pages/ChatPage.js`)
+Chat page load reduced from 4 sequential HTTP stages to 2 parallel batches:
+
+- **Stage 1 (parallel):** `GET /chats/:id` + `GET /chats/:id/messages`
+- **Stage 2 (parallel):** sources + project + shared-sources + **images** (images moved into this batch)
+
+### Files Changed
+- `backend/db/indexes.py` — new file, 72 lines
+- `backend/routes/enterprise_sources.py` — batch query rewrite
+- `backend/server.py` — call `create_indexes()` on startup
+- `frontend/src/pages/ChatPage.js` — parallel fetch refactor
+
+---
+
+---
+
+## 19. Session Updates (2026-06-17) — Library Feature
+
+### New Feature: Department Library
+
+#### Concept
+A centrally managed document library where a single uploaded file can be shared
+with **multiple departments simultaneously**. Members activate library items via
+a new **"Department"** tab in the chat Source Panel, and the AI then uses those
+documents as RAG context.
+
+#### Flow
+```
+Admin / Manager uploads book to /library
+    │  selects 1..N departments (sharedDepartments)
+    ▼
+Dept A member opens chat → Sources → "Department" tab
+    │  checks the item ✅
+    ▼
+AI uses that file as context (RAG)
+    [Source: Manual.pdf (LIBRARY)]
+```
+
+#### Data Model (`sources` collection, `level = "library"`)
+```python
+LibraryItem = {
+    "id": "uuid",
+    "level": "library",                        # distinguishes from project/dept/personal
+    "title": "Product Manual Q2",              # human-readable title
+    "description": "...",
+    "tags": ["contract", "hr"],
+    "originalName": "manual.pdf",
+    "mimeType": "application/pdf",
+    "sizeBytes": 1048576,
+    "storagePath": "<uuid>.pdf",               # stored once in backend/uploads/
+    "sharedDepartments": ["dept_a", "dept_b"], # KEY: one file → many departments
+    "isGlobalLibrary": False,                  # True = visible to all departments
+    "ownerId": "user_uuid",
+    "ownerEmail": "admin@...",
+    "status": "active",
+    "contentHash": "sha256...",
+    "createdAt": "ISO datetime",
+    "updatedAt": "ISO datetime"
+}
+```
+
+Chunks stored in `source_chunks` with `projectId = "__library__"`. One copy per
+file — no duplication across departments.
+
+#### New Index
+```python
+("sources", [("level", ASC), ("sharedDepartments", ASC)], {})
+```
+
+#### API Endpoints (`/api/library`)
+```
+POST   /api/library/upload             # Upload file (admin or dept manager)
+GET    /api/library                    # List accessible items (filtered by user's depts)
+GET    /api/library/{id}               # Single item
+PUT    /api/library/{id}               # Update title/desc/tags
+POST   /api/library/{id}/share         # Set sharedDepartments (array replace)
+DELETE /api/library/{id}/share/{deptId}# Remove single dept from share list
+GET    /api/library/{id}/download      # Download file (dept member access check)
+GET    /api/library/{id}/preview       # First N chunks as text
+DELETE /api/library/{id}               # Delete (admin or uploader)
+```
+
+#### Permissions
+| Action | Admin | Dept Manager | Dept Member |
+|--------|-------|--------------|-------------|
+| Upload | ✅ | ✅ (own depts only) | ❌ |
+| Share to all depts | ✅ | ❌ | ❌ |
+| Share to managed dept | ✅ | ✅ | ❌ |
+| View / Download | ✅ | ✅ | ✅ |
+| Edit metadata | ✅ | ✅ (if their dept) | ❌ |
+| Delete | ✅ | ✅ (own uploads) | ❌ |
+
+#### RAG Integration (`messages.py`)
+Library items are **opt-in** — not auto-active. Added
+`get_accessible_library_source_ids()` that returns items matching the user's
+departments. These IDs enter `user_accessible_source_ids` so an explicitly
+checked library item passes the chat's `activeSourceIds` filter and reaches
+`get_relevant_chunks()` unchanged.
+
+Source type tag in citations: `LIBRARY`
+
+#### Frontend
+| File | Change |
+|------|--------|
+| `pages/LibraryPage.js` | New page — browse, upload, share modal (multi-dept checkboxes), edit, preview, download, delete |
+| `components/chat/SourcePanel.js` | Added **"Department"** tab (3rd tab) with checkbox list of accessible library items + active count badge |
+| `pages/ChatPage.js` | `libraryItems` state, `GET /api/library` on load, `openLibraryPreview` / `downloadLibraryItem` handlers |
+| `App.js` | Route `/library` |
+| `components/DashboardLayout.js` | Nav item "Библиотека" → `/library` |
+
+#### Key Design Decisions
+- **No duplication**: file stored once, `sharedDepartments` is just an array of
+  IDs — removing a dept from the list instantly revokes access.
+- **Existing department sources untouched**: `user_department_ids = []` in
+  `messages.py` is intentionally left as-is; Library uses its own lookup.
+- **No approval workflow**: library items go `active` immediately on upload
+  (simpler than department sources, managed by trusted roles).
+
+### Files Changed (2026-06-17 Library feature)
+- `backend/routes/library.py` — new, 340 lines
+- `backend/server.py` — import + `app.include_router(library_router)`
+- `backend/db/indexes.py` — added `(level, sharedDepartments)` compound index
+- `backend/routes/messages.py` — `get_accessible_library_source_ids()`, library integration in both `send_message` and `send_message_stream`, `source_types["library"]`
+- `backend/routes/enterprise_sources.py` — guard against deleting library items via generic DELETE endpoint
+- `frontend/src/pages/LibraryPage.js` — new
+- `frontend/src/components/chat/SourcePanel.js` — tabs + Department tab
+- `frontend/src/pages/ChatPage.js` — library state + handlers
+- `frontend/src/App.js` — `/library` route
+- `frontend/src/components/DashboardLayout.js` — nav item + `Library` icon
+
+---
+
+**Document Version:** 1.8
+**Last Updated:** 2026-06-17
 **Author:** Planet Knowledge Team

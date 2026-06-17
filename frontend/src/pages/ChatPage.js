@@ -55,6 +55,7 @@ const ChatPage = () => {
   const [projectSources, setProjectSources] = useState([]);
   const [myPersonalSources, setMyPersonalSources] = useState([]);     // owner's own personal sources (with sharedInChatIds)
   const [sharedPersonalSources, setSharedPersonalSources] = useState([]); // personal sources shared INTO this chat by owner
+  const [libraryItems, setLibraryItems] = useState([]);                   // library books accessible to the user
   const [activeSourceIds, setActiveSourceIds] = useState([]);
   const [sourcesExplicitlySet, setSourcesExplicitlySet] = useState(false);
   const sourcesJustLoaded = useRef(false); // prevents saving back to DB what we just loaded
@@ -218,6 +219,11 @@ const ChatPage = () => {
       const dbActiveIds = chatRes.data.activeSourceIds;
       setSourceMode(chatRes.data.sourceMode || 'all');
       setMessages(messagesRes.data.items || messagesRes.data);
+
+      // Library books accessible to the user (opt-in; activated via Source panel)
+      axios.get(`${API}/library`)
+        .then(res => setLibraryItems(res.data || []))
+        .catch(() => setLibraryItems([]));
 
       let allProjectSourceIds = [];
       if (chatRes.data.projectId) {
@@ -390,6 +396,37 @@ const ChatPage = () => {
       const link = document.createElement('a');
       link.href = url;
       link.setAttribute('download', source.originalName || 'file');
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch { toast.error('Failed to download file'); }
+  };
+
+  const openLibraryPreview = async (item) => {
+    setPreviewLoading(true);
+    setPreviewDialogOpen(true);
+    try {
+      const response = await axios.get(`${API}/library/${item.id}/preview`);
+      setPreviewSource({
+        name: response.data.title || response.data.originalName,
+        text: response.data.content,
+        chunkCount: response.data.totalChunks,
+        mimeType: item.mimeType,
+      });
+    } catch {
+      toast.error('Failed to load preview');
+      setPreviewDialogOpen(false);
+    } finally { setPreviewLoading(false); }
+  };
+
+  const downloadLibraryItem = async (item) => {
+    try {
+      const response = await axios.get(`${API}/library/${item.id}/download`, { responseType: 'blob' });
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', item.originalName || item.title || 'file');
       document.body.appendChild(link);
       link.click();
       link.remove();
@@ -1078,6 +1115,9 @@ const ChatPage = () => {
                 onShareToChat={sharePersonalSourceToChat}
                 onUnshareFromChat={unsharePersonalSourceFromChat}
                 chatId={chatId}
+                libraryItems={libraryItems}
+                onPreviewLibrary={openLibraryPreview}
+                onDownloadLibrary={downloadLibraryItem}
               />
             </div>
           </>

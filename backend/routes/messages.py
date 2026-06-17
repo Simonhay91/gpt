@@ -39,6 +39,31 @@ router = APIRouter(prefix="/api", tags=["messages"])
 GLOBAL_PROJECT_ID = "__global__"
 MAX_CHUNKS_PER_QUERY = 5
 
+
+async def get_accessible_library_source_ids(db, current_user: dict) -> list:
+    """Library items the user may activate in a chat.
+
+    An item is accessible when it is shared with one of the user's departments,
+    marked global, or the user is an admin. Library items are opt-in: they are
+    returned as part of the *accessible* pool but are only used when the user
+    explicitly selects them in the Source panel.
+    """
+    from middleware.auth import is_admin as _is_admin
+    if _is_admin(current_user.get("email", "")):
+        query = {"level": "library", "status": {"$in": ["active", None]}}
+    else:
+        user_depts = current_user.get("departments", [])
+        query = {
+            "level": "library",
+            "status": {"$in": ["active", None]},
+            "$or": [
+                {"sharedDepartments": {"$in": user_depts}},
+                {"isGlobalLibrary": True},
+            ],
+        }
+    items = await db.sources.find(query, {"_id": 0, "id": 1}).to_list(1000)
+    return [it["id"] for it in items]
+
 # RAG score thresholds
 RAG_SCORE_MIN = 0.20          # Default minimum chunk score (lowered — generic queries score lower)
 RAG_SCORE_MIN_EXCEL = 0.15   # Lower threshold for xlsx/csv sources
@@ -233,8 +258,12 @@ async def send_message(
         ).to_list(1000)
         project_source_ids = [s["id"] for s in project_sources]
 
+    # Library items the user can activate (opt-in: not active by default, but part
+    # of the accessible pool so explicit checkbox selection in the panel works).
+    library_source_ids = await get_accessible_library_source_ids(db, current_user)
+
     active_source_ids = personal_source_ids + project_source_ids
-    user_accessible_source_ids = active_source_ids.copy()
+    user_accessible_source_ids = active_source_ids + library_source_ids
 
     # AI Only mode — bypass all sources and web search
     if source_mode == 'ai_only':
@@ -260,7 +289,9 @@ async def send_message(
                 active_source_ids = []
             else:
                 sel_set = set(chat_selected)
-                active_source_ids = [sid for sid in active_source_ids if sid in sel_set]
+                # Intersect with the full accessible pool (incl. library) so an
+                # explicitly selected library item is kept active.
+                active_source_ids = [sid for sid in user_accessible_source_ids if sid in sel_set]
         # Re-add shared-to-chat sources — they must always be active
         for sid in shared_to_chat_ids:
             if sid not in active_source_ids:
@@ -364,11 +395,15 @@ async def send_message(
 
         for s in sources:
             name = s.get("originalName") or s.get("url") or "Unknown"
+            level = s.get("level")
+            if level == "library" and s.get("title"):
+                name = s.get("title")
             source_names[s["id"]] = name
             active_source_names.append(name)
-            level = s.get("level")
             if level == "department":
                 source_types[s["id"]] = "department"
+            elif level == "library":
+                source_types[s["id"]] = "library"
             elif s.get("projectId") == GLOBAL_PROJECT_ID or level == "global":
                 source_types[s["id"]] = "global"
             else:
@@ -1026,8 +1061,10 @@ async def send_message_stream(
         ).to_list(1000)
         project_source_ids = [s["id"] for s in project_sources]
 
+    library_source_ids = await get_accessible_library_source_ids(db, current_user)
+
     active_source_ids = personal_source_ids + project_source_ids
-    user_accessible_source_ids = active_source_ids.copy()
+    user_accessible_source_ids = active_source_ids + library_source_ids
 
     if source_mode == 'ai_only':
         active_source_ids = []
@@ -1045,7 +1082,9 @@ async def send_message_stream(
                 active_source_ids = []
             else:
                 sel_set = set(chat_selected)
-                active_source_ids = [sid for sid in active_source_ids if sid in sel_set]
+                # Intersect with the full accessible pool (incl. library) so an
+                # explicitly selected library item is kept active.
+                active_source_ids = [sid for sid in user_accessible_source_ids if sid in sel_set]
         for sid in shared_to_chat_ids:
             if sid not in active_source_ids:
                 active_source_ids.append(sid)
@@ -1144,11 +1183,15 @@ async def send_message_stream(
 
         for s in sources:
             name = s.get("originalName") or s.get("url") or "Unknown"
+            level = s.get("level")
+            if level == "library" and s.get("title"):
+                name = s.get("title")
             source_names[s["id"]] = name
             active_source_names.append(name)
-            level = s.get("level")
             if level == "department":
                 source_types[s["id"]] = "department"
+            elif level == "library":
+                source_types[s["id"]] = "library"
             elif s.get("projectId") == GLOBAL_PROJECT_ID or level == "global":
                 source_types[s["id"]] = "global"
             else:

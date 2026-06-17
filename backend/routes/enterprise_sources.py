@@ -346,6 +346,11 @@ def setup_enterprise_source_routes(
         elif level == "global":
             if not is_admin(current_user["email"]):
                 raise HTTPException(status_code=403, detail="Only admin can delete global sources")
+        elif level == "library":
+            # Library items must be deleted through /api/library/{id}; only admin or
+            # the uploader may remove them via this generic route.
+            if not is_admin(current_user["email"]) and source.get("ownerId") != current_user["id"]:
+                raise HTTPException(status_code=403, detail="Only admin or uploader can delete library items")
         
         # Delete file
         if source.get("storagePath"):

@@ -99,6 +99,7 @@ from routes.news import router as news_router
 from routes.excel import router as excel_router
 from routes.temp_files import router as temp_files_router
 from routes.reports import router as reports_router
+from routes.library import router as library_router
 
 # Import services and dependencies needed for enterprise route setup
 from services.enterprise import AuditService, VersionService
@@ -218,6 +219,7 @@ app.include_router(news_router, prefix="/api")
 app.include_router(excel_router, prefix="/api")
 app.include_router(temp_files_router)
 app.include_router(reports_router)
+app.include_router(library_router)
 
 # ==================== MIDDLEWARE ====================
 

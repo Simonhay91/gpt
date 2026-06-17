@@ -33,6 +33,7 @@ import ProductDetailPage from './pages/ProductDetailPage';
 import OemDatasheetPage from './pages/OemDatasheetPage';
 import AdminBrandsPage from './pages/AdminBrandsPage';
 import AdminReportsPage from './pages/AdminReportsPage';
+import LibraryPage from './pages/LibraryPage';
 
 // Protected Route Component
 const ProtectedRoute = ({ children }) => {
@@ -199,6 +200,13 @@ function AppRoutes() {
       <Route path="/personal-sources" element={
         <ProtectedRoute>
           <PersonalSourcesPage />
+        </ProtectedRoute>
+      } />
+
+      {/* Library Route */}
+      <Route path="/library" element={
+        <ProtectedRoute>
+          <LibraryPage />
         </ProtectedRoute>
       } />
       
