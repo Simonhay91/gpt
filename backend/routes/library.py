@@ -43,6 +43,8 @@ UPLOAD_DIR = ROOT_DIR / "uploads"
 UPLOAD_DIR.mkdir(exist_ok=True)
 MAX_FILE_SIZE = 50 * 1024 * 1024  # 50MB
 LIBRARY_PROJECT_ID = "__library__"
+MAX_LIBRARY_CHUNKS = 1000          # cap per item to keep embedding time < 1 min
+EMBED_BATCH_SIZE = 20              # parallel OpenAI calls per batch
 
 SUPPORTED_MIME_TYPES = {
     "application/pdf": "pdf",
@@ -156,21 +158,24 @@ async def _enrich_with_department_names(db, items: List[dict]) -> List[dict]:
 
 # ==================== BACKGROUND EMBEDDING ====================
 
-async def _embed_with_retry(text: str, max_retries: int = 5) -> Optional[List[float]]:
-    """Call get_embedding with exponential backoff on rate-limit errors (429)."""
+async def _embed_one(client, text: str, max_retries: int = 4) -> Optional[List[float]]:
+    """Embed a single chunk using a shared AsyncOpenAI client with backoff."""
     for attempt in range(max_retries):
         try:
-            result = await get_embedding(text)
-            return result
+            result = await client.embeddings.create(
+                input=[text[:8000]],
+                model="text-embedding-3-small",
+            )
+            return result.data[0].embedding
         except Exception as exc:
             msg = str(exc)
             is_rate_limit = "429" in msg or "rate_limit" in msg.lower() or "rate limit" in msg.lower()
             if is_rate_limit and attempt < max_retries - 1:
-                wait = 2 ** attempt  # 1s, 2s, 4s, 8s, 16s
-                logger.warning(f"Rate limit hit, retrying in {wait}s (attempt {attempt + 1}/{max_retries})")
+                wait = 2 ** attempt  # 1s → 2s → 4s
+                logger.warning(f"Rate limit, retry in {wait}s (attempt {attempt + 1})")
                 await asyncio.sleep(wait)
             else:
-                logger.error(f"Embedding failed after {attempt + 1} attempts: {exc}")
+                logger.error(f"Embed error (attempt {attempt + 1}): {exc}")
                 return None
     return None
 
@@ -178,44 +183,68 @@ async def _embed_with_retry(text: str, max_retries: int = 5) -> Optional[List[fl
 async def _generate_embeddings_background(source_id: str, chunks: list):
     """Generate embeddings for all chunks in the background.
 
-    Called after the upload endpoint returns so the HTTP response is not
-    blocked by N sequential OpenAI API calls.  Updates each chunk in-place
-    and flips the source status to ``active`` when done.
-
-    Rate-limit protection:
-    - Small pause every 20 chunks to avoid hitting TPM limits.
-    - Per-chunk retry with exponential backoff on 429 errors.
+    Uses a single AsyncOpenAI client and processes EMBED_BATCH_SIZE chunks
+    in parallel per batch to stay fast without hammering rate limits.
     """
+    import os
+    from openai import AsyncOpenAI as _AsyncOpenAI
+
+    api_key = os.environ.get("OPENAI_API_KEY", "")
+    if not api_key:
+        logger.warning(f"No OPENAI_API_KEY — skipping embeddings for {source_id}")
+        await get_db().sources.update_one(
+            {"id": source_id},
+            {"$set": {"status": "active", "updatedAt": _now_iso()}},
+        )
+        return
+
     db = get_db()
+    client = _AsyncOpenAI(api_key=api_key)
+    total = len(chunks)
     failed = 0
+
     try:
-        for i, chunk_content in enumerate(chunks):
-            embedding = await _embed_with_retry(chunk_content)
-            if embedding is None:
-                failed += 1
-            await db.source_chunks.update_one(
-                {"sourceId": source_id, "chunkIndex": i},
-                {"$set": {"embedding": embedding}},
+        for batch_start in range(0, total, EMBED_BATCH_SIZE):
+            batch = chunks[batch_start: batch_start + EMBED_BATCH_SIZE]
+
+            # Embed batch in parallel
+            embeddings = await asyncio.gather(
+                *[_embed_one(client, text) for text in batch],
+                return_exceptions=True,
             )
-            # Pause every 20 chunks to stay under OpenAI TPM/RPM limits
-            if (i + 1) % 20 == 0:
-                logger.info(f"Library embedding progress {source_id}: {i + 1}/{len(chunks)} chunks")
-                await asyncio.sleep(1.0)
+
+            # Persist results
+            for j, emb in enumerate(embeddings):
+                i = batch_start + j
+                emb_val = emb if isinstance(emb, list) else None
+                if emb_val is None:
+                    failed += 1
+                await db.source_chunks.update_one(
+                    {"sourceId": source_id, "chunkIndex": i},
+                    {"$set": {"embedding": emb_val}},
+                )
+
+            done = min(batch_start + EMBED_BATCH_SIZE, total)
+            logger.info(f"Library embedding {source_id}: {done}/{total} chunks")
+            # Tiny pause between batches to respect RPM limits
+            await asyncio.sleep(0.3)
 
         await db.sources.update_one(
             {"id": source_id},
             {"$set": {"status": "active", "updatedAt": _now_iso()}},
         )
         logger.info(
-            f"Library embeddings done for {source_id}: "
-            f"{len(chunks) - failed}/{len(chunks)} chunks embedded, {failed} failed"
+            f"Library embeddings done {source_id}: "
+            f"{total - failed}/{total} embedded, {failed} failed"
         )
     except Exception as exc:
-        logger.error(f"Library embedding background error for {source_id}: {exc}")
+        logger.error(f"Library embedding background error {source_id}: {exc}")
         await db.sources.update_one(
             {"id": source_id},
             {"$set": {"status": "active", "updatedAt": _now_iso()}},
         )
+    finally:
+        await client.close()
 
 
 # ==================== UPLOAD ====================
@@ -272,6 +301,11 @@ async def upload_library_item(
     source_id = str(uuid.uuid4())
     content_hash = _compute_hash(extracted_text)
     chunks = _do_chunking(extracted_text, file_type)
+    if len(chunks) > MAX_LIBRARY_CHUNKS:
+        logger.warning(
+            f"Library upload {source_id}: {len(chunks)} chunks → truncated to {MAX_LIBRARY_CHUNKS}"
+        )
+        chunks = chunks[:MAX_LIBRARY_CHUNKS]
 
     storage_filename = f"{source_id}.{file_type}"
     storage_path = UPLOAD_DIR / storage_filename
