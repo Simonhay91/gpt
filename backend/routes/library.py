@@ -605,7 +605,18 @@ async def download_library_item(item_id: str, current_user: dict = Depends(get_c
 # ==================== PREVIEW ====================
 
 @router.get("/{item_id}/preview")
-async def preview_library_item(item_id: str, current_user: dict = Depends(get_current_user)):
+async def preview_library_item(
+    item_id: str,
+    page: int = 1,
+    page_size: int = 20,
+    current_user: dict = Depends(get_current_user),
+):
+    """Return paginated full text of a library item.
+
+    Query params:
+    - ``page``: 1-based page number (default 1)
+    - ``page_size``: chunks per page, 1–100 (default 20)
+    """
     db = get_db()
     item = await db.sources.find_one({"id": item_id, "level": "library"}, {"_id": 0})
     if not item:
@@ -613,20 +624,31 @@ async def preview_library_item(item_id: str, current_user: dict = Depends(get_cu
     if not _user_can_access(current_user, item):
         raise HTTPException(status_code=403, detail="Access denied")
 
+    page = max(1, page)
+    page_size = max(1, min(100, page_size))
+    skip = (page - 1) * page_size
+
+    total_chunks = await db.source_chunks.count_documents({"sourceId": item_id})
+    total_pages = max(1, -(-total_chunks // page_size))  # ceiling division
+
     chunks = await db.source_chunks.find(
         {"sourceId": item_id},
         {"_id": 0, "content": 1, "chunkIndex": 1},
-    ).sort("chunkIndex", 1).to_list(100)
+    ).sort("chunkIndex", 1).skip(skip).limit(page_size).to_list(page_size)
+
     content = "\n\n---\n\n".join(c.get("content", "") for c in chunks)
-    max_preview = 10000
-    if len(content) > max_preview:
-        content = content[:max_preview] + f"\n\n... [{max_preview}/{len(content)} chars]"
+
     return {
         "sourceId": item_id,
         "title": item.get("title"),
         "originalName": item.get("originalName"),
         "content": content,
-        "totalChunks": len(chunks),
+        "page": page,
+        "pageSize": page_size,
+        "totalChunks": total_chunks,
+        "totalPages": total_pages,
+        "hasNext": page < total_pages,
+        "hasPrev": page > 1,
     }
 
 

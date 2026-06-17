@@ -64,6 +64,9 @@ const LibraryPage = () => {
   const [previewItem, setPreviewItem] = useState(null);
   const [previewContent, setPreviewContent] = useState('');
   const [isLoadingPreview, setIsLoadingPreview] = useState(false);
+  const [previewPage, setPreviewPage] = useState(1);
+  const [previewTotalPages, setPreviewTotalPages] = useState(1);
+  const [previewTotalChunks, setPreviewTotalChunks] = useState(0);
 
   const canManage = useMemo(
     () => user?.isAdmin || departments.length > 0,
@@ -224,18 +227,28 @@ const LibraryPage = () => {
   };
 
   // ── Preview ──
-  const openPreview = async (item) => {
-    setPreviewItem(item);
+  const loadPreviewPage = async (item, page) => {
     setIsLoadingPreview(true);
-    setPreviewContent('');
     try {
-      const res = await axios.get(`${API}/library/${item.id}/preview`);
-      setPreviewContent(res.data.content || 'Нет содержимого');
+      const res = await axios.get(`${API}/library/${item.id}/preview`, { params: { page, page_size: 20 } });
+      setPreviewContent(res.data.content || '');
+      setPreviewPage(res.data.page || page);
+      setPreviewTotalPages(res.data.totalPages || 1);
+      setPreviewTotalChunks(res.data.totalChunks || 0);
     } catch {
       setPreviewContent('Не удалось загрузить просмотр');
     } finally {
       setIsLoadingPreview(false);
     }
+  };
+
+  const openPreview = async (item) => {
+    setPreviewItem(item);
+    setPreviewPage(1);
+    setPreviewTotalPages(1);
+    setPreviewTotalChunks(0);
+    setPreviewContent('');
+    await loadPreviewPage(item, 1);
   };
 
   const canManageItem = (item) =>
@@ -518,7 +531,15 @@ const LibraryPage = () => {
         <Dialog open={!!previewItem} onOpenChange={(open) => !open && setPreviewItem(null)}>
           <DialogContent className="sm:max-w-2xl max-h-[80vh]">
             <DialogHeader>
-              <DialogTitle className="flex items-center gap-2"><Eye className="h-5 w-5 text-indigo-400" /> {previewItem?.title || previewItem?.originalName}</DialogTitle>
+              <DialogTitle className="flex items-center gap-2">
+                <Eye className="h-5 w-5 text-indigo-400" />
+                {previewItem?.title || previewItem?.originalName}
+              </DialogTitle>
+              {previewTotalChunks > 0 && (
+                <p className="text-xs text-muted-foreground">
+                  Chunk-ներ: {previewTotalChunks} · Էջ {previewPage}/{previewTotalPages}
+                </p>
+              )}
             </DialogHeader>
             {isLoadingPreview ? (
               <div className="flex justify-center py-8"><div className="spinner" /></div>
@@ -527,7 +548,25 @@ const LibraryPage = () => {
                 <pre className="whitespace-pre-wrap text-sm font-mono">{previewContent}</pre>
               </div>
             )}
-            <DialogFooter>
+            <DialogFooter className="flex items-center justify-between sm:justify-between gap-2">
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={previewPage <= 1 || isLoadingPreview}
+                  onClick={() => loadPreviewPage(previewItem, previewPage - 1)}
+                >
+                  ← Նախ.
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={previewPage >= previewTotalPages || isLoadingPreview}
+                  onClick={() => loadPreviewPage(previewItem, previewPage + 1)}
+                >
+                  Հաջ. →
+                </Button>
+              </div>
               <Button variant="outline" onClick={() => setPreviewItem(null)}>Закрыть</Button>
             </DialogFooter>
           </DialogContent>
