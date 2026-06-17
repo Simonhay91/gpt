@@ -193,6 +193,7 @@ export const MessageBubble = ({
 }) => {
   const [saveDropdownOpen, setSaveDropdownOpen] = useState(false);
   const [reportOpen, setReportOpen] = useState(false);
+  const [isHovered, setIsHovered] = useState(false);
   const dropdownRef = useRef(null);
 
   useEffect(() => {
@@ -244,7 +245,11 @@ export const MessageBubble = ({
             </div>
           </div>
         ) : (
-          <div className={`group relative ${isEditing ? '' : ''}`}>
+          <div
+            className="relative w-fit"
+            onMouseEnter={() => setIsHovered(true)}
+            onMouseLeave={() => setIsHovered(false)}
+          >
             {isEditing ? (
               <div className="space-y-2">
                 <textarea
@@ -328,7 +333,7 @@ export const MessageBubble = ({
 
                 {/* User edit button */}
                 {message.role === 'user' && (
-                  <div className="absolute -bottom-1 -right-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <div className={`absolute -bottom-1 -right-1 transition-opacity duration-150 z-10 ${isHovered ? 'opacity-100' : 'opacity-0'}`}>
                     <Button variant="ghost" size="icon" className="h-7 w-7 bg-background border border-border shadow-sm" onClick={() => onStartEdit(message)} title="Edit message">
                       <Pencil className="h-3.5 w-3.5" />
                     </Button>
@@ -337,7 +342,7 @@ export const MessageBubble = ({
 
                 {/* Assistant action buttons */}
                 {message.role === 'assistant' && (
-                  <div className="absolute -bottom-1 -right-1 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity" style={{ transition: 'opacity 150ms' }}>
+                  <div className={`absolute -bottom-1 -right-1 flex gap-1 transition-opacity duration-150 z-10 ${isHovered ? 'opacity-100' : 'opacity-0'}`}>
                     {/* Save dropdown */}
                     <div className="relative" ref={dropdownRef} style={{ transition: 'none' }}>
                       <Button
