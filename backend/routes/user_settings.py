@@ -162,6 +162,84 @@ async def update_ai_profile(data: AiProfileUpdate, current_user: dict = Depends(
     )
 
 
+# ==================== TUTOR MEMORY ENDPOINTS ====================
+
+@router.get("/users/me/tutor-memory")
+async def get_tutor_memory(current_user: dict = Depends(get_current_user)):
+    """Return the user's per-book learning progress, enriched with book titles."""
+    db = get_db()
+    user = await db.users.find_one({"id": current_user["id"]}, {"_id": 0, "tutor_memory": 1})
+    memory = (user or {}).get("tutor_memory") or {}
+
+    book_ids = list(memory.keys())
+    titles = {}
+    if book_ids:
+        docs = await db.sources.find(
+            {"id": {"$in": book_ids}},
+            {"_id": 0, "id": 1, "title": 1, "originalName": 1},
+        ).to_list(len(book_ids))
+        titles = {d["id"]: (d.get("title") or d.get("originalName") or "Книга") for d in docs}
+
+    items = []
+    for bid, entry in memory.items():
+        items.append({
+            "bookId": bid,
+            "bookTitle": titles.get(bid, "Книга"),
+            "summary": entry.get("summary", ""),
+            "progressPercent": entry.get("progressPercent", 0),
+            "lastSession": entry.get("lastSession"),
+            "updatedAt": entry.get("updatedAt"),
+        })
+    items.sort(key=lambda x: x.get("lastSession") or "", reverse=True)
+    return {"items": items}
+
+
+@router.delete("/users/me/tutor-memory/{book_id}")
+async def delete_tutor_memory(book_id: str, current_user: dict = Depends(get_current_user)):
+    """Reset learning progress for a single book."""
+    db = get_db()
+    await db.users.update_one(
+        {"id": current_user["id"]},
+        {"$unset": {f"tutor_memory.{book_id}": ""}}
+    )
+    return {"message": "Tutor memory reset", "bookId": book_id}
+
+
+@router.get("/users/me/tutor-books")
+async def get_tutor_books(current_user: dict = Depends(get_current_user)):
+    """Library books assigned to the user's position, merged with learning progress.
+
+    Powers the Tutor page: shows each assigned book with its progress bar and
+    the latest "where we left off" note.
+    """
+    db = get_db()
+    position = (current_user.get("ai_profile") or {}).get("position")
+
+    books = []
+    if position:
+        books = await db.sources.find(
+            {"level": "library", "status": {"$in": ["active", None]}, "sharedPositions": position},
+            {"_id": 0, "id": 1, "title": 1, "originalName": 1, "description": 1},
+        ).to_list(1000)
+
+    user = await db.users.find_one({"id": current_user["id"]}, {"_id": 0, "tutor_memory": 1})
+    memory = (user or {}).get("tutor_memory") or {}
+
+    items = []
+    for b in books:
+        mem = memory.get(b["id"]) or {}
+        items.append({
+            "bookId": b["id"],
+            "bookTitle": b.get("title") or b.get("originalName") or "Книга",
+            "description": b.get("description", ""),
+            "progressPercent": mem.get("progressPercent", 0),
+            "summary": mem.get("summary", ""),
+            "lastSession": mem.get("lastSession"),
+        })
+    items.sort(key=lambda x: (x.get("lastSession") or "", x["bookTitle"]), reverse=True)
+    return {"position": position, "items": items}
+
+
 # ==================== DEPARTMENT AI CONTEXT ENDPOINTS ====================
 
 @router.get("/departments/{department_id}/ai-context", response_model=DepartmentAiContextResponse)

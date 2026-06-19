@@ -18,7 +18,8 @@ import {
   Save,
   Settings,
   Globe2,
-  Package
+  Package,
+  Briefcase
 } from 'lucide-react';
 import DashboardLayout from '../components/DashboardLayout';
 
@@ -37,6 +38,17 @@ const AdminUserDetailPage = () => {
   const [isSavingModel, setIsSavingModel] = useState(false);
   const [isSavingGlobalPerm, setIsSavingGlobalPerm] = useState(false);
   const [isSavingCatalogPerm, setIsSavingCatalogPerm] = useState(false);
+  const [userPosition, setUserPosition] = useState('');
+  const [isSavingPosition, setIsSavingPosition] = useState(false);
+
+  const positions = [
+    { value: '', label: 'Не задана' },
+    { value: 'CEO', label: 'CEO' },
+    { value: 'COO', label: 'COO' },
+    { value: 'CRO', label: 'CRO' },
+    { value: 'DeptHead', label: 'Руководитель отдела' },
+    { value: 'Employee', label: 'Сотрудник' },
+  ];
 
   const gptModels = [
     { value: '', label: 'По умолчанию (глобальная настройка)' },
@@ -58,6 +70,7 @@ const AdminUserDetailPage = () => {
       setUserModel(response.data.gptModel || '');
       setCanEditGlobal(response.data.user?.canEditGlobalSources || false);
       setCanEditCatalog(response.data.user?.canEditProductCatalog || false);
+      setUserPosition(response.data.user?.ai_profile?.position || '');
     } catch (error) {
       toast.error('Failed to load user details');
       navigate('/admin/users');
@@ -75,6 +88,18 @@ const AdminUserDetailPage = () => {
       toast.error('Failed to save prompt');
     } finally {
       setIsSavingPrompt(false);
+    }
+  };
+
+  const savePosition = async () => {
+    setIsSavingPosition(true);
+    try {
+      await axios.put(`${API}/admin/users/${userId}/position`, { position: userPosition || null });
+      toast.success('Должность сохранена');
+    } catch (error) {
+      toast.error('Не удалось сохранить должность');
+    } finally {
+      setIsSavingPosition(false);
     }
   };
 
@@ -233,6 +258,34 @@ const AdminUserDetailPage = () => {
         <div className="grid md:grid-cols-2 gap-6">
           {/* Left Column - Settings */}
           <div className="space-y-6">
+            {/* Position */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Briefcase className="h-5 w-5" />
+                  Должность
+                </CardTitle>
+                <CardDescription>
+                  Определяет книги Tutor и вид дашборда
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <select
+                  value={userPosition}
+                  onChange={(e) => setUserPosition(e.target.value)}
+                  className="w-full p-2 rounded-md border border-input bg-background"
+                >
+                  {positions.map(p => (
+                    <option key={p.value} value={p.value}>{p.label}</option>
+                  ))}
+                </select>
+                <Button onClick={savePosition} disabled={isSavingPosition} className="w-full">
+                  {isSavingPosition ? <div className="spinner mr-2" /> : <Save className="h-4 w-4 mr-2" />}
+                  Сохранить должность
+                </Button>
+              </CardContent>
+            </Card>
+
             {/* GPT Model */}
             <Card>
               <CardHeader>

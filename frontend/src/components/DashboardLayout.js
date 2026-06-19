@@ -29,7 +29,8 @@ import {
   Package,
   FileOutput,
   Flag,
-  Library
+  Library,
+  GraduationCap
 } from 'lucide-react';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
@@ -144,6 +145,11 @@ const DashboardLayout = ({ children }) => {
       name: t('nav.mySources'),
       path: '/personal-sources',
       icon: Lock
+    },
+    {
+      name: language === 'ru' ? 'Tutor' : 'Tutor',
+      path: '/tutor',
+      icon: GraduationCap
     },
     {
       name: language === 'ru' ? 'Библиотека' : 'Library',

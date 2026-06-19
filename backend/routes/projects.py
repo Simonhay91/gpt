@@ -8,7 +8,8 @@ from models.schemas import (
     ProjectCreate, 
     ProjectResponse, 
     ShareProjectRequest,
-    ProjectMember
+    ProjectMember,
+    C_SUITE_POSITIONS,
 )
 from middleware.auth import get_current_user
 from db.connection import get_db
@@ -111,6 +112,68 @@ async def get_user_accessible_project_ids(user_id: str) -> List[str]:
         all_ids.add(p["id"])
     
     return list(all_ids)
+
+
+# ==================== ROLE-BASED DASHBOARD ====================
+
+async def _enrich_projects(db, projects: List[dict]) -> List[dict]:
+    """Attach owner email + member count for dashboard cards."""
+    owner_ids = list({p["ownerId"] for p in projects if p.get("ownerId")})
+    users = await db.users.find(
+        {"id": {"$in": owner_ids}}, {"_id": 0, "id": 1, "email": 1}
+    ).to_list(len(owner_ids) or 1)
+    email_map = {u["id"]: u["email"] for u in users}
+    out = []
+    for p in projects:
+        out.append({
+            "id": p["id"],
+            "name": p.get("name", ""),
+            "ownerId": p.get("ownerId"),
+            "ownerEmail": email_map.get(p.get("ownerId"), ""),
+            "createdAt": p.get("createdAt"),
+            "memberCount": len(p.get("sharedMembers", [])) + 1,
+        })
+    return out
+
+
+@router.get("/dashboard/overview")
+async def dashboard_overview(current_user: dict = Depends(get_current_user)):
+    """Role-based project overview keyed off the user's position.
+
+    - CEO/COO/CRO → ``scope=all``: every project in the company.
+    - Department head (manages ≥1 department) → ``scope=department``: projects
+      owned by members of the departments they manage.
+    - Everyone else → ``scope=assigned``: only projects they can access.
+    """
+    db = get_db()
+    position = (current_user.get("ai_profile") or {}).get("position")
+
+    if position in C_SUITE_POSITIONS:
+        projects = await db.projects.find({}, {"_id": 0}).to_list(2000)
+        return {"position": position, "scope": "all", "projects": await _enrich_projects(db, projects)}
+
+    managed = await db.departments.find(
+        {"managers": current_user["id"]}, {"_id": 0, "members": 1, "managers": 1, "name": 1}
+    ).to_list(100)
+    if managed:
+        member_ids = set()
+        for d in managed:
+            member_ids.update(d.get("members", []))
+            member_ids.update(d.get("managers", []))
+        member_ids.add(current_user["id"])
+        projects = await db.projects.find(
+            {"ownerId": {"$in": list(member_ids)}}, {"_id": 0}
+        ).to_list(2000)
+        return {
+            "position": position or "DeptHead",
+            "scope": "department",
+            "departmentNames": [d.get("name") for d in managed],
+            "projects": await _enrich_projects(db, projects),
+        }
+
+    accessible_ids = await get_user_accessible_project_ids(current_user["id"])
+    projects = await db.projects.find({"id": {"$in": accessible_ids}}, {"_id": 0}).to_list(2000)
+    return {"position": position or "Employee", "scope": "assigned", "projects": await _enrich_projects(db, projects)}
 
 
 # ==================== PROJECT ENDPOINTS ====================

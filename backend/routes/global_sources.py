@@ -350,6 +350,37 @@ async def admin_delete_global_source(source_id: str, current_user: dict = Depend
     return {"message": "Global source deleted"}
 
 
+@router.put("/admin/global-sources/{source_id}/company-info")
+async def set_company_info(source_id: str, data: dict, current_user: dict = Depends(get_current_user)):
+    """Mark/unmark a global source as the singleton "Company Info" source.
+
+    Only one source can be the company info at a time, so setting a new one
+    clears the flag on all others. This source is auto-injected (with a small
+    char budget) into every chat as background context.
+    """
+    db = get_db()
+    if not is_admin(current_user["email"]):
+        raise HTTPException(status_code=403, detail="Admin access required")
+
+    source = await db.sources.find_one({"id": source_id, "projectId": GLOBAL_PROJECT_ID}, {"_id": 0})
+    if not source:
+        raise HTTPException(status_code=404, detail="Global source not found")
+
+    enabled = bool(data.get("isCompanyInfo", True))
+
+    if enabled:
+        # Singleton: clear the flag everywhere else first.
+        await db.sources.update_many(
+            {"isCompanyInfo": True},
+            {"$set": {"isCompanyInfo": False}}
+        )
+        await db.sources.update_one({"id": source_id}, {"$set": {"isCompanyInfo": True}})
+    else:
+        await db.sources.update_one({"id": source_id}, {"$set": {"isCompanyInfo": False}})
+
+    return {"message": "Company info updated", "sourceId": source_id, "isCompanyInfo": enabled}
+
+
 @router.get("/admin/global-sources/{source_id}/preview")
 async def admin_preview_global_source(source_id: str, current_user: dict = Depends(get_current_user)):
     """Preview global source content"""

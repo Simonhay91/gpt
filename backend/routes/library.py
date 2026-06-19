@@ -21,6 +21,7 @@ import aiofiles
 
 from middleware.auth import get_current_user, is_admin
 from db.connection import get_db
+from models.schemas import POSITIONS
 from services.file_processor import (
     extract_text_from_pdf,
     extract_text_from_docx,
@@ -117,6 +118,23 @@ def _parse_tags(raw: Optional[str]) -> List[str]:
     return _parse_department_ids(raw)  # same parsing rules (JSON array or CSV)
 
 
+def _parse_positions(raw) -> List[str]:
+    """Parse + validate positions. Accepts list, JSON array string, or CSV.
+
+    Silently drops any value that isn't a known position so a bad input can
+    never inject an arbitrary role.
+    """
+    if isinstance(raw, list):
+        candidates = [str(x).strip() for x in raw if str(x).strip()]
+    else:
+        candidates = _parse_department_ids(raw)  # same JSON/CSV parsing
+    return [p for p in candidates if p in POSITIONS]
+
+
+def _user_position(current_user: dict) -> Optional[str]:
+    return (current_user.get("ai_profile") or {}).get("position")
+
+
 async def _managed_department_ids(db, current_user: dict) -> set:
     """Department ids the user is allowed to manage (admin → all)."""
     if is_admin(current_user["email"]):
@@ -134,7 +152,10 @@ def _user_can_access(current_user: dict, item: dict) -> bool:
     if item.get("isGlobalLibrary"):
         return True
     user_depts = set(current_user.get("departments", []))
-    return bool(user_depts & set(item.get("sharedDepartments", [])))
+    if user_depts & set(item.get("sharedDepartments", [])):
+        return True
+    pos = _user_position(current_user)
+    return bool(pos and pos in set(item.get("sharedPositions", [])))
 
 
 async def _enrich_with_department_names(db, items: List[dict]) -> List[dict]:
@@ -266,10 +287,11 @@ async def upload_library_item(
     description: Optional[str] = Form(None),
     tags: Optional[str] = Form(None),
     departmentIds: Optional[str] = Form(None),
+    positionIds: Optional[str] = Form(None),
     isGlobal: Optional[str] = Form(None),
     current_user: dict = Depends(get_current_user),
 ):
-    """Upload a file to the library and share it with one or more departments.
+    """Upload a file to the library and share it with departments and/or positions.
 
     Only an admin or a department manager can upload. A manager can only share
     with departments they manage.
@@ -277,13 +299,17 @@ async def upload_library_item(
     db = get_db()
 
     dept_ids = _parse_department_ids(departmentIds)
+    position_ids = _parse_positions(positionIds)
     is_global = str(isGlobal).lower() in ("1", "true", "yes") if isGlobal else False
 
     # Permission: admin or manager of every target department.
+    # Positions are company-wide, so only an admin (HR) may assign them.
     managed = await _managed_department_ids(db, current_user)
     if not is_admin(current_user["email"]):
         if is_global:
             raise HTTPException(status_code=403, detail="Only admin can publish to all departments")
+        if position_ids:
+            raise HTTPException(status_code=403, detail="Only admin can assign books to positions")
         if not dept_ids:
             raise HTTPException(status_code=400, detail="Select at least one department")
         not_managed = [d for d in dept_ids if d not in managed]
@@ -329,6 +355,7 @@ async def upload_library_item(
         "projectId": None,
         "departmentId": None,
         "sharedDepartments": dept_ids,
+        "sharedPositions": position_ids,
         "isGlobalLibrary": is_global,
         "kind": "file",
         "title": (title or file.filename or "Untitled").strip(),
@@ -395,12 +422,16 @@ async def list_library_items(
         query = {"level": "library"}
     else:
         user_depts = current_user.get("departments", [])
+        or_clauses = [
+            {"sharedDepartments": {"$in": user_depts}},
+            {"isGlobalLibrary": True},
+        ]
+        pos = _user_position(current_user)
+        if pos:
+            or_clauses.append({"sharedPositions": pos})
         query = {
             "level": "library",
-            "$or": [
-                {"sharedDepartments": {"$in": user_depts}},
-                {"isGlobalLibrary": True},
-            ],
+            "$or": or_clauses,
         }
 
     items = await db.sources.find(query, {"_id": 0}).sort("createdAt", -1).to_list(1000)
@@ -473,10 +504,11 @@ async def update_library_item(
 async def share_library_item(
     item_id: str, data: dict, current_user: dict = Depends(get_current_user)
 ):
-    """Set the full list of departments an item is shared with.
+    """Set the full list of departments / positions an item is shared with.
 
-    Body: ``{"departmentIds": ["a", "b"], "isGlobal": false}``. This replaces the
-    existing share list, so one item can live in several departments at once.
+    Body: ``{"departmentIds": ["a", "b"], "positions": ["CEO"], "isGlobal": false}``.
+    This replaces the existing share lists, so one item can live in several
+    departments and positions at once.
     """
     db = get_db()
     item = await db.sources.find_one({"id": item_id, "level": "library"}, {"_id": 0})
@@ -488,6 +520,13 @@ async def share_library_item(
         new_dept_ids = _parse_department_ids(new_dept_ids)
     new_dept_ids = [str(d) for d in new_dept_ids if str(d).strip()]
     is_global = bool(data.get("isGlobal", item.get("isGlobalLibrary", False)))
+
+    # Positions are company-wide → only admin may change them. For managers we
+    # preserve whatever positions were already set.
+    if "positions" in data and is_admin(current_user["email"]):
+        new_positions = _parse_positions(data.get("positions"))
+    else:
+        new_positions = item.get("sharedPositions", [])
 
     managed = await _managed_department_ids(db, current_user)
     if not is_admin(current_user["email"]):
@@ -507,6 +546,7 @@ async def share_library_item(
         {"id": item_id},
         {"$set": {
             "sharedDepartments": new_dept_ids,
+            "sharedPositions": new_positions,
             "isGlobalLibrary": is_global,
             "updatedAt": _now_iso(),
         }},

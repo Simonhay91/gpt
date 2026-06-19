@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../co
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '../components/ui/dialog';
 import { Label } from '../components/ui/label';
 import { toast } from 'sonner';
-import { Plus, FolderOpen, Trash2, Clock, ArrowRight, MessageSquare, MoveRight } from 'lucide-react';
+import { Plus, FolderOpen, Trash2, Clock, ArrowRight, MessageSquare, MoveRight, Building2, Eye } from 'lucide-react';
 import DashboardLayout from '../components/DashboardLayout';
 import { useLanguage } from '../contexts/LanguageContext';
 
@@ -17,6 +17,7 @@ const DashboardPage = () => {
   const { t } = useLanguage();
   const [projects, setProjects] = useState([]);
   const [quickChats, setQuickChats] = useState([]);
+  const [overview, setOverview] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [newProjectName, setNewProjectName] = useState('');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -36,19 +37,29 @@ const DashboardPage = () => {
 
   const fetchData = async () => {
     try {
-      const [projectsRes, quickChatsRes] = await Promise.all([
+      const [projectsRes, quickChatsRes, overviewRes] = await Promise.all([
         axios.get(`${API}/projects`),
-        axios.get(`${API}/quick-chats`)
+        axios.get(`${API}/quick-chats`),
+        axios.get(`${API}/dashboard/overview`).catch(() => null),
       ]);
       // Handle paginated response
       setProjects(projectsRes.data.items || projectsRes.data);
       setQuickChats(quickChatsRes.data.items || quickChatsRes.data);
+      setOverview(overviewRes?.data || null);
     } catch (error) {
       toast.error('Failed to load data');
     } finally {
       setIsLoading(false);
     }
   };
+
+  // Cross-department / company overview (only for C-suite & department heads).
+  const ownProjectIds = new Set(projects.map((p) => p.id));
+  const showOverview =
+    overview && overview.scope !== 'assigned' && (overview.projects || []).length > 0;
+  const overviewExtraProjects = showOverview
+    ? overview.projects.filter((p) => !ownProjectIds.has(p.id))
+    : [];
 
   const createProject = async () => {
     if (!newProjectName.trim()) {
@@ -285,6 +296,56 @@ const DashboardPage = () => {
                     </Card>
                   ))}
                 </div>
+              </div>
+            )}
+
+            {/* Role-based Overview (C-suite: all departments / Dept head: their dept) */}
+            {showOverview && (
+              <div>
+                <h2 className="text-xl font-semibold mb-1 flex items-center gap-2">
+                  <Building2 className="h-5 w-5 text-sky-400" />
+                  {overview.scope === 'all' ? 'Обзор всех отделов' : 'Проекты отдела'}
+                  <span className="text-xs font-normal text-muted-foreground ml-1">
+                    {overview.projects.length} проектов
+                  </span>
+                </h2>
+                <p className="text-sm text-muted-foreground mb-4">
+                  {overview.scope === 'all'
+                    ? 'Все проекты компании (только для просмотра).'
+                    : `Отделы: ${(overview.departmentNames || []).filter(Boolean).join(', ') || '—'}`}
+                </p>
+                {overviewExtraProjects.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">Все эти проекты уже среди ваших ниже.</p>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {overviewExtraProjects.map((p) => (
+                      <Card
+                        key={p.id}
+                        className="card-hover cursor-pointer group border-sky-500/20"
+                        onClick={() => navigate(`/projects/${p.id}`)}
+                      >
+                        <CardContent className="py-4">
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="flex items-center gap-3 min-w-0">
+                              <div className="rounded-lg bg-sky-500/15 p-2 flex-shrink-0">
+                                <FolderOpen className="h-5 w-5 text-sky-400" />
+                              </div>
+                              <div className="min-w-0">
+                                <h3 className="font-semibold truncate">{p.name}</h3>
+                                <p className="text-xs text-muted-foreground truncate">{p.ownerEmail}</p>
+                              </div>
+                            </div>
+                            <Eye className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                          </div>
+                          <div className="flex items-center justify-between text-xs text-muted-foreground mt-3">
+                            <span className="flex items-center gap-1"><Clock className="h-3 w-3" />{formatDate(p.createdAt)}</span>
+                            <span>{p.memberCount} участн.</span>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
 

@@ -14,6 +14,10 @@ MAX_CONTEXT_CHARS = 20000
 MAX_CHUNKS_PER_QUERY = 8  # increased from 5 for broader context coverage
 GLOBAL_PROJECT_ID = "__global__"
 
+# Company Info ("General Info") is always injected, but with a hard, small budget
+# so it never crowds out the query-specific RAG context.
+COMPANY_INFO_CHARS_LIMIT = 2500
+
 
 async def get_embedding(text: str) -> Optional[List[float]]:
     """Get embedding for text using OpenAI text-embedding-3-small.
@@ -157,6 +161,48 @@ async def get_relevant_chunks(
 def get_openai_client():
     """Returns None - OpenAI replaced by Voyage AI"""
     return None
+
+
+async def get_company_info_context(db) -> Optional[dict]:
+    """Return the singleton "Company Info" source's leading text, capped hard.
+
+    Used to always seed every chat with a short company description without
+    competing for the main RAG budget. Returns ``{sourceId, name, text}`` or
+    None when no company-info source is configured.
+    """
+    source = await db.sources.find_one(
+        {"isCompanyInfo": True, "projectId": GLOBAL_PROJECT_ID},
+        {"_id": 0, "id": 1, "originalName": 1, "url": 1},
+    )
+    if not source:
+        return None
+
+    chunks = await db.source_chunks.find(
+        {"sourceId": source["id"]},
+        {"_id": 0, "content": 1, "text": 1, "chunkIndex": 1},
+    ).sort("chunkIndex", 1).to_list(50)
+
+    parts = []
+    total = 0
+    for c in chunks:
+        content = c.get("content") or c.get("text", "")
+        if not content:
+            continue
+        remaining = COMPANY_INFO_CHARS_LIMIT - total
+        if remaining <= 0:
+            break
+        snippet = content[:remaining]
+        parts.append(snippet)
+        total += len(snippet)
+
+    if not parts:
+        return None
+
+    return {
+        "sourceId": source["id"],
+        "name": source.get("originalName") or source.get("url") or "Company Info",
+        "text": "\n\n".join(parts),
+    }
 
 
 # ==================== SUMMARY INTENT DETECTION ====================

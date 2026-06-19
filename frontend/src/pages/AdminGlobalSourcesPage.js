@@ -25,7 +25,8 @@ import {
   Users,
   Database,
   Zap,
-  RefreshCw
+  RefreshCw,
+  Building2
 } from 'lucide-react';
 import DashboardLayout from '../components/DashboardLayout';
 import { useLanguage } from '../contexts/LanguageContext';
@@ -172,6 +173,27 @@ const AdminGlobalSourcesPage = () => {
       setSources(sources.filter(s => s.id !== sourceId));
     } catch (error) {
       toast.error('Не удалось удалить источник');
+    }
+  };
+
+  const handleToggleCompanyInfo = async (source) => {
+    const enable = !source.isCompanyInfo;
+    if (enable && source.chunkCount > 5) {
+      if (!window.confirm(
+        'Будут использованы только первые ~2500 символов этого источника как «Общая инфо». ' +
+        'Рекомендуется короткий файл. Продолжить?'
+      )) return;
+    }
+    try {
+      await axios.put(`${API}/admin/global-sources/${source.id}/company-info`, { isCompanyInfo: enable });
+      toast.success(enable ? 'Источник назначен «Общей инфо»' : 'Снято с «Общей инфо»');
+      // Singleton: clear flag on others locally, set on this one
+      setSources(prev => prev.map(s => ({
+        ...s,
+        isCompanyInfo: s.id === source.id ? enable : (enable ? false : s.isCompanyInfo),
+      })));
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Не удалось обновить');
     }
   };
 
@@ -644,8 +666,13 @@ const AdminGlobalSourcesPage = () => {
                               {getSourceIcon(source)}
                             </div>
                             <div className="min-w-0 flex-1">
-                              <h3 className="font-semibold truncate">
+                              <h3 className="font-semibold truncate flex items-center gap-2">
                                 {source.originalName || source.url || 'Untitled'}
+                                {source.isCompanyInfo && (
+                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs border bg-emerald-500/10 text-emerald-400 border-emerald-500/20 whitespace-nowrap flex-shrink-0">
+                                    <Building2 className="h-3 w-3" /> Общая инфо
+                                  </span>
+                                )}
                               </h3>
                               <div className="flex items-center gap-3 text-sm text-muted-foreground mt-1">
                                 <span>{source.kind === 'url' ? 'URL' : 'File'}</span>
@@ -661,6 +688,15 @@ const AdminGlobalSourcesPage = () => {
                           </div>
                           
                           <div className="flex items-center gap-2 ml-4">
+                            <Button
+                              variant={source.isCompanyInfo ? 'default' : 'ghost'}
+                              size="icon"
+                              className="h-8 w-8"
+                              onClick={() => handleToggleCompanyInfo(source)}
+                              title={source.isCompanyInfo ? 'Снять «Общую инфо»' : 'Сделать «Общей инфо»'}
+                            >
+                              <Building2 className={`h-4 w-4 ${source.isCompanyInfo ? '' : 'text-emerald-400'}`} />
+                            </Button>
                             <Button
                               variant="ghost"
                               size="icon"

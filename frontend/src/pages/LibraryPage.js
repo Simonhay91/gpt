@@ -9,12 +9,22 @@ import { Checkbox } from '../components/ui/checkbox';
 import { toast } from 'sonner';
 import {
   Library, Upload, Trash2, Building2, Clock, Eye, Download,
-  FileText, Loader2, Share2, Globe2, Search, Pencil
+  FileText, Loader2, Share2, Globe2, Search, Pencil, Briefcase
 } from 'lucide-react';
 import DashboardLayout from '../components/DashboardLayout';
 import { useAuth } from '../contexts/AuthContext';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
+
+const POSITION_OPTIONS = [
+  { value: 'CEO', label: 'CEO' },
+  { value: 'COO', label: 'COO' },
+  { value: 'CRO', label: 'CRO' },
+  { value: 'DeptHead', label: 'Руководитель отдела' },
+  { value: 'Employee', label: 'Сотрудник' },
+];
+
+const POSITION_LABELS = POSITION_OPTIONS.reduce((acc, p) => { acc[p.value] = p.label; return acc; }, {});
 
 const formatBytes = (bytes) => {
   if (!bytes) return '';
@@ -45,11 +55,13 @@ const LibraryPage = () => {
   const [uploadDesc, setUploadDesc] = useState('');
   const [uploadTags, setUploadTags] = useState('');
   const [uploadDeptIds, setUploadDeptIds] = useState([]);
+  const [uploadPositions, setUploadPositions] = useState([]);
   const [uploadGlobal, setUploadGlobal] = useState(false);
 
   // Share dialog
   const [shareItem, setShareItem] = useState(null);
   const [shareDeptIds, setShareDeptIds] = useState([]);
+  const [sharePositions, setSharePositions] = useState([]);
   const [shareGlobal, setShareGlobal] = useState(false);
   const [isSharing, setIsSharing] = useState(false);
 
@@ -115,14 +127,15 @@ const LibraryPage = () => {
     setUploadDesc('');
     setUploadTags('');
     setUploadDeptIds([]);
+    setUploadPositions([]);
     setUploadGlobal(false);
     setUploadOpen(true);
   };
 
   const submitUpload = async () => {
     if (!uploadFile) { toast.error('Выберите файл'); return; }
-    if (!uploadGlobal && uploadDeptIds.length === 0) {
-      toast.error('Выберите хотя бы один департамент');
+    if (!uploadGlobal && uploadDeptIds.length === 0 && uploadPositions.length === 0) {
+      toast.error('Выберите департамент или должность');
       return;
     }
     setIsUploading(true);
@@ -132,6 +145,7 @@ const LibraryPage = () => {
     formData.append('description', uploadDesc);
     formData.append('tags', JSON.stringify(uploadTags.split(',').map(t => t.trim()).filter(Boolean)));
     formData.append('departmentIds', JSON.stringify(uploadDeptIds));
+    formData.append('positionIds', JSON.stringify(uploadPositions));
     formData.append('isGlobal', uploadGlobal ? 'true' : 'false');
     try {
       await axios.post(`${API}/library/upload`, formData, {
@@ -151,6 +165,7 @@ const LibraryPage = () => {
   const openShare = (item) => {
     setShareItem(item);
     setShareDeptIds(item.sharedDepartments || []);
+    setSharePositions(item.sharedPositions || []);
     setShareGlobal(!!item.isGlobalLibrary);
   };
 
@@ -159,6 +174,7 @@ const LibraryPage = () => {
     try {
       await axios.post(`${API}/library/${shareItem.id}/share`, {
         departmentIds: shareDeptIds,
+        positions: sharePositions,
         isGlobal: shareGlobal,
       });
       toast.success('Доступ обновлён');
@@ -284,6 +300,23 @@ const LibraryPage = () => {
     </div>
   );
 
+  // Positions are company-wide → only admin (HR) can assign them.
+  const PositionCheckboxList = ({ selected, onToggle }) => (
+    <div className="space-y-1.5 max-h-[180px] overflow-y-auto rounded-md border border-border p-2">
+      {POSITION_OPTIONS.map(p => (
+        <label key={p.value} className="flex items-center gap-2 p-1.5 rounded hover:bg-secondary/40 cursor-pointer">
+          <Checkbox
+            checked={selected.includes(p.value)}
+            onCheckedChange={() => onToggle(p.value)}
+            className="data-[state=checked]:bg-sky-500"
+          />
+          <Briefcase className="h-4 w-4 text-sky-400" />
+          <span className="text-sm">{p.label}</span>
+        </label>
+      ))}
+    </div>
+  );
+
   return (
     <DashboardLayout>
       <div className="p-6 lg:p-8" data-testid="library-page">
@@ -372,6 +405,11 @@ const LibraryPage = () => {
                               <Building2 className="h-3 w-3" /> {d.name}
                             </span>
                           ))}
+                          {(item.sharedPositions || []).map(p => (
+                            <span key={p} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs border bg-sky-500/10 text-sky-400 border-sky-500/20">
+                              <Briefcase className="h-3 w-3" /> {POSITION_LABELS[p] || p}
+                            </span>
+                          ))}
                           {(item.tags || []).map((tag, i) => (
                             <span key={i} className="inline-flex items-center px-2 py-0.5 rounded-full text-xs border bg-secondary text-muted-foreground border-border">
                               #{tag}
@@ -454,6 +492,12 @@ const LibraryPage = () => {
                   <DeptCheckboxList selected={uploadDeptIds} onToggle={(id) => toggleId(uploadDeptIds, setUploadDeptIds, id)} />
                 </div>
               )}
+              {user?.isAdmin && !uploadGlobal && (
+                <div className="space-y-2">
+                  <Label className="flex items-center gap-1.5"><Briefcase className="h-4 w-4 text-sky-400" /> Должности (Tutor)</Label>
+                  <PositionCheckboxList selected={uploadPositions} onToggle={(id) => toggleId(uploadPositions, setUploadPositions, id)} />
+                </div>
+              )}
             </div>
             <DialogFooter>
               <Button variant="outline" onClick={() => setUploadOpen(false)} disabled={isUploading}>Отмена</Button>
@@ -484,6 +528,12 @@ const LibraryPage = () => {
                 <div className="space-y-2">
                   <Label>Департаменты</Label>
                   <DeptCheckboxList selected={shareDeptIds} onToggle={(id) => toggleId(shareDeptIds, setShareDeptIds, id)} />
+                </div>
+              )}
+              {user?.isAdmin && !shareGlobal && (
+                <div className="space-y-2">
+                  <Label className="flex items-center gap-1.5"><Briefcase className="h-4 w-4 text-sky-400" /> Должности (Tutor)</Label>
+                  <PositionCheckboxList selected={sharePositions} onToggle={(id) => toggleId(sharePositions, setSharePositions, id)} />
                 </div>
               )}
             </div>

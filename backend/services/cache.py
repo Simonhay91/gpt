@@ -29,12 +29,18 @@ def build_cache_key_context(
     model: str,
     developer_prompt: str,
     user_prompt: Optional[str],
-    source_ids: List[str]
+    source_ids: List[str],
+    mode: Optional[str] = None
 ) -> str:
-    """Build deterministic cache context hash for ZERO DATA LEAKAGE"""
+    """Build deterministic cache context hash for ZERO DATA LEAKAGE.
+
+    ``mode`` (e.g. "tutor") is part of the key so a teaching answer is never
+    served for a plain assistant query against the same sources, and vice versa.
+    """
     components = [
         f"project:{project_id or 'none'}",
         f"model:{model}",
+        f"mode:{mode or 'default'}",
         f"dev_prompt:{hash_string(developer_prompt)}",
         f"user_prompt:{hash_string(user_prompt) if user_prompt else 'none'}",
         f"sources:{hash_string(','.join(sorted(source_ids)))}"

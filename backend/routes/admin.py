@@ -18,7 +18,9 @@ from models.schemas import (
     GPTConfigUpdate,
     GPTConfigResponse,
     UserPromptUpdate,
-    UpdateUserModelRequest
+    UpdateUserModelRequest,
+    AdminSetPositionRequest,
+    POSITIONS,
 )
 from middleware.auth import get_current_user, is_admin, hash_password
 from db.connection import get_db
@@ -466,6 +468,38 @@ async def update_user_gpt_model(user_id: str, data: UpdateUserModelRequest, curr
     await db.users.update_one({"id": user_id}, {"$set": {"gptModel": data.model}})
     
     return {"message": "Model updated", "model": data.model}
+
+
+@router.put("/admin/users/{user_id}/position")
+async def update_user_position(
+    user_id: str,
+    data: AdminSetPositionRequest,
+    current_user: dict = Depends(get_current_user)
+):
+    """Admin sets a user's corporate position (drives library auto-assignment + dashboard)."""
+    db = get_db()
+    if not is_admin(current_user["email"]):
+        raise HTTPException(status_code=403, detail="Admin access required")
+
+    position = data.position
+    if position is not None and position not in POSITIONS:
+        raise HTTPException(status_code=400, detail=f"Invalid position. Allowed: {', '.join(POSITIONS)}")
+
+    user = await db.users.find_one({"id": user_id}, {"_id": 0})
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    await db.users.update_one(
+        {"id": user_id},
+        {"$set": {"ai_profile.position": position}}
+    )
+    return {"message": "Position updated", "position": position}
+
+
+@router.get("/admin/positions")
+async def list_positions(current_user: dict = Depends(get_current_user)):
+    """Return the closed list of valid positions (for admin/library dropdowns)."""
+    return {"positions": POSITIONS}
 
 
 @router.post("/admin/users/{user_id}/reset-password")

@@ -1,6 +1,29 @@
 """Pydantic models for request/response schemas"""
+from enum import Enum
 from pydantic import BaseModel, Field, EmailStr
 from typing import List, Optional, Literal
+
+
+# ==================== POSITIONS ====================
+
+class PositionEnum(str, Enum):
+    """Corporate positions used to auto-assign library books and shape dashboards."""
+    CEO = "CEO"
+    COO = "COO"
+    CRO = "CRO"
+    DEPT_HEAD = "DeptHead"
+    EMPLOYEE = "Employee"
+
+
+# Allowed position values (closed list). Frontend dropdowns mirror this.
+POSITIONS = [e.value for e in PositionEnum]
+
+# Positions that get a cross-department overview on the dashboard.
+C_SUITE_POSITIONS = {PositionEnum.CEO.value, PositionEnum.COO.value, PositionEnum.CRO.value}
+
+
+class AdminSetPositionRequest(BaseModel):
+    position: Optional[str] = None  # one of POSITIONS, or None to clear
 
 
 # ==================== AUTH MODELS ====================
@@ -91,10 +114,12 @@ class ChatResponse(BaseModel):
     activeSourceIds: Optional[List[str]] = []
     sharedWithUsers: Optional[List[str]] = None
     sourceMode: Optional[str] = "all"
+    mode: Optional[str] = None  # "tutor" for Personal Assistant / Tutor chats
 
 
 class QuickChatCreate(BaseModel):
     name: Optional[str] = "Quick Chat"
+    mode: Optional[str] = None  # set "tutor" to create a Tutor chat
 
 
 class MoveChatRequest(BaseModel):

@@ -20,7 +20,7 @@ from db.connection import get_db
 from routes.projects import check_project_access, can_edit_chats, verify_project_ownership
 from services.rag import (
     get_relevant_chunks, get_embedding, get_openai_client,
-    is_summary_query, get_document_overview_chunks,
+    is_summary_query, get_document_overview_chunks, get_company_info_context,
 )
 from services.cache import build_cache_key_context, find_cached_answer, save_to_cache
 from services.file_processor import chunk_text
@@ -44,25 +44,92 @@ async def get_accessible_library_source_ids(db, current_user: dict) -> list:
     """Library items the user may activate in a chat.
 
     An item is accessible when it is shared with one of the user's departments,
-    marked global, or the user is an admin. Library items are opt-in: they are
-    returned as part of the *accessible* pool but are only used when the user
-    explicitly selects them in the Source panel.
+    shared with the user's position, marked global, or the user is an admin.
+    Library items are opt-in: they are returned as part of the *accessible* pool
+    but are only used when the user explicitly selects them in the Source panel
+    (or auto-activated in a Tutor chat).
     """
     from middleware.auth import is_admin as _is_admin
     if _is_admin(current_user.get("email", "")):
         query = {"level": "library", "status": {"$in": ["active", None]}}
     else:
         user_depts = current_user.get("departments", [])
+        or_clauses = [
+            {"sharedDepartments": {"$in": user_depts}},
+            {"isGlobalLibrary": True},
+        ]
+        pos = (current_user.get("ai_profile") or {}).get("position")
+        if pos:
+            or_clauses.append({"sharedPositions": pos})
         query = {
             "level": "library",
             "status": {"$in": ["active", None]},
-            "$or": [
-                {"sharedDepartments": {"$in": user_depts}},
-                {"isGlobalLibrary": True},
-            ],
+            "$or": or_clauses,
         }
     items = await db.sources.find(query, {"_id": 0, "id": 1}).to_list(1000)
     return [it["id"] for it in items]
+
+
+async def get_position_library_source_ids(db, current_user: dict) -> list:
+    """Library items assigned to the user's position only (for Tutor auto-activation)."""
+    pos = (current_user.get("ai_profile") or {}).get("position")
+    if not pos:
+        return []
+    items = await db.sources.find(
+        {"level": "library", "status": {"$in": ["active", None]}, "sharedPositions": pos},
+        {"_id": 0, "id": 1},
+    ).to_list(1000)
+    return [it["id"] for it in items]
+
+
+async def _company_info_system_part(db, source_mode: str):
+    """Always-on company description, capped to a small budget. None when unset."""
+    if source_mode == 'ai_only':
+        return None
+    ci = await get_company_info_context(db)
+    if not ci:
+        return None
+    return (
+        f"COMPANY INFO ({ci['name']}):\n{ci['text']}\n\n"
+        "This is general background about the company. Use it naturally when relevant; "
+        "do not mention that it was provided as background."
+    )
+
+
+async def _tutor_memory_system_part(db, chat: dict, current_user: dict, active_source_ids: list):
+    """Per-book learning progress, injected only in Tutor chats.
+
+    Resolves the user's ``tutor_memory[book_id]`` summaries for the books that
+    are active in this chat and formats them as a background "TUTOR PROGRESS"
+    note so the AI can continue teaching from where the learner left off.
+    """
+    if not chat or chat.get("mode") != "tutor":
+        return None
+    tutor_memory = current_user.get("tutor_memory") or {}
+    if not tutor_memory or not active_source_ids:
+        return None
+
+    relevant = [(sid, tutor_memory[sid]) for sid in active_source_ids
+                if tutor_memory.get(sid) and tutor_memory[sid].get("summary")]
+    if not relevant:
+        return None
+
+    # Map source ids → human titles for clearer context.
+    titles = {}
+    sids = [sid for sid, _ in relevant]
+    docs = await db.sources.find({"id": {"$in": sids}}, {"_id": 0, "id": 1, "title": 1, "originalName": 1}).to_list(len(sids))
+    for d in docs:
+        titles[d["id"]] = d.get("title") or d.get("originalName") or "книга"
+
+    notes = []
+    for sid, mem in relevant:
+        notes.append(f"- {titles.get(sid, 'книга')}: {mem['summary']}")
+
+    return (
+        "TUTOR PROGRESS (what this learner has already covered):\n"
+        + "\n".join(notes)
+        + "\n\nContinue teaching from here. Briefly acknowledge prior progress, then move forward."
+    )
 
 # RAG score thresholds
 RAG_SCORE_MIN = 0.20          # Default minimum chunk score (lowered — generic queries score lower)
@@ -576,6 +643,10 @@ async def send_message(
         use_web_search = True
         logger.info("Fallback web search: no RAG results, auto-triggering")
 
+    # Tutor chats teach strictly from the assigned books — never pull the web in.
+    if chat.get("mode") == "tutor":
+        use_web_search = False
+
     if use_web_search:
         web_search_results = await brave_web_search(message_data.content)
         if web_search_results:
@@ -618,7 +689,8 @@ async def send_message(
         model=model_to_use,
         developer_prompt=config["developerPrompt"],
         user_prompt=user_custom_prompt,
-        source_ids=active_source_ids
+        source_ids=active_source_ids,
+        mode=chat.get("mode")
     )
 
     cache_hit = None
@@ -659,16 +731,26 @@ async def send_message(
             }
         else:
             # ── Agent routing ──
-            selected_agent_type = await route_to_agent(
-                message=message_data.content,
-                has_excel_source=has_excel_source,
-                has_rag_context=has_rag_context,
-                use_web_search=use_web_search,
-            )
+            # Tutor chats bypass auto-routing — the Tutor agent always wins so
+            # teaching behaviour is consistent (Risk 5).
+            if chat.get("mode") == "tutor":
+                selected_agent_type = "tutor"
+            else:
+                selected_agent_type = await route_to_agent(
+                    message=message_data.content,
+                    has_excel_source=has_excel_source,
+                    has_rag_context=has_rag_context,
+                    use_web_search=use_web_search,
+                )
             selected_agent = get_agent(selected_agent_type)
             logger.info(f"Agent selected: {selected_agent['name']}")
 
             system_parts = [config["developerPrompt"], selected_agent["system_prompt"]]
+
+            # Company Info — always-on, small budget, before everything else
+            _ci_part = await _company_info_system_part(db, source_mode)
+            if _ci_part:
+                system_parts.append(_ci_part)
 
             # Project memory
             if project_id:
@@ -678,6 +760,11 @@ async def send_message(
                         f"BACKGROUND CONTEXT:\n{project_doc['project_memory']}\n\n"
                         "Use this context naturally when relevant. Do not mention or reference this context explicitly."
                     )
+
+            # Tutor memory — per-book learning progress (only in tutor chats)
+            _tutor_part = await _tutor_memory_system_part(db, chat, current_user, active_source_ids)
+            if _tutor_part:
+                system_parts.append(_tutor_part)
 
             if user_custom_prompt:
                 system_parts.append(f"USER INSTRUCTIONS:\n{user_custom_prompt}")
@@ -828,7 +915,7 @@ async def send_message(
             # Use Sonnet for document-heavy tasks; Haiku for general chat
             _chat_model = (
                 "claude-sonnet-4-6"
-                if selected_agent_type in ("rag", "excel", "research")
+                if selected_agent_type in ("rag", "excel", "research", "tutor")
                 else "claude-haiku-4-5-20251001"
             )
             model_used = _chat_model
@@ -1340,6 +1427,10 @@ async def send_message_stream(
             and not active_source_ids and source_mode != 'ai_only':
         use_web_search = True
 
+    # Tutor chats teach strictly from the assigned books — never pull the web in.
+    if chat.get("mode") == "tutor":
+        use_web_search = False
+
     if use_web_search:
         web_search_results = await brave_web_search(message_data.content)
         if web_search_results:
@@ -1382,7 +1473,8 @@ async def send_message_stream(
         model=model_to_use,
         developer_prompt=config["developerPrompt"],
         user_prompt=user_custom_prompt,
-        source_ids=active_source_ids
+        source_ids=active_source_ids,
+        mode=chat.get("mode")
     )
 
     cache_hit = None
@@ -1406,16 +1498,25 @@ async def send_message_stream(
     CLAUDE_API_KEY = os.environ.get('CLAUDE_API_KEY', '')
 
     if not cache_hit:
-        selected_agent_type = await route_to_agent(
-            message=message_data.content,
-            has_excel_source=has_excel_source,
-            has_rag_context=has_rag_context,
-            use_web_search=use_web_search,
-        )
+        # Tutor chats bypass auto-routing — the Tutor agent always wins (Risk 5).
+        if chat.get("mode") == "tutor":
+            selected_agent_type = "tutor"
+        else:
+            selected_agent_type = await route_to_agent(
+                message=message_data.content,
+                has_excel_source=has_excel_source,
+                has_rag_context=has_rag_context,
+                use_web_search=use_web_search,
+            )
         selected_agent = get_agent(selected_agent_type)
         logger.info(f"[stream] Agent selected: {selected_agent['name']}")
 
         system_parts = [config["developerPrompt"], selected_agent["system_prompt"]]
+
+        # Company Info — always-on, small budget, before everything else
+        _ci_part = await _company_info_system_part(db, source_mode)
+        if _ci_part:
+            system_parts.append(_ci_part)
 
         if project_id:
             project_doc = _project_doc_cache
@@ -1424,6 +1525,11 @@ async def send_message_stream(
                     f"BACKGROUND CONTEXT:\n{project_doc['project_memory']}\n\n"
                     "Use this context naturally when relevant. Do not mention or reference this context explicitly."
                 )
+
+        # Tutor memory — per-book learning progress (only in tutor chats)
+        _tutor_part = await _tutor_memory_system_part(db, chat, current_user, active_source_ids)
+        if _tutor_part:
+            system_parts.append(_tutor_part)
 
         if user_custom_prompt:
             system_parts.append(f"USER INSTRUCTIONS:\n{user_custom_prompt}")
@@ -1566,7 +1672,7 @@ async def send_message_stream(
 
         _chat_model = (
             "claude-sonnet-4-6"
-            if selected_agent_type in ("rag", "excel", "research")
+            if selected_agent_type in ("rag", "excel", "research", "tutor")
             else "claude-haiku-4-5-20251001"
         )
 
@@ -2056,3 +2162,25 @@ async def extract_memory_points(chat_id: str, data: dict, current_user: dict = D
     except Exception as e:
         logger.error(f"Extract memory points error: {str(e)}")
         return {"points": []}
+
+
+# ==================== TUTOR: FINISH LESSON ====================
+
+@router.post("/chats/{chat_id}/tutor-summarize")
+async def tutor_summarize(chat_id: str, current_user: dict = Depends(get_current_user)):
+    """Summarize a Tutor chat into per-book progress notes ("Завершить урок").
+
+    Idempotent and safe — no-ops for non-tutor chats or chats without enough
+    content. Returns the list of book ids whose progress was updated.
+    """
+    from services.tutor import summarize_tutor_chat
+
+    db = get_db()
+    chat = await db.chats.find_one({"id": chat_id}, {"_id": 0})
+    if not chat:
+        raise HTTPException(status_code=404, detail="Chat not found")
+    if chat.get("ownerId") != current_user["id"]:
+        raise HTTPException(status_code=403, detail="Access denied")
+
+    result = await summarize_tutor_chat(db, chat, current_user["id"])
+    return {"success": True, **result}

@@ -36,6 +36,10 @@ _INDEXES = [
     ("sources", [("publishedFrom", pymongo.ASCENDING)], {}),
     # library — list items shared with a user's departments
     ("sources", [("level", pymongo.ASCENDING), ("sharedDepartments", pymongo.ASCENDING)], {}),
+    # library — list items shared with a user's position
+    ("sources", [("level", pymongo.ASCENDING), ("sharedPositions", pymongo.ASCENDING)], {}),
+    # global sources — singleton "company info" lookup
+    ("sources", [("projectId", pymongo.ASCENDING), ("isCompanyInfo", pymongo.ASCENDING)], {}),
 
     # source_chunks — RAG lookups and chunk counts
     ("source_chunks", [("sourceId", pymongo.ASCENDING)], {}),

@@ -18,7 +18,7 @@ import { toast } from 'sonner';
 import {
   ArrowLeft, Loader2, FileText, File, Globe, ImageIcon,
   ChevronDown, Pencil, Check, X, FolderOpen,
-  MessageSquare, Plus, Bot
+  MessageSquare, Plus, Bot, GraduationCap
 } from 'lucide-react';
 import DashboardLayout from '../components/DashboardLayout';
 
@@ -152,6 +152,20 @@ const ChatPage = () => {
   const nameInputRef = useRef(null);
 
   const isQuickChat = chat && !chat.projectId;
+  const isTutor = chat?.mode === 'tutor';
+  const [isFinishingLesson, setIsFinishingLesson] = useState(false);
+
+  const finishLesson = async () => {
+    setIsFinishingLesson(true);
+    try {
+      await axios.post(`${API}/chats/${chatId}/tutor-summarize`);
+      toast.success('Урок завершён — прогресс сохранён');
+    } catch (e) {
+      toast.error('Не удалось сохранить прогресс урока');
+    } finally {
+      setIsFinishingLesson(false);
+    }
+  };
 
   // ── Effects ──
   useEffect(() => { fetchChatData(); }, [chatId]);
@@ -984,6 +998,26 @@ const ChatPage = () => {
               </div>
             )}
           </div>
+
+          {/* Tutor mode — badge + finish lesson */}
+          {isTutor && (
+            <div className="flex items-center gap-2 flex-shrink-0">
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs border bg-sky-500/10 text-sky-400 border-sky-500/20" title="Источники предзагружены по вашей должности">
+                <GraduationCap className="h-3 w-3" /> Tutor
+              </span>
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-7 text-xs"
+                onClick={finishLesson}
+                disabled={isFinishingLesson}
+                data-testid="finish-lesson-btn"
+              >
+                {isFinishingLesson ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3 mr-1" />}
+                Завершить урок
+              </Button>
+            </div>
+          )}
 
           {/* Source status — clickable */}
           {!isQuickChat && projectSources.length > 0 && (
