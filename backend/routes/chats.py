@@ -35,14 +35,21 @@ async def _summarize_previous_tutor_chat(chat_id: str, user_id: str):
 
 
 async def _tutor_auto_active_source_ids(db, current_user: dict) -> List[str]:
-    """Sources auto-activated in a Tutor chat: Company Info + position books."""
-    from services.rag import get_company_info_context
+    """Sources auto-activated in a Tutor chat: all global sources + position books.
+
+    All global sources (company info, structure docs, etc.) are included so the
+    tutor can retrieve relevant context via RAG. Company Info is already always-on
+    injected into the system prompt, but including it here also makes it available
+    for direct RAG retrieval on relevant queries.
+    """
     from routes.messages import get_position_library_source_ids
 
-    ids: List[str] = []
-    ci = await get_company_info_context(db)
-    if ci and ci.get("sourceId"):
-        ids.append(ci["sourceId"])
+    GLOBAL_PROJECT_ID = "__global__"
+    global_sources = await db.sources.find(
+        {"projectId": GLOBAL_PROJECT_ID},
+        {"_id": 0, "id": 1},
+    ).to_list(1000)
+    ids: List[str] = [s["id"] for s in global_sources]
     ids.extend(await get_position_library_source_ids(db, current_user))
     # Dedup, preserve order
     seen = set()

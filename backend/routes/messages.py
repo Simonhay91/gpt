@@ -82,6 +82,16 @@ async def get_position_library_source_ids(db, current_user: dict) -> list:
     return [it["id"] for it in items]
 
 
+async def get_global_source_ids(db) -> list:
+    """All global sources (projectId == '__global__'). Used to include them in the
+    accessible pool for Tutor chats so they survive the activeSourceIds intersect."""
+    items = await db.sources.find(
+        {"projectId": GLOBAL_PROJECT_ID},
+        {"_id": 0, "id": 1},
+    ).to_list(1000)
+    return [it["id"] for it in items]
+
+
 async def _company_info_system_part(db, source_mode: str):
     """Always-on company description, capped to a small budget. None when unset."""
     if source_mode == 'ai_only':
@@ -329,8 +339,12 @@ async def send_message(
     # of the accessible pool so explicit checkbox selection in the panel works).
     library_source_ids = await get_accessible_library_source_ids(db, current_user)
 
+    # Global sources are added to the accessible pool for Tutor chats so the IDs
+    # stored in activeSourceIds (set at chat creation) survive the intersect below.
+    global_source_ids = await get_global_source_ids(db) if chat.get("mode") == "tutor" else []
+
     active_source_ids = personal_source_ids + project_source_ids
-    user_accessible_source_ids = active_source_ids + library_source_ids
+    user_accessible_source_ids = active_source_ids + library_source_ids + global_source_ids
 
     # AI Only mode — bypass all sources and web search
     if source_mode == 'ai_only':
@@ -1150,8 +1164,12 @@ async def send_message_stream(
 
     library_source_ids = await get_accessible_library_source_ids(db, current_user)
 
+    # Global sources are added to the accessible pool for Tutor chats so the IDs
+    # stored in activeSourceIds (set at chat creation) survive the intersect below.
+    global_source_ids = await get_global_source_ids(db) if chat.get("mode") == "tutor" else []
+
     active_source_ids = personal_source_ids + project_source_ids
-    user_accessible_source_ids = active_source_ids + library_source_ids
+    user_accessible_source_ids = active_source_ids + library_source_ids + global_source_ids
 
     if source_mode == 'ai_only':
         active_source_ids = []

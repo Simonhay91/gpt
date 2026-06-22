@@ -10,6 +10,7 @@ import logging
 from models.schemas import UrlSourceCreate
 from middleware.auth import get_current_user, is_admin
 from db.connection import get_db
+from services.rag import get_embedding
 from services.file_processor import (
     extract_text_from_pdf,
     extract_text_from_docx,
@@ -133,12 +134,14 @@ async def user_upload_global_source(
     await db.sources.insert_one(source_doc)
     
     for i, chunk_content in enumerate(chunks):
+        embedding = await get_embedding(chunk_content)
         chunk_doc = {
             "id": str(uuid.uuid4()),
             "sourceId": source_id,
             "projectId": GLOBAL_PROJECT_ID,
             "chunkIndex": i,
             "content": chunk_content,
+            "embedding": embedding,
             "createdAt": datetime.now(timezone.utc).isoformat()
         }
         await db.source_chunks.insert_one(chunk_doc)
@@ -262,12 +265,14 @@ async def admin_upload_global_source(
     await db.sources.insert_one(source_doc)
     
     for i, chunk_content in enumerate(chunks):
+        embedding = await get_embedding(chunk_content)
         chunk_doc = {
             "id": str(uuid.uuid4()),
             "sourceId": source_id,
             "projectId": GLOBAL_PROJECT_ID,
             "chunkIndex": i,
             "content": chunk_content,
+            "embedding": embedding,
             "createdAt": datetime.now(timezone.utc).isoformat()
         }
         await db.source_chunks.insert_one(chunk_doc)
@@ -311,12 +316,14 @@ async def admin_add_global_url_source(url_data: UrlSourceCreate, current_user: d
     await db.sources.insert_one(source_doc)
     
     for i, chunk_content in enumerate(chunks):
+        embedding = await get_embedding(chunk_content)
         chunk_doc = {
             "id": str(uuid.uuid4()),
             "sourceId": source_id,
             "projectId": GLOBAL_PROJECT_ID,
             "chunkIndex": i,
             "content": chunk_content,
+            "embedding": embedding,
             "createdAt": datetime.now(timezone.utc).isoformat()
         }
         await db.source_chunks.insert_one(chunk_doc)
@@ -406,3 +413,40 @@ async def admin_preview_global_source(source_id: str, current_user: dict = Depen
         "chunkCount": len(chunks),
         "wordCount": len(full_text.split())
     }
+
+
+@router.post("/admin/global-sources/backfill-embeddings")
+async def backfill_global_source_embeddings(current_user: dict = Depends(get_current_user)):
+    """Backfill embeddings for existing global source chunks that don't have them.
+
+    Safe to call multiple times — only processes chunks where embedding is missing.
+    """
+    db = get_db()
+    if not is_admin(current_user["email"]):
+        raise HTTPException(status_code=403, detail="Admin access required")
+
+    chunks = await db.source_chunks.find(
+        {"projectId": GLOBAL_PROJECT_ID, "embedding": {"$in": [None, []]}},
+        {"_id": 1, "content": 1}
+    ).to_list(5000)
+
+    updated = 0
+    failed = 0
+    for chunk in chunks:
+        content = chunk.get("content", "")
+        if not content:
+            continue
+        try:
+            embedding = await get_embedding(content)
+            if embedding:
+                await db.source_chunks.update_one(
+                    {"_id": chunk["_id"]},
+                    {"$set": {"embedding": embedding}}
+                )
+                updated += 1
+        except Exception as e:
+            logger.warning(f"Backfill embedding failed for chunk {chunk.get('_id')}: {e}")
+            failed += 1
+
+    logger.info(f"Backfill complete: {updated} updated, {failed} failed")
+    return {"updated": updated, "failed": failed, "total": len(chunks)}
