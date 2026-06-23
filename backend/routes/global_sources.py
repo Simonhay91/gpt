@@ -8,7 +8,8 @@ import httpx
 import logging
 
 from models.schemas import UrlSourceCreate
-from middleware.auth import get_current_user, is_admin
+from middleware.auth import get_current_user
+from middleware.permissions import require, resolve_permissions
 from db.connection import get_db
 from services.rag import get_embedding
 from services.file_processor import (
@@ -47,42 +48,33 @@ ALLOWED_TYPES = {
 }
 
 
-async def can_edit_global_sources(user: dict) -> bool:
-    """Check if user can edit global sources"""
-    if is_admin(user["email"]):
-        return True
-    return user.get("canEditGlobalSources", False)
-
 
 @router.get("/admin/global-sources")
-async def get_global_sources_admin(current_user: dict = Depends(get_current_user)):
+async def get_global_sources_admin(current_user: dict = Depends(require("global_sources", "read"))):
     """Get all global sources - admin only for full list"""
     db = get_db()
-    if not is_admin(current_user["email"]):
-        raise HTTPException(status_code=403, detail="Admin access required")
     
     sources = await db.sources.find({"projectId": GLOBAL_PROJECT_ID}, {"_id": 0}).to_list(1000)
     return sources
 
 
 @router.get("/global-sources")
-async def get_global_sources_for_users(current_user: dict = Depends(get_current_user)):
+async def get_global_sources_for_users(current_user: dict = Depends(require("global_sources", "read"))):
     """Get global sources for any authenticated user"""
     db = get_db()
     sources = await db.sources.find({"projectId": GLOBAL_PROJECT_ID}, {"_id": 0}).to_list(1000)
-    can_edit = await can_edit_global_sources(current_user)
+    perms = await resolve_permissions(current_user)
+    can_edit = "*" in perms or "global_sources:create" in perms
     return {"sources": sources, "canEdit": can_edit}
 
 
 @router.post("/global-sources/upload")
 async def user_upload_global_source(
     file: UploadFile = File(...),
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(require("global_sources", "create")),
 ):
     """User with permission uploads a global source file"""
     db = get_db()
-    if not await can_edit_global_sources(current_user):
-        raise HTTPException(status_code=403, detail="You don't have permission to edit global sources")
     
     if file.content_type not in ALLOWED_TYPES:
         raise HTTPException(status_code=400, detail=f"Unsupported file type: {file.content_type}")
@@ -151,18 +143,13 @@ async def user_upload_global_source(
 
 
 @router.delete("/global-sources/{source_id}")
-async def user_delete_global_source(source_id: str, current_user: dict = Depends(get_current_user)):
+async def user_delete_global_source(source_id: str, current_user: dict = Depends(require("global_sources", "delete"))):
     """User with permission deletes a global source"""
     db = get_db()
-    if not await can_edit_global_sources(current_user):
-        raise HTTPException(status_code=403, detail="You don't have permission to edit global sources")
-    
+
     source = await db.sources.find_one({"id": source_id, "projectId": GLOBAL_PROJECT_ID}, {"_id": 0})
     if not source:
         raise HTTPException(status_code=404, detail="Global source not found")
-    
-    if not is_admin(current_user["email"]) and source.get("uploadedBy") != current_user["id"]:
-        raise HTTPException(status_code=403, detail="You can only delete sources you uploaded")
     
     if source.get("storagePath"):
         file_path = UPLOAD_DIR / source["storagePath"]
@@ -209,12 +196,10 @@ async def user_preview_global_source(source_id: str, current_user: dict = Depend
 @router.post("/admin/global-sources/upload")
 async def admin_upload_global_source(
     file: UploadFile = File(...),
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(require("global_sources", "create")),
 ):
     """Admin uploads a global source file"""
     db = get_db()
-    if not is_admin(current_user["email"]):
-        raise HTTPException(status_code=403, detail="Admin access required")
     
     if file.content_type not in ALLOWED_TYPES:
         raise HTTPException(status_code=400, detail=f"Unsupported file type: {file.content_type}")
@@ -281,11 +266,9 @@ async def admin_upload_global_source(
 
 
 @router.post("/admin/global-sources/url")
-async def admin_add_global_url_source(url_data: UrlSourceCreate, current_user: dict = Depends(get_current_user)):
+async def admin_add_global_url_source(url_data: UrlSourceCreate, current_user: dict = Depends(require("global_sources", "create"))):
     """Admin adds a URL as global source"""
     db = get_db()
-    if not is_admin(current_user["email"]):
-        raise HTTPException(status_code=403, detail="Admin access required")
     
     url = str(url_data.url)
     
@@ -332,11 +315,9 @@ async def admin_add_global_url_source(url_data: UrlSourceCreate, current_user: d
 
 
 @router.delete("/admin/global-sources/{source_id}")
-async def admin_delete_global_source(source_id: str, current_user: dict = Depends(get_current_user)):
+async def admin_delete_global_source(source_id: str, current_user: dict = Depends(require("global_sources", "delete"))):
     """Admin deletes a global source"""
     db = get_db()
-    if not is_admin(current_user["email"]):
-        raise HTTPException(status_code=403, detail="Admin access required")
     
     source = await db.sources.find_one({"id": source_id, "projectId": GLOBAL_PROJECT_ID}, {"_id": 0})
     if not source:
@@ -358,7 +339,7 @@ async def admin_delete_global_source(source_id: str, current_user: dict = Depend
 
 
 @router.put("/admin/global-sources/{source_id}/company-info")
-async def set_company_info(source_id: str, data: dict, current_user: dict = Depends(get_current_user)):
+async def set_company_info(source_id: str, data: dict, current_user: dict = Depends(require("global_sources", "update"))):
     """Mark/unmark a global source as the singleton "Company Info" source.
 
     Only one source can be the company info at a time, so setting a new one
@@ -366,8 +347,6 @@ async def set_company_info(source_id: str, data: dict, current_user: dict = Depe
     char budget) into every chat as background context.
     """
     db = get_db()
-    if not is_admin(current_user["email"]):
-        raise HTTPException(status_code=403, detail="Admin access required")
 
     source = await db.sources.find_one({"id": source_id, "projectId": GLOBAL_PROJECT_ID}, {"_id": 0})
     if not source:
@@ -389,11 +368,9 @@ async def set_company_info(source_id: str, data: dict, current_user: dict = Depe
 
 
 @router.get("/admin/global-sources/{source_id}/preview")
-async def admin_preview_global_source(source_id: str, current_user: dict = Depends(get_current_user)):
+async def admin_preview_global_source(source_id: str, current_user: dict = Depends(require("global_sources", "read"))):
     """Preview global source content"""
     db = get_db()
-    if not is_admin(current_user["email"]):
-        raise HTTPException(status_code=403, detail="Admin access required")
     
     source = await db.sources.find_one({"id": source_id, "projectId": GLOBAL_PROJECT_ID}, {"_id": 0})
     if not source:
@@ -416,14 +393,12 @@ async def admin_preview_global_source(source_id: str, current_user: dict = Depen
 
 
 @router.post("/admin/global-sources/backfill-embeddings")
-async def backfill_global_source_embeddings(current_user: dict = Depends(get_current_user)):
+async def backfill_global_source_embeddings(current_user: dict = Depends(require("backfill", "run"))):
     """Backfill embeddings for existing global source chunks that don't have them.
 
     Safe to call multiple times — only processes chunks where embedding is missing.
     """
     db = get_db()
-    if not is_admin(current_user["email"]):
-        raise HTTPException(status_code=403, detail="Admin access required")
 
     chunks = await db.source_chunks.find(
         {"projectId": GLOBAL_PROJECT_ID, "embedding": {"$in": [None, []]}},

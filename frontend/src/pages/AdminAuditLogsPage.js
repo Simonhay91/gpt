@@ -43,7 +43,7 @@ const LEVEL_COLORS = {
 
 const AdminAuditLogsPage = () => {
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, hasPermission } = useAuth();
   const { t } = useLanguage();
   const [logs, setLogs] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -58,10 +58,10 @@ const AdminAuditLogsPage = () => {
   const [hasMore, setHasMore] = useState(false);
 
   useEffect(() => {
-    if (user?.isAdmin) {
+    if (user?.isAdmin || hasPermission('audit_logs:read')) {
       fetchLogs();
     }
-  }, [user]);
+  }, [user, hasPermission]);
 
   const fetchLogs = async (page = 1) => {
     setIsLoading(true);
@@ -120,7 +120,7 @@ const AdminAuditLogsPage = () => {
     );
   };
 
-  if (!user?.isAdmin) {
+  if (!user?.isAdmin && !hasPermission('audit_logs:read')) {
     navigate('/dashboard');
     return null;
   }

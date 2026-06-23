@@ -36,7 +36,7 @@ import {
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
 const DashboardLayout = ({ children }) => {
-  const { user, logout } = useAuth();
+  const { user, logout, hasPermission } = useAuth();
   const { theme, toggleTheme, isDark } = useTheme();
   const { language, toggleLanguage, t } = useLanguage();
   const location = useLocation();
@@ -79,7 +79,7 @@ const DashboardLayout = ({ children }) => {
       }
       
       // Fetch open reports count for admins
-      if (user?.isAdmin) {
+      if (user?.isAdmin || hasPermission('reports:read')) {
         try {
           const reportsRes = await axios.get(`${API}/admin/reports`, { params: { status: 'open', limit: 1 } });
           const count = reportsRes.data.total || 0;
@@ -179,7 +179,9 @@ const DashboardLayout = ({ children }) => {
     }
   ];
 
-  if (user?.isAdmin) {
+  const isAdmin = user?.isAdmin || hasPermission('*');
+
+  if (isAdmin) {
     navItems.push({
       name: t('nav.users'),
       path: '/admin/users',
@@ -225,9 +227,9 @@ const DashboardLayout = ({ children }) => {
       icon: Building2,
       badge: pendingCount > 0 ? pendingCount : null
     });
-    
-    if (user?.canEditGlobalSources) {
-      // Non-admin users with global sources permission
+
+    // Show Global Sources link to anyone with the permission
+    if (hasPermission('global_sources:create') || hasPermission('global_sources:read')) {
       navItems.push({
         name: t('nav.globalSources'),
         path: '/global-sources',

@@ -34,7 +34,7 @@ function getImgSrc(img) {
 export default function ProductDetailPage() {
   const slug = useParams()['*'];
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, hasPermission } = useAuth();
 
   const [product, setProduct] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -43,7 +43,7 @@ export default function ProductDetailPage() {
   const [aiRelationsLoading, setAiRelationsLoading] = useState(false);
   const [activeImg, setActiveImg] = useState(0);
 
-  const canDelete = user?.isAdmin || user?.canEditProductCatalog;
+  const canDelete = user?.isAdmin || hasPermission('product_catalog:delete');
 
   useEffect(() => {
     if (slug) loadProduct();

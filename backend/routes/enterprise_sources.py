@@ -8,6 +8,8 @@ import uuid
 import hashlib
 from datetime import datetime, timezone
 
+from middleware.permissions import is_super as _is_super
+
 router = APIRouter(tags=["enterprise-sources"])
 
 
@@ -341,15 +343,15 @@ def setup_enterprise_source_routes(
                 dept = await db.departments.find_one({"id": dept_id}, {"_id": 0})
                 if dept:
                     is_dept_manager = current_user["id"] in dept.get("managers", [])
-                    if not is_admin(current_user["email"]) and not is_dept_manager:
+                    if not _is_super(current_user) and not is_dept_manager:
                         raise HTTPException(status_code=403, detail="Only department manager can delete")
         elif level == "global":
-            if not is_admin(current_user["email"]):
+            if not _is_super(current_user):
                 raise HTTPException(status_code=403, detail="Only admin can delete global sources")
         elif level == "library":
             # Library items must be deleted through /api/library/{id}; only admin or
             # the uploader may remove them via this generic route.
-            if not is_admin(current_user["email"]) and source.get("ownerId") != current_user["id"]:
+            if not _is_super(current_user) and source.get("ownerId") != current_user["id"]:
                 raise HTTPException(status_code=403, detail="Only admin or uploader can delete library items")
         
         # Delete file
@@ -419,7 +421,7 @@ def setup_enterprise_source_routes(
                 raise HTTPException(status_code=404, detail="Department not found")
             # Check if user is manager
             if current_user["id"] not in department.get("managers", []):
-                if not is_admin(current_user["email"]):
+                if not _is_super(current_user):
                     raise HTTPException(status_code=403, detail="Only department managers can publish here")
         
         # Get original chunks
@@ -533,7 +535,7 @@ def setup_enterprise_source_routes(
         
         # Check if user is manager or admin
         is_manager = current_user["id"] in department.get("managers", [])
-        if not is_admin(current_user["email"]) and not is_manager:
+        if not _is_super(current_user) and not is_manager:
             raise HTTPException(status_code=403, detail="Only managers can upload department sources")
         
         if file.content_type not in SUPPORTED_MIME_TYPES:
@@ -640,14 +642,14 @@ def setup_enterprise_source_routes(
         
         # Check access
         user_depts = current_user.get("departments", [])
-        if department_id not in user_depts and not is_admin(current_user["email"]):
+        if department_id not in user_depts and not _is_super(current_user):
             raise HTTPException(status_code=403, detail="Access denied")
         
         query = {"level": "department", "departmentId": department_id}
         
         # Non-managers only see active sources
         is_manager = current_user["id"] in department.get("managers", [])
-        if not is_manager and not is_admin(current_user["email"]):
+        if not is_manager and not _is_super(current_user):
             query["status"] = "active"
         elif status:
             query["status"] = status
@@ -678,7 +680,7 @@ def setup_enterprise_source_routes(
         
         # Check user has access to department
         user_depts = current_user.get("departments", [])
-        if department_id not in user_depts and not is_admin(current_user["email"]):
+        if department_id not in user_depts and not _is_super(current_user):
             raise HTTPException(status_code=403, detail="You don't have access to this department")
         
         # Get original source
@@ -769,7 +771,7 @@ def setup_enterprise_source_routes(
         
         # Permission check
         if level == "global":
-            if not is_admin(current_user["email"]):
+            if not _is_super(current_user):
                 raise HTTPException(status_code=403, detail="Only admin can approve global sources")
         elif level == "department":
             department = await db.departments.find_one(
@@ -779,7 +781,7 @@ def setup_enterprise_source_routes(
             if not department:
                 raise HTTPException(status_code=404, detail="Department not found")
             is_manager = current_user["id"] in department.get("managers", [])
-            if not is_manager and not is_admin(current_user["email"]):
+            if not is_manager and not _is_super(current_user):
                 raise HTTPException(status_code=403, detail="Only managers can approve")
         else:
             raise HTTPException(status_code=400, detail="Approval only for department/global sources")
@@ -853,7 +855,7 @@ def setup_enterprise_source_routes(
             department = await db.departments.find_one({"id": dept_id}, {"_id": 0})
             if department:
                 is_manager = current_user["id"] in department.get("managers", [])
-                if not is_manager and not is_admin(current_user["email"]):
+                if not is_manager and not _is_super(current_user):
                     raise HTTPException(status_code=403, detail="Only managers can preview")
         
         # Get chunks content
@@ -964,7 +966,7 @@ def setup_enterprise_source_routes(
         current_user: dict = Depends(get_current_user)
     ):
         """Get audit logs (admin only for full access, managers for their department)"""
-        if not is_admin(current_user["email"]):
+        if not _is_super(current_user):
             # Non-admins can only see department logs they manage
             user_managed_depts = []
             departments = await db.departments.find(

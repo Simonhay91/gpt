@@ -15,7 +15,7 @@ from fastapi import APIRouter, HTTPException, Depends
 from fastapi.responses import StreamingResponse
 
 from models.schemas import MessageCreate, MessageResponse, SaveToKnowledgeRequest, MessageEditRequest
-from middleware.auth import get_current_user
+from middleware.auth import get_current_user, is_admin as _is_admin
 from db.connection import get_db
 from routes.projects import check_project_access, can_edit_chats, verify_project_ownership
 from services.rag import (
@@ -49,7 +49,6 @@ async def get_accessible_library_source_ids(db, current_user: dict) -> list:
     but are only used when the user explicitly selects them in the Source panel
     (or auto-activated in a Tutor chat).
     """
-    from middleware.auth import is_admin as _is_admin
     if _is_admin(current_user.get("email", "")):
         query = {"level": "library", "status": {"$in": ["active", None]}}
     else:

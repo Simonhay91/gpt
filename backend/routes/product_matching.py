@@ -21,6 +21,7 @@ from openpyxl.styles import Font, PatternFill, Alignment
 
 from db.connection import get_db
 from middleware.auth import get_current_user
+from middleware.permissions import require
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/product-matching", tags=["product-matching"])
@@ -1270,17 +1271,15 @@ async def research_item(
 
 
 @router.delete("/aliases/{alias_id}")
-async def delete_alias(alias_id: str, current_user: dict = Depends(get_current_user)):
+async def delete_alias(
+    alias_id: str,
+    current_user: dict = Depends(require("product_catalog", "delete")),
+):
     """
     Delete a learned alias from product_aliases collection.
-    Requires isAdmin or canEditProductCatalog permission.
+    Requires product_catalog:delete permission.
     """
     db = get_db()
-
-    is_admin_user = current_user.get("isAdmin") or current_user.get("email", "").endswith("@admin.com")
-    can_edit = current_user.get("canEditProductCatalog", False)
-    if not is_admin_user and not can_edit:
-        raise HTTPException(status_code=403, detail="Permission denied")
 
     try:
         oid = ObjectId(alias_id)

@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 
 const AuthContext = createContext(null);
@@ -9,6 +9,8 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [token, setToken] = useState(localStorage.getItem('token'));
   const [loading, setLoading] = useState(true);
+  // Resolved permission set from backend. ["*"] means admin (all access).
+  const [permissions, setPermissions] = useState([]);
 
   useEffect(() => {
     if (token) {
@@ -19,14 +21,24 @@ export const AuthProvider = ({ children }) => {
     }
   }, [token]);
 
+  const fetchPermissions = useCallback(async () => {
+    try {
+      const res = await axios.get(`${API}/user/permissions`);
+      setPermissions(res.data.permissions || []);
+    } catch {
+      setPermissions([]);
+    }
+  }, []);
+
   const fetchUser = async () => {
     try {
       const response = await axios.get(`${API}/auth/me`);
       setUser(response.data);
       localStorage.setItem('userEmail', response.data.email);
+      // Fetch resolved permissions after user is loaded
+      await fetchPermissions();
     } catch (error) {
       console.error('Failed to fetch user:', error);
-      // Only logout on 401 (token invalid/expired), not on network errors
       if (error.response?.status === 401) {
         logout();
       }
@@ -34,6 +46,15 @@ export const AuthProvider = ({ children }) => {
       setLoading(false);
     }
   };
+
+  /**
+   * Check whether the current user has a specific permission.
+   * Admins always return true (they have ["*"]).
+   * Usage: hasPermission('global_sources:create')
+   */
+  const hasPermission = useCallback((perm) => {
+    return permissions.includes('*') || permissions.includes(perm);
+  }, [permissions]);
 
   const login = async (email, password) => {
     const response = await axios.post(`${API}/auth/login`, { email, password });
@@ -43,6 +64,15 @@ export const AuthProvider = ({ children }) => {
     axios.defaults.headers.common['Authorization'] = `Bearer ${newToken}`;
     setToken(newToken);
     setUser(userData);
+    // Fetch resolved permissions right after login
+    try {
+      const permRes = await axios.get(`${API}/user/permissions`, {
+        headers: { Authorization: `Bearer ${newToken}` },
+      });
+      setPermissions(permRes.data.permissions || []);
+    } catch {
+      setPermissions([]);
+    }
     return userData;
   };
 
@@ -58,7 +88,6 @@ export const AuthProvider = ({ children }) => {
 
   const changePassword = async (newPassword) => {
     await axios.post(`${API}/auth/change-password`, { new_password: newPassword });
-    // Update user state to remove mustChangePassword flag
     setUser(prev => ({ ...prev, mustChangePassword: false }));
   };
 
@@ -68,10 +97,15 @@ export const AuthProvider = ({ children }) => {
     delete axios.defaults.headers.common['Authorization'];
     setToken(null);
     setUser(null);
+    setPermissions([]);
   };
 
   return (
-    <AuthContext.Provider value={{ user, token, loading, login, register, logout, changePassword }}>
+    <AuthContext.Provider value={{
+      user, token, loading,
+      permissions, hasPermission,
+      login, register, logout, changePassword,
+    }}>
       {children}
     </AuthContext.Provider>
   );

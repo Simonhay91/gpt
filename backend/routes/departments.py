@@ -6,6 +6,8 @@ from typing import List
 import uuid
 from datetime import datetime, timezone
 
+from middleware.permissions import is_super as _is_super
+
 router = APIRouter(prefix="/api/departments", tags=["departments"])
 
 
@@ -15,7 +17,7 @@ def setup_department_routes(db, get_current_user, is_admin, audit_service):
     @router.get("", response_model=List[dict])
     async def list_departments(current_user: dict = Depends(get_current_user)):
         """List all departments (admin sees all, users see their own)"""
-        if is_admin(current_user["email"]):
+        if _is_super(current_user):
             departments = await db.departments.find({}, {"_id": 0}).to_list(100)
         else:
             # Users see departments they belong to
@@ -36,7 +38,7 @@ def setup_department_routes(db, get_current_user, is_admin, audit_service):
     async def get_pending_approvals_count(current_user: dict = Depends(get_current_user)):
         """Get count of sources pending approval for departments where user is manager"""
         # Find departments where user is manager
-        if is_admin(current_user["email"]):
+        if _is_super(current_user):
             # Admin sees all departments
             managed_depts = await db.departments.find({}, {"_id": 0, "id": 1}).to_list(100)
             is_manager = True  # Admin is always considered a manager
@@ -89,7 +91,7 @@ def setup_department_routes(db, get_current_user, is_admin, audit_service):
         current_user: dict = Depends(get_current_user)
     ):
         """Create department (admin only)"""
-        if not is_admin(current_user["email"]):
+        if not _is_super(current_user):
             raise HTTPException(status_code=403, detail="Admin only")
         
         dept_id = str(uuid.uuid4())
@@ -137,7 +139,7 @@ def setup_department_routes(db, get_current_user, is_admin, audit_service):
             raise HTTPException(status_code=404, detail="Department not found")
         
         # Check access
-        if not is_admin(current_user["email"]):
+        if not _is_super(current_user):
             user_depts = current_user.get("departments", [])
             if department_id not in user_depts:
                 raise HTTPException(status_code=403, detail="Access denied")
@@ -183,7 +185,7 @@ def setup_department_routes(db, get_current_user, is_admin, audit_service):
         
         # Check permission
         is_manager = current_user["id"] in department.get("managers", [])
-        if not is_admin(current_user["email"]) and not is_manager:
+        if not _is_super(current_user) and not is_manager:
             raise HTTPException(status_code=403, detail="Admin or manager only")
         
         # Track changes for audit
@@ -224,7 +226,7 @@ def setup_department_routes(db, get_current_user, is_admin, audit_service):
         current_user: dict = Depends(get_current_user)
     ):
         """Delete department (admin only)"""
-        if not is_admin(current_user["email"]):
+        if not _is_super(current_user):
             raise HTTPException(status_code=403, detail="Admin only")
         
         department = await db.departments.find_one({"id": department_id}, {"_id": 0})
@@ -281,7 +283,7 @@ def setup_department_routes(db, get_current_user, is_admin, audit_service):
         
         # Check permission
         is_manager = current_user["id"] in department.get("managers", [])
-        if not is_admin(current_user["email"]) and not is_manager:
+        if not _is_super(current_user) and not is_manager:
             raise HTTPException(status_code=403, detail="Admin or manager only")
         
         user_id = data.get("userId")
@@ -351,7 +353,7 @@ def setup_department_routes(db, get_current_user, is_admin, audit_service):
             raise HTTPException(status_code=404, detail="Department not found")
         
         is_manager = current_user["id"] in department.get("managers", [])
-        if not is_admin(current_user["email"]) and not is_manager:
+        if not _is_super(current_user) and not is_manager:
             raise HTTPException(status_code=403, detail="Admin or manager only")
         
         # Remove from department
@@ -394,12 +396,12 @@ def setup_department_routes(db, get_current_user, is_admin, audit_service):
         is_manager_action = data.get("isManager", False)
         
         # Only admin can promote to manager
-        if is_manager_action and not is_admin(current_user["email"]):
+        if is_manager_action and not _is_super(current_user):
             raise HTTPException(status_code=403, detail="Only admin can promote to manager")
         
         # Current managers can demote other managers (but not themselves)
         is_current_manager = current_user["id"] in department.get("managers", [])
-        if not is_manager_action and not is_admin(current_user["email"]) and not is_current_manager:
+        if not is_manager_action and not _is_super(current_user) and not is_current_manager:
             raise HTTPException(status_code=403, detail="Permission denied")
         
         if user_id == current_user["id"] and not is_manager_action:

@@ -8,8 +8,14 @@ import os
 
 from db.connection import get_db
 
-# JWT Settings
-JWT_SECRET = os.environ.get('JWT_SECRET', 'shared-project-gpt-secret-key-2024')
+# JWT Settings — JWT_SECRET MUST be set in environment; no insecure default.
+_JWT_SECRET_ENV = os.environ.get('JWT_SECRET')
+if not _JWT_SECRET_ENV:
+    raise RuntimeError(
+        "JWT_SECRET environment variable is not set. "
+        "Set it to a long random string before starting the server."
+    )
+JWT_SECRET = _JWT_SECRET_ENV
 JWT_ALGORITHM = "HS256"
 JWT_EXPIRATION_HOURS = 168  # 7 days
 

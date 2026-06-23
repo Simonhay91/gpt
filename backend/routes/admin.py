@@ -23,6 +23,7 @@ from models.schemas import (
     POSITIONS,
 )
 from middleware.auth import get_current_user, is_admin, hash_password
+from middleware.permissions import require, log_action
 from db.connection import get_db
 from services.cache import CACHE_SIMILARITY_THRESHOLD, CACHE_TTL_DAYS
 
@@ -32,11 +33,9 @@ GLOBAL_PROJECT_ID = "__global__"
 
 
 @router.get("/admin/source-stats")
-async def get_source_stats(current_user: dict = Depends(get_current_user)):
+async def get_source_stats(current_user: dict = Depends(require("reports", "read"))):
     """Get source statistics per user - for admin dashboard"""
     db = get_db()
-    if not is_admin(current_user["email"]):
-        raise HTTPException(status_code=403, detail="Admin access required")
     
     users = await db.users.find({}, {"_id": 0, "id": 1, "email": 1}).to_list(1000)
     user_map = {u["id"]: u["email"] for u in users}
@@ -86,11 +85,9 @@ async def get_source_stats(current_user: dict = Depends(get_current_user)):
 
 
 @router.get("/admin/global-sources/stats")
-async def get_global_sources_usage_stats(current_user: dict = Depends(get_current_user)):
+async def get_global_sources_usage_stats(current_user: dict = Depends(require("global_sources", "read"))):
     """Get usage statistics for all global sources"""
     db = get_db()
-    if not is_admin(current_user["email"]):
-        raise HTTPException(status_code=403, detail="Admin access required")
     
     sources = await db.sources.find(
         {"projectId": GLOBAL_PROJECT_ID}, 
@@ -131,11 +128,9 @@ async def get_global_sources_usage_stats(current_user: dict = Depends(get_curren
 
 
 @router.get("/admin/cache/stats")
-async def get_cache_stats(current_user: dict = Depends(get_current_user)):
+async def get_cache_stats(current_user: dict = Depends(require("cache", "read"))):
     """Get semantic cache statistics"""
     db = get_db()
-    if not is_admin(current_user["email"]):
-        raise HTTPException(status_code=403, detail="Admin access required")
     
     cache_entries = await db.semantic_cache.find({}, {"_id": 0, "embedding": 0}).to_list(1000)
     
@@ -171,22 +166,18 @@ async def get_cache_stats(current_user: dict = Depends(get_current_user)):
 
 
 @router.delete("/admin/cache/clear")
-async def clear_cache(current_user: dict = Depends(get_current_user)):
+async def clear_cache(current_user: dict = Depends(require("cache", "clear"))):
     """Clear all semantic cache entries"""
     db = get_db()
-    if not is_admin(current_user["email"]):
-        raise HTTPException(status_code=403, detail="Admin access required")
     
     result = await db.semantic_cache.delete_many({})
     return {"message": f"Cleared {result.deleted_count} cache entries"}
 
 
 @router.delete("/admin/cache/{cache_id}")
-async def delete_cache_entry(cache_id: str, current_user: dict = Depends(get_current_user)):
+async def delete_cache_entry(cache_id: str, current_user: dict = Depends(require("cache", "clear"))):
     """Delete specific cache entry"""
     db = get_db()
-    if not is_admin(current_user["email"]):
-        raise HTTPException(status_code=403, detail="Admin access required")
     
     result = await db.semantic_cache.delete_one({"id": cache_id})
     if result.deleted_count == 0:
@@ -195,10 +186,8 @@ async def delete_cache_entry(cache_id: str, current_user: dict = Depends(get_cur
 
 
 @router.get("/admin/config", response_model=GPTConfigResponse)
-async def get_gpt_config(current_user: dict = Depends(get_current_user)):
+async def get_gpt_config(current_user: dict = Depends(require("config", "read"))):
     db = get_db()
-    if not is_admin(current_user["email"]):
-        raise HTTPException(status_code=403, detail="Admin access required")
     
     config = await db.gpt_config.find_one({"id": "1"}, {"_id": 0})
     if not config:
@@ -213,10 +202,8 @@ async def get_gpt_config(current_user: dict = Depends(get_current_user)):
 
 
 @router.put("/admin/config", response_model=GPTConfigResponse)
-async def update_gpt_config(config_data: GPTConfigUpdate, current_user: dict = Depends(get_current_user)):
+async def update_gpt_config(config_data: GPTConfigUpdate, current_user: dict = Depends(require("config", "update"))):
     db = get_db()
-    if not is_admin(current_user["email"]):
-        raise HTTPException(status_code=403, detail="Admin access required")
     
     update_data = {"updatedAt": datetime.now(timezone.utc).isoformat()}
     if config_data.model is not None:
@@ -233,12 +220,10 @@ async def update_gpt_config(config_data: GPTConfigUpdate, current_user: dict = D
 # ==================== USER MANAGEMENT ====================
 
 @router.post("/admin/users", response_model=UserResponse)
-async def admin_create_user(user_data: UserCreate, current_user: dict = Depends(get_current_user)):
+async def admin_create_user(user_data: UserCreate, current_user: dict = Depends(require("users", "create"))):
     """Admin creates a new user - user must change password on first login"""
     db = get_db()
-    if not is_admin(current_user["email"]):
-        raise HTTPException(status_code=403, detail="Admin access required")
-    
+
     existing = await db.users.find_one({"email": user_data.email})
     if existing:
         raise HTTPException(status_code=400, detail="Email already registered")
@@ -253,15 +238,21 @@ async def admin_create_user(user_data: UserCreate, current_user: dict = Depends(
         "primaryDepartmentId": None,
         "canEditGlobalSources": False,
         "canEditProductCatalog": False,
-        "mustChangePassword": True  # User must change password on first login
+        "mustChangePassword": True,
+        "roleId": "role_base",
+        "permissionGrants": [],
+        "permissionRevokes": [],
     }
     await db.users.insert_one(user)
+    await log_action(current_user["id"], current_user["email"], "user.create", "user", user_id,
+                     {"email": user_data.email})
     
     return UserResponse(
         id=user_id,
         email=user_data.email,
         isAdmin=is_admin(user_data.email),
-        createdAt=user["createdAt"]
+        createdAt=user["createdAt"],
+        roleId="role_base",
     )
 
 
@@ -274,11 +265,9 @@ async def list_users_for_sharing(current_user: dict = Depends(get_current_user))
 
 
 @router.get("/admin/users", response_model=List[UserWithUsageResponse])
-async def admin_list_users(current_user: dict = Depends(get_current_user)):
+async def admin_list_users(current_user: dict = Depends(require("users", "read"))):
     """Admin gets list of all users with token usage"""
     db = get_db()
-    if not is_admin(current_user["email"]):
-        raise HTTPException(status_code=403, detail="Admin access required")
     
     users = await db.users.find({}, {"_id": 0, "passwordHash": 0}).to_list(1000)
     
@@ -297,24 +286,30 @@ async def admin_list_users(current_user: dict = Depends(get_current_user)):
             totalMessagesCount=message_count,
             canEditGlobalSources=user.get("canEditGlobalSources", False),
             canEditProductCatalog=user.get("canEditProductCatalog", False),
+            roleId=user.get("roleId"),
         ))
     
     return result
 
 
 @router.delete("/admin/users/{user_id}")
-async def admin_delete_user(user_id: str, current_user: dict = Depends(get_current_user)):
-    """Admin deletes a user - CASCADE DELETE all related data"""
+async def admin_delete_user(user_id: str, current_user: dict = Depends(require("users", "delete"))):
+    """Admin deletes a user - CASCADE DELETE all related data + writes audit log"""
     db = get_db()
-    if not is_admin(current_user["email"]):
-        raise HTTPException(status_code=403, detail="Admin access required")
-    
+
     user = await db.users.find_one({"id": user_id})
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
-    
+
     if user_id == current_user["id"]:
         raise HTTPException(status_code=400, detail="Cannot delete yourself")
+
+    # Audit log before cascade so the record survives even if something later fails
+    await log_action(
+        current_user["id"], current_user["email"],
+        "user.delete", "user", user_id,
+        {"email": user.get("email"), "deletedAt": datetime.now(timezone.utc).isoformat()},
+    )
     
     # 1. Delete user's projects and all related data
     projects = await db.projects.find({"ownerId": user_id}).to_list(1000)
@@ -390,11 +385,9 @@ async def admin_delete_user(user_id: str, current_user: dict = Depends(get_curre
 
 
 @router.get("/admin/users/{user_id}/details")
-async def get_user_details(user_id: str, current_user: dict = Depends(get_current_user)):
+async def get_user_details(user_id: str, current_user: dict = Depends(require("users", "read"))):
     """Get detailed user info for admin"""
     db = get_db()
-    if not is_admin(current_user["email"]):
-        raise HTTPException(status_code=403, detail="Admin access required")
     
     user = await db.users.find_one({"id": user_id}, {"_id": 0, "passwordHash": 0})
     if not user:
@@ -435,11 +428,9 @@ async def get_user_details(user_id: str, current_user: dict = Depends(get_curren
 
 
 @router.put("/admin/users/{user_id}/prompt")
-async def update_user_prompt_admin(user_id: str, data: UserPromptUpdate, current_user: dict = Depends(get_current_user)):
+async def update_user_prompt_admin(user_id: str, data: UserPromptUpdate, current_user: dict = Depends(require("users", "update"))):
     """Admin updates user's custom prompt"""
     db = get_db()
-    if not is_admin(current_user["email"]):
-        raise HTTPException(status_code=403, detail="Admin access required")
     
     user = await db.users.find_one({"id": user_id}, {"_id": 0})
     if not user:
@@ -455,11 +446,9 @@ async def update_user_prompt_admin(user_id: str, data: UserPromptUpdate, current
 
 
 @router.put("/admin/users/{user_id}/gpt-model")
-async def update_user_gpt_model(user_id: str, data: UpdateUserModelRequest, current_user: dict = Depends(get_current_user)):
+async def update_user_gpt_model(user_id: str, data: UpdateUserModelRequest, current_user: dict = Depends(require("users", "update"))):
     """Admin sets user-specific GPT model"""
     db = get_db()
-    if not is_admin(current_user["email"]):
-        raise HTTPException(status_code=403, detail="Admin access required")
     
     user = await db.users.find_one({"id": user_id}, {"_id": 0})
     if not user:
@@ -474,12 +463,10 @@ async def update_user_gpt_model(user_id: str, data: UpdateUserModelRequest, curr
 async def update_user_position(
     user_id: str,
     data: AdminSetPositionRequest,
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(require("users", "update")),
 ):
     """Admin sets a user's corporate position (drives library auto-assignment + dashboard)."""
     db = get_db()
-    if not is_admin(current_user["email"]):
-        raise HTTPException(status_code=403, detail="Admin access required")
 
     position = data.position
     if position is not None and position not in POSITIONS:
@@ -497,18 +484,16 @@ async def update_user_position(
 
 
 @router.get("/admin/positions")
-async def list_positions(current_user: dict = Depends(get_current_user)):
+async def list_positions(current_user: dict = Depends(require("users", "read"))):
     """Return the closed list of valid positions (for admin/library dropdowns)."""
     return {"positions": POSITIONS}
 
 
 @router.post("/admin/users/{user_id}/reset-password")
-async def admin_reset_password(user_id: str, current_user: dict = Depends(get_current_user)):
+async def admin_reset_password(user_id: str, current_user: dict = Depends(require("users", "reset_password"))):
     """Admin generates a new random password for a user"""
     import random, string
     db = get_db()
-    if not is_admin(current_user["email"]):
-        raise HTTPException(status_code=403, detail="Admin access required")
 
     user = await db.users.find_one({"id": user_id}, {"_id": 0, "email": 1, "isAdmin": 1})
     if not user:
@@ -527,18 +512,19 @@ async def admin_reset_password(user_id: str, current_user: dict = Depends(get_cu
             "passwordResetBy": current_user["email"]
         }}
     )
+    await log_action(current_user["id"], current_user["email"], "user.reset_password",
+                     "user", user_id, {"email": user.get("email")})
     return {"new_password": new_password, "email": user["email"]}
 
 
 @router.put("/admin/users/{user_id}/global-permission")
-async def update_user_global_permission(    user_id: str, 
+async def update_user_global_permission(
+    user_id: str,
     data: UpdateUserGlobalPermissionRequest,
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(require("users", "update")),
 ):
     """Admin grants/revokes global source editing permission"""
     db = get_db()
-    if not is_admin(current_user["email"]):
-        raise HTTPException(status_code=403, detail="Admin access required")
     
     user = await db.users.find_one({"id": user_id}, {"_id": 0})
     if not user:
@@ -556,12 +542,10 @@ async def update_user_global_permission(    user_id: str,
 async def update_user_catalog_permission(
     user_id: str,
     data: UpdateUserCatalogPermissionRequest,
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(require("users", "update")),
 ):
     """Admin grants/revokes product catalog editing permission (aliases, domain rules)"""
     db = get_db()
-    if not is_admin(current_user["email"]):
-        raise HTTPException(status_code=403, detail="Admin access required")
 
     user = await db.users.find_one({"id": user_id}, {"_id": 0})
     if not user:
@@ -576,11 +560,9 @@ async def update_user_catalog_permission(
 
 
 @router.get("/admin/users/{user_id}/question-history")
-async def get_user_question_history(user_id: str, current_user: dict = Depends(get_current_user)):
+async def get_user_question_history(user_id: str, current_user: dict = Depends(require("users", "read"))):
     """Get user's question history (user messages only, no AI responses)"""
     db = get_db()
-    if not is_admin(current_user["email"]):
-        raise HTTPException(status_code=403, detail="Admin access required")
     
     user = await db.users.find_one({"id": user_id}, {"_id": 0, "email": 1})
     if not user:
@@ -615,13 +597,11 @@ async def get_user_question_history(user_id: str, current_user: dict = Depends(g
 # ==================== EMBEDDING BACKFILL ====================
 
 @router.post("/admin/backfill-embeddings")
-async def backfill_embeddings(current_user: dict = Depends(get_current_user)):
+async def backfill_embeddings(current_user: dict = Depends(require("backfill", "run"))):
     """
     Generate Voyage AI embeddings for all active catalog products that are missing one.
-    Admin only. Safe to call multiple times — skips products that already have embeddings.
+    Safe to call multiple times — skips products that already have embeddings.
     """
-    if not is_admin(current_user["email"]):
-        raise HTTPException(status_code=403, detail="Admin access required")
 
     if not VOYAGE_API_KEY:
         raise HTTPException(status_code=400, detail="VOYAGE_API_KEY is not configured on the server")

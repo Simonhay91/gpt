@@ -13,6 +13,7 @@ import zipfile
 import tempfile
 
 from middleware.auth import get_current_user, is_admin
+from middleware.permissions import require
 from db.connection import get_db
 
 logger = logging.getLogger(__name__)
@@ -773,10 +774,8 @@ async def create_brand(
     footerHeightPx: int = Form(36),
     footerPaddingPx: int = Form(6),
     copyrightText: str = Form(""),
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(require("oem_datasheet", "create")),
 ):
-    if not is_admin(current_user["email"]):
-        raise HTTPException(status_code=403, detail="Admin only")
     db = get_db()
     brand = {
         "id": str(uuid4()),
@@ -819,10 +818,8 @@ async def update_brand(
     footerHeightPx: int = Form(36),
     footerPaddingPx: int = Form(6),
     copyrightText: str = Form(""),
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(require("oem_datasheet", "update")),
 ):
-    if not is_admin(current_user["email"]):
-        raise HTTPException(status_code=403, detail="Admin only")
     db = get_db()
     update = {
         "name": name,
@@ -849,9 +846,7 @@ async def update_brand(
 
 
 @router.delete("/brands/{brand_id}")
-async def delete_brand(brand_id: str, current_user: dict = Depends(get_current_user)):
-    if not is_admin(current_user["email"]):
-        raise HTTPException(status_code=403, detail="Admin only")
+async def delete_brand(brand_id: str, current_user: dict = Depends(require("oem_datasheet", "delete"))):
     db = get_db()
     result = await db.oem_brands.delete_one({"id": brand_id})
     if result.deleted_count == 0:
@@ -863,10 +858,8 @@ async def delete_brand(brand_id: str, current_user: dict = Depends(get_current_u
 async def upload_brand_logo(
     brand_id: str,
     file: UploadFile = File(...),
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(require("oem_datasheet", "update")),
 ):
-    if not is_admin(current_user["email"]):
-        raise HTTPException(status_code=403, detail="Admin only")
     db = get_db()
     brand = await db.oem_brands.find_one({"id": brand_id})
     if not brand:
@@ -906,10 +899,8 @@ async def upload_brand_logo(
 async def delete_brand_logo(
     brand_id: str,
     filename: str,
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(require("oem_datasheet", "delete")),
 ):
-    if not is_admin(current_user["email"]):
-        raise HTTPException(status_code=403, detail="Admin only")
     db = get_db()
     brand = await db.oem_brands.find_one({"id": brand_id})
     if not brand:
@@ -933,10 +924,8 @@ async def delete_brand_logo(
 async def upload_brand_header_image(
     brand_id: str,
     file: UploadFile = File(...),
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(require("oem_datasheet", "update")),
 ):
-    if not is_admin(current_user["email"]):
-        raise HTTPException(status_code=403, detail="Admin only")
     db = get_db()
     brand = await db.oem_brands.find_one({"id": brand_id})
     if not brand:

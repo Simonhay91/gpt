@@ -9,6 +9,7 @@ from middleware.auth import (
     get_current_user,
     hash_password
 )
+from middleware.permissions import resolve_permissions
 from db.connection import get_db
 
 router = APIRouter(prefix="/api", tags=["auth"])
@@ -73,5 +74,24 @@ async def get_me(current_user: dict = Depends(get_current_user)):
         canEditProductCatalog=current_user.get("canEditProductCatalog", False),
         departments=current_user.get("departments", []),
         primaryDepartmentId=current_user.get("primaryDepartmentId"),
-        mustChangePassword=current_user.get("mustChangePassword", False)
+        mustChangePassword=current_user.get("mustChangePassword", False),
+        roleId=current_user.get("roleId"),
+        permissionGrants=current_user.get("permissionGrants", []),
+        permissionRevokes=current_user.get("permissionRevokes", []),
     )
+
+
+@router.get("/user/permissions")
+async def get_my_permissions(current_user: dict = Depends(get_current_user)):
+    """
+    Return the caller's fully-resolved permission set.
+
+    Admin users receive ["*"].  All others receive the union of their role
+    permissions, department-manager bonuses, and per-user grants minus revokes.
+    Frontend uses this list to conditionally show/hide UI elements.
+    """
+    perms = await resolve_permissions(current_user)
+    return {
+        "permissions": sorted(perms),
+        "isAdmin": is_admin(current_user.get("email", "")),
+    }

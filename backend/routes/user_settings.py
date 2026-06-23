@@ -10,7 +10,8 @@ from models.schemas import (
     DepartmentAiContextUpdate,
     DepartmentAiContextResponse
 )
-from middleware.auth import get_current_user, is_admin
+from middleware.auth import get_current_user
+from middleware.permissions import is_super as _is_super
 from db.connection import get_db
 from services.enterprise import AuditService
 
@@ -253,7 +254,7 @@ async def get_department_ai_context(department_id: str, current_user: dict = Dep
     
     # Check access
     user_departments = current_user.get("departments", [])
-    is_admin_user = is_admin(current_user["email"])
+    is_admin_user = _is_super(current_user)
     
     if not is_admin_user and department_id not in user_departments:
         raise HTTPException(status_code=403, detail="Access denied")
@@ -280,7 +281,7 @@ async def update_department_ai_context(
         raise HTTPException(status_code=404, detail="Department not found")
     
     # Check access - admin or manager
-    is_admin_user = is_admin(current_user["email"])
+    is_admin_user = _is_super(current_user)
     is_manager = current_user["id"] in department.get("managers", [])
     
     if not is_admin_user and not is_manager:

@@ -74,9 +74,9 @@ const PublicRoute = ({ children }) => {
   return children;
 };
 
-// Admin Route
+// Admin Route — grants access to domain admins and role-based super admins (hasPermission('*'))
 const AdminRoute = ({ children }) => {
-  const { user, loading } = useAuth();
+  const { user, loading, hasPermission } = useAuth();
   
   if (loading) {
     return (
@@ -90,7 +90,7 @@ const AdminRoute = ({ children }) => {
     return <Navigate to="/login" replace />;
   }
   
-  if (!user.isAdmin) {
+  if (!user.isAdmin && !hasPermission('*')) {
     return <Navigate to="/dashboard" replace />;
   }
   

@@ -59,6 +59,15 @@ _INDEXES = [
     # users
     ("users", [("id", pymongo.ASCENDING)], {}),
     ("users", [("email", pymongo.ASCENDING)], {}),
+    ("users", [("roleId", pymongo.ASCENDING)], {}),
+
+    # roles
+    ("roles", [("id", pymongo.ASCENDING)], {"unique": True}),
+    ("roles", [("name", pymongo.ASCENDING)], {}),
+
+    # audit_logs
+    ("audit_logs", [("actorId", pymongo.ASCENDING), ("createdAt", pymongo.DESCENDING)], {}),
+    ("audit_logs", [("resourceType", pymongo.ASCENDING), ("resourceId", pymongo.ASCENDING)], {}),
 ]
 
 

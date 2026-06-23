@@ -22,7 +22,8 @@ from models.schemas import (
     ProductMatchRequest,
     ProductMatchResult
 )
-from middleware.auth import get_current_user, is_admin
+from middleware.auth import get_current_user
+from middleware.permissions import require
 from db.connection import get_db
 
 logger = logging.getLogger(__name__)
@@ -76,30 +77,6 @@ async def _embed_and_save(db, product_id: str, product: dict) -> None:
 def now_iso():
     return datetime.now(timezone.utc).isoformat()
 
-
-def can_edit_catalog(current_user: dict) -> bool:
-    """Check if user can edit product catalog (Admin or Manager)"""
-    if is_admin(current_user.get("email", "")):
-        return True
-    # Check if user is manager of any department
-    return current_user.get("isManager", False)
-
-
-async def check_manager_status(current_user: dict) -> bool:
-    """Check if user is manager of any department"""
-    db = get_db()
-    user_id = current_user["id"]
-    
-    # Check if admin
-    if is_admin(current_user.get("email", "")):
-        return True
-    
-    # Check if manager of any department
-    manager_dept = await db.departments.find_one(
-        {"managers": user_id},
-        {"_id": 0, "id": 1}
-    )
-    return manager_dept is not None
 
 
 # ==================== CRUD ENDPOINTS ====================
@@ -305,14 +282,9 @@ async def get_product_learned_aliases(product_id: str, current_user: dict = Depe
 
 
 @router.post("/product-catalog", response_model=ProductCatalogResponse)
-async def create_product(data: ProductCatalogCreate, current_user: dict = Depends(get_current_user)):
-    """Create a new product (Admin/Manager only)"""
+async def create_product(data: ProductCatalogCreate, current_user: dict = Depends(require("product_catalog", "create"))):
+    """Create a new product"""
     db = get_db()
-    
-    # Check permission
-    has_permission = await check_manager_status(current_user)
-    if not has_permission:
-        raise HTTPException(status_code=403, detail="Only Admin or Manager can create products")
     
     # Check for duplicate article_number
     existing = await db.product_catalog.find_one(
@@ -361,15 +333,10 @@ async def create_product(data: ProductCatalogCreate, current_user: dict = Depend
 async def update_product(
     product_id: str,
     data: ProductCatalogUpdate,
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(require("product_catalog", "update")),
 ):
-    """Update a product (Admin/Manager only)"""
+    """Update a product"""
     db = get_db()
-    
-    # Check permission
-    has_permission = await check_manager_status(current_user)
-    if not has_permission:
-        raise HTTPException(status_code=403, detail="Only Admin or Manager can update products")
     
     product = await db.product_catalog.find_one({"id": product_id}, {"_id": 0})
     if not product:
@@ -397,14 +364,9 @@ async def update_product(
 
 
 @router.delete("/product-catalog/{product_id}")
-async def delete_product(product_id: str, current_user: dict = Depends(get_current_user)):
-    """Soft delete a product (Admin/Manager only)"""
+async def delete_product(product_id: str, current_user: dict = Depends(require("product_catalog", "delete"))):
+    """Soft delete a product"""
     db = get_db()
-    
-    # Check permission
-    has_permission = await check_manager_status(current_user)
-    if not has_permission:
-        raise HTTPException(status_code=403, detail="Only Admin or Manager can delete products")
     
     product = await db.product_catalog.find_one({"id": product_id}, {"_id": 0})
     if not product:
@@ -424,15 +386,10 @@ async def delete_product(product_id: str, current_user: dict = Depends(get_curre
 async def add_relation(
     product_id: str,
     data: ProductRelationCreate,
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(require("product_catalog", "update")),
 ):
-    """Add a relation to a product (Admin/Manager only)"""
+    """Add a relation to a product"""
     db = get_db()
-    
-    # Check permission
-    has_permission = await check_manager_status(current_user)
-    if not has_permission:
-        raise HTTPException(status_code=403, detail="Only Admin or Manager can manage relations")
     
     # Check both products exist
     product = await db.product_catalog.find_one({"id": product_id}, {"_id": 0})
@@ -481,15 +438,10 @@ async def add_relation(
 async def remove_relation(
     product_id: str,
     related_id: str,
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(require("product_catalog", "update")),
 ):
-    """Remove a relation from a product (Admin/Manager only)"""
+    """Remove a relation from a product"""
     db = get_db()
-    
-    # Check permission
-    has_permission = await check_manager_status(current_user)
-    if not has_permission:
-        raise HTTPException(status_code=403, detail="Only Admin or Manager can manage relations")
     
     # Remove from main product
     result = await db.product_catalog.update_one(
@@ -544,15 +496,10 @@ KNOWN_COLUMNS = set(CSV_COLUMN_MAP.keys())
 @router.post("/product-catalog/import/preview")
 async def preview_import(
     file: UploadFile = File(...),
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(require("product_catalog", "import")),
 ):
     """Preview CSV import - detect columns and show unknown ones"""
     db = get_db()
-    
-    # Check permission
-    has_permission = await check_manager_status(current_user)
-    if not has_permission:
-        raise HTTPException(status_code=403, detail="Only Admin or Manager can import products")
     
     # Read file
     content = await file.read()
@@ -590,15 +537,10 @@ async def preview_import(
 async def import_products(
     file: UploadFile = File(...),
     extra_columns: Optional[str] = Query(None, description="Comma-separated list of extra columns to import"),
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(require("product_catalog", "import")),
 ):
     """Import products from CSV"""
     db = get_db()
-    
-    # Check permission
-    has_permission = await check_manager_status(current_user)
-    if not has_permission:
-        raise HTTPException(status_code=403, detail="Only Admin or Manager can import products")
     
     # Parse extra columns
     extra_cols = [c.strip().lower() for c in extra_columns.split(",")] if extra_columns else []

@@ -100,6 +100,7 @@ from routes.excel import router as excel_router
 from routes.temp_files import router as temp_files_router
 from routes.reports import router as reports_router
 from routes.library import router as library_router
+from routes.roles import router as roles_router
 
 # Import services and dependencies needed for enterprise route setup
 from services.enterprise import AuditService, VersionService
@@ -115,6 +116,7 @@ from services.file_processor import (
     extract_text_from_image
 )
 from middleware.auth import get_current_user, is_admin
+from middleware.permissions import seed_system_roles
 
 # File storage settings
 UPLOAD_DIR = ROOT_DIR / "uploads"
@@ -220,6 +222,7 @@ app.include_router(excel_router, prefix="/api")
 app.include_router(temp_files_router)
 app.include_router(reports_router)
 app.include_router(library_router)
+app.include_router(roles_router)
 
 # ==================== MIDDLEWARE ====================
 
@@ -386,6 +389,9 @@ async def startup_event():
         logger.info("✓ Tesseract already available")
     # Create admin user if database is empty
     await init_admin_user()
+
+    # Seed system roles and back-fill roleId for existing users
+    await seed_system_roles(db)
 
     # Ensure MongoDB indexes exist (best-effort, never blocks startup)
     try:

@@ -41,7 +41,7 @@ const formatDate = (dateString) => {
 };
 
 const LibraryPage = () => {
-  const { user } = useAuth();
+  const { user, hasPermission } = useAuth();
   const [items, setItems] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [departments, setDepartments] = useState([]);   // departments the user can share to
@@ -81,8 +81,8 @@ const LibraryPage = () => {
   const [previewTotalChunks, setPreviewTotalChunks] = useState(0);
 
   const canManage = useMemo(
-    () => user?.isAdmin || departments.length > 0,
-    [user, departments]
+    () => hasPermission('library:create') || departments.length > 0,
+    [hasPermission, departments]
   );
 
   useEffect(() => {
@@ -104,7 +104,7 @@ const LibraryPage = () => {
 
   const fetchDepartments = async () => {
     try {
-      if (user?.isAdmin) {
+      if (hasPermission('*')) {
         const res = await axios.get(`${API}/departments`);
         setDepartments(res.data || []);
       } else {
@@ -268,7 +268,7 @@ const LibraryPage = () => {
   };
 
   const canManageItem = (item) =>
-    user?.isAdmin || item.ownerId === user?.id ||
+    hasPermission('library:update') || item.ownerId === user?.id ||
     (item.sharedDepartments || []).some(did => departments.some(d => d.id === did));
 
   const filteredItems = useMemo(() => {
@@ -479,7 +479,7 @@ const LibraryPage = () => {
                 <Label>Теги (через запятую)</Label>
                 <Input value={uploadTags} onChange={(e) => setUploadTags(e.target.value)} placeholder="договор, hr, инструкция" />
               </div>
-              {user?.isAdmin && (
+              {hasPermission('*') && (
                 <label className="flex items-center gap-2 cursor-pointer">
                   <Checkbox checked={uploadGlobal} onCheckedChange={() => setUploadGlobal(v => !v)} className="data-[state=checked]:bg-emerald-500" />
                   <Globe2 className="h-4 w-4 text-emerald-400" />
@@ -492,7 +492,7 @@ const LibraryPage = () => {
                   <DeptCheckboxList selected={uploadDeptIds} onToggle={(id) => toggleId(uploadDeptIds, setUploadDeptIds, id)} />
                 </div>
               )}
-              {user?.isAdmin && !uploadGlobal && (
+              {hasPermission('*') && !uploadGlobal && (
                 <div className="space-y-2">
                   <Label className="flex items-center gap-1.5"><Briefcase className="h-4 w-4 text-sky-400" /> Должности (Tutor)</Label>
                   <PositionCheckboxList selected={uploadPositions} onToggle={(id) => toggleId(uploadPositions, setUploadPositions, id)} />
@@ -517,7 +517,7 @@ const LibraryPage = () => {
               <DialogDescription>{shareItem?.title || shareItem?.originalName}</DialogDescription>
             </DialogHeader>
             <div className="space-y-4 py-2">
-              {user?.isAdmin && (
+              {hasPermission('*') && (
                 <label className="flex items-center gap-2 cursor-pointer">
                   <Checkbox checked={shareGlobal} onCheckedChange={() => setShareGlobal(v => !v)} className="data-[state=checked]:bg-emerald-500" />
                   <Globe2 className="h-4 w-4 text-emerald-400" />
@@ -530,7 +530,7 @@ const LibraryPage = () => {
                   <DeptCheckboxList selected={shareDeptIds} onToggle={(id) => toggleId(shareDeptIds, setShareDeptIds, id)} />
                 </div>
               )}
-              {user?.isAdmin && !shareGlobal && (
+              {hasPermission('*') && !shareGlobal && (
                 <div className="space-y-2">
                   <Label className="flex items-center gap-1.5"><Briefcase className="h-4 w-4 text-sky-400" /> Должности (Tutor)</Label>
                   <PositionCheckboxList selected={sharePositions} onToggle={(id) => toggleId(sharePositions, setSharePositions, id)} />

@@ -19,7 +19,8 @@ import logging
 import asyncio
 import aiofiles
 
-from middleware.auth import get_current_user, is_admin
+from middleware.auth import get_current_user
+from middleware.permissions import require, is_super as _is_super
 from db.connection import get_db
 from models.schemas import POSITIONS
 from services.file_processor import (
@@ -137,7 +138,7 @@ def _user_position(current_user: dict) -> Optional[str]:
 
 async def _managed_department_ids(db, current_user: dict) -> set:
     """Department ids the user is allowed to manage (admin → all)."""
-    if is_admin(current_user["email"]):
+    if _is_super(current_user):
         depts = await db.departments.find({}, {"_id": 0, "id": 1}).to_list(1000)
         return {d["id"] for d in depts}
     managed = await db.departments.find(
@@ -147,7 +148,7 @@ async def _managed_department_ids(db, current_user: dict) -> set:
 
 
 def _user_can_access(current_user: dict, item: dict) -> bool:
-    if is_admin(current_user["email"]):
+    if _is_super(current_user):
         return True
     if item.get("isGlobalLibrary"):
         return True
@@ -289,13 +290,9 @@ async def upload_library_item(
     departmentIds: Optional[str] = Form(None),
     positionIds: Optional[str] = Form(None),
     isGlobal: Optional[str] = Form(None),
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require("library", "create")),
 ):
-    """Upload a file to the library and share it with departments and/or positions.
-
-    Only an admin or a department manager can upload. A manager can only share
-    with departments they manage.
-    """
+    """Upload a file to the library and share it with departments and/or positions."""
     db = get_db()
 
     dept_ids = _parse_department_ids(departmentIds)
@@ -305,7 +302,7 @@ async def upload_library_item(
     # Permission: admin or manager of every target department.
     # Positions are company-wide, so only an admin (HR) may assign them.
     managed = await _managed_department_ids(db, current_user)
-    if not is_admin(current_user["email"]):
+    if not _is_super(current_user):
         if is_global:
             raise HTTPException(status_code=403, detail="Only admin can publish to all departments")
         if position_ids:
@@ -404,7 +401,7 @@ async def upload_library_item(
 @router.get("")
 async def list_library_items(
     manage: bool = False,
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require("library", "read")),
 ):
     """List library items.
 
@@ -413,12 +410,12 @@ async def list_library_items(
     shared with departments they manage).
     """
     db = get_db()
-    if manage and is_admin(current_user["email"]):
+    if manage and _is_super(current_user):
         query = {"level": "library"}
     elif manage:
         managed = await _managed_department_ids(db, current_user)
         query = {"level": "library", "sharedDepartments": {"$in": list(managed)}}
-    elif is_admin(current_user["email"]):
+    elif _is_super(current_user):
         query = {"level": "library"}
     else:
         user_depts = current_user.get("departments", [])
@@ -454,7 +451,7 @@ async def list_library_items(
 # ==================== SINGLE ITEM ====================
 
 @router.get("/{item_id}")
-async def get_library_item(item_id: str, current_user: dict = Depends(get_current_user)):
+async def get_library_item(item_id: str, current_user: dict = Depends(require("library", "read"))):
     db = get_db()
     item = await db.sources.find_one({"id": item_id, "level": "library"}, {"_id": 0})
     if not item:
@@ -470,7 +467,7 @@ async def get_library_item(item_id: str, current_user: dict = Depends(get_curren
 
 @router.put("/{item_id}")
 async def update_library_item(
-    item_id: str, data: dict, current_user: dict = Depends(get_current_user)
+    item_id: str, data: dict, current_user: dict = Depends(require("library", "update")),
 ):
     db = get_db()
     item = await db.sources.find_one({"id": item_id, "level": "library"}, {"_id": 0})
@@ -480,7 +477,7 @@ async def update_library_item(
     managed = await _managed_department_ids(db, current_user)
     is_owner = item.get("ownerId") == current_user["id"]
     shares_managed_dept = bool(set(item.get("sharedDepartments", [])) & managed)
-    if not is_admin(current_user["email"]) and not is_owner and not shares_managed_dept:
+    if not _is_super(current_user) and not is_owner and not shares_managed_dept:
         raise HTTPException(status_code=403, detail="Not allowed to edit this item")
 
     updates = {"updatedAt": _now_iso()}
@@ -502,7 +499,7 @@ async def update_library_item(
 
 @router.post("/{item_id}/share")
 async def share_library_item(
-    item_id: str, data: dict, current_user: dict = Depends(get_current_user)
+    item_id: str, data: dict, current_user: dict = Depends(require("library", "update")),
 ):
     """Set the full list of departments / positions an item is shared with.
 
@@ -523,13 +520,13 @@ async def share_library_item(
 
     # Positions are company-wide → only admin may change them. For managers we
     # preserve whatever positions were already set.
-    if "positions" in data and is_admin(current_user["email"]):
+    if "positions" in data and _is_super(current_user):
         new_positions = _parse_positions(data.get("positions"))
     else:
         new_positions = item.get("sharedPositions", [])
 
     managed = await _managed_department_ids(db, current_user)
-    if not is_admin(current_user["email"]):
+    if not _is_super(current_user):
         if is_global:
             raise HTTPException(status_code=403, detail="Only admin can publish to all departments")
         # A manager may only add/remove departments they manage. Departments they
@@ -558,7 +555,7 @@ async def share_library_item(
 
 @router.delete("/{item_id}/share/{department_id}")
 async def unshare_library_item(
-    item_id: str, department_id: str, current_user: dict = Depends(get_current_user)
+    item_id: str, department_id: str, current_user: dict = Depends(require("library", "update")),
 ):
     """Remove a single department from an item's share list."""
     db = get_db()
@@ -567,7 +564,7 @@ async def unshare_library_item(
         raise HTTPException(status_code=404, detail="Library item not found")
 
     managed = await _managed_department_ids(db, current_user)
-    if not is_admin(current_user["email"]) and department_id not in managed:
+    if not _is_super(current_user) and department_id not in managed:
         raise HTTPException(status_code=403, detail="You can only manage departments you manage")
 
     await db.sources.update_one(
@@ -585,7 +582,7 @@ async def unshare_library_item(
 async def reembed_library_item(
     item_id: str,
     background_tasks: BackgroundTasks,
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require("library", "update")),
 ):
     """Re-trigger embedding generation for a library item stuck in 'processing' status.
 
@@ -598,7 +595,7 @@ async def reembed_library_item(
         raise HTTPException(status_code=404, detail="Library item not found")
 
     is_owner = item.get("ownerId") == current_user["id"]
-    if not is_admin(current_user["email"]) and not is_owner:
+    if not _is_super(current_user) and not is_owner:
         raise HTTPException(status_code=403, detail="Only admin or uploader can re-embed")
 
     chunks_cursor = db.source_chunks.find(
@@ -623,7 +620,7 @@ async def reembed_library_item(
 # ==================== DOWNLOAD ====================
 
 @router.get("/{item_id}/download")
-async def download_library_item(item_id: str, current_user: dict = Depends(get_current_user)):
+async def download_library_item(item_id: str, current_user: dict = Depends(require("library", "read"))):
     db = get_db()
     item = await db.sources.find_one({"id": item_id, "level": "library"}, {"_id": 0})
     if not item:
@@ -649,7 +646,7 @@ async def preview_library_item(
     item_id: str,
     page: int = 1,
     page_size: int = 20,
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require("library", "read")),
 ):
     """Return paginated full text of a library item.
 
@@ -695,14 +692,14 @@ async def preview_library_item(
 # ==================== DELETE ====================
 
 @router.delete("/{item_id}")
-async def delete_library_item(item_id: str, current_user: dict = Depends(get_current_user)):
+async def delete_library_item(item_id: str, current_user: dict = Depends(require("library", "delete"))):
     db = get_db()
     item = await db.sources.find_one({"id": item_id, "level": "library"}, {"_id": 0})
     if not item:
         raise HTTPException(status_code=404, detail="Library item not found")
 
     is_owner = item.get("ownerId") == current_user["id"]
-    if not is_admin(current_user["email"]) and not is_owner:
+    if not _is_super(current_user) and not is_owner:
         raise HTTPException(status_code=403, detail="Only admin or uploader can delete")
 
     if item.get("storagePath"):

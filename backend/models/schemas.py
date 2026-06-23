@@ -48,6 +48,9 @@ class UserResponse(BaseModel):
     departments: Optional[List[str]] = []
     primaryDepartmentId: Optional[str] = None
     mustChangePassword: Optional[bool] = False
+    roleId: Optional[str] = None
+    permissionGrants: Optional[List[str]] = []
+    permissionRevokes: Optional[List[str]] = []
 
 
 class UserWithUsageResponse(BaseModel):
@@ -59,6 +62,7 @@ class UserWithUsageResponse(BaseModel):
     totalMessagesCount: int
     canEditGlobalSources: Optional[bool] = False
     canEditProductCatalog: Optional[bool] = False
+    roleId: Optional[str] = None
 
 
 class UpdateUserGlobalPermissionRequest(BaseModel):

@@ -7,7 +7,8 @@ from typing import Optional, List
 from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
 
-from middleware.auth import get_current_user, is_admin
+from middleware.auth import get_current_user
+from middleware.permissions import require
 from db.connection import get_db
 
 logger = logging.getLogger(__name__)
@@ -60,10 +61,9 @@ async def get_reports(
     tag: Optional[str] = None,
     skip: int = 0,
     limit: int = 50,
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(require("reports", "read")),
 ):
-    if not is_admin(current_user["email"]):
-        raise HTTPException(status_code=403, detail="Admin only")
+
 
     db = get_db()
     query = {}
@@ -81,10 +81,9 @@ async def get_reports(
 async def update_report_status(
     report_id: str,
     data: dict,
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(require("reports", "read")),
 ):
-    if not is_admin(current_user["email"]):
-        raise HTTPException(status_code=403, detail="Admin only")
+
 
     db = get_db()
     allowed = {"status", "adminNote"}
