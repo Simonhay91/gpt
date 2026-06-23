@@ -325,7 +325,7 @@ async def upload_library_item(
 
     file_type = SUPPORTED_MIME_TYPES[file.content_type]
     try:
-        extracted_text = _extract_text(content, file_type)
+        extracted_text = await asyncio.to_thread(_extract_text, content, file_type)
     except Exception as e:
         logger.error(f"Library extract error: {e}")
         raise HTTPException(status_code=400, detail="Could not read file content")

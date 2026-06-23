@@ -3,7 +3,7 @@ import { Button } from '../ui/button';
 import { Textarea } from '../ui/textarea';
 import {
   Loader2, Send, Plus, Upload, Link, ImageIcon, Save, Brain, X,
-  FileText, FileSpreadsheet, File, MoveRight, Globe, Check
+  FileText, FileSpreadsheet, File, MoveRight, Globe, Check, Square
 } from 'lucide-react';
 
 const FILE_TYPE_ICON = {
@@ -19,6 +19,7 @@ export const ChatInput = ({
   input,
   onInputChange,
   onSend,
+  onStop,
   onKeyDown,
   isSending,
   isUploading,
@@ -243,15 +244,28 @@ export const ChatInput = ({
               disabled={isSending}
               data-testid="chat-input"
             />
-            <Button
-              onClick={onSend}
-              disabled={!canSend}
-              size="icon"
-              className="h-8 w-8 rounded-xl flex-shrink-0 self-end"
-              data-testid="send-message-btn"
-            >
-              {isSending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-            </Button>
+            {isSending ? (
+              <Button
+                onClick={onStop}
+                size="icon"
+                variant="destructive"
+                className="h-8 w-8 rounded-xl flex-shrink-0 self-end"
+                data-testid="stop-generation-btn"
+                title="Stop generation"
+              >
+                <Square className="h-3.5 w-3.5 fill-current" />
+              </Button>
+            ) : (
+              <Button
+                onClick={onSend}
+                disabled={!canSend}
+                size="icon"
+                className="h-8 w-8 rounded-xl flex-shrink-0 self-end"
+                data-testid="send-message-btn"
+              >
+                <Send className="h-4 w-4" />
+              </Button>
+            )}
           </div>
         </div>
       </div>

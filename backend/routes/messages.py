@@ -1757,6 +1757,9 @@ async def send_message_stream(
                             _response_text += _delta
                             yield f"data: {json.dumps({'token': _delta})}\n\n"
 
+        except (asyncio.CancelledError, GeneratorExit):
+            logger.info("[stream] Client disconnected — stopping generation early")
+            return
         except Exception as e:
             logger.error(f"[stream] Error: {e}")
             yield f"data: {json.dumps({'error': str(e)[:100]})}\n\n"

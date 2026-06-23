@@ -48,7 +48,7 @@ def ocr_pdf_page_range(file_content: bytes, start_page: int, end_page: int) -> s
         doc = fitz.open(stream=file_content, filetype="pdf")
         parts = []
         for i in range(start_page, min(end_page, len(doc))):
-            pix = doc[i].get_pixmap(dpi=150)
+            pix = doc[i].get_pixmap(dpi=100)
             img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
             try:
                 page_text = pytesseract.image_to_string(
@@ -120,7 +120,7 @@ def extract_text_from_pdf_with_meta(file_content: bytes) -> dict:
             if total_pages > SYNC_OCR_PAGES:
                 logger.warning(f"PDF has {total_pages} pages, syncing first {SYNC_OCR_PAGES} — rest queued")
             for i in range(pages_to_process):
-                pix = doc[i].get_pixmap(dpi=150)
+                pix = doc[i].get_pixmap(dpi=100)
                 img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
                 try:
                     page_text = pytesseract.image_to_string(

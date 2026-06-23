@@ -71,6 +71,7 @@ const ChatPage = () => {
 
   // ── OCR background polling ──
   const ocrPollRef = useRef(null);
+  const abortControllerRef = useRef(null);
   const startOcrPolling = (projectId) => {
     if (ocrPollRef.current) return;
     ocrPollRef.current = setInterval(async () => {
@@ -594,6 +595,8 @@ const ChatPage = () => {
     setTempFiles([]);
     setIsSending(true);
 
+    abortControllerRef.current = new AbortController();
+
     // Send activeSourceIds only if user has explicitly interacted with checkboxes.
     // null means "use all accessible sources" (new chat / never touched).
     // []   means "user explicitly unchecked everything — no sources".
@@ -613,6 +616,7 @@ const ChatPage = () => {
           'Authorization': `Bearer ${token}`,
         },
         body: JSON.stringify(payload),
+        signal: abortControllerRef.current.signal,
       });
 
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
@@ -697,13 +701,28 @@ const ChatPage = () => {
           .then(res => setChat(prev => ({ ...prev, name: res.data.name || shortName })))
           .catch(() => {});
       }
-    } catch {
-      setMessages(prev => prev.filter(m => m.id !== tempUserMsgId && m.id !== tempAssistantMsgId));
-      setInput(content);
-      toast.error('Failed to send message');
+    } catch (err) {
+      if (err.name === 'AbortError') {
+        // User stopped generation — keep partial response if any content was streamed
+        setMessages(prev => {
+          const streamingMsg = prev.find(m => m.id === tempAssistantMsgId);
+          if (streamingMsg?.content) {
+            return prev.map(m => m.id === tempAssistantMsgId ? { ...m, isStreaming: false } : m);
+          }
+          return prev.filter(m => m.id !== tempUserMsgId && m.id !== tempAssistantMsgId);
+        });
+      } else {
+        setMessages(prev => prev.filter(m => m.id !== tempUserMsgId && m.id !== tempAssistantMsgId));
+        setInput(content);
+        toast.error('Failed to send message');
+      }
     } finally {
       setIsSending(false);
     }
+  };
+
+  const stopGeneration = () => {
+    abortControllerRef.current?.abort();
   };
 
   // ── Temp files: paperclip upload handler (supports multiple) ──
@@ -782,6 +801,7 @@ const ChatPage = () => {
       toast.success('Сообщение обновлено');
 
       setIsSending(true);
+      abortControllerRef.current = new AbortController();
       const regenTempId = `temp-regen-${Date.now()}`;
       setMessages(prev => [...prev, {
         id: regenTempId, chatId, role: 'assistant', content: '',
@@ -793,6 +813,7 @@ const ChatPage = () => {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
           body: JSON.stringify({ content: editedContent, activeSourceIds: sourcesExplicitlySet ? activeSourceIds : null }),
+          signal: abortControllerRef.current.signal,
         });
         if (!regenRes.ok) throw new Error(`HTTP ${regenRes.status}`);
 
@@ -829,9 +850,19 @@ const ChatPage = () => {
           setMessages(prev => prev.filter(m => m.id !== regenTempId));
         }
         setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
-      } catch { 
-        setMessages(prev => prev.filter(m => m.id !== regenTempId));
-        toast.error('Не удалось получить ответ AI'); 
+      } catch (err) {
+        if (err.name === 'AbortError') {
+          setMessages(prev => {
+            const streamingMsg = prev.find(m => m.id === regenTempId);
+            if (streamingMsg?.content) {
+              return prev.map(m => m.id === regenTempId ? { ...m, isStreaming: false } : m);
+            }
+            return prev.filter(m => m.id !== regenTempId);
+          });
+        } else {
+          setMessages(prev => prev.filter(m => m.id !== regenTempId));
+          toast.error('Не удалось получить ответ AI');
+        }
       }
       finally { setIsSending(false); }
     } catch (error) { toast.error(error.response?.data?.detail || 'Не удалось обновить сообщение'); }
@@ -1257,6 +1288,7 @@ const ChatPage = () => {
           input={input}
           onInputChange={setInput}
           onSend={() => sendMessage()}
+          onStop={stopGeneration}
           onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); } }}
           isSending={isSending}
           isUploading={isUploading}
