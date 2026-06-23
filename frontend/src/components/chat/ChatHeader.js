@@ -73,9 +73,6 @@ export const ChatHeader = ({
           <h1 className="font-semibold truncate max-w-[300px]" data-testid="chat-title">
             {chat?.name || 'Chat'}
           </h1>
-          {isQuickChat && (
-            <span className="text-xs text-amber-500">Quick Chat</span>
-          )}
         </div>
       </div>
 

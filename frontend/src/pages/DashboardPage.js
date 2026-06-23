@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../co
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '../components/ui/dialog';
 import { Label } from '../components/ui/label';
 import { toast } from 'sonner';
-import { Plus, FolderOpen, Trash2, Clock, ArrowRight, MessageSquare, MoveRight, Building2, Eye } from 'lucide-react';
+import { Plus, FolderOpen, Trash2, Clock, ArrowRight, Building2, Eye } from 'lucide-react';
 import DashboardLayout from '../components/DashboardLayout';
 import { useLanguage } from '../contexts/LanguageContext';
 
@@ -16,18 +16,11 @@ const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 const DashboardPage = () => {
   const { t } = useLanguage();
   const [projects, setProjects] = useState([]);
-  const [quickChats, setQuickChats] = useState([]);
   const [overview, setOverview] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [newProjectName, setNewProjectName] = useState('');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
-  const [isCreatingQuickChat, setIsCreatingQuickChat] = useState(false);
-  
-  // Move chat state
-  const [moveDialogOpen, setMoveDialogOpen] = useState(false);
-  const [chatToMove, setChatToMove] = useState(null);
-  const [isMovingChat, setIsMovingChat] = useState(false);
   
   const navigate = useNavigate();
 
@@ -37,14 +30,12 @@ const DashboardPage = () => {
 
   const fetchData = async () => {
     try {
-      const [projectsRes, quickChatsRes, overviewRes] = await Promise.all([
+      const [projectsRes, overviewRes] = await Promise.all([
         axios.get(`${API}/projects`),
-        axios.get(`${API}/quick-chats`),
         axios.get(`${API}/dashboard/overview`).catch(() => null),
       ]);
       // Handle paginated response
       setProjects(projectsRes.data.items || projectsRes.data);
-      setQuickChats(quickChatsRes.data.items || quickChatsRes.data);
       setOverview(overviewRes?.data || null);
     } catch (error) {
       toast.error('Failed to load data');
@@ -81,19 +72,6 @@ const DashboardPage = () => {
     }
   };
 
-  const createQuickChat = async () => {
-    setIsCreatingQuickChat(true);
-    try {
-      const response = await axios.post(`${API}/quick-chats`, { name: 'Quick Chat' });
-      toast.success('Quick chat created');
-      navigate(`/chats/${response.data.id}`);
-    } catch (error) {
-      toast.error('Failed to create quick chat');
-    } finally {
-      setIsCreatingQuickChat(false);
-    }
-  };
-
   const deleteProject = async (projectId, e) => {
     e.stopPropagation();
     
@@ -107,45 +85,6 @@ const DashboardPage = () => {
       toast.success('Project deleted');
     } catch (error) {
       toast.error('Failed to delete project');
-    }
-  };
-
-  const deleteQuickChat = async (chatId, e) => {
-    e.stopPropagation();
-    
-    if (!window.confirm('Are you sure? This will delete all messages in this chat.')) {
-      return;
-    }
-
-    try {
-      await axios.delete(`${API}/chats/${chatId}`);
-      setQuickChats(quickChats.filter(c => c.id !== chatId));
-      toast.success('Chat deleted');
-    } catch (error) {
-      toast.error('Failed to delete chat');
-    }
-  };
-
-  const openMoveDialog = (chat, e) => {
-    e.stopPropagation();
-    setChatToMove(chat);
-    setMoveDialogOpen(true);
-  };
-
-  const moveChat = async (targetProjectId) => {
-    if (!chatToMove) return;
-    
-    setIsMovingChat(true);
-    try {
-      await axios.post(`${API}/chats/${chatToMove.id}/move`, { targetProjectId });
-      setQuickChats(quickChats.filter(c => c.id !== chatToMove.id));
-      setMoveDialogOpen(false);
-      setChatToMove(null);
-      toast.success('Chat moved to project');
-    } catch (error) {
-      toast.error('Failed to move chat');
-    } finally {
-      setIsMovingChat(false);
     }
   };
 
@@ -170,18 +109,6 @@ const DashboardPage = () => {
           </div>
           
           <div className="flex items-center gap-2">
-            {/* Quick Chat Button */}
-            <Button 
-              variant="secondary" 
-              onClick={createQuickChat}
-              disabled={isCreatingQuickChat}
-              className="gap-2"
-              data-testid="quick-chat-btn"
-            >
-              {isCreatingQuickChat ? <div className="spinner" /> : <MessageSquare className="h-4 w-4" />}
-              {t('dashboard.newChat')}
-            </Button>
-            
             {/* New Project Dialog */}
             <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
               <DialogTrigger asChild>
@@ -238,67 +165,6 @@ const DashboardPage = () => {
           </div>
         ) : (
           <div className="space-y-8">
-            {/* Quick Chats Section */}
-            {quickChats.length > 0 && (
-              <div>
-                <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
-                  <MessageSquare className="h-5 w-5 text-emerald-400" />
-                  {t('dashboard.myChats')}
-                </h2>
-                <div className="space-y-3">
-                  {quickChats.map((chat, index) => (
-                    <Card 
-                      key={chat.id}
-                      className="card-hover cursor-pointer group"
-                      onClick={() => navigate(`/chats/${chat.id}`)}
-                      style={{ animationDelay: `${index * 50}ms` }}
-                      data-testid={`quick-chat-card-${chat.id}`}
-                    >
-                      <CardContent className="py-4">
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-4">
-                            <div className="rounded-lg bg-emerald-500/20 p-2">
-                              <MessageSquare className="h-5 w-5 text-emerald-400" />
-                            </div>
-                            <div>
-                              <h3 className="font-semibold">{chat.name}</h3>
-                              <div className="flex items-center gap-1 text-sm text-muted-foreground mt-1">
-                                <Clock className="h-3 w-3" />
-                                <span>{formatDate(chat.createdAt)}</span>
-                              </div>
-                            </div>
-                          </div>
-                          
-                          <div className="flex items-center gap-2">
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className=" h-8 w-8"
-                              onClick={(e) => openMoveDialog(chat, e)}
-                              title="Move to project"
-                              data-testid={`move-chat-${chat.id}`}
-                            >
-                              <MoveRight className="h-4 w-4 text-indigo-400" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className=" h-8 w-8"
-                              onClick={(e) => deleteQuickChat(chat.id, e)}
-                              data-testid={`delete-quick-chat-${chat.id}`}
-                            >
-                              <Trash2 className="h-4 w-4 text-destructive" />
-                            </Button>
-                            <ArrowRight className="h-4 w-4 text-muted-foreground " />
-                          </div>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  ))}
-                </div>
-              </div>
-            )}
-
             {/* Role-based Overview (C-suite: all departments / Dept head: their dept) */}
             {showOverview && (
               <div>
@@ -418,47 +284,6 @@ const DashboardPage = () => {
           </div>
         )}
 
-        {/* Move Chat Dialog */}
-        <Dialog open={moveDialogOpen} onOpenChange={setMoveDialogOpen}>
-          <DialogContent className="sm:max-w-md">
-            <DialogHeader>
-              <DialogTitle>Move Chat to Project</DialogTitle>
-              <DialogDescription>
-                Select a project to move "{chatToMove?.name}" into.
-              </DialogDescription>
-            </DialogHeader>
-            <div className="space-y-2 py-4 max-h-[300px] overflow-y-auto">
-              {projects.length === 0 ? (
-                <p className="text-center text-muted-foreground py-4">
-                  No projects available. Create a project first.
-                </p>
-              ) : (
-                projects.map((project) => (
-                  <Card
-                    key={project.id}
-                    className="cursor-pointer hover:border-indigo-500/50 transition-colors"
-                    onClick={() => moveChat(project.id)}
-                    data-testid={`move-to-project-${project.id}`}
-                  >
-                    <CardContent className="py-3 flex items-center gap-3">
-                      <FolderOpen className="h-5 w-5 text-indigo-400" />
-                      <span className="font-medium">{project.name}</span>
-                    </CardContent>
-                  </Card>
-                ))
-              )}
-            </div>
-            <DialogFooter>
-              <Button
-                variant="outline"
-                onClick={() => setMoveDialogOpen(false)}
-                disabled={isMovingChat}
-              >
-                Cancel
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
       </div>
     </DashboardLayout>
   );

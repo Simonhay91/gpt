@@ -152,7 +152,7 @@ const ChatPage = () => {
   const plusMenuRef = useRef(null);
   const nameInputRef = useRef(null);
 
-  const isQuickChat = chat && !chat.projectId;
+  const isQuickChat = chat && !chat.projectId && chat.mode !== 'tutor';
   const isTutor = chat?.mode === 'tutor';
   const [isFinishingLesson, setIsFinishingLesson] = useState(false);
 
