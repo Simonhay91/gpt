@@ -361,15 +361,14 @@ const AdminRolesPage = () => {
                                 return next;
                               })}
                             >
-                              <Checkbox
-                                checked={allChecked}
-                                className={`data-[state=checked]:bg-indigo-500 ${someChecked && !allChecked ? 'opacity-60' : ''}`}
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  if (!isReadOnly) toggleAllResource(resource, actions);
-                                }}
-                                disabled={isReadOnly}
-                              />
+                              <div onClick={(e) => e.stopPropagation()}>
+                                <Checkbox
+                                  checked={allChecked}
+                                  onCheckedChange={() => !isReadOnly && toggleAllResource(resource, actions)}
+                                  className={`data-[state=checked]:bg-indigo-500 ${someChecked && !allChecked ? 'opacity-60' : ''}`}
+                                  disabled={isReadOnly}
+                                />
+                              </div>
                               <span className="font-medium text-sm flex-1">
                                 {RESOURCE_LABELS[resource] || resource}
                               </span>
