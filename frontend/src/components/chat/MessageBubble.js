@@ -206,8 +206,6 @@ export const MessageBubble = ({
   const formatTime = (dateString) =>
     new Date(dateString).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
 
-  const isNearBottom = index >= messagesCount * 0.6;
-
   // Don't render empty streaming placeholder — TypingIndicator shows instead
   if (message.isStreaming && !message.content) return null;
 
@@ -249,6 +247,7 @@ export const MessageBubble = ({
             className="relative w-fit"
             onMouseEnter={() => setIsHovered(true)}
             onMouseLeave={() => setIsHovered(false)}
+            style={{ zIndex: isHovered ? 20 : 'auto' }}
           >
             {isEditing ? (
               <div className="space-y-2">
@@ -358,7 +357,7 @@ export const MessageBubble = ({
                       {saveDropdownOpen && (
                         <div
                           className="absolute z-50 min-w-[160px] rounded-md border border-border bg-background shadow-lg py-1"
-                          style={{ [isNearBottom ? 'bottom' : 'top']: '110%', right: 0, transition: 'none' }}
+                          style={{ bottom: 'calc(100% + 6px)', right: 0, transition: 'none' }}
                           onClick={(e) => e.stopPropagation()}
                         >
                           <button
