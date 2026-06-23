@@ -30,7 +30,8 @@ import {
   FileOutput,
   Flag,
   Library,
-  GraduationCap
+  GraduationCap,
+  Shield
 } from 'lucide-react';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
@@ -197,6 +198,11 @@ const DashboardLayout = ({ children }) => {
       name: t('nav.globalSources'),
       path: '/admin/global-sources',
       icon: Globe2
+    });
+    navItems.push({
+      name: 'Roles',
+      path: '/admin/roles',
+      icon: Shield
     });
     navItems.push({
       name: t('nav.auditLogs'),

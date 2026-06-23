@@ -33,6 +33,7 @@ import ProductDetailPage from './pages/ProductDetailPage';
 import OemDatasheetPage from './pages/OemDatasheetPage';
 import AdminBrandsPage from './pages/AdminBrandsPage';
 import AdminReportsPage from './pages/AdminReportsPage';
+import AdminRolesPage from './pages/AdminRolesPage';
 import LibraryPage from './pages/LibraryPage';
 import TutorPage from './pages/TutorPage';
 
@@ -183,6 +184,11 @@ function AppRoutes() {
         <ProtectedRoute>
           <MyDepartmentsPage />
         </ProtectedRoute>
+      } />
+      <Route path="/admin/roles" element={
+        <AdminRoute>
+          <AdminRolesPage />
+        </AdminRoute>
       } />
       <Route path="/admin/audit-logs" element={
         <AdminRoute>

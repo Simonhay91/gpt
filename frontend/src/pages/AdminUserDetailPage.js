@@ -19,7 +19,9 @@ import {
   Settings,
   Globe2,
   Package,
-  Briefcase
+  Briefcase,
+  Shield,
+  ExternalLink
 } from 'lucide-react';
 import DashboardLayout from '../components/DashboardLayout';
 
@@ -41,6 +43,11 @@ const AdminUserDetailPage = () => {
   const [userPosition, setUserPosition] = useState('');
   const [isSavingPosition, setIsSavingPosition] = useState(false);
 
+  // Role assignment
+  const [availableRoles, setAvailableRoles] = useState([]);
+  const [selectedRoleId, setSelectedRoleId] = useState('');
+  const [isSavingRole, setIsSavingRole] = useState(false);
+
   const positions = [
     { value: '', label: 'Не задана' },
     { value: 'CEO', label: 'CEO' },
@@ -60,6 +67,7 @@ const AdminUserDetailPage = () => {
 
   useEffect(() => {
     fetchUserDetails();
+    fetchRoles();
   }, [userId]);
 
   const fetchUserDetails = async () => {
@@ -71,11 +79,33 @@ const AdminUserDetailPage = () => {
       setCanEditGlobal(response.data.user?.canEditGlobalSources || false);
       setCanEditCatalog(response.data.user?.canEditProductCatalog || false);
       setUserPosition(response.data.user?.ai_profile?.position || '');
+      setSelectedRoleId(response.data.user?.roleId || 'role_base');
     } catch (error) {
       toast.error('Failed to load user details');
       navigate('/admin/users');
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const fetchRoles = async () => {
+    try {
+      const res = await axios.get(`${API}/admin/roles`);
+      setAvailableRoles(res.data || []);
+    } catch {
+      // silently fail
+    }
+  };
+
+  const saveRole = async () => {
+    setIsSavingRole(true);
+    try {
+      await axios.put(`${API}/admin/users/${userId}/role`, { roleId: selectedRoleId });
+      toast.success('Role assigned successfully');
+    } catch (e) {
+      toast.error(e.response?.data?.detail || 'Failed to assign role');
+    } finally {
+      setIsSavingRole(false);
     }
   };
 
@@ -258,6 +288,51 @@ const AdminUserDetailPage = () => {
         <div className="grid md:grid-cols-2 gap-6">
           {/* Left Column - Settings */}
           <div className="space-y-6">
+
+            {/* Role */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Shield className="h-5 w-5 text-indigo-400" />
+                  Role
+                </CardTitle>
+                <CardDescription>
+                  Defines the base permission set for this user.{' '}
+                  <button
+                    onClick={() => navigate('/admin/roles')}
+                    className="text-indigo-400 hover:underline inline-flex items-center gap-0.5"
+                  >
+                    Manage roles <ExternalLink className="h-3 w-3" />
+                  </button>
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <select
+                  value={selectedRoleId}
+                  onChange={e => setSelectedRoleId(e.target.value)}
+                  className="w-full p-2 rounded-md border border-input bg-background text-sm"
+                >
+                  {availableRoles.length === 0 && (
+                    <option value="">Loading roles…</option>
+                  )}
+                  {availableRoles.map(r => (
+                    <option key={r.id} value={r.id}>
+                      {r.name}{r.isSystem ? ' (System)' : ''}
+                    </option>
+                  ))}
+                </select>
+                {selectedRoleId && availableRoles.length > 0 && (
+                  <p className="text-xs text-muted-foreground">
+                    {availableRoles.find(r => r.id === selectedRoleId)?.description || ''}
+                  </p>
+                )}
+                <Button onClick={saveRole} disabled={isSavingRole} className="w-full">
+                  {isSavingRole ? <div className="spinner mr-2" /> : <Save className="h-4 w-4 mr-2" />}
+                  Assign Role
+                </Button>
+              </CardContent>
+            </Card>
+
             {/* Position */}
             <Card>
               <CardHeader>
