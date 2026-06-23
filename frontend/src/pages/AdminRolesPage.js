@@ -89,7 +89,7 @@ const AdminRolesPage = () => {
         axios.get(`${API}/admin/permissions/registry`),
       ]);
       setRoles(rolesRes.data || []);
-      setRegistry(regRes.data || {});
+      setRegistry(regRes.data.resources || {});
     } catch {
       toast.error('Failed to load roles');
     } finally {
