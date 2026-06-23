@@ -148,11 +148,23 @@ def is_edit_trigger(message_content: str) -> bool:
 
 
 def _sanitize_value(v):
+    """Coerce a value to a type openpyxl can write to a cell.
+
+    openpyxl accepts: str, int, float, bool, datetime, None.
+    Anything else (list, dict, etc.) is stringified so the cell write never crashes.
+    """
     if v is None:
         return None
-    if isinstance(v, float) and (math.isnan(v) or math.isinf(v)):
-        return None
-    return v
+    if isinstance(v, bool):
+        return v
+    if isinstance(v, (int, float)):
+        if math.isnan(v) or math.isinf(v):
+            return None
+        return v
+    if isinstance(v, str):
+        return v
+    # dicts, lists, or any other type → stringify
+    return str(v)
 
 
 async def targeted_excel_edit(source_file_path: str, instruction: str, claude_client) -> tuple:
@@ -205,8 +217,8 @@ async def targeted_excel_edit(source_file_path: str, instruction: str, claude_cl
     print(f"[EXCEL EDIT DEBUG] File structure: {json.dumps(file_structure, ensure_ascii=False)[:800]}")
 
     # ── Ask Claude for rich operation list ──
-    analysis_response = claude_client.messages.create(
-        model="claude-sonnet-4-5",
+    analysis_response = await claude_client.messages.create(
+        model="claude-sonnet-4-6",
         max_tokens=2048,
         system=(
             "You are a full-featured Excel editor. The user's instruction may be in Armenian, Russian, or English.\n"
@@ -318,12 +330,10 @@ async def targeted_excel_edit(source_file_path: str, instruction: str, claude_cl
                 if chart_index < len(charts) and color:
                     from openpyxl.drawing.fill import PatternFillProperties
                     from openpyxl.chart.data_source import NumDataSource
-                    # Set plot area fill via graphical properties
                     chart = charts[chart_index]
                     try:
                         from openpyxl.drawing.spreadsheet_drawing import SpreadsheetDrawing
                         from openpyxl.chart._chart import AxDataSource
-                        # Use solidFill on plot area if accessible
                         if hasattr(chart, 'plot_area') and hasattr(chart.plot_area, 'spPr'):
                             from openpyxl.drawing.fill import SolidColorFillProperties
                             chart.plot_area.spPr.solidFill = color
@@ -389,6 +399,168 @@ async def targeted_excel_edit(source_file_path: str, instruction: str, claude_cl
     return file_id, preview, summary
 
 
+async def scratch_generate_excel(
+    message_content: str,
+    ai_response_text: str,
+    claude_client,
+) -> Tuple[Optional[str], Optional[dict], str]:
+    """Generate an Excel file from scratch using Claude.
+
+    Uses the user's message and the AI's text response as context to produce
+    structured data, then writes it to an .xlsx file with openpyxl.
+
+    Returns (file_id, preview, message_text) or (None, None, error_text).
+    """
+    import openpyxl
+    from openpyxl.styles import PatternFill, Font, Alignment
+
+    print(f"[EXCEL SCRATCH] generating from scratch for: {message_content[:80]}")
+
+    # Ask Claude to produce structured sheet data
+    gen_response = await claude_client.messages.create(
+        model="claude-sonnet-4-6",
+        max_tokens=4096,
+        system=(
+            "You are an Excel file generator. The user wants to create an Excel file from scratch.\n"
+            "The user's instruction and any relevant context from the conversation are provided below.\n"
+            "Respond ONLY with a valid JSON object — no markdown fences, no explanation.\n\n"
+            "Required format:\n"
+            '{\n'
+            '  "filename": "report.xlsx",\n'
+            '  "sheets": [\n'
+            '    {\n'
+            '      "name": "Sheet1",\n'
+            '      "headers": ["Column A", "Column B", "Column C"],\n'
+            '      "rows": [\n'
+            '        ["value1", "value2", 100],\n'
+            '        ["value3", "value4", 200]\n'
+            '      ]\n'
+            '    }\n'
+            '  ],\n'
+            '  "message": "Brief description of what was generated (in same language as user)"\n'
+            '}\n\n'
+            "Rules:\n"
+            "- Use the conversation context to populate realistic data\n"
+            "- Headers must match the data context (use user's language for column names)\n"
+            "- Include at least 3-5 data rows (more if the context provides them)\n"
+            "- Numbers should be actual numbers (not strings)\n"
+            "- Dates as strings in YYYY-MM-DD format\n"
+            "- Multiple sheets are allowed when it makes sense\n"
+            "- Return ONLY the JSON object, no extra text"
+        ),
+        messages=[{
+            "role": "user",
+            "content": (
+                f"User request: {message_content}\n\n"
+                f"Conversation context / AI response:\n{ai_response_text[:3000]}"
+            )
+        }]
+    )
+
+    raw = gen_response.content[0].text.strip()
+    print(f"[EXCEL SCRATCH] Claude raw (first 300): {raw[:300]}")
+
+    # Strip markdown fences if present
+    if raw.startswith("```"):
+        raw = raw.split("```")[1]
+        if raw.startswith("json"):
+            raw = raw[4:]
+        raw = raw.strip()
+
+    try:
+        sheet_data = json.loads(raw)
+    except json.JSONDecodeError as e:
+        logger.error(f"scratch_generate_excel: JSON parse error: {e} | raw: {raw[:200]}")
+        return None, None, "Excel ֆայլ ստեղծել չհաջողվեց։ Claude-ը անճիշտ ձևաչափ վերադարձրեց։"
+
+    # Claude might return a list instead of an object
+    if not isinstance(sheet_data, dict):
+        logger.error(f"scratch_generate_excel: expected dict, got {type(sheet_data)}")
+        return None, None, "Excel ֆայլ ստեղծել չհաջողվեց — անսպասելի ձևաչափ։"
+
+    sheets = sheet_data.get("sheets", [])
+    if not sheets:
+        return None, None, "Excel ֆայլ ստեղծել չհաջողվեց — data չստացվեց։"
+
+    raw_filename = sheet_data.get("filename") or "report"
+    base = raw_filename.rsplit(".", 1)[0] if "." in raw_filename else raw_filename
+    filename = (base.strip() or "report") + ".xlsx"
+
+    # ── Build the workbook ──
+    wb = openpyxl.Workbook()
+    # Remove the default empty sheet openpyxl always creates
+    if wb.active is not None:
+        wb.remove(wb.active)
+
+    header_fill = PatternFill(start_color="4472C4", end_color="4472C4", fill_type="solid")
+    header_font = Font(bold=True, color="FFFFFF", size=11)
+    header_align = Alignment(horizontal="center", vertical="center")
+
+    all_preview_rows = []
+    all_preview_cols = []
+    total_rows = 0
+    used_sheet_names: set = set()
+
+    for sheet_def in sheets:
+        raw_name = str(sheet_def.get("name") or "Sheet")[:31]
+
+        # Deduplicate sheet names — openpyxl raises if two sheets share a name
+        sheet_name = raw_name
+        counter = 2
+        while sheet_name in used_sheet_names:
+            suffix = f" ({counter})"
+            sheet_name = raw_name[:31 - len(suffix)] + suffix
+            counter += 1
+        used_sheet_names.add(sheet_name)
+
+        headers = sheet_def.get("headers") or []
+        rows = sheet_def.get("rows") or []
+
+        ws = wb.create_sheet(title=sheet_name)
+
+        # Write headers with formatting
+        for col_idx, header in enumerate(headers, start=1):
+            cell = ws.cell(row=1, column=col_idx, value=str(header))
+            cell.fill = header_fill
+            cell.font = header_font
+            cell.alignment = header_align
+            ws.column_dimensions[cell.column_letter].width = max(15, len(str(header)) + 4)
+
+        # Write data rows
+        for row_idx, row_data in enumerate(rows, start=2):
+            if not isinstance(row_data, (list, tuple)):
+                continue
+            for col_idx, value in enumerate(row_data, start=1):
+                ws.cell(row=row_idx, column=col_idx, value=_sanitize_value(value))
+
+        if headers:
+            ws.row_dimensions[1].height = 20
+
+        total_rows += len(rows)
+
+        if not all_preview_cols and headers:
+            all_preview_cols = [str(h) for h in headers]
+        if len(all_preview_rows) < 5 and rows:
+            all_preview_rows.extend(
+                [[_sanitize_value(v) for v in r] for r in rows[:5 - len(all_preview_rows)]]
+            )
+
+    # ── Save ──
+    file_id = str(uuid.uuid4())
+    output_path = str(UPLOAD_DIR / f"excel_{file_id}.xlsx")
+    wb.save(output_path)
+    print(f"[EXCEL SCRATCH] saved: {output_path}, sheets={len(sheets)}, total_rows={total_rows}")
+
+    preview = {
+        "columns": all_preview_cols,
+        "rows": all_preview_rows,
+        "total_rows": total_rows,
+        "message": sheet_data.get("message", f"Generated {filename}"),
+    }
+    message_text = sheet_data.get("message", f"Excel ֆայլը պատրաստ է — {total_rows} տող, {len(sheets)} sheet։")
+    return file_id, preview, message_text
+
+
 async def maybe_generate_excel(
     db,
     chat_id: str,
@@ -401,53 +573,56 @@ async def maybe_generate_excel(
 ) -> Tuple[Optional[str], Optional[dict], str, bool]:
     """
     Attempt to generate an Excel file if conditions are met.
-    If temp_file_path is provided, uses that file instead of looking up project sources.
+
+    Decision tree:
+    1. If no Excel trigger in message → return text as-is.
+    2. If a temp/source Excel file exists → targeted_edit (modify existing file).
+    3. If no file exists → scratch_generate_excel (create from scratch using AI context).
+
     Returns (excel_file_id, excel_preview, response_text, is_clarification).
-    If no Excel should be generated, returns (None, None, current_response_text, False).
-    When a clarification question is asked, returns (None, None, clarif_text, True).
     """
-    # If no temp file, require project + active sources
-    if not temp_file_path and not project_id:
-        print(f"[EXCEL] early exit: no temp_file and no project_id")
-        return None, None, current_response_text, False
-
-    # If active_source_ids is empty but project_id exists, fall back to all project sources
-    effective_source_ids = active_source_ids or []
-    print(f"[EXCEL] start: project_id={project_id}, active_source_ids_count={len(effective_source_ids)}")
-
     if not is_excel_trigger(message_content):
         print(f"[EXCEL] no trigger found in message: {message_content[:80]}")
         return None, None, current_response_text, False
 
+    effective_source_ids = active_source_ids or []
+    print(f"[EXCEL] start: project_id={project_id}, active_source_ids_count={len(effective_source_ids)}, has_temp={bool(temp_file_path)}")
+
     try:
-        # ── Resolve the actual file to operate on ──
+        # ── Step 1: Resolve existing file (temp upload or project source) ──
+        actual_file_path = None
+        actual_ext = None
+        source_name = "result.xlsx"
+
         if temp_file_path and Path(temp_file_path).exists():
             actual_file_path = Path(temp_file_path)
             actual_ext = actual_file_path.suffix.lstrip(".").lower()
-            source_name = actual_file_path.name.split("_", 1)[-1]  # strip UUID prefix
+            source_name = actual_file_path.name.split("_", 1)[-1]
             print(f"[EXCEL] using temp file: {source_name}")
-        else:
-            # Build search filter: prefer active sources, but if empty fall back to all project sources
-            id_filter = {"id": {"$in": effective_source_ids}} if effective_source_ids else {"projectId": project_id}
 
-            # 1. Try by mimeType (xlsx/xls)
+        elif project_id or effective_source_ids:
+            # Search project/active sources for an Excel file
+            id_filter = (
+                {"id": {"$in": effective_source_ids}}
+                if effective_source_ids
+                else {"projectId": project_id}
+            )
+
             excel_source = await db.sources.find_one(
                 {
                     **id_filter,
                     "mimeType": {"$in": [
                         "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                        "application/vnd.ms-excel"
+                        "application/vnd.ms-excel",
                     ]}
                 },
                 {"_id": 0}
             )
-            # 2. Try by mimeType (csv)
             if not excel_source:
                 excel_source = await db.sources.find_one(
                     {**id_filter, "mimeType": {"$in": ["text/csv", "application/csv"]}},
                     {"_id": 0}
                 )
-            # 3. Fallback: find by file extension in storagePath or originalName
             if not excel_source:
                 all_sources = await db.sources.find(id_filter, {"_id": 0}).to_list(100)
                 for s in all_sources:
@@ -455,120 +630,57 @@ async def maybe_generate_excel(
                     on = (s.get("originalName") or "").lower()
                     if sp.endswith((".xlsx", ".xls", ".csv")) or on.endswith((".xlsx", ".xls", ".csv")):
                         excel_source = s
-                        print(f"[EXCEL] found source by extension fallback: {on}, mimeType={s.get('mimeType')}")
+                        print(f"[EXCEL] found source by extension fallback: {on}")
                         break
 
-            if not excel_source:
-                print(f"[EXCEL] no excel source found among {len(active_source_ids)} active sources")
-                return None, None, current_response_text, False
-            if not excel_source.get("storagePath"):
-                print(f"[EXCEL] source has no storagePath: {excel_source.get('id')}")
-                return None, None, current_response_text, False
-            actual_file_path = UPLOAD_DIR / excel_source["storagePath"]
-            actual_ext = excel_source["storagePath"].rsplit(".", 1)[-1].lower()
-            source_name = excel_source.get("originalName", "file")
-            print(f"[EXCEL] resolved source: {source_name}, path={actual_file_path}, exists={actual_file_path.exists()}")
+            if excel_source and excel_source.get("storagePath"):
+                candidate = UPLOAD_DIR / excel_source["storagePath"]
+                if candidate.exists():
+                    actual_file_path = candidate
+                    actual_ext = excel_source["storagePath"].rsplit(".", 1)[-1].lower()
+                    source_name = excel_source.get("originalName", "file")
+                    print(f"[EXCEL] resolved source: {source_name}, exists=True")
+                else:
+                    print(f"[EXCEL] source found in DB but missing on disk: {candidate}")
 
-        if not actual_file_path.exists():
-            print(f"[EXCEL] file not found on disk: {actual_file_path}")
-            return None, None, current_response_text, False
-
-        # ── When an existing file is found → ALWAYS use targeted edit ──
-        # Full generation destroys original formatting/charts/formulas.
-        # The edit path handles everything: value changes, colors, chart titles, formulas, etc.
-        print(f"[EXCEL] routing to targeted_edit (source file exists)")
-        try:
-            file_id, preview, text = await targeted_excel_edit(str(actual_file_path), message_content, claude_client)
+        # ── Step 2a: Existing xlsx/xls file → targeted edit ──
+        # CSVs are skipped here because targeted_edit uses openpyxl which can't
+        # open a CSV. They fall through to scratch generation instead, which reads
+        # the CSV content via the AI response context and produces a proper .xlsx.
+        if actual_file_path and actual_file_path.exists() and actual_ext in ("xlsx", "xls", "xlsm"):
+            print(f"[EXCEL] routing to targeted_edit (ext={actual_ext})")
+            file_id, preview, text = await targeted_excel_edit(
+                str(actual_file_path), message_content, claude_client
+            )
             if file_id:
-                # Mirror to MongoDB so file survives pod restarts
-                await _persist_excel_to_db(db, file_id, str(UPLOAD_DIR / f"excel_{file_id}.xlsx"), source_name)
+                await _persist_excel_to_db(
+                    db, file_id, str(UPLOAD_DIR / f"excel_{file_id}.xlsx"), source_name
+                )
                 return file_id, preview, text, False
-            # Edit returned no ops — ask user to clarify
+
+            # targeted_edit returned no ops — surface the error as clarification
             clarif_text = (
                 text if text else
                 "Չհասկացա ինչ փոփոխություն կատարել։ Խնդրեմ կոնկրետ նկարագրիր — "
                 "օրինակ՝ «A2 բջիջում գրիր 100» կամ «Price սյունակի բոլոր արժեքները բազմապատկիր 1.2-ով»։"
             )
-            print(f"[EXCEL] targeted_edit returned no ops, returning clarification")
+            print(f"[EXCEL] targeted_edit returned no ops")
             return None, None, clarif_text, True
-        except Exception as edit_err:
-            logger.error(f"targeted_excel_edit error: {edit_err}")
-            return None, None, "Excel ֆայլի մշակման ժամանակ սխալ առաջացավ։ Խնդրեմ կրկին փորձիր։", True
 
-        # ── Full generation path: only reached if edit produced nothing ──
-        # (e.g. user confirmed scratch creation via __CONFIRM_EXCEL__ button)
-        has_clarification = message_content.strip().startswith("__CONFIRM_EXCEL__")
-        if has_clarification:
-            message_content = message_content[len("__CONFIRM_EXCEL__"):].strip()
-
-        if not has_clarification:
-            # Return the edit's error/info text rather than asking clarification again
-            return None, None, current_response_text, False
-
-        df = pd.read_excel(actual_file_path) if actual_ext in ("xlsx", "xls") else pd.read_csv(actual_file_path)
-
-        structure = (
-            f"File: {source_name}\n"
-            f"Rows: {len(df)}, Columns: {len(df.columns)}\n"
-            f"Columns: {list(df.columns)}\n"
-            f"Data (max 200 rows):\n{df.head(200).to_string(index=False)}"
+        # ── Step 2b: No file → generate from scratch ──
+        print(f"[EXCEL] no existing file found — routing to scratch generation")
+        file_id, preview, text = await scratch_generate_excel(
+            message_content=message_content,
+            ai_response_text=current_response_text,
+            claude_client=claude_client,
         )
+        if file_id:
+            await _persist_excel_to_db(db, file_id, str(UPLOAD_DIR / f"excel_{file_id}.xlsx"), "generated.xlsx")
+            return file_id, preview, text, False
 
-        excel_response = claude_client.messages.create(
-            model="claude-sonnet-4-5",
-            max_tokens=4096,
-            system=(
-                "You are a data transformation assistant. "
-                "The spreadsheet data is provided directly below — do not fetch anything externally.\n"
-                "The user's instruction may be in Armenian, Russian, or English — understand all three.\n"
-                "Common operations by language:\n"
-                "- Armenian: poxi/\u0583\u0578\u056d\u056b\u0580 = replace | gri/\u0563\u0580\u056b\u0580 = write | avel = add | jnjel = delete\n"
-                "- Russian: \u0437\u0430\u043c\u0435\u043d\u0438 = replace | \u043d\u0430\u043f\u0438\u0448\u0438 = write | \u0434\u043e\u0431\u0430\u0432\u044c = add | \u0443\u0434\u0430\u043b\u0438 = delete\n"
-                "- English: rename/change/update/add/remove\n"
-                "Apply the user's instruction to the data and return ONLY a valid JSON object:\n"
-                '{"column_mapping": {"old": "new"}, "new_data": [[col1, col2, ...], [val1, val2, ...], ...], "message": "what was done"}\n'
-                "- new_data: first array = column names, remaining = ALL data rows with transformations applied\n"
-                "- column_mapping: rename map (can be empty {})\n"
-                "- message: brief explanation in SAME language as the user's instruction\n"
-                "- NEVER say you cannot do something — work only with the provided data\n"
-                "Return ONLY JSON, no markdown, no extra text."
-            ),
-            messages=[{"role": "user", "content": f"Instruction: {message_content}\n\n{structure}"}]
-        )
-
-        raw = excel_response.content[0].text.strip()
-        if raw.startswith("```"):
-            raw = raw.split("```")[1]
-            if raw.startswith("json"):
-                raw = raw[4:]
-
-        result_data = json.loads(raw.strip())
-        new_data = result_data.get("new_data", [])
-
-        if new_data and len(new_data) > 1:
-            cols = new_data[0]
-            result_df = pd.DataFrame(new_data[1:], columns=cols)
-        else:
-            col_map = result_data.get("column_mapping", {})
-            result_df = df.rename(columns={k: v for k, v in col_map.items() if k in df.columns})
-
-        file_id = str(uuid.uuid4())
-        result_path = str(UPLOAD_DIR / f"excel_{file_id}.xlsx")
-        result_df.to_excel(result_path, index=False)
-        # Mirror to MongoDB so file survives pod restarts
-        await _persist_excel_to_db(db, file_id, result_path, "result.xlsx")
-
-        excel_preview = {
-            "columns": [str(c) for c in result_df.columns],
-            "rows": [[_sanitize_value(v) for v in row] for row in result_df.head(5).values.tolist()],
-            "total_rows": len(result_df),
-            "message": result_data.get("message", ""),
-        }
-
-        response_text = result_data.get("message", current_response_text)
-        return file_id, excel_preview, response_text, False
+        # scratch generation failed — return whatever error text it gave
+        return None, None, text or current_response_text, False
 
     except Exception as excel_err:
-        logger.error(f"Excel generation error: {excel_err}")
+        logger.error(f"Excel generation error: {excel_err}", exc_info=True)
         return None, None, current_response_text, False
-
