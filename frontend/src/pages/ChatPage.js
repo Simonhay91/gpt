@@ -366,6 +366,19 @@ const ChatPage = () => {
     } catch { toast.error('Failed to delete source'); }
   };
 
+  const reprocessSource = async (sourceId) => {
+    try {
+      toast.loading('Reprocessing source...', { id: 'reprocess' });
+      const res = await axios.post(`${API}/sources/${sourceId}/reprocess`);
+      toast.success(`Done — ${res.data.chunkCount} chunks created`, { id: 'reprocess' });
+      // Refresh source list to show updated chunk count
+      const sourcesRes = await axios.get(`${API}/projects/${chat.projectId}/sources`);
+      setProjectSources(sourcesRes.data || []);
+    } catch (err) {
+      toast.error(err?.response?.data?.detail || 'Reprocess failed', { id: 'reprocess' });
+    }
+  };
+
   const sharePersonalSourceToChat = async (sourceId) => {
     try {
       await axios.put(`${API}/sources/${sourceId}/share-to-chat`, { chatId });
@@ -1186,6 +1199,7 @@ const ChatPage = () => {
                 libraryItems={libraryItems}
                 onPreviewLibrary={openLibraryPreview}
                 onDownloadLibrary={downloadLibraryItem}
+                onReprocess={reprocessSource}
               />
             </div>
           </>

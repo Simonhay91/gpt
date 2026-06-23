@@ -871,6 +871,100 @@ async def share_source_to_chat(
     return {"success": True, "sourceId": source_id, "chatId": chat_id}
 
 
+@router.post("/sources/{source_id}/reprocess")
+async def reprocess_source(source_id: str, current_user: dict = Depends(get_current_user)):
+    """Re-chunk and re-embed a source whose chunks are missing or have wrong embeddings."""
+    db = get_db()
+    source = await db.sources.find_one({"id": source_id}, {"_id": 0})
+    if not source:
+        raise HTTPException(status_code=404, detail="Source not found")
+
+    # Access check
+    level = source.get("level", "project")
+    if level == "personal":
+        if source.get("ownerId") != current_user["id"]:
+            raise HTTPException(status_code=403, detail="Access denied")
+    elif level in ("department", "global", "library"):
+        from middleware.auth import is_admin as _is_admin
+        if not _is_admin(current_user.get("email", "")):
+            raise HTTPException(status_code=403, detail="Only admins can reprocess global/department sources")
+    else:
+        project_id = source.get("projectId")
+        if project_id:
+            await check_project_access(current_user, project_id, required_role="manager")
+
+    # Extract text
+    extracted_text = ""
+    kind = source.get("kind", "file")
+    mime = source.get("mimeType", "")
+
+    if kind == "knowledge":
+        extracted_text = source.get("extractedText", "")
+    elif kind == "url":
+        url = source.get("url", "")
+        if url:
+            try:
+                import httpx as _httpx
+                async with _httpx.AsyncClient(timeout=30.0, follow_redirects=True, verify=False) as c:
+                    r = await c.get(url, headers={"User-Agent": "Mozilla/5.0"})
+                    extracted_text = extract_text_from_html(r.text)
+            except Exception as e:
+                raise HTTPException(status_code=400, detail=f"Failed to fetch URL: {e}")
+    else:
+        storage_path_name = source.get("storagePath")
+        if not storage_path_name:
+            raise HTTPException(status_code=400, detail="No file stored for this source")
+        file_path = UPLOAD_DIR / storage_path_name
+        if not file_path.exists():
+            raise HTTPException(status_code=404, detail="Source file not found on disk")
+        with open(file_path, "rb") as f:
+            content = f.read()
+        ext = storage_path_name.rsplit(".", 1)[-1].lower() if "." in storage_path_name else ""
+        if ext == "pdf" or "pdf" in mime:
+            extracted_text = extract_text_from_pdf(content)
+        elif ext == "docx" or "docx" in mime:
+            extracted_text = extract_text_from_docx(content)
+        elif ext == "pptx" or "pptx" in mime:
+            extracted_text = extract_text_from_pptx(content)
+        elif ext in ("xlsx", "xls") or "sheet" in mime or "excel" in mime:
+            extracted_text = extract_text_from_xlsx(content)
+        elif ext == "csv" or "csv" in mime:
+            extracted_text = extract_text_from_csv(content)
+        elif ext in ("png", "jpg", "jpeg") or mime.startswith("image/"):
+            extracted_text = extract_text_from_image(content)
+        else:
+            extracted_text = extract_text_from_txt(content)
+
+    if not extracted_text or len(extracted_text.strip()) < 5:
+        raise HTTPException(status_code=400, detail="Could not extract text from this source")
+
+    # Re-chunk
+    if mime in ("text/csv", "application/csv") or (source.get("storagePath") or "").endswith(".csv"):
+        chunks = chunk_tabular_text(extracted_text)
+    elif "sheet" in mime or "excel" in mime:
+        chunks = chunk_tabular_text(extracted_text)
+    else:
+        chunks = chunk_text(extracted_text)
+
+    # Delete old chunks and insert fresh ones
+    await db.source_chunks.delete_many({"sourceId": source_id})
+    project_id = source.get("projectId")
+    for i, chunk_content in enumerate(chunks):
+        embedding = await get_embedding(chunk_content)
+        await db.source_chunks.insert_one({
+            "id": str(uuid.uuid4()),
+            "sourceId": source_id,
+            "projectId": project_id,
+            "chunkIndex": i,
+            "content": chunk_content,
+            "embedding": embedding,
+            "createdAt": datetime.now(timezone.utc).isoformat()
+        })
+
+    logger.info(f"Reprocessed source {source_id}: {len(chunks)} chunks created")
+    return {"success": True, "chunkCount": len(chunks)}
+
+
 @router.delete("/sources/{source_id}/share-to-chat/{chat_id}")
 async def unshare_source_from_chat(
     source_id: str,

@@ -6,7 +6,7 @@ import {
   Upload, Link, FileText, File, Globe, ImageIcon, Loader2,
   Search, X, Info, Database, Target, Lightbulb, ChevronRight,
   ChevronDown, Eye, Download, Trash2, Building2, FolderOpen,
-  Share2, Lock, UserCircle, Globe2
+  Share2, Lock, UserCircle, Globe2, RefreshCw
 } from 'lucide-react';
 
 const getFileIcon = (mimeType, kind) => {
@@ -71,6 +71,7 @@ export const SourcePanel = ({
   libraryItems = [],
   onPreviewLibrary,
   onDownloadLibrary,
+  onReprocess,
 }) => {
   const [activeTab, setActiveTab] = useState('project');
 
@@ -327,6 +328,11 @@ export const SourcePanel = ({
                                 {source.level === 'project' && currentUser?.departments?.length > 0 && (
                                   <Button variant="ghost" size="icon" className="h-7 w-7" onClick={(e) => { e.stopPropagation(); onSaveToDept(source, e); }} title="Save to department" data-testid={`save-to-dept-${source.id}`}>
                                     <Building2 className="h-3.5 w-3.5 text-amber-400" />
+                                  </Button>
+                                )}
+                                {source.chunkCount === 0 && onReprocess && (
+                                  <Button variant="ghost" size="icon" className="h-7 w-7" onClick={(e) => { e.stopPropagation(); onReprocess(source.id); }} title="Reprocess (fix empty source)" data-testid={`reprocess-source-${source.id}`}>
+                                    <RefreshCw className="h-3.5 w-3.5 text-amber-400" />
                                   </Button>
                                 )}
                                 <Button variant="ghost" size="icon" className="h-7 w-7" onClick={(e) => { e.stopPropagation(); onDeleteSource(source.id, e); }} data-testid={`delete-source-${source.id}`}>
