@@ -2,7 +2,7 @@
  * MessageList Component
  * Displays all chat messages with loading state
  */
-import React, { useRef, useEffect } from 'react';
+import React, { useRef, useEffect, useState, useCallback } from 'react';
 import { Bot, Loader2, FileText } from 'lucide-react';
 import { ScrollArea } from '../ui/scroll-area';
 import Message from './Message';
@@ -16,16 +16,29 @@ export const MessageList = ({
   API
 }) => {
   const messagesEndRef = useRef(null);
+  const scrollAreaRef = useRef(null);
+  const [userScrolledUp, setUserScrolledUp] = useState(false);
 
-  // Auto-scroll to bottom on new messages
   useEffect(() => {
-    if (messagesEndRef.current) {
+    const scrollContainer = scrollAreaRef.current?.querySelector('[data-radix-scroll-area-viewport]');
+    if (!scrollContainer) return;
+    const handleScroll = () => {
+      const { scrollTop, scrollHeight, clientHeight } = scrollContainer;
+      setUserScrolledUp(scrollHeight - scrollTop - clientHeight > 200);
+    };
+    scrollContainer.addEventListener('scroll', handleScroll);
+    return () => scrollContainer.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  // Auto-scroll to bottom on new messages, unless user scrolled up
+  useEffect(() => {
+    if (!userScrolledUp && messagesEndRef.current) {
       messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
     }
   }, [messages, isSending]);
 
   return (
-    <ScrollArea className="flex-1 px-6 py-4">
+    <ScrollArea ref={scrollAreaRef} className="flex-1 px-6 py-4">
       {messages.length === 0 ? (
         <EmptyState projectSources={projectSources} />
       ) : (

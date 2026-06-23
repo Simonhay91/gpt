@@ -377,16 +377,19 @@ async def upload_library_item(
 
     # Save all chunks immediately (no embeddings yet) so the item is
     # usable right away via keyword fallback in RAG.
-    for i, chunk_content in enumerate(chunks):
-        await db.source_chunks.insert_one({
-            "id": str(uuid.uuid4()),
-            "sourceId": source_id,
-            "projectId": LIBRARY_PROJECT_ID,
-            "chunkIndex": i,
-            "content": chunk_content,
-            "embedding": None,
-            "createdAt": _now_iso(),
-        })
+    if chunks:
+        await db.source_chunks.insert_many([
+            {
+                "id": str(uuid.uuid4()),
+                "sourceId": source_id,
+                "projectId": LIBRARY_PROJECT_ID,
+                "chunkIndex": i,
+                "content": chunk_content,
+                "embedding": None,
+                "createdAt": _now_iso(),
+            }
+            for i, chunk_content in enumerate(chunks)
+        ])
 
     # Generate embeddings in the background — response returns immediately.
     background_tasks.add_task(_generate_embeddings_background, source_id, chunks)

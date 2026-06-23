@@ -33,6 +33,7 @@ class RequestTimeoutMiddleware:
         "/api/product-matching/match",
         "/api/product-matching/research-item",
         "/api/product-matching/generate-excel",
+        "/library/upload",
     )
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:

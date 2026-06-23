@@ -105,6 +105,7 @@ const ChatPage = () => {
   const [expandedGroups, setExpandedGroups] = useState({});
   const [expandedSources, setExpandedSources] = useState({});
   const [showScrollBtn, setShowScrollBtn] = useState(false);
+  const [userScrolledUp, setUserScrolledUp] = useState(false);
   const [showPlusMenu, setShowPlusMenu] = useState(false);
 
   // ── Chat name editing ──
@@ -170,14 +171,16 @@ const ChatPage = () => {
 
   // ── Effects ──
   useEffect(() => { fetchChatData(); }, [chatId]);
-  useEffect(() => { scrollToBottom(); }, [messages]);
+  useEffect(() => { if (!userScrolledUp) scrollToBottom(); }, [messages]);
 
   useEffect(() => {
     const scrollContainer = scrollAreaRef.current?.querySelector('[data-radix-scroll-area-viewport]');
     if (!scrollContainer) return;
     const handleScroll = () => {
       const { scrollTop, scrollHeight, clientHeight } = scrollContainer;
-      setShowScrollBtn(scrollHeight - scrollTop - clientHeight > 200);
+      const distFromBottom = scrollHeight - scrollTop - clientHeight;
+      setShowScrollBtn(distFromBottom > 200);
+      setUserScrolledUp(distFromBottom > 200);
     };
     scrollContainer.addEventListener('scroll', handleScroll);
     return () => scrollContainer.removeEventListener('scroll', handleScroll);
@@ -1275,7 +1278,7 @@ const ChatPage = () => {
         {showScrollBtn && (
           <div className="fixed bottom-44 left-1/2 -translate-x-1/2 z-50">
             <button
-              onClick={() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })}
+              onClick={() => { setUserScrolledUp(false); messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-primary text-primary-foreground text-xs font-medium shadow-lg hover:bg-primary/90 transition-all animate-bounce"
             >
               <ChevronDown className="h-3.5 w-3.5" />Scroll down
