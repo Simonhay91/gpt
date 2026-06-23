@@ -250,7 +250,7 @@ async def get_messages(chat_id: str, current_user: dict = Depends(get_current_us
          "senderName": 1, "fromCache": 1, "cacheInfo": 1, "web_sources": 1,
          "clarifying_question": 1, "clarifying_options": 1, "fetchedUrls": 1,
          "excel_file_id": 1, "excel_preview": 1, "is_excel_clarification": 1,
-         "uploadedFile": 1, "agent_type": 1, "agent_name": 1}
+         "uploadedFile": 1, "agent_type": 1, "agent_name": 1, "tokens_used": 1}
     ).sort("createdAt", 1).to_list(500)
 
     return [
@@ -925,12 +925,7 @@ async def send_message(
                 user_content = "Analyze this file and summarize the key points."
             messages.append({"role": "user", "content": user_content})
 
-            # Use Sonnet for document-heavy tasks; Haiku for general chat
-            _chat_model = (
-                "claude-sonnet-4-6"
-                if selected_agent_type in ("rag", "excel", "research", "tutor")
-                else "claude-haiku-4-5-20251001"
-            )
+            _chat_model = "claude-sonnet-4-6"
             model_used = _chat_model
             try:
                 claude_response = await claude_client.messages.create(
@@ -1060,6 +1055,7 @@ async def send_message(
         "agent_type": selected_agent_type,
         "agent_name": selected_agent["name"],
         "model_used": model_used,
+        "tokens_used": tokens_used if not from_cache else None,
         "createdAt": datetime.now(timezone.utc).isoformat()
     }
     await db.messages.insert_one(assistant_message)
@@ -1687,11 +1683,7 @@ async def send_message_stream(
             user_content = "Analyze this file and summarize the key points."
         claude_messages.append({"role": "user", "content": user_content})
 
-        _chat_model = (
-            "claude-sonnet-4-6"
-            if selected_agent_type in ("rag", "excel", "research", "tutor")
-            else "claude-haiku-4-5-20251001"
-        )
+        _chat_model = "claude-sonnet-4-6"
 
     # ── 11. Stream Claude response ──
     async def event_stream():
@@ -1868,6 +1860,7 @@ async def send_message_stream(
             "agent_type": selected_agent_type,
             "agent_name": selected_agent["name"],
             "model_used": _model_used,
+            "tokens_used": _tokens_used if not _from_cache else None,
             "createdAt": datetime.now(timezone.utc).isoformat()
         }
         await db.messages.insert_one(_assistant_message)

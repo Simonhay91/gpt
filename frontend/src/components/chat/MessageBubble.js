@@ -639,7 +639,14 @@ export const MessageBubble = ({
           </div>
         )}
 
-        <span className="text-xs text-muted-foreground px-1">{formatTime(message.createdAt)}</span>
+        <div className="flex items-center gap-2 px-1">
+          <span className="text-xs text-muted-foreground">{formatTime(message.createdAt)}</span>
+          {message.role === 'assistant' && message.tokens_used > 0 && (
+            <span className="text-xs text-muted-foreground/60" title="Tokens used for this message">
+              {message.tokens_used.toLocaleString()} tokens
+            </span>
+          )}
+        </div>
       </div>
 
       {message.role === 'user' && (
