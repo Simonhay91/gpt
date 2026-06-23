@@ -132,52 +132,60 @@ const DashboardLayout = ({ children }) => {
   };
 
   const navItems = [
+    // Dashboard — always visible
     {
       name: t('nav.dashboard'),
       path: '/dashboard',
       icon: LayoutDashboard
     },
-    {
+    // News
+    ...(hasPermission('news:read') ? [{
       name: t('nav.techNews'),
       path: '/news',
       icon: Newspaper
-    },
-    {
+    }] : []),
+    // Personal Sources
+    ...(hasPermission('sources:read') ? [{
       name: t('nav.mySources'),
       path: '/personal-sources',
       icon: Lock
-    },
-    {
-      name: language === 'ru' ? 'Tutor' : 'Tutor',
+    }] : []),
+    // Tutor
+    ...(hasPermission('library:read') ? [{
+      name: 'Tutor',
       path: '/tutor',
       icon: GraduationCap
-    },
-    {
+    }] : []),
+    // Library
+    ...(hasPermission('library:read') ? [{
       name: language === 'ru' ? 'Библиотека' : 'Library',
       path: '/library',
       icon: Library
-    },
+    }] : []),
+    // My GPT Prompt — always visible (personal setting)
     {
       name: t('nav.myGptPrompt'),
       path: '/my-prompt',
       icon: Sparkles
     },
-    {
-      name: language === 'ru' ? 'Product Catalog' : 'Product Catalog',
+    // Product Catalog
+    ...(hasPermission('product_catalog:read') ? [{
+      name: 'Product Catalog',
       path: '/product-catalog',
       icon: Package
-    },
-    // Conditionally add Competitors if user has access
-    ...(hasCompetitorAccess ? [{
-      name: language === 'ru' ? 'Competitors' : 'Competitors',
+    }] : []),
+    // Competitors — only if dept has it enabled AND user has read permission
+    ...(hasCompetitorAccess && hasPermission('competitors:read') ? [{
+      name: 'Competitors',
       path: '/competitors',
       icon: TrendingUp
     }] : []),
-    {
+    // OEM Datasheet
+    ...(hasPermission('oem_datasheet:read') ? [{
       name: 'OEM Datasheet',
       path: '/oem-datasheet',
       icon: FileOutput
-    }
+    }] : []),
   ];
 
   const isAdmin = user?.isAdmin || hasPermission('*');
