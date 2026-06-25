@@ -140,6 +140,120 @@ async def _tutor_memory_system_part(db, chat: dict, current_user: dict, active_s
         + "\n\nContinue teaching from here. Briefly acknowledge prior progress, then move forward."
     )
 
+
+# ==================== CHAT MEMORY (auto-compression) ====================
+# Long chats stay fast and cheap by folding their older turns into a compact,
+# running summary kept on the chat document. The LLM then sees this memory plus
+# only the most recent raw turns, so earlier context is never fully lost but the
+# transcript sent to the model stays bounded. Fully automatic — no manual save.
+
+CHAT_MEMORY_KEEP_RECENT = 20    # most recent turns always kept raw for the LLM
+CHAT_MEMORY_CHAR_CAP = 1500     # cap on the cumulative memory text
+CHAT_MEMORY_MODEL = "claude-haiku-4-5-20251001"
+
+_CHAT_MEMORY_SYSTEM = (
+    "Ты ведёшь компактную рабочую память диалога. Объедини предыдущую память и новый "
+    "фрагмент разговора в ОДНУ обновлённую сжатую сводку: ключевые факты, решения, "
+    "предпочтения пользователя и нерешённые вопросы. Пиши кратко, по пунктам, без воды. "
+    "Максимум 200 слов. Пиши на языке диалога. Без markdown-заголовков и без преамбулы."
+)
+
+
+def _chat_memory_system_part(chat: dict) -> Optional[str]:
+    """Inject the chat's compressed memory into the system prompt, if any."""
+    memory = chat.get("chatMemory") or []
+    if not memory:
+        return None
+    text = "\n".join((m.get("text") or "").strip() for m in memory if m.get("text"))
+    if not text.strip():
+        return None
+    return (
+        "CHAT MEMORY (compact summary of earlier parts of this conversation):\n"
+        + text
+        + "\n\nTreat this as already-known context. Do not repeat it back verbatim."
+    )
+
+
+async def _auto_compress_chat_memory(chat_id: str):
+    """Fold a long chat's older turns into a single running summary (fire-and-forget).
+
+    Non-destructive: compressed messages are flagged ``compressed=True`` so they
+    still render in the UI, but they are excluded from the LLM history window.
+    Only runs when there are more than ``CHAT_MEMORY_KEEP_RECENT`` uncompressed
+    messages, leaving the most recent ones untouched for smooth continuity.
+    """
+    try:
+        db = get_db()
+        msgs = await db.messages.find(
+            {"chatId": chat_id, "compressed": {"$ne": True}},
+            {"_id": 0, "id": 1, "role": 1, "content": 1, "createdAt": 1},
+        ).sort("createdAt", 1).to_list(1000)
+        if len(msgs) <= CHAT_MEMORY_KEEP_RECENT:
+            return
+
+        to_compress = msgs[:-CHAT_MEMORY_KEEP_RECENT]
+        if not to_compress:
+            return
+
+        api_key = os.environ.get("CLAUDE_API_KEY", "")
+        if not api_key:
+            return
+
+        lines = []
+        for m in to_compress:
+            role = "Пользователь" if m.get("role") == "user" else "Ассистент"
+            content = (m.get("content") or "").strip()
+            if content:
+                lines.append(f"{role}: {content}")
+        transcript = "\n".join(lines)
+
+        compress_ids = [m["id"] for m in to_compress]
+        if len(transcript.strip()) < 40:
+            # Nothing meaningful to summarize — just flag so we don't retry forever.
+            await db.messages.update_many(
+                {"id": {"$in": compress_ids}}, {"$set": {"compressed": True}}
+            )
+            return
+
+        chat = await db.chats.find_one({"id": chat_id}, {"_id": 0, "chatMemory": 1})
+        prev_memory = (chat or {}).get("chatMemory") or []
+        prev_text = "\n".join((m.get("text") or "") for m in prev_memory)
+
+        client = anthropic.AsyncAnthropic(api_key=api_key)
+        resp = await client.messages.create(
+            model=CHAT_MEMORY_MODEL,
+            max_tokens=600,
+            system=_CHAT_MEMORY_SYSTEM,
+            messages=[{
+                "role": "user",
+                "content": (
+                    f"Предыдущая память:\n{prev_text or '(пусто)'}\n\n"
+                    f"Новый фрагмент разговора:\n{transcript[:12000]}"
+                ),
+            }],
+        )
+        summary = (resp.content[0].text or "").strip()
+        if not summary:
+            return
+        if len(summary) > CHAT_MEMORY_CHAR_CAP:
+            summary = summary[:CHAT_MEMORY_CHAR_CAP].rsplit(" ", 1)[0] + "…"
+
+        prev_count = prev_memory[0].get("compressedCount", 0) if prev_memory else 0
+        entry = {
+            "text": summary,
+            "savedAt": datetime.now(timezone.utc).isoformat(),
+            "compressedCount": prev_count + len(to_compress),
+        }
+        # Single cumulative entry keeps the memory bounded over time.
+        await db.chats.update_one({"id": chat_id}, {"$set": {"chatMemory": [entry]}})
+        await db.messages.update_many(
+            {"id": {"$in": compress_ids}}, {"$set": {"compressed": True}}
+        )
+        logger.info(f"Chat memory compressed for {chat_id}: folded {len(to_compress)} messages")
+    except Exception as exc:  # noqa: BLE001 - best-effort, never blocks chat
+        logger.error(f"Chat memory compression error for {chat_id}: {exc}")
+
+
 # RAG score thresholds
 RAG_SCORE_MIN = 0.20          # Default minimum chunk score (lowered — generic queries score lower)
 RAG_SCORE_MIN_EXCEL = 0.15   # Lower threshold for xlsx/csv sources
@@ -377,6 +491,14 @@ async def send_message(
             if sid not in active_source_ids:
                 active_source_ids.append(sid)
 
+    # Per-book Tutor lesson — lock context to the single book being studied,
+    # ignoring any other selection so the AI only ever answers from this book.
+    _lesson_book_id = chat.get("sourceBookId")
+    if _lesson_book_id:
+        active_source_ids = [_lesson_book_id]
+        if _lesson_book_id not in user_accessible_source_ids:
+            user_accessible_source_ids = user_accessible_source_ids + [_lesson_book_id]
+
     # ── 3. Save user message ──
     sender_email = current_user["email"]
     sender_name = sender_email.split("@")[0] if sender_email else "User"
@@ -452,9 +574,9 @@ async def send_message(
     # ── 4. Config & history ──
     config = await ensure_gpt_config(db)
     history = await db.messages.find(
-        {"chatId": chat_id},
+        {"chatId": chat_id, "compressed": {"$ne": True}},
         {"_id": 0, "role": 1, "content": 1, "createdAt": 1}
-    ).sort("createdAt", -1).to_list(20)
+    ).sort("createdAt", -1).to_list(CHAT_MEMORY_KEEP_RECENT)
     history = list(reversed(history))
 
     # ── 5. Build RAG context ──
@@ -779,6 +901,11 @@ async def send_message(
             if _tutor_part:
                 system_parts.append(_tutor_part)
 
+            # Chat memory — compressed summary of earlier turns (any long chat)
+            _chat_mem_part = _chat_memory_system_part(chat)
+            if _chat_mem_part:
+                system_parts.append(_chat_mem_part)
+
             if user_custom_prompt:
                 system_parts.append(f"USER INSTRUCTIONS:\n{user_custom_prompt}")
 
@@ -1060,6 +1187,13 @@ async def send_message(
     }
     await db.messages.insert_one(assistant_message)
 
+    # Auto-compress older turns into chat memory once the chat grows long.
+    _uncompressed = await db.messages.count_documents(
+        {"chatId": chat_id, "compressed": {"$ne": True}}
+    )
+    if _uncompressed > CHAT_MEMORY_KEEP_RECENT:
+        asyncio.create_task(_auto_compress_chat_memory(chat_id))
+
     # ── 16. Track source usage ──
     if final_used_sources:
         for source_info in final_used_sources:
@@ -1189,6 +1323,14 @@ async def send_message_stream(
             if sid not in active_source_ids:
                 active_source_ids.append(sid)
 
+    # Per-book Tutor lesson — lock context to the single book being studied,
+    # ignoring any other selection so the AI only ever answers from this book.
+    _lesson_book_id = chat.get("sourceBookId")
+    if _lesson_book_id:
+        active_source_ids = [_lesson_book_id]
+        if _lesson_book_id not in user_accessible_source_ids:
+            user_accessible_source_ids = user_accessible_source_ids + [_lesson_book_id]
+
     # ── 3. Save user message ──
     sender_email = current_user["email"]
     sender_name = sender_email.split("@")[0] if sender_email else "User"
@@ -1260,9 +1402,9 @@ async def send_message_stream(
     # ── 4. Config & history ──
     config = await ensure_gpt_config(db)
     history = await db.messages.find(
-        {"chatId": chat_id},
+        {"chatId": chat_id, "compressed": {"$ne": True}},
         {"_id": 0, "role": 1, "content": 1, "createdAt": 1}
-    ).sort("createdAt", -1).to_list(20)
+    ).sort("createdAt", -1).to_list(CHAT_MEMORY_KEEP_RECENT)
     history = list(reversed(history))
 
     # ── 5. Build RAG context ──
@@ -1543,6 +1685,11 @@ async def send_message_stream(
         _tutor_part = await _tutor_memory_system_part(db, chat, current_user, active_source_ids)
         if _tutor_part:
             system_parts.append(_tutor_part)
+
+        # Chat memory — compressed summary of earlier turns (any long chat)
+        _chat_mem_part = _chat_memory_system_part(chat)
+        if _chat_mem_part:
+            system_parts.append(_chat_mem_part)
 
         if user_custom_prompt:
             system_parts.append(f"USER INSTRUCTIONS:\n{user_custom_prompt}")
@@ -1864,6 +2011,13 @@ async def send_message_stream(
             "createdAt": datetime.now(timezone.utc).isoformat()
         }
         await db.messages.insert_one(_assistant_message)
+
+        # Auto-compress older turns into chat memory once the chat grows long.
+        _uncompressed = await db.messages.count_documents(
+            {"chatId": chat_id, "compressed": {"$ne": True}}
+        )
+        if _uncompressed > CHAT_MEMORY_KEEP_RECENT:
+            asyncio.create_task(_auto_compress_chat_memory(chat_id))
 
         # Track source usage
         if _final_used_sources:

@@ -63,6 +63,15 @@ const TutorPage = () => {
     }
   };
 
+  const openBookLesson = async (bookId) => {
+    try {
+      const res = await axios.get(`${API}/library/${bookId}/lesson-chat`);
+      navigate(`/chats/${res.data.id}`);
+    } catch (error) {
+      toast.error(ru ? 'Не удалось открыть книгу' : 'Failed to open book');
+    }
+  };
+
   const resetProgress = async (bookId, e) => {
     e.stopPropagation();
     if (!window.confirm(ru ? 'Сбросить прогресс по этой книге?' : 'Reset progress for this book?')) return;
@@ -142,7 +151,7 @@ const TutorPage = () => {
                     <Card
                       key={b.bookId}
                       className="card-hover cursor-pointer group"
-                      onClick={startLesson}
+                      onClick={() => openBookLesson(b.bookId)}
                     >
                       <CardContent className="py-4">
                         <div className="flex items-start justify-between gap-3">

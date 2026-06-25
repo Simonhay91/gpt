@@ -466,6 +466,50 @@ async def get_library_item(item_id: str, current_user: dict = Depends(require("l
     return item
 
 
+# ==================== PER-BOOK LESSON CHAT ====================
+
+@router.get("/{item_id}/lesson-chat")
+async def get_or_create_lesson_chat(
+    item_id: str,
+    current_user: dict = Depends(get_current_user),
+):
+    """Find-or-create the dedicated Tutor lesson chat for a single library book.
+
+    Each user gets exactly one persistent lesson chat per book, so reopening the
+    book always returns to the same conversation (history + progress carry over).
+    The chat is a Tutor chat locked to this one book via ``sourceBookId`` — RAG
+    only ever uses this book as context.
+    """
+    db = get_db()
+    item = await db.sources.find_one({"id": item_id, "level": "library"}, {"_id": 0})
+    if not item:
+        raise HTTPException(status_code=404, detail="Library item not found")
+    if not _user_can_access(current_user, item):
+        raise HTTPException(status_code=403, detail="Access denied")
+
+    existing = await db.chats.find_one(
+        {"ownerId": current_user["id"], "sourceBookId": item_id},
+        {"_id": 0, "id": 1},
+    )
+    if existing:
+        return {"id": existing["id"], "created": False}
+
+    chat_id = str(uuid.uuid4())
+    chat = {
+        "id": chat_id,
+        "projectId": None,
+        "ownerId": current_user["id"],
+        "name": item.get("title") or item.get("originalName") or "Урок",
+        "activeSourceIds": [item_id],
+        "sourceMode": "all",
+        "mode": "tutor",
+        "sourceBookId": item_id,
+        "createdAt": _now_iso(),
+    }
+    await db.chats.insert_one(chat)
+    return {"id": chat_id, "created": True}
+
+
 # ==================== UPDATE METADATA ====================
 
 @router.put("/{item_id}")

@@ -119,6 +119,7 @@ class ChatResponse(BaseModel):
     sharedWithUsers: Optional[List[str]] = None
     sourceMode: Optional[str] = "all"
     mode: Optional[str] = None  # "tutor" for Personal Assistant / Tutor chats
+    sourceBookId: Optional[str] = None  # set for per-book Tutor lessons — locks RAG to this one book
 
 
 class QuickChatCreate(BaseModel):
