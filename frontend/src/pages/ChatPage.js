@@ -1016,11 +1016,15 @@ const ChatPage = () => {
           {/* Back → Project name */}
           <button
             className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors flex-shrink-0"
-            onClick={() => chat?.projectId ? navigate(`/projects/${chat.projectId}`) : navigate('/dashboard')}
+            onClick={() => {
+              if (chat?.projectId) navigate(`/projects/${chat.projectId}`);
+              else if (chat?.mode === 'tutor') navigate('/tutor');
+              else navigate('/dashboard');
+            }}
             data-testid="back-from-chat-btn"
           >
             <ArrowLeft className="h-3.5 w-3.5" />
-            <span>{currentProjectName || 'Back'}</span>
+            <span>{currentProjectName || (chat?.mode === 'tutor' ? 'Tutor' : 'Back')}</span>
           </button>
 
           {currentProjectName && <span className="text-muted-foreground text-sm">/</span>}
