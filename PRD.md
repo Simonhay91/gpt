@@ -4,7 +4,7 @@
 
 | Field | Value |
 |---|---|
-| Document version | 2.0 |
+| Document version | 2.1 |
 | Last updated | 2026-06-30 |
 | Maintained by | Boby (autonomous agent) + human review |
 
@@ -13,6 +13,7 @@
 | Date | Version | Change |
 |---|---|---|
 | 2026-06-30 | 2.0 | Full rewrite from live codebase scan — supersedes `memory/PRD.md` v1.8 |
+| 2026-06-30 | 2.1 | Closed 9 of 13 open items from §9 after code verification pass. Fixed §3.26 (MoveDialog, ChatInput integration). Fixed §6.1 (CORS_ORIGIN_REGEX missing from .env.example). |
 
 > **Maintained by Boby (autonomous agent) + human review.** Boby updates this document after completing each task. Humans review and approve changes before merging.
 
@@ -91,7 +92,7 @@ User → React SPA → FastAPI backend → MongoDB (vectors + data)
 | Brave Search | Web search grounding | API key | `BRAVE_API_KEY` → `<BRAVE_API_KEY>` |
 | PlanetWorkspace API | External product catalog (`api-prod.planetworkspace.com`) | Partner key header | `PLANET_PARTNER_KEY` → `<PLANET_PARTNER_KEY>` |
 | Timeweb Cloud (VPS) | Production hosting | SSH key (GitHub Secret) | `TIMEWEB_HOST`, `TIMEWEB_USER`, `TIMEWEB_SSH_KEY` |
-| Emergent Agent | [UNKNOWN — needs human confirmation; `EMERGENT_LLM_KEY` env var exists but package commented out in `requirements.txt`] | API key | `EMERGENT_LLM_KEY` → `<EMERGENT_LLM_KEY>` |
+| Emergent Agent | **Dead configuration** — `emergentintegrations` package commented out in `requirements.txt`; zero usage in backend code. Env var can be removed. | — | `EMERGENT_LLM_KEY` → `<EMERGENT_LLM_KEY>` |
 
 > **Real values** for all credentials live in `backend/.env` (not committed). The root `.env.example` and `docker-compose.yml` show variable names only.
 
@@ -513,7 +514,7 @@ Library (level="library")               — shared cross-dept, no approval workf
   - `frontend/src/i18n/translations.js` — translation strings
   - `frontend/src/pages/ChatPage.js` — main chat UI (798 lines)
   - `frontend/src/components/chat/SourcePanel.js` — source selection (3 tabs: project, global, department/library)
-  - `frontend/src/components/chat/MoveDialog.js` — move chat between projects
+  - Move chat dialog — implemented **inline** in `ChatPage.js` via Shadcn `<Dialog>` (no separate `MoveDialog.js` file exists)
   - `frontend/src/pages/LibraryPage.js` — library management
   - `frontend/src/pages/TutorPage.js` — tutor interface
   - `frontend/src/components/ui/` — Shadcn/UI component library
@@ -633,11 +634,11 @@ All real values live in `backend/.env` (not committed). Template at `backend/.en
 | `OPENAI_API_KEY` | OpenAI API key (embeddings + DALL-E + fallback LLM) | `<OPENAI_API_KEY>` |
 | `VOYAGE_API_KEY` | VoyageAI API key (product matching embeddings) | `<VOYAGE_API_KEY>` |
 | `BRAVE_API_KEY` | Brave Search API key | `<BRAVE_API_KEY>` |
-| `EMERGENT_LLM_KEY` | Emergent agent key (purpose unclear — see §9) | `<EMERGENT_LLM_KEY>` |
+| `EMERGENT_LLM_KEY` | ~~Dead config~~ — package commented out, unused in code. Remove this var. | — |
 | `PLANET_PARTNER_KEY` | PlanetWorkspace catalog API partner key | `<PLANET_PARTNER_KEY>` |
-| `PLANET_API_URL` | PlanetWorkspace API base URL | `https://api-prod.planetworkspace.com` |
+| `PLANET_API_URL` | PlanetWorkspace API base URL. Production value (docker-compose): `https://api-prod.planetworkspace.com`. Code fallback default: `https://planetworkspace.com/api`. `.env.example` shows the code fallback — update it. | `https://api-prod.planetworkspace.com` |
 | `CORS_ORIGINS` | Allowed CORS origins | `<CORS_ORIGINS>` |
-| `CORS_ORIGIN_REGEX` | Regex-based CORS origin override (defaults to `.*` — all allowed) | `<CORS_ORIGIN_REGEX>` |
+| `CORS_ORIGIN_REGEX` | Regex-based CORS origin override (defaults to `.*` — all allowed). ⚠️ **Missing from `backend/.env.example`** — must be added manually. | `<CORS_ORIGIN_REGEX>` |
 | `UPLOAD_DIR` | Local upload directory path | `./uploads` |
 | `REACT_APP_BACKEND_URL` | Backend URL baked into frontend at build time | `<REACT_APP_BACKEND_URL>` |
 
@@ -656,7 +657,7 @@ All real values live in `backend/.env` (not committed). Template at `backend/.en
 
 **CI/CD:**
 - `.github/workflows/deploy.yml`: push to `main` → SSH into Timeweb host → `cd /opt/gpt && git pull origin main && docker compose up -d --build && docker image prune -f`
-- `.github/workflows/sync-to-bitbucket.yml`: [UNKNOWN — sync to Bitbucket mirror; purpose/target unknown]
+- `.github/workflows/sync-to-bitbucket.yml`: mirror to `git@bitbucket.org:planet-fiber/planet-knowledge.git` (`main` → `master`, force-push on every push to `main`)
 
 **Python version:** 3.11 (`.python-version` file in `backend/`)
 
@@ -723,8 +724,9 @@ All real values live in `backend/.env` (not committed). Template at `backend/.en
 | Item | Status | Note |
 |---|---|---|
 | i18n translation | 🔄 ~80% complete | Some modals/toasts still untranslated |
-| `ChatHeader.js`, `Message.js`, `MessageList.js`, `ChatInput.js` | 🔄 Created, not integrated | Exist in `components/chat/` but ChatPage uses inline rendering |
-| `EMERGENT_LLM_KEY` env var | ❓ Unknown | `emergentintegrations` package commented out in `requirements.txt` |
+| `ChatHeader.js`, `Message.js`, `MessageList.js` | 🔄 Created, not integrated | Exist in `components/chat/` but not imported in `ChatPage.js` |
+| `ChatInput.js`, `MessageBubble.js`, `SourcePanel.js` | ✅ Integrated | Imported and used in `ChatPage.js` |
+| `EMERGENT_LLM_KEY` env var | ✅ Dead config | Package commented out, zero usage in backend code — variable can be removed |
 | Excel files in `/tmp/` | ⚠️ Ephemeral | Pod restart loses disk files; MongoDB mirror is recovery path |
 | `backend/nohup.out`, root `nohup.out` | 🔍 Legacy | Indicates server was once run with `nohup`; Docker is now standard |
 | `server_monolith_old.py` | 🗑 Stale | Old monolith kept for reference; can be deleted |
@@ -738,7 +740,7 @@ All real values live in `backend/.env` (not committed). Template at `backend/.en
 - Rate limiting middleware (no implementation found)
 - Object storage for Excel/image files (currently local volume — lost on full redeploy)
 - Complete i18n (~20% remaining)
-- Integrate `ChatHeader.js` / `Message.js` / `MessageList.js` into ChatPage
+- Integrate `ChatHeader.js`, `Message.js`, `MessageList.js` into ChatPage (`ChatInput.js` and `MessageBubble.js` already integrated)
 
 **Keywords:** current state, features, working, partial, roadmap, backlog, TODO, status
 
@@ -749,18 +751,18 @@ All real values live in `backend/.env` (not committed). Template at `backend/.en
 | # | Observation / Risk | Severity | Action needed |
 |---|---|---|---|
 | 9.1 | **CORS defaults to `.*`** — all origins allowed if `CORS_ORIGIN_REGEX` not set in production | High | Set `CORS_ORIGIN_REGEX` to production domain |
-| 9.2 | **`EMERGENT_LLM_KEY`** env var exists but `emergentintegrations` package is commented out in `requirements.txt`. Purpose unknown. | Medium | [UNKNOWN — needs human confirmation] |
-| 9.3 | **Default admin password logged in plaintext** to server logs on first-time creation | Medium | Remove or redact the log line after confirming it's safe |
-| 9.4 | **`excel_files` MongoDB collection has no TTL index** — generated Excel files accumulate without cleanup | Medium | Add TTL index on `excel_files.createdAt` |
-| 9.5 | **VoyageAI** (`voyageai==0.3.7`) library installed and `VOYAGE_API_KEY` in env, but primary embedding code uses OpenAI. Product matching may have been partially migrated. | Low | [UNKNOWN — confirm which embedding model is used in product matching in production] |
-| 9.6 | **`sync-to-bitbucket.yml`** GitHub Action exists — Bitbucket mirror URL and purpose unknown | Low | [UNKNOWN — needs human confirmation] |
+| 9.2 | **`EMERGENT_LLM_KEY`** — `emergentintegrations` package commented out in `requirements.txt`; zero usage in backend code. Dead configuration. | ~~Medium~~ → ✅ Closed | Remove `EMERGENT_LLM_KEY` from env and `.env.example` |
+| 9.3 | **Default admin password logged in plaintext** — `server.py` lines 294 and 314: `logger.info(f"✓ Password reset to: {admin_password}")` and `logger.info(f"✓ Default password: {admin_password}")` | **High** ✅ Confirmed | Remove password from both log lines |
+| 9.4 | **`excel_files` MongoDB collection has no TTL index** — `db/indexes.py` has 22 indexes, `excel_files` not mentioned once. Files accumulate without cleanup. | Medium ✅ Confirmed | Add TTL index on `excel_files.createdAt` with `expireAfterSeconds` |
+| 9.5 | **VoyageAI** is the **sole** embedding model in product matching (`_voyage_embed_batch`, `_voyage_top_k` in `product_matching.py`). OpenAI is not used for this. | ~~Low~~ → ✅ Closed | No action needed |
+| 9.6 | **`sync-to-bitbucket.yml`**: mirrors to `git@bitbucket.org:planet-fiber/planet-knowledge.git`, force-push `main` → `master` on every push. | ~~Low~~ → ✅ Closed | No action needed |
 | 9.7 | **`server_monolith_old.py`** still committed — large dead code file | Low | Delete when confirmed safe |
 | 9.8 | **`migrate_embeddings.py` / `migrate_catalog_embeddings.py`** at repo root — unclear if run on production DB | Low | [UNKNOWN — needs human confirmation] |
-| 9.9 | **`memory/test_credentials.md`** file committed — may contain real credentials | High | [UNKNOWN — review immediately; rotate and remove if real credentials present] |
+| 9.9 | **`memory/test_credentials.md`** file committed — contains default startup credentials (`admin@ai.planetworkspace.com` / `Admin@123456`), not production secrets. Rotation not required, but publishing defaults is a bad practice. | Medium ✅ Confirmed | Remove file from repo |
 | 9.10 | **No rate limiting middleware** found on AI routes (messages, product-matching) | Medium | Add per-user throttling before public launch |
-| 9.11 | **`routes/reports.py` full functionality** not inspected | Low | [UNKNOWN — needs human confirmation] |
-| 9.12 | **`PLANET_API_URL` discrepancy**: `docker-compose.yml` defaults to `https://api-prod.planetworkspace.com` but `.env.example` shows `https://planetworkspace.com/api` | Medium | [UNKNOWN — confirm correct production URL] |
-| 9.13 | **`boto3` / `s3transfer`** in `requirements.txt` but no S3 upload code found in inspected routes/services | Low | [UNKNOWN — confirm if planned or legacy] |
+| 9.11 | **`routes/reports.py`**: user feedback system — users report AI messages with tags and comments; admins review/manage reports. Not business analytics. | ~~Low~~ → ✅ Closed | No action needed |
+| 9.12 | **`PLANET_API_URL`**: production value is `https://api-prod.planetworkspace.com` (set via docker-compose, wins at runtime). Code default `https://planetworkspace.com/api` applies only without docker-compose. `.env.example` shows stale value — update it. | ~~Medium~~ → ✅ Closed | Fix `.env.example` to show `https://api-prod.planetworkspace.com` |
+| 9.13 | **`boto3`** in `requirements.txt` but zero S3 calls in any route or service. Not used. | ~~Low~~ → ✅ Closed | Legacy dep — remove from `requirements.txt` when confirmed safe |
 
 ---
 
@@ -780,14 +782,19 @@ All real values live in `backend/.env` (not committed). Template at `backend/.en
 | JWT signing secret | `<JWT_SECRET>` |
 | Timeweb SSH credentials | `TIMEWEB_HOST`, `TIMEWEB_USER`, `TIMEWEB_SSH_KEY` (GitHub Secrets) |
 
-### All UNKNOWN items (require human confirmation)
+### Remaining UNKNOWN items (require human confirmation)
 
-1. **`EMERGENT_LLM_KEY`** — is `emergentintegrations` still used? If not, remove the env var.
-2. **`memory/test_credentials.md`** — does it contain real credentials? Review and rotate if yes.
-3. **Bitbucket sync** (`sync-to-bitbucket.yml`) — what is the Bitbucket target and why?
-4. **VoyageAI in product matching** — is VoyageAI or OpenAI used for embeddings in the matching pipeline in production?
-5. **`migrate_embeddings.py` / `migrate_catalog_embeddings.py`** — have these been run on production? Are they still needed?
-6. **`routes/reports.py`** — full functionality not confirmed.
-7. **`PLANET_API_URL`** — confirm the correct production value (`api-prod.planetworkspace.com` or `planetworkspace.com/api`).
-8. **`boto3` / S3** — planned for file storage or legacy remnant?
-9. **Default GPT config model** — what is `gpt_config.model` set to in production?
+1. **`migrate_embeddings.py` / `migrate_catalog_embeddings.py`** — have these been run on production? Are they still needed? (§9.8)
+2. **Default GPT config model** — what is `gpt_config.model` set to in production?
+
+### Closed items (confirmed by code verification — 2026-06-30)
+
+| Item | Resolution |
+|---|---|
+| `EMERGENT_LLM_KEY` | Dead config — remove from env and `.env.example` |
+| `memory/test_credentials.md` | Default startup creds only; remove file from repo |
+| Bitbucket sync | Mirror to `planet-fiber/planet-knowledge`, force-push `main`→`master` |
+| VoyageAI in product matching | VoyageAI is sole embedding model; OpenAI not used here |
+| `routes/reports.py` | User feedback system for AI messages (tags, comments, status) |
+| `PLANET_API_URL` | Production: `api-prod.planetworkspace.com` (docker-compose wins); fix `.env.example` |
+| `boto3` / S3 | In deps, zero usage in code — legacy; remove when confirmed safe |
