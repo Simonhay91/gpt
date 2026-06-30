@@ -1,0 +1,23 @@
+---
+description: Timeweb server deploy instructions
+alwaysApply: true
+---
+
+# Timeweb Server Deploy
+
+When the user asks how to update/deploy/pull on the server, always give these exact commands:
+
+```bash
+git pull origin main
+./deploy.sh
+```
+
+`deploy.sh` is a smart script at the project root. It:
+- Pulls latest changes
+- Detects which files changed (frontend/ vs backend/)
+- Rebuilds **only** the affected Docker container(s)
+
+First time on the server only:
+```bash
+chmod +x deploy.sh
+```
