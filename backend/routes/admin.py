@@ -20,6 +20,8 @@ from models.schemas import (
     UserPromptUpdate,
     UpdateUserModelRequest,
     AdminSetPositionRequest,
+    PositionCreate,
+    PositionUpdate,
     POSITIONS,
 )
 from middleware.auth import get_current_user, is_admin, hash_password
@@ -494,8 +496,10 @@ async def update_user_position(
     db = get_db()
 
     position = data.position
-    if position is not None and position not in POSITIONS:
-        raise HTTPException(status_code=400, detail=f"Invalid position. Allowed: {', '.join(POSITIONS)}")
+    if position is not None:
+        exists = await db.positions.find_one({"value": position})
+        if not exists:
+            raise HTTPException(status_code=400, detail=f"Invalid position: '{position}'")
 
     user = await db.users.find_one({"id": user_id}, {"_id": 0})
     if not user:
@@ -508,10 +512,80 @@ async def update_user_position(
     return {"message": "Position updated", "position": position}
 
 
+async def seed_default_positions(db):
+    """Seed positions collection with defaults if empty."""
+    count = await db.positions.count_documents({})
+    if count == 0:
+        defaults = [
+            {"id": str(uuid.uuid4()), "value": "CEO",      "label": "CEO"},
+            {"id": str(uuid.uuid4()), "value": "COO",      "label": "COO"},
+            {"id": str(uuid.uuid4()), "value": "CRO",      "label": "CRO"},
+            {"id": str(uuid.uuid4()), "value": "DeptHead",  "label": "Руководитель отдела"},
+            {"id": str(uuid.uuid4()), "value": "Employee",  "label": "Сотрудник"},
+            {"id": str(uuid.uuid4()), "value": "Tutor",     "label": "Тьютор"},
+        ]
+        await db.positions.insert_many(defaults)
+        logger.info(f"✓ Seeded {len(defaults)} default positions")
+
+
+@router.get("/positions")
+async def list_positions_public(current_user: dict = Depends(get_current_user)):
+    """All authenticated users can fetch the positions list (needed by Library page)."""
+    db = get_db()
+    positions = await db.positions.find({}, {"_id": 0}).to_list(200)
+    return positions
+
+
 @router.get("/admin/positions")
 async def list_positions(current_user: dict = Depends(require("users", "read"))):
-    """Return the closed list of valid positions (for admin/library dropdowns)."""
-    return {"positions": POSITIONS}
+    """Admin: full list of positions from DB."""
+    db = get_db()
+    positions = await db.positions.find({}, {"_id": 0}).to_list(200)
+    return positions
+
+
+@router.post("/admin/positions")
+async def create_position(data: PositionCreate, current_user: dict = Depends(require("users", "update"))):
+    """Admin: create a new position."""
+    db = get_db()
+    value = data.value.strip()
+    label = data.label.strip()
+    if not value or not label:
+        raise HTTPException(status_code=400, detail="value and label are required")
+    existing = await db.positions.find_one({"value": value})
+    if existing:
+        raise HTTPException(status_code=400, detail=f"Position '{value}' already exists")
+    position = {"id": str(uuid.uuid4()), "value": value, "label": label}
+    await db.positions.insert_one(position)
+    return {k: v for k, v in position.items() if k != "_id"}
+
+
+@router.put("/admin/positions/{position_id}")
+async def update_position(position_id: str, data: PositionUpdate, current_user: dict = Depends(require("users", "update"))):
+    """Admin: update a position's display label."""
+    db = get_db()
+    label = data.label.strip()
+    if not label:
+        raise HTTPException(status_code=400, detail="label is required")
+    result = await db.positions.find_one_and_update(
+        {"id": position_id},
+        {"$set": {"label": label}},
+        return_document=True,
+        projection={"_id": 0},
+    )
+    if not result:
+        raise HTTPException(status_code=404, detail="Position not found")
+    return result
+
+
+@router.delete("/admin/positions/{position_id}")
+async def delete_position(position_id: str, current_user: dict = Depends(require("users", "update"))):
+    """Admin: delete a position."""
+    db = get_db()
+    result = await db.positions.delete_one({"id": position_id})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Position not found")
+    return {"message": "Position deleted"}
 
 
 @router.post("/admin/users/{user_id}/reset-password")

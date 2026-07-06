@@ -27,6 +27,15 @@ class AdminSetPositionRequest(BaseModel):
     position: Optional[str] = None  # one of POSITIONS, or None to clear
 
 
+class PositionCreate(BaseModel):
+    value: str   # e.g. "SalesManager"
+    label: str   # e.g. "Менеджер по продажам"
+
+
+class PositionUpdate(BaseModel):
+    label: str   # only label is editable; value is the stored key
+
+
 # ==================== AUTH MODELS ====================
 
 class UserCreate(BaseModel):

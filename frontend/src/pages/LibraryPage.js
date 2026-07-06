@@ -16,16 +16,7 @@ import { useAuth } from '../contexts/AuthContext';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
-const POSITION_OPTIONS = [
-  { value: 'CEO', label: 'CEO' },
-  { value: 'COO', label: 'COO' },
-  { value: 'CRO', label: 'CRO' },
-  { value: 'DeptHead', label: 'Руководитель отдела' },
-  { value: 'Employee', label: 'Сотрудник' },
-  { value: 'Tutor', label: 'Тьютор' },
-];
-
-const POSITION_LABELS = POSITION_OPTIONS.reduce((acc, p) => { acc[p.value] = p.label; return acc; }, {});
+// Positions are loaded dynamically from the API (see useEffect in LibraryPage)
 
 const formatBytes = (bytes) => {
   if (!bytes) return '';
@@ -47,6 +38,8 @@ const LibraryPage = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [departments, setDepartments] = useState([]);   // departments the user can share to
   const [search, setSearch] = useState('');
+  const [positionOptions, setPositionOptions] = useState([]);
+  const [positionLabels, setPositionLabels] = useState({});
 
   // Upload dialog
   const [uploadOpen, setUploadOpen] = useState(false);
@@ -89,6 +82,7 @@ const LibraryPage = () => {
   useEffect(() => {
     fetchItems();
     fetchDepartments();
+    fetchPositions();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -100,6 +94,17 @@ const LibraryPage = () => {
       toast.error('Не удалось загрузить библиотеку');
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const fetchPositions = async () => {
+    try {
+      const res = await axios.get(`${API}/positions`);
+      const list = res.data || [];
+      setPositionOptions(list);
+      setPositionLabels(list.reduce((acc, p) => { acc[p.value] = p.label; return acc; }, {}));
+    } catch {
+      // silently fall back to empty list
     }
   };
 

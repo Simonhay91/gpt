@@ -6,6 +6,21 @@ UI версия: `frontend/src/data/changelog.js`
 
 ---
 
+## 2026-07-06 — v2.9.65
+
+**Feature: dynamic positions management**
+
+- `backend/models/schemas.py` — new `PositionCreate`, `PositionUpdate` Pydantic models
+- `backend/routes/admin.py` — `seed_default_positions()`, `GET/POST /api/admin/positions`, `PUT/DELETE /api/admin/positions/{id}`, `GET /api/positions` (public auth), position assignment now validates against DB
+- `backend/server.py` — call `seed_default_positions` on startup
+- `frontend/src/pages/AdminPositionsPage.js` — new page: list / create / edit / delete positions
+- `frontend/src/pages/LibraryPage.js` — fetch positions from `/api/positions` instead of hardcoded array
+- `frontend/src/pages/AdminUserDetailPage.js` — fetch positions from `/api/admin/positions`
+- `frontend/src/App.js` — route `/admin/positions`
+- `frontend/src/components/DashboardLayout.js` — «Должности» nav link, import Briefcase icon
+
+---
+
 ## 2026-07-06 — v2.9.64
 
 **Fix: Tutor position missing from Library book position selector**

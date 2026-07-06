@@ -118,6 +118,7 @@ from services.file_processor import (
 )
 from middleware.auth import get_current_user, is_admin
 from middleware.permissions import seed_system_roles
+from routes.admin import seed_default_positions
 
 # File storage settings
 UPLOAD_DIR = ROOT_DIR / "uploads"
@@ -393,6 +394,9 @@ async def startup_event():
 
     # Seed system roles and back-fill roleId for existing users
     await seed_system_roles(db)
+
+    # Seed default positions if collection is empty
+    await seed_default_positions(db)
 
     # Ensure MongoDB indexes exist (best-effort, never blocks startup)
     try:

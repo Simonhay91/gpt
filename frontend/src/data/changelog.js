@@ -1,6 +1,16 @@
-export const APP_VERSION = "2.9.64";
+export const APP_VERSION = "2.9.65";
 
 export const CHANGELOG = [
+  {
+    version: "2.9.65",
+    date: "Июль 2026",
+    badge: "new",
+    changes: [
+      "Должности теперь динамические: admin может создавать, редактировать и удалять любые должности из UI",
+      "Новый раздел Admin → Должности (/admin/positions)",
+      "Библиотека и карточка пользователя загружают список должностей из базы данных",
+    ]
+  },
   {
     version: "2.9.64",
     date: "Июль 2026",
