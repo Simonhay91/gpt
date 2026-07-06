@@ -6,6 +6,14 @@ UI версия: `frontend/src/data/changelog.js`
 
 ---
 
+## 2026-07-06 — v2.9.64
+
+**Fix: Tutor position missing from Library book position selector**
+
+- `frontend/src/pages/LibraryPage.js` — добавлен `{ value: 'Tutor', label: 'Тьютор' }` в `POSITION_OPTIONS`
+
+---
+
 ## 2026-07-06 — v2.9.63
 
 **Feature: Admin Tutors section**

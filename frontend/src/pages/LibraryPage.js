@@ -22,6 +22,7 @@ const POSITION_OPTIONS = [
   { value: 'CRO', label: 'CRO' },
   { value: 'DeptHead', label: 'Руководитель отдела' },
   { value: 'Employee', label: 'Сотрудник' },
+  { value: 'Tutor', label: 'Тьютор' },
 ];
 
 const POSITION_LABELS = POSITION_OPTIONS.reduce((acc, p) => { acc[p.value] = p.label; return acc; }, {});

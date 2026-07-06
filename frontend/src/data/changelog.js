@@ -1,6 +1,14 @@
-export const APP_VERSION = "2.9.63";
+export const APP_VERSION = "2.9.64";
 
 export const CHANGELOG = [
+  {
+    version: "2.9.64",
+    date: "Июль 2026",
+    badge: "fix",
+    changes: [
+      "Должность «Тьютор» добавлена в список позиций при назначении книг в библиотеке",
+    ]
+  },
   {
     version: "2.9.63",
     date: "Июль 2026",
