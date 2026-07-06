@@ -6,6 +6,17 @@ UI версия: `frontend/src/data/changelog.js`
 
 ---
 
+## 2026-07-06 — v2.9.66
+
+**Revert dynamic positions + add Procurement**
+
+- Reverted v2.9.65 dynamic positions system (removed DB collection, CRUD API, AdminPositionsPage)
+- `backend/models/schemas.py` — added `PROCUREMENT = "Procurement"` to PositionEnum
+- `frontend/src/pages/LibraryPage.js` — hardcoded POSITION_OPTIONS restored + Procurement added
+- `frontend/src/pages/AdminUserDetailPage.js` — hardcoded positions restored + Procurement added
+
+---
+
 ## 2026-07-06 — v2.9.65
 
 **Feature: dynamic positions management**

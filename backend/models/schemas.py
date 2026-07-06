@@ -14,6 +14,7 @@ class PositionEnum(str, Enum):
     DEPT_HEAD = "DeptHead"
     EMPLOYEE = "Employee"
     TUTOR = "Tutor"
+    PROCUREMENT = "Procurement"
 
 
 # Allowed position values (closed list). Frontend dropdowns mirror this.
@@ -25,15 +26,6 @@ C_SUITE_POSITIONS = {PositionEnum.CEO.value, PositionEnum.COO.value, PositionEnu
 
 class AdminSetPositionRequest(BaseModel):
     position: Optional[str] = None  # one of POSITIONS, or None to clear
-
-
-class PositionCreate(BaseModel):
-    value: str   # e.g. "SalesManager"
-    label: str   # e.g. "Менеджер по продажам"
-
-
-class PositionUpdate(BaseModel):
-    label: str   # only label is editable; value is the stored key
 
 
 # ==================== AUTH MODELS ====================

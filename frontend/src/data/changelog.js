@@ -1,6 +1,15 @@
-export const APP_VERSION = "2.9.65";
+export const APP_VERSION = "2.9.66";
 
 export const CHANGELOG = [
+  {
+    version: "2.9.66",
+    date: "Июль 2026",
+    badge: "fix",
+    changes: [
+      "Должности снова hardcoded — откат динамической системы",
+      "Добавлена должность «Procurement» во все списки должностей",
+    ]
+  },
   {
     version: "2.9.65",
     date: "Июль 2026",

@@ -31,8 +31,7 @@ import {
   Flag,
   Library,
   GraduationCap,
-  Shield,
-  Briefcase
+  Shield
 } from 'lucide-react';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
@@ -217,11 +216,6 @@ const DashboardLayout = ({ children }) => {
       name: 'Тьюторы',
       path: '/admin/tutors',
       icon: GraduationCap
-    });
-    navItems.push({
-      name: 'Должности',
-      path: '/admin/positions',
-      icon: Briefcase
     });
     navItems.push({
       name: t('nav.auditLogs'),

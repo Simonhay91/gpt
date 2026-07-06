@@ -48,7 +48,16 @@ const AdminUserDetailPage = () => {
   const [selectedRoleId, setSelectedRoleId] = useState('');
   const [isSavingRole, setIsSavingRole] = useState(false);
 
-  const [positions, setPositions] = useState([{ value: '', label: 'Не задана' }]);
+  const positions = [
+    { value: '', label: 'Не задана' },
+    { value: 'CEO', label: 'CEO' },
+    { value: 'COO', label: 'COO' },
+    { value: 'CRO', label: 'CRO' },
+    { value: 'DeptHead', label: 'Руководитель отдела' },
+    { value: 'Employee', label: 'Сотрудник' },
+    { value: 'Tutor', label: 'Тьютор' },
+    { value: 'Procurement', label: 'Procurement' },
+  ];
 
   const gptModels = [
     { value: '', label: 'По умолчанию (глобальная настройка)' },
@@ -61,7 +70,6 @@ const AdminUserDetailPage = () => {
   useEffect(() => {
     fetchUserDetails();
     fetchRoles();
-    fetchPositions();
   }, [userId]);
 
   const fetchUserDetails = async () => {
@@ -88,16 +96,6 @@ const AdminUserDetailPage = () => {
       setAvailableRoles(res.data || []);
     } catch {
       // silently fail
-    }
-  };
-
-  const fetchPositions = async () => {
-    try {
-      const res = await axios.get(`${API}/admin/positions`);
-      const list = res.data || [];
-      setPositions([{ value: '', label: 'Не задана' }, ...list.map(p => ({ value: p.value, label: p.label }))]);
-    } catch {
-      // silently fall back to default
     }
   };
 

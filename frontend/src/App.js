@@ -37,7 +37,6 @@ import AdminRolesPage from './pages/AdminRolesPage';
 import LibraryPage from './pages/LibraryPage';
 import TutorPage from './pages/TutorPage';
 import AdminTutorsPage from './pages/AdminTutorsPage';
-import AdminPositionsPage from './pages/AdminPositionsPage';
 
 // Protected Route Component
 const ProtectedRoute = ({ children }) => {
@@ -195,11 +194,6 @@ function AppRoutes() {
       <Route path="/admin/tutors" element={
         <AdminRoute>
           <AdminTutorsPage />
-        </AdminRoute>
-      } />
-      <Route path="/admin/positions" element={
-        <AdminRoute>
-          <AdminPositionsPage />
         </AdminRoute>
       } />
       <Route path="/admin/audit-logs" element={
