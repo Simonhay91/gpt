@@ -6,6 +6,19 @@ UI версия: `frontend/src/data/changelog.js`
 
 ---
 
+## 2026-07-06 — v2.9.63
+
+**Feature: Admin Tutors section**
+
+- `backend/models/schemas.py` — добавлена позиция `TUTOR = "Tutor"` в `PositionEnum`
+- `backend/routes/admin.py` — новый endpoint `GET /api/admin/tutors` (список пользователей с position=Tutor)
+- `frontend/src/pages/AdminTutorsPage.js` — новая страница: список тьюторов, создание, сброс пароля, удаление
+- `frontend/src/App.js` — маршрут `/admin/tutors`
+- `frontend/src/components/DashboardLayout.js` — ссылка «Тьюторы» в сайдбаре для admin
+- `frontend/src/pages/AdminUserDetailPage.js` — добавлен вариант «Тьютор» в dropdown должностей
+
+---
+
 ## 2026-06-11 — v2.9.62
 
 **Fix: user bubble text visibility + project memory limit increase**

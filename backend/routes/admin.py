@@ -292,6 +292,31 @@ async def admin_list_users(current_user: dict = Depends(require("users", "read")
     return result
 
 
+@router.get("/admin/tutors")
+async def admin_list_tutors(current_user: dict = Depends(require("users", "read"))):
+    """Admin gets list of all users whose position is Tutor"""
+    db = get_db()
+    users = await db.users.find(
+        {"ai_profile.position": "Tutor"},
+        {"_id": 0, "passwordHash": 0}
+    ).to_list(1000)
+
+    result = []
+    for user in users:
+        usage = await db.token_usage.find_one({"userId": user["id"]}, {"_id": 0})
+        total_tokens = usage.get("totalTokens", 0) if usage else 0
+        message_count = usage.get("messageCount", 0) if usage else 0
+        result.append({
+            "id": user["id"],
+            "email": user["email"],
+            "isAdmin": is_admin(user["email"]),
+            "createdAt": user["createdAt"],
+            "totalTokensUsed": total_tokens,
+            "totalMessagesCount": message_count,
+        })
+    return result
+
+
 @router.delete("/admin/users/{user_id}")
 async def admin_delete_user(user_id: str, current_user: dict = Depends(require("users", "delete"))):
     """Admin deletes a user - CASCADE DELETE all related data + writes audit log"""

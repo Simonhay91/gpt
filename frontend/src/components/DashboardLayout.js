@@ -213,6 +213,11 @@ const DashboardLayout = ({ children }) => {
       icon: Shield
     });
     navItems.push({
+      name: 'Тьюторы',
+      path: '/admin/tutors',
+      icon: GraduationCap
+    });
+    navItems.push({
       name: t('nav.auditLogs'),
       path: '/admin/audit-logs',
       icon: ScrollText

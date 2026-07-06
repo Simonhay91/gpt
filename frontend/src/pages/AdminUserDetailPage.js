@@ -55,6 +55,7 @@ const AdminUserDetailPage = () => {
     { value: 'CRO', label: 'CRO' },
     { value: 'DeptHead', label: 'Руководитель отдела' },
     { value: 'Employee', label: 'Сотрудник' },
+    { value: 'Tutor', label: 'Тьютор' },
   ];
 
   const gptModels = [

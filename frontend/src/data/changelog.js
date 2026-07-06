@@ -1,6 +1,16 @@
-export const APP_VERSION = "2.9.62";
+export const APP_VERSION = "2.9.63";
 
 export const CHANGELOG = [
+  {
+    version: "2.9.63",
+    date: "Июль 2026",
+    badge: "new",
+    changes: [
+      "Новый раздел Admin: Тьюторы — создание и управление пользователями с должностью «Тьютор»",
+      "Должность «Тьютор» добавлена в список должностей (backend + admin UI)",
+      "Новый endpoint GET /api/admin/tutors — список всех пользователей с позицией Tutor",
+    ]
+  },
   {
     version: "2.9.62",
     date: "Июнь 2026",

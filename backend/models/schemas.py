@@ -13,6 +13,7 @@ class PositionEnum(str, Enum):
     CRO = "CRO"
     DEPT_HEAD = "DeptHead"
     EMPLOYEE = "Employee"
+    TUTOR = "Tutor"
 
 
 # Allowed position values (closed list). Frontend dropdowns mirror this.
